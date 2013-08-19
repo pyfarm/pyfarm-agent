@@ -19,11 +19,6 @@ from warnings import warn
 
 from sqlalchemy.engine.url import URL
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
-
 from pyfarm.ext.config.core.loader import Loader
 from pyfarm.error import PreferencesNotFoundError, DBConfigError
 from pyfarm.warning import DBConfigWarning
