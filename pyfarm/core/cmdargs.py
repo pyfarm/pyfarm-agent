@@ -20,6 +20,7 @@ base functions and initial setup of argument parsing for the project.
 
 import argparse
 
+
 def tobool(value):
     """converts the incoming value to a boolean"""
     if isinstance(value, bool): return value
@@ -28,7 +29,7 @@ def tobool(value):
     elif value.lower() in ("true", "yes", "1"): return True
     else:
         raise TypeError("failed to convert %s to a boolean value" % value)
-# end tobool
+
 
 def tolist(value):
     """converts the incoming value to a list"""
@@ -39,7 +40,7 @@ def tolist(value):
             return [ value ]
     else:
         raise TypeError("failed to convert %s to a list" % value)
-# end tolist
+
 
 def evalnone(value):
     """
@@ -49,13 +50,13 @@ def evalnone(value):
     if isinstance(value, (str, unicode)) and value in ('none', 'None', 'NONE', 'null'):
         return None
     return value
-# end evalnone
+
 
 def printOptions(options, log):
     """prints out the keys and values being applied to the options"""
     for key, value in vars(options).iteritems():
         log("%s: %s" % (key, value))
-# end printOptions
+
 
 # common argument handling setup
 parser = argparse.ArgumentParser()
