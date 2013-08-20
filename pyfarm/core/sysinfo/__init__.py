@@ -24,11 +24,11 @@ the package.
 # NOTE: OperatingSystemInfo should be instanced first so other subpackages can
 # use it
 
-from pyfarm.system.osdata import OperatingSystemInfo
-from pyfarm.system.memory import MemoryInfo
-from pyfarm.system.network import NetworkInfo
-from pyfarm.system.processor import ProcessorInfo
-from pyfarm.system.user import username, isAdmin
+from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
+from pyfarm.core.sysinfo.memory import MemoryInfo
+from pyfarm.core.sysinfo.network import NetworkInfo
+from pyfarm.core.sysinfo.processor import ProcessorInfo
+from pyfarm.core.sysinfo.user import username, isAdmin
 
 osinfo = OperatingSystemInfo()
 meminfo = MemoryInfo()
