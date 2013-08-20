@@ -26,9 +26,9 @@ from __future__ import with_statement
 
 import os
 import stat
-import shutil
 import tempfile
 import threading
+from warnings import warn
 from StringIO import StringIO
 
 try:
@@ -36,28 +36,21 @@ try:
 except ImportError:
     import simplejson as json
 
+from pyfarm.core.warning import CompatibilityWarning
+
 THREAD_RLOCK = threading.RLock()
 SESSION_DIRECTORY = None
 DEFAULT_DIRECTORY_PREFIX = os.environ.get("PYFARM_TMP_PREFIX", "pyfarm-")
 DEFAULT_PERMISSIONS = stat.S_IRWXU|stat.S_IRWXG
 
-# Placeholders that are called internally
-# so they can be overridden by an extension.
-makedirs = os.makedirs
-remove = os.remove
-copy = shutil.copy
-copy2 = shutil.copy
-rmtree = shutil.rmtree
-copytree = shutil.copytree
-chdir = os.chdir
-chmod = os.chmod
-
 try:
-    chown = os.chown
+    _chown = os.chown
 except AttributeError:
     # TODO: need to write a windows equivalent with win32api
-    chown = lambda *args, **kwargs: None
+    _chown = lambda *args, **kwargs: None
+    warn("windows does not implement chown()", CompatibilityWarning)
 
+os.chown = _chown
 
 class TempFile(file):
 
