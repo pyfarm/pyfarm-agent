@@ -31,18 +31,15 @@ import tempfile
 import threading
 from StringIO import StringIO
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
 THREAD_RLOCK = threading.RLock()
 SESSION_DIRECTORY = None
 DEFAULT_DIRECTORY_PREFIX = os.environ.get("PYFARM_TMP_PREFIX", "pyfarm-")
 DEFAULT_PERMISSIONS = stat.S_IRWXU|stat.S_IRWXG
-
-
-try:
-    from yaml import CLoader as YAMLLoader
-except ImportError:
-    from yaml import Loader as YAMLLoader
-
-from yaml import load as _yamlLoad, dump as _yamlDump
 
 # Placeholders that are called internally
 # so they can be overridden by an extension.
@@ -94,7 +91,7 @@ class TempFile(file):
             os.remove(self.name)
 
 
-def yamlLoad(source):
+def json_load(source):
     """
     Loads data from the provided file stream, stream like object, or file
     path.
@@ -113,22 +110,22 @@ def yamlLoad(source):
         raise TypeError("expected a filepath, file, or StringIO object")
 
     try:
-        return _yamlLoad(source, Loader=YAMLLoader)
+        return json.load(source.read())
 
     finally:
         source.close()
 
 
-def yamlDump(data, path=None, pretty=False):
+def json_dump(data, path=None, pretty=False):
     """
-    dumps data to the requested file path
+    dump data to the requested file path
 
     :param data:
         The data we're attempting to dump.  The type input to this
-        parameter can be anything yaml itself can normally handle.
+        parameter can be anything json can normally handle.
 
     :param str path:
-        the path to dump the yaml file to
+        the path to dump the json file to
 
     :param bool pretty:
         if True then dump the data in a more human readable form
@@ -137,7 +134,7 @@ def yamlDump(data, path=None, pretty=False):
         returns the path we dumped the data to
     """
     if path is None:
-        stream = TempFile(suffix=".yml", delete=False)
+        stream = TempFile(suffix=".json", delete=False)
 
     elif isinstance(path, basestring):
         dirname = os.path.dirname(path)
@@ -152,12 +149,8 @@ def yamlDump(data, path=None, pretty=False):
     elif not isinstance(path, basestring):
         raise TypeError("expected a string for `path`")
 
-    # arguments to pass to the dumper
-    args = [data, stream]
-    kwargs = {"default_flow_style": False, "indent": 4} if pretty else {}
-
     try:
-        _yamlDump(*args, **kwargs)
+        json.dump(data, stream, indent=4 if pretty else None)
         return stream.name
 
     finally:
