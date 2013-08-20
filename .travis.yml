@@ -8,4 +8,4 @@ install:
   - pip install nose "psutil>=1.0.0" netifaces netaddr --use-mirrors
   - pip install . --use-mirrors
 script:
-  - nosetest -s --verbose tests
+  - nosetests -s --verbose tests
