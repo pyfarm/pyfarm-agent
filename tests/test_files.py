@@ -23,10 +23,10 @@ import stat
 import tempfile
 
 from nose.tools import raises
-
 from utcore import TestCase, skip_on_ci
-from pyfarm.ext import files
-from pyfarm.ext.files import TempFile, yamlLoad, yamlDump
+
+from pyfarm.core import files
+from pyfarm.core.files import TempFile, json_load, json_dump
 
 
 class TmpFile(TestCase):
@@ -76,17 +76,17 @@ class TmpFile(TestCase):
 class DumpYaml(TestCase):
     @raises(TypeError)
     def test_error(self):
-        yamlDump("", lambda: None)
+        json_dump("", lambda: None)
 
     def test_tmppath(self):
-        dump_path = yamlDump("")
+        dump_path = json_dump("")
         self.assertTrue(dump_path.endswith(".yml"))
         self.assertEqual(os.path.dirname(dump_path), files.SESSION_DIRECTORY)
 
     def test_path(self):
         d = self.mktempdir()
         expected_dump_path = os.path.join(d, "foo", "foo.yml")
-        dump_path = yamlDump("", path=expected_dump_path)
+        dump_path = json_dump("", path=expected_dump_path)
         self.assertTrue(os.path.isdir(os.path.dirname(expected_dump_path)))
         self.assertEqual(dump_path, expected_dump_path)
 
@@ -94,18 +94,18 @@ class DumpYaml(TestCase):
 class LoadYaml(TestCase):
     @raises(TypeError)
     def test_error(self):
-        yamlLoad(lambda: None)
+        json_load(lambda: None)
 
     def test_path(self):
         data = os.environ.data.copy()
-        dumped_path = yamlDump(data)
-        self.assertEqual(yamlLoad(dumped_path), data)
+        dumped_path = json_dump(data)
+        self.assertEqual(json_load(dumped_path), data)
         
     def test_stream(self):
         data = os.environ.data.copy()
-        dumped_path = yamlDump(data)
+        dumped_path = json_dump(data)
         s = open(dumped_path, "r")
-        self.assertEqual(yamlLoad(s), data)
+        self.assertEqual(json_load(s), data)
         self.assertTrue(s.closed)
 
 
@@ -189,8 +189,7 @@ class Which(TestCase):
     def test_path(self):
         fh, filename = tempfile.mkstemp(
             prefix="pyfarm-", suffix=".sh",
-            dir=files.tempdir()
-        )
+            dir=files.tempdir())
 
         with open(filename, "w") as stream:
             pass
