@@ -153,7 +153,7 @@ def json_dump(data, path=None, pretty=False):
         stream.close()
 
 
-def tempdir(unique=False, respect_env=True, mode=DEFAULT_PERMISSIONS):
+def tempdir(respect_env=True, mode=DEFAULT_PERMISSIONS):
     """
     Returns a temporary directory that will exist and have the requested
     permission(s).
@@ -179,13 +179,9 @@ def tempdir(unique=False, respect_env=True, mode=DEFAULT_PERMISSIONS):
         os.chmod(dirname, mode)
         return dirname
     else:
-        if unique:
-            dirname = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
-            os.chmod(dirname, mode)
-            return dirname
-
-        else:
-            return SESSION_DIRECTORY
+        dirname = tempfile.mkdtemp(dir=SESSION_DIRECTORY)
+        os.chmod(dirname, mode)
+        return dirname
 
 
 def expandpath(path):
