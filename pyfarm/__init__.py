@@ -14,4 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NOTE: this file is a placheholder only so the package will properly install
+# NOTE: this file is a plache holder only so the package will properly install
