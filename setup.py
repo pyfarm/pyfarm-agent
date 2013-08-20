@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from setuptools import find_packages
 from distutils.core import setup
 
@@ -21,7 +22,13 @@ PACKAGE = "pyfarm.core"
 NAMESPACE = PACKAGE.split(".")[0]
 prefixpkg = lambda name: "%s.%s" % (NAMESPACE, name)
 
+install_requires = []
+
+if sys.version_info[0:2] < (2, 7):
+    install_requires.append("simplejson")
+
 setup(
     name=PACKAGE,
     packages=map(prefixpkg, find_packages(NAMESPACE)),
-    namespace_packages=[NAMESPACE])
+    namespace_packages=[NAMESPACE],
+    install_requires=install_requires)
