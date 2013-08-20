@@ -173,21 +173,21 @@ def tempdir(unique=False, respect_env=True, mode=DEFAULT_PERMISSIONS):
         dirname = os.environ["PYFARM_TMP"]
 
         if not os.path.isdir(dirname):
-            makedirs(dirname)
+            os.makedirs(dirname)
 
-        chmod(dirname, mode)
+        os.chmod(dirname, mode)
         return dirname
     else:
         if unique:
             dirname = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
-            chmod(dirname, mode)
+            os.chmod(dirname, mode)
             return dirname
 
         else:
             with THREAD_RLOCK:
                 if SESSION_DIRECTORY is None:
                     path = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
-                    chmod(path, mode)
+                    os.chmod(path, mode)
                     SESSION_DIRECTORY = path
 
                 return SESSION_DIRECTORY
