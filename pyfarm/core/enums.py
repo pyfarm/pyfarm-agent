@@ -14,10 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+from warnings import warn
+
 try:
     from collections import namedtuple as _namedtuple
 except ImportError:
     from pyfarm.core.backports import namedtuple as _namedtuple
+
+from pyfarm.core.warning import NotImplementedWarning
 
 # base class setup
 _OperatingSystem = _namedtuple(
@@ -37,6 +42,23 @@ WorkState = _WorkState(
     PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8, DONE=9, FAILED=10)
 AgentState = _AgentState(
     OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
+
+
+def _getOS():
+    """returns the current operating system"""
+    if sys.platform.startswith("linux"):
+        return OperatingSystem.LINUX
+    elif sys.platform.startswith("win"):
+        return OperatingSystem.WINDOWS
+    elif sys.platform.startswith("darwin"):
+        return OperatingSystem.MAC
+    else:
+        warn("unknown operating system: %s" % sys.platform,
+             NotImplementedWarning)
+        return OperatingSystem.OTHER
+
+
+OS = _getOS()
 
 
 def checkForDuplicates():
