@@ -24,7 +24,7 @@ except NameError:
 
 from nose.tools import raises
 from utcore import TestCase
-from pyfarm.utility import floatrange, convert, randstr, randint, rounded
+from pyfarm.core.utility import floatrange, convert, randstr, randint, rounded
 
 RAND_TEST_COUNT = 75000
 
@@ -75,8 +75,7 @@ class Range(TestCase):
 
     @raises(ValueError)
     def test_range_by_error(self):
-        with self.assertRaises(ValueErrr):
-            floatrange(5, by=0)
+        floatrange(5, by=0)
 
     def test_intrange_start(self):
         self.assertEqual(list(floatrange(5)), list(_range(5)))
