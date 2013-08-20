@@ -1,2 +1,11 @@
 language: python
-install: curl https://raw.github.com/pyfarm/pyfarm-ci/master/travis/pyfarm-core/install.sh -o install.sh && ./install.sh
+python:
+  - 2.5
+  - 2.6
+  - 2.7
+install:
+  - if [[ $TRAVIS_PYTHON_VERSION != '2.7' ]]; then pip install unittest2 simplejson --use-mirrors ; fi
+  - pip install nose "psutil>=1.0.0" netifaces netaddr --use-mirrors
+  - pip install . --use-mirrors
+script:
+  - nosetest -s --verbose tests
