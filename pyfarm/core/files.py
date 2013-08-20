@@ -96,15 +96,20 @@ def json_load(source):
     """
     if isinstance(source, basestring):
         source = open(source, 'r')
+        try:
+            return json.loads(source.read())
+
+        finally:
+            source.close()
 
     elif not isinstance(source, (file, StringIO)):
         raise TypeError("expected a filepath, file, or StringIO object")
 
-    try:
-        return json.load(source.read())
-
-    finally:
-        source.close()
+    else:
+        try:
+            return json.loads(source.read())
+        finally:
+            source.close()
 
 
 def json_dump(data, path=None, pretty=False):
