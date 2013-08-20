@@ -25,7 +25,7 @@ import time
 import tempfile
 
 import psutil
-from pyfarm.ext.config.enum import OperatingSystem as OperatingSystemEnum
+from pyfarm.core.enums import OS, OperatingSystem
 
 
 class OperatingSystemInfo(object):
@@ -59,13 +59,12 @@ class OperatingSystemInfo(object):
     :attr CASE_SENSITIVE:
         set to True if the filesystem is case sensitive
     """
-    _enum = OperatingSystemEnum()
-    OS = _enum.get()
-    IS_LINUX = OS == _enum.LINUX
-    IS_WINDOWS = OS == _enum.WINDOWS
-    IS_MAC = OS == _enum.MAC
-    IS_OTHER = OS == _enum.OTHER
-    IS_POSIX = OS in (_enum.LINUX, _enum.MAC)
+    OS = OS
+    IS_LINUX = OS == OperatingSystem.LINUX
+    IS_WINDOWS = OS == OperatingSystem.WINDOWS
+    IS_MAC = OS == OperatingSystem.MAC
+    IS_OTHER = OS == OperatingSystem.OTHER
+    IS_POSIX = OS in (OperatingSystem.LINUX, OperatingSystem.MAC)
     CASE_SENSITIVE = None
 
     def __init__(self):
