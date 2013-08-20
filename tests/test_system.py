@@ -27,7 +27,7 @@ from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import osinfo, netinfo, cpuinfo, meminfo, username
 
 
-class OperatingSystem(TestCase):
+class BaseSystem(TestCase):
     def test_user(self):
         try:
             import pwd
@@ -64,6 +64,7 @@ class OperatingSystem(TestCase):
             self.assertEqual(osinfo.CASE_SENSITIVE, True)
 
         self.remove(path)
+
 
 class Network(TestCase):
     def test_packets_sent(self):
