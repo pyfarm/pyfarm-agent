@@ -26,10 +26,9 @@ import socket
 import netaddr
 import psutil
 
-from pyfarm.ext.config.core.loader import Loader
-from pyfarm.utility import convert
-from pyfarm.error import NetworkError
-from pyfarm.warning import NetworkWarning
+from pyfarm.core.utility import convert
+from pyfarm.core.error import NetworkError
+from pyfarm.core.warning import NetworkWarning
 
 
 class NetworkInfo(object):
@@ -42,7 +41,6 @@ class NetworkInfo(object):
     """
     def __init__(self):
         self._cached_ip = None
-        self.config = Loader("network.yml")
 
     @property
     def _iocounter(self):
