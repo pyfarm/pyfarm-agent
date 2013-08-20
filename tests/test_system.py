@@ -21,10 +21,10 @@ import psutil
 import tempfile
 import netifaces
 
-from utcore import TestCase, skip_on_ci
-from pyfarm.ext.utility import convert
-from pyfarm.ext.config.enum import OperatingSystem as _OperatingSystem
-from pyfarm.ext.system import osinfo, netinfo, cpuinfo, meminfo, username
+from utcore import TestCase
+from pyfarm.core.utility import convert
+from pyfarm.core.enums import OS, OperatingSystem
+from pyfarm.core.sysinfo import osinfo, netinfo, cpuinfo, meminfo, username
 
 
 class OperatingSystem(TestCase):
@@ -45,15 +45,13 @@ class OperatingSystem(TestCase):
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_classvars(self):
-        osenum = _OperatingSystem()
-        _os = osenum.get()
-        self.assertEqual(osinfo.OS, _os)
-        self.assertEqual(osinfo.IS_LINUX, _os == osenum.LINUX)
-        self.assertEqual(osinfo.IS_WINDOWS, _os == osenum.WINDOWS)
-        self.assertEqual(osinfo.IS_MAC, _os == osenum.MAC)
-        self.assertEqual(osinfo.IS_OTHER, _os == osenum.OTHER)
+        self.assertEqual(osinfo.OS, OS)
+        self.assertEqual(osinfo.IS_LINUX, OS == OperatingSystem.LINUX)
+        self.assertEqual(osinfo.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
+        self.assertEqual(osinfo.IS_MAC, OS == OperatingSystem.MAC)
+        self.assertEqual(osinfo.IS_OTHER, OS == OperatingSystem.OTHER)
         self.assertEqual(osinfo.IS_POSIX,
-                         _os in (osenum.LINUX, osenum.MAC))
+                         OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
 
     def test_case_sensitive(self):
         fid, path = tempfile.mkstemp()
