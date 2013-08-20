@@ -73,7 +73,7 @@ class TmpFile(TestCase):
             self.assertTrue(base.endswith(".txt"))
 
 
-class DumpYaml(TestCase):
+class DumpJson(TestCase):
     @raises(TypeError)
     def test_error(self):
         json_dump("", lambda: None)
@@ -81,7 +81,7 @@ class DumpYaml(TestCase):
     def test_tmppath(self):
         dump_path = json_dump("")
         self.assertTrue(dump_path.endswith(".json"))
-        self.assertEqual(os.path.dirname(dump_path), files.SESSION_DIRECTORY)
+        self.assertTrue(dump_path.startswith(files.SESSION_DIRECTORY))
 
     def test_path(self):
         d = self.mktempdir()
@@ -91,7 +91,7 @@ class DumpYaml(TestCase):
         self.assertEqual(dump_path, expected_dump_path)
 
 
-class LoadYaml(TestCase):
+class LoadJson(TestCase):
     @raises(TypeError)
     def test_error(self):
         json_load(lambda: None)
@@ -111,28 +111,25 @@ class LoadYaml(TestCase):
 
 class TmpFile(TestCase):
     def test_session(self):
-        sessiondir = files.tempdir(unique=False)
-        self.assertEqual(files.tempdir(unique=False), sessiondir)
-        self.assertEqual(files.tempdir(unique=False), files.SESSION_DIRECTORY)
-        self.assertEqual(sessiondir, files.SESSION_DIRECTORY)
+        self.assertTrue(files.tempdir().startswith(files.SESSION_DIRECTORY))
 
     def test_envvar(self):
         os.environ["PYFARM_TMP"] = self.mktempdir()
         self.assertEqual(files.tempdir(respect_env=True),
                          os.environ["PYFARM_TMP"])
-        self.assertEqual(files.tempdir(respect_env=False),
+        self.assertEqual(os.path.dirname(files.tempdir(respect_env=False)),
                          files.SESSION_DIRECTORY)
 
     def test_unique(self):
         self.assertNotEqual(
-            files.tempdir(respect_env=False, unique=True),
-            files.tempdir(respect_env=False, unique=True))
+            files.tempdir(respect_env=False),
+            files.tempdir(respect_env=False))
 
     def test_mode(self):
-        st_mode = os.stat(files.tempdir(unique=True)).st_mode
+        st_mode = os.stat(files.tempdir()).st_mode
         self.assertEqual(stat.S_IMODE(st_mode), files.DEFAULT_PERMISSIONS)
         mode = stat.S_IRWXU
-        st_mode = os.stat(files.tempdir(unique=True, mode=mode)).st_mode
+        st_mode = os.stat(files.tempdir(mode=mode)).st_mode
         self.assertEqual(stat.S_IMODE(st_mode), mode)
 
 
