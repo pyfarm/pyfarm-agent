@@ -27,7 +27,6 @@ from __future__ import with_statement
 import os
 import stat
 import tempfile
-import threading
 from warnings import warn
 from StringIO import StringIO
 
@@ -38,9 +37,8 @@ except ImportError:
 
 from pyfarm.core.warning import CompatibilityWarning
 
-THREAD_RLOCK = threading.RLock()
-SESSION_DIRECTORY = None
 DEFAULT_DIRECTORY_PREFIX = os.environ.get("PYFARM_TMP_PREFIX", "pyfarm-")
+SESSION_DIRECTORY = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
 DEFAULT_PERMISSIONS = stat.S_IRWXU|stat.S_IRWXG
 
 try:
@@ -167,8 +165,6 @@ def tempdir(unique=False, respect_env=True, mode=DEFAULT_PERMISSIONS):
         if `$PYFARM_TMP` is not provided and this value is True then create and
         return a single directory for the entire Python session.
     """
-    global SESSION_DIRECTORY
-
     if respect_env and "PYFARM_TMP" in os.environ:
         dirname = os.environ["PYFARM_TMP"]
 
@@ -184,13 +180,7 @@ def tempdir(unique=False, respect_env=True, mode=DEFAULT_PERMISSIONS):
             return dirname
 
         else:
-            with THREAD_RLOCK:
-                if SESSION_DIRECTORY is None:
-                    path = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
-                    os.chmod(path, mode)
-                    SESSION_DIRECTORY = path
-
-                return SESSION_DIRECTORY
+            return SESSION_DIRECTORY
 
 
 def expandpath(path):
