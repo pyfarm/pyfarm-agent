@@ -65,6 +65,10 @@ class TestCase(unittest.TestCase):
                 cls.temp_directories.remove(path)
 
     @classmethod
+    def setUpClass(cls):
+        cls.ORIGINAL_ENVIRONMENT = os.environ.copy()
+
+    @classmethod
     def mktempdir(cls):
         tempdir = tempfile.mkdtemp(prefix=cls.TEMPDIR_PREFIX)
         cls.temp_directories.add(tempdir)
@@ -72,6 +76,8 @@ class TestCase(unittest.TestCase):
 
     def setUp(self):
         self.tempdir = self.mktempdir()
+        os.environ.clear()
+        os.environ.update(self.ORIGINAL_ENVIRONMENT)
 
     def tearDown(self):
         self.remove(self.tempdir)
