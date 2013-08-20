@@ -80,12 +80,12 @@ class DumpYaml(TestCase):
 
     def test_tmppath(self):
         dump_path = json_dump("")
-        self.assertTrue(dump_path.endswith(".yml"))
+        self.assertTrue(dump_path.endswith(".json"))
         self.assertEqual(os.path.dirname(dump_path), files.SESSION_DIRECTORY)
 
     def test_path(self):
         d = self.mktempdir()
-        expected_dump_path = os.path.join(d, "foo", "foo.yml")
+        expected_dump_path = os.path.join(d, "foo", "foo.json")
         dump_path = json_dump("", path=expected_dump_path)
         self.assertTrue(os.path.isdir(os.path.dirname(expected_dump_path)))
         self.assertEqual(dump_path, expected_dump_path)
