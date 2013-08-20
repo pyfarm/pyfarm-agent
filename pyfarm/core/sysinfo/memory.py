@@ -20,7 +20,7 @@ and general capacity information.
 """
 
 import psutil
-from pyfarm.utility import convert
+from pyfarm.core.utility import convert
 
 
 class MemoryInfo(object):
