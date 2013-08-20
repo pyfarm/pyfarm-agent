@@ -1,0 +1,2 @@
+language: python
+install: curl https://raw.github.com/pyfarm/pyfarm-ci/master/travis/pyfarm-core/install.sh -o install.sh && ./install.sh
