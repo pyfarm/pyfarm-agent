@@ -30,8 +30,9 @@ try:
 except ImportError:
     import getpass
 
-from pyfarm.system.osdata import OperatingSystemInfo
+from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
 osinfo = OperatingSystemInfo()
+
 
 def username():
     """
