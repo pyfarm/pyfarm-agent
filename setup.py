@@ -43,6 +43,7 @@ setup(
     author_email="development@pyfarm.net",
     description=dedent("""This sub-library contains core modules, classes,
     and data types which are used by other parts of PyFarm."""),
+    long_description=open("README.rst", "r").read(),
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Environment :: Other Environment",
