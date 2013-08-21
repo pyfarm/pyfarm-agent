@@ -22,7 +22,7 @@ from setuptools import find_packages
 from distutils.core import setup
 
 PACKAGE = "pyfarm.core"
-VERSION = (0, 0, 0, "alpha0")
+VERSION = (1, 0, 0, "pre-alpha0")
 NAMESPACE = PACKAGE.split(".")[0]
 prefixpkg = lambda name: "%s.%s" % (NAMESPACE, name)
 
