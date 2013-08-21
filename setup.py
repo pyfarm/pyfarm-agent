@@ -24,13 +24,7 @@ from textwrap import dedent
 from setuptools import find_packages
 from distutils.core import setup
 
-PACKAGE = "pyfarm.core"
-VERSION = (1, 0, 0, "dev0")
-NAMESPACE = PACKAGE.split(".")[0]
-prefixpkg = lambda name: "%s.%s" % (NAMESPACE, name)
-
 install_requires = ["statsd"]
-
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
 
@@ -41,10 +35,10 @@ else:
     long_description = ""
 
 setup(
-    name=PACKAGE,
-    version=".".join(map(str, VERSION)),
-    packages=map(prefixpkg, find_packages(NAMESPACE)),
-    namespace_packages=[NAMESPACE],
+    name="pyfarm.core",
+    version="1.0.0dev0",
+    packages=map(lambda name: "pyfarm.%s" % name, find_packages("pyfarm")),
+    namespace_packages=["pyfarm"],
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-core",
     license="Apache v2.0",
