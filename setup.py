@@ -14,15 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import with_statement
+
 import sys
 assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
 
+from os.path import isfile
 from textwrap import dedent
 from setuptools import find_packages
 from distutils.core import setup
 
 PACKAGE = "pyfarm.core"
-VERSION = (1, 0, 0, "dev")
+VERSION = (1, 0, 0, "dev0")
 NAMESPACE = PACKAGE.split(".")[0]
 prefixpkg = lambda name: "%s.%s" % (NAMESPACE, name)
 
@@ -30,6 +33,12 @@ install_requires = ["statsd"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
+
+if isfile("README.rst"):
+    with open("README.rst", "r") as readme:
+        long_description = readme.read()
+else:
+    long_description = ""
 
 setup(
     name=PACKAGE,
@@ -43,7 +52,7 @@ setup(
     author_email="development@pyfarm.net",
     description=dedent("""This sub-library contains core modules, classes,
     and data types which are used by other parts of PyFarm."""),
-    long_description=open("README.rst", "r").read(),
+    long_description=long_description,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Environment :: Other Environment",
