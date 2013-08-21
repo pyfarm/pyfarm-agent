@@ -15,6 +15,9 @@
 # limitations under the License.
 
 import sys
+assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
+
+from textwrap import dedent
 from setuptools import find_packages
 from distutils.core import setup
 
@@ -33,4 +36,22 @@ setup(
     version=".".join(map(str, VERSION)),
     packages=map(prefixpkg, find_packages(NAMESPACE)),
     namespace_packages=[NAMESPACE],
-    install_requires=install_requires)
+    install_requires=install_requires,
+    url="https://github.com/pyfarm/pyfarm-core",
+    license="Apache v2.0",
+    author="Oliver Palmer",
+    author_email="development@pyfarm.net",
+    description=dedent("""This sub-library contains core modules, classes,
+    and data types which are used by other parts of PyFarm."""),
+    classifiers=[
+        "Development Status :: 2 - Pre-Alpha",
+        "Environment :: Other Environment",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Natural Language :: English",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 2 :: Only",  # (for now)
+        "Programming Language :: Python :: 2.5",
+        "Programming Language :: Python :: 2.6",
+        "Programming Language :: Python :: 2.7",
+        "Topic :: System :: Distributed Computing"])
