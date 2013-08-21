@@ -19,16 +19,18 @@ from setuptools import find_packages
 from distutils.core import setup
 
 PACKAGE = "pyfarm.core"
+VERSION = (0, 0, 0, "alpha0")
 NAMESPACE = PACKAGE.split(".")[0]
 prefixpkg = lambda name: "%s.%s" % (NAMESPACE, name)
 
-install_requires = []
+install_requires = ["statsd"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
 
 setup(
     name=PACKAGE,
+    version=".".join(map(str, VERSION)),
     packages=map(prefixpkg, find_packages(NAMESPACE)),
     namespace_packages=[NAMESPACE],
     install_requires=install_requires)
