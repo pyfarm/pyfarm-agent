@@ -19,7 +19,6 @@ This sub-library contains core modules, classes, and data types which are
 used by other parts of the project.  Overall this library contains:
     * core exceptions and warnings
     * system information submodule
-    * configuration loader and parser
     * file operations wrappers and classes
     * base command line wrapper
     * other general utilities
@@ -30,10 +29,4 @@ Installation Note
 The installation of this module does not ensure all its dependencies are met.
 As an example sqlalchemy is required for part of the ``core.config`` module
 however that specific module is only required for the admin interface and
-master.  Because of this, the following modules are not required for
-installation because it's assumed they will be installed by another part
-of the project:
-    * PyYaml
-    * sqlalchemy
-    * psutil
-    * appdirs
+master.
