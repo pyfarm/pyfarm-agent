@@ -83,6 +83,7 @@ class Network(TestCase):
         self.assertEqual(netinfo.dataSent() >= v, True)
 
     def test_data_recv(self):
+        raise Exception(psutil.net_io_counters(pernic=True))
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[netinfo.interface()].bytes_recv)
         self.assertEqual(netinfo.dataReceived() >= v, True)
