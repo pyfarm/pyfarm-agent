@@ -21,7 +21,7 @@ import psutil
 import tempfile
 import netifaces
 
-from utcore import TestCase
+from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import osinfo, netinfo, cpuinfo, meminfo, username
@@ -83,7 +83,6 @@ class Network(TestCase):
         self.assertEqual(netinfo.dataSent() >= v, True)
 
     def test_data_recv(self):
-        raise Exception(psutil.net_io_counters(pernic=True))
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[netinfo.interface()].bytes_recv)
         self.assertEqual(netinfo.dataReceived() >= v, True)
@@ -114,6 +113,7 @@ class Network(TestCase):
         addresses = map(netifaces.ifaddresses, names)
         self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
 
+    @skip_on_ci
     def test_interface(self):
         self.assertEqual(any(
             i.get("addr") == netinfo.ip()
