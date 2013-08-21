@@ -151,7 +151,9 @@ class NetworkInfo(object):
             addresses = netifaces.ifaddresses(interface).get(socket.AF_INET, [])
             for address in addresses:
                 if address.get("addr") == addr:
-                    return interface
+                    # in some cases we can get non-standard names
+                    # off of the name, select the first name only
+                    return interface.split(":")[0]
 
         raise ValueError(
             "could not determine network interface for `%s`" % addr)
