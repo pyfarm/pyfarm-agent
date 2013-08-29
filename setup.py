@@ -36,7 +36,7 @@ else:
 
 setup(
     name="pyfarm.core",
-    version="1.0.0-dev1",
+    version="1.0.0-dev2",
     packages=map(lambda name: "pyfarm.%s" % name, find_packages("pyfarm")),
     namespace_packages=["pyfarm"],
     install_requires=install_requires,
