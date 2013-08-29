@@ -21,7 +21,7 @@ assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
 
 from os.path import isfile
 from textwrap import dedent
-from distutils.core import setup
+from setuptools import setup
 
 install_requires = []
 if sys.version_info[0:2] < (2, 7):
@@ -35,7 +35,7 @@ else:
 
 setup(
     name="pyfarm.core",
-    version="1.0.0-dev2",
+    version="1.0.0-dev3",
     packages=["pyfarm", "pyfarm.core", "pyfarm.core.sysinfo"],
     namespace_packages=["pyfarm"],
     install_requires=install_requires,
