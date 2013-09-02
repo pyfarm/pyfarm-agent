@@ -15,11 +15,11 @@
 # limitations under the License.
 
 """
-Low level module responsible for working with and resolving
-information related to paths.  This module should be accessed by using
-the import hooks:
+File Operations
+===============
 
->>> from pyfarm.ext.files import TempFile
+Low level module responsible for working with and resolving information
+related to file paths
 """
 
 from __future__ import with_statement

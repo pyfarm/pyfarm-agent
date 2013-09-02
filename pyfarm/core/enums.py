@@ -14,6 +14,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Enums
+=====
+
+Provides enum values for certain aspect of PyFarm.  See below for more
+detailed information.
+
+.. csv-table:: **OperatingSystem**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    LINUX, operating system on agent is a Linux variant
+    WINDOWS, operating system on agent is a Windows variant
+    MAC, operating system on agent is an Apple OS variant
+
+.. csv-table:: **WorkState**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    PAUSED, this task cannot be assigned right now but can be once unpaused
+    BLOCKED, this task cannot be assigned to an agent at this point in time
+    QUEUED, waiting on queue to assign this work
+    ASSIGN, work has been assigned to an agent but is waiting to start
+    RUNNING, work is currently being processed
+    DONE, work is finished (previous failures may be present)
+    FAILED, work as failed and cannot be continued
+
+.. csv-table:: **AgentState**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    OFFLINE, agent cannot be reached
+    ONLINE, agent is waiting for work
+    DISABLED, agent is online but cannot accept work
+    RUNNING, agent is currently processing work
+
+.. csv-table:: **JobTypeLoadType**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    DOWNLOAD, download the jobtype file from a url
+    OPEN, open the jobtype file from a url
+    IMPORT, import the jobtype from the given string (ex. `foo.bar.ClassName`)
+"""
+
 import sys
 from warnings import warn
 
@@ -34,6 +79,9 @@ _WorkState = _namedtuple(
 _AgentState = _namedtuple(
     "AgentState",
     ["OFFLINE", "ONLINE", "DISABLED", "RUNNING"])
+_JobTypeLoadType = _namedtuple(
+    "JobTypeLoadType",
+    ["DOWNLOAD", "OPEN", "IMPORT"])
 
 # instance and apply values
 OperatingSystem = _OperatingSystem(
@@ -42,7 +90,8 @@ WorkState = _WorkState(
     PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8, DONE=9, FAILED=10)
 AgentState = _AgentState(
     OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
-
+JobTypeLoadType = _JobTypeLoadType(
+    DOWNLOAD=15, OPEN=16, IMPORT=17)
 
 def _getOS():
     """returns the current operating system"""

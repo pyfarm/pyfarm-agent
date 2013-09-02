@@ -15,7 +15,10 @@
 # limitations under the License.
 
 """
-base functions and initial setup of argument parsing for the project.
+Command Line Wrapper
+====================
+
+Base functions and initial setup of argument parsing for the project.
 """
 
 import argparse

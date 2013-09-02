@@ -15,6 +15,9 @@
 # limitations under the License.
 
 """
+Network
+-------
+
 Returns information about the network including ip address, dns, data
 sent/received, and some error information.
 """

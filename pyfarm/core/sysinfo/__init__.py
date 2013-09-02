@@ -19,6 +19,18 @@ Top level module which provides information about the operating system,
 system memory, network, and processor related information.  Unlike other
 modules in PyFarm this module is not generally meant to be overridden outside
 the package.
+
+:attr osinfo:
+    module level instance of :class:`.OperatingSystemInfo`
+
+:attr meminfo:
+    module level instance of :class:`.MemoryInfo`
+
+:attr cpuinfo:
+    module level instance of :class:`.ProcessorInfo`
+
+:attr netinfo:
+    module level instance of :class:`.NetworkInfo`
 """
 
 # NOTE: OperatingSystemInfo should be instanced first so other subpackages can

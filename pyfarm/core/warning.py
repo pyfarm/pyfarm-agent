@@ -15,8 +15,10 @@
 # limitations under the License.
 
 """
-Contains warning classes which PyFarm may emit during
-execution
+Warnings
+========
+
+Contains warning classes which PyFarm may emit during execution
 """
 
 

@@ -14,6 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Configuration Object
+====================
+
+Basic module used for changing and storing configuration values used by all
+modules at execution time.
+"""
+
 NOTSET = object()
 
 

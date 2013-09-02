@@ -14,7 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""stores all custom errors which can be raised by pyfarm"""
+"""
+Custom Exceptions
+=================
+
+Stores all custom errors which can be raised by PyFarm.
+"""
 
 
 class PyFarmError(Exception):

@@ -15,6 +15,9 @@
 # limitations under the License.
 
 """
+Memory
+------
+
 Returns information about memory including swap usage, system memory usage,
 and general capacity information.
 """
