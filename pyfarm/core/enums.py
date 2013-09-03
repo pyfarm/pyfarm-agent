@@ -50,7 +50,7 @@ detailed information.
     DISABLED, agent is online but cannot accept work
     RUNNING, agent is currently processing work
 
-.. csv-table:: **JobTypeLoadType**
+.. csv-table:: **JobTypeLoadMode**
     :header: Attribute, Description
     :widths: 10, 50
 
@@ -79,8 +79,8 @@ _WorkState = _namedtuple(
 _AgentState = _namedtuple(
     "AgentState",
     ["OFFLINE", "ONLINE", "DISABLED", "RUNNING"])
-_JobTypeLoadType = _namedtuple(
-    "JobTypeLoadType",
+_JobTypeLoadMode = _namedtuple(
+    "JobTypeLoadMode",
     ["DOWNLOAD", "OPEN", "IMPORT"])
 
 # instance and apply values
@@ -90,7 +90,7 @@ WorkState = _WorkState(
     PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8, DONE=9, FAILED=10)
 AgentState = _AgentState(
     OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
-JobTypeLoadType = _JobTypeLoadType(
+JobTypeLoadMode = _JobTypeLoadMode(
     DOWNLOAD=15, OPEN=16, IMPORT=17)
 
 def _getOS():
