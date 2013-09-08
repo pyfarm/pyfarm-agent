@@ -35,7 +35,7 @@ else:
 
 setup(
     name="pyfarm.jobtypes",
-    version="1.0.0-dev0",
+    version="0.7.0-dev0",
     packages=["pyfarm", "pyfarm.jobtypes"],
     namespace_packages=["pyfarm"],
     install_requires=install_requires,
