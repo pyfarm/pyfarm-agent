@@ -63,35 +63,40 @@ import sys
 from warnings import warn
 
 try:
-    from collections import namedtuple as _namedtuple
-except ImportError:
-    from pyfarm.core.backports import namedtuple as _namedtuple
+    from collections import namedtuple
+except ImportError:  # pragma: no cover
+    from pyfarm.core.backports import namedtuple
 
 from pyfarm.core.warning import NotImplementedWarning
 
-# base class setup
-_OperatingSystem = _namedtuple(
-    "OperatingSystem",
-    ["LINUX", "WINDOWS", "MAC", "OTHER"])
-_WorkState = _namedtuple(
-    "WorkState",
-    ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING", "DONE", "FAILED"])
-_AgentState = _namedtuple(
-    "AgentState",
-    ["OFFLINE", "ONLINE", "DISABLED", "RUNNING"])
-_JobTypeLoadMode = _namedtuple(
-    "JobTypeLoadMode",
-    ["DOWNLOAD", "OPEN", "IMPORT"])
+
+class _OperatingSystem(namedtuple(
+    "OperatingSystem", ["LINUX", "WINDOWS", "MAC", "OTHER"])):
+    """base class for OperatingSystem"""
+
+
+class _WorkState(namedtuple(
+    "WorkState", ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING",
+                  "DONE", "FAILED"])):
+    """base class for WorkState"""
+
+
+class _AgentState(namedtuple(
+    "AgentState", ["OFFLINE", "ONLINE", "DISABLED", "RUNNING"])):
+    """base class for AgentState"""
+
+
+class _JobTypeLoadMode(namedtuple(
+    "JobTypeLoadMode", ["DOWNLOAD", "OPEN", "IMPORT"])):
+    """base class for JobTypeLoadMode"""
+
 
 # instance and apply values
-OperatingSystem = _OperatingSystem(
-    LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
-WorkState = _WorkState(
-    PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8, DONE=9, FAILED=10)
-AgentState = _AgentState(
-    OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
-JobTypeLoadMode = _JobTypeLoadMode(
-    DOWNLOAD=15, OPEN=16, IMPORT=17)
+OperatingSystem = _OperatingSystem(LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
+WorkState = _WorkState(PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8,
+                       DONE=9, FAILED=10)
+AgentState = _AgentState(OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
+JobTypeLoadMode = _JobTypeLoadMode(DOWNLOAD=15, OPEN=16, IMPORT=17)
 
 
 def _getOS():
