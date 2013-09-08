@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import with_statement
+
 import re
 import math
 
@@ -22,7 +24,6 @@ try:
 except NameError:
     _range = range
 
-from nose.tools import raises
 from utcore import TestCase
 from pyfarm.core.utility import floatrange, convert, randstr, randint, rounded
 
@@ -63,19 +64,23 @@ class Rounding(TestCase):
         self.assertEqual(rounded(math.pi, 2), 3.14)
         self.assertEqual(rounded(math.pi, 6), 3.141593)
 
-    @raises(TypeError)
     def test_rounded_places_type_error(self):
-        rounded(1.5, None)
+        with self.assertRaises(TypeError):
+            rounded(1.5, None)
+
+    def test_rounded_places_count(self):
+        with self.assertRaises(ValueError):
+            rounded(1.5, 0)
 
 
 class Range(TestCase):
-    @raises(ValueError)
     def test_range_end_error(self):
-        floatrange(2, 1)
+        with self.assertRaises(ValueError):
+            floatrange(2, 1)
 
-    @raises(ValueError)
     def test_range_by_error(self):
-        floatrange(5, by=0)
+        with self.assertRaises(ValueError):
+            floatrange(5, by=0)
 
     def test_intrange_start(self):
         self.assertEqual(list(floatrange(5)), list(_range(5)))

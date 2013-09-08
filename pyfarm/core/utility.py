@@ -30,7 +30,7 @@ from decimal import Decimal, ROUND_HALF_DOWN
 
 try:
     _range = xrange
-except NameError:
+except NameError:  # pragma: no cover
     _range = range
 
 
@@ -62,7 +62,7 @@ def rounded(value, places=4, rounding=ROUND_HALF_DOWN):
     if not isinstance(places, int):
         raise TypeError("expected an integer for `places`")
 
-    if not places >= 1:
+    if places < 1:
         raise ValueError("expected at least one decimal place for `places`")
 
     # rounding
