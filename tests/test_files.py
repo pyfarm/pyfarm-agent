@@ -90,6 +90,13 @@ class DumpJson(TestCase):
         self.assertTrue(os.path.isdir(os.path.dirname(expected_dump_path)))
         self.assertEqual(dump_path, expected_dump_path)
 
+    def test_file(self):
+        fileno, path = tempfile.mkstemp()
+
+        with open(path, "w") as stream:
+            result = json_dump({"foo": True}, stream)
+            self.assertEqual(result, stream.name)
+
 
 class LoadJson(TestCase):
     @raises(TypeError)
