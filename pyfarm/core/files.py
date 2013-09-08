@@ -76,7 +76,7 @@ class TempFile(file):
         was set in :meth:`__init__` and if so remove the file from disk
         """
         super(TempFile, self).close()
-        if self.__delete:
+        if self.__delete:  # pragma: no cover
             os.remove(self.name)
 
 
@@ -171,7 +171,7 @@ def tempdir(respect_env=True, mode=DEFAULT_PERMISSIONS):
     if respect_env and "PYFARM_TMP" in os.environ:
         dirname = os.environ["PYFARM_TMP"]
 
-        if not os.path.isdir(dirname):
+        if not os.path.isdir(dirname):  # pragma: no cover
             os.makedirs(dirname)
 
         os.chmod(dirname, mode)

@@ -69,3 +69,9 @@ class TestConfig(TestCase):
         cfg = Config()
         with self.assertRaises(AssertionError):
             cfg.update(None)
+
+    def test_iter(self):
+        data = {"true": True, "false": False}
+        cfg = Config(data)
+        self.assertEqual(
+            set(key for key in cfg), set(data.keys()))

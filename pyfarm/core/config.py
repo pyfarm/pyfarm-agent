@@ -35,14 +35,14 @@ class Config(object):
         assert isinstance(data, dict) or data is None, "bad type for `data`"
         self.__data = {} if data is None else data.copy()
 
-    def __repr__(self):
+    def __iter__(self):
+        return self.__data.__iter__()
+
+    def __repr__(self): # pragma: no cover
         return self.__data.__repr__()
 
     def __contains__(self, item):
         return self.__data.__contains__(item)
-
-    def __iter__(self):
-        return self.__data.__iter__()
 
     def items(self):
         """same as :meth:`dict.iteritems` in Python < 3.x"""
