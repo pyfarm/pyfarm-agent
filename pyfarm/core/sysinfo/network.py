@@ -204,7 +204,7 @@ class NetworkInfo(object):
 
             # depending on the system dns implementation
             # socket.gethostbyname might give us a loopback address
-            if netaddr.IPAddress(dnsip) in IP_LOOPBACK:
+            if netaddr.IPAddress(dnsip) in IP_LOOPBACK:  # pragma: no cover
                 dnsip = None
 
         except socket.gaierror:  # pragma: no cover
