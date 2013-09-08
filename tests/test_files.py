@@ -22,7 +22,6 @@ import uuid
 import stat
 import tempfile
 
-from nose.tools import raises
 from utcore import TestCase, skip_on_ci
 
 from pyfarm.core import files
@@ -74,9 +73,9 @@ class TmpFile(TestCase):
 
 
 class DumpJson(TestCase):
-    @raises(TypeError)
     def test_error(self):
-        json_dump("", lambda: None)
+        with self.assertRaises(TypeError):
+            json_dump("", lambda: None)
 
     def test_tmppath(self):
         dump_path = json_dump("")
@@ -99,9 +98,9 @@ class DumpJson(TestCase):
 
 
 class LoadJson(TestCase):
-    @raises(TypeError)
     def test_error(self):
-        json_load(lambda: None)
+        with self.assertRaises(TypeError):
+            json_load(lambda: None)
 
     def test_path(self):
         data = os.environ.data.copy()
@@ -147,15 +146,15 @@ class Expand(TestCase):
         expected = os.path.expanduser(os.path.expandvars(joined_files))
         self.assertEqual(files.expandpath(joined_files), expected)
 
-    @raises(EnvironmentError)
     def test_raise_enverror(self):
-        files.expandenv(str(uuid.uuid4()))
+        with self.assertRaises(EnvironmentError):
+            files.expandenv(str(uuid.uuid4()))
 
-    @raises(ValueError)
     def test_raise_valuerror(self):
-        var = str(uuid.uuid4())
-        os.environ[var] = ""
-        files.expandenv(var)
+        with self.assertRaises(ValueError):
+            var = str(uuid.uuid4())
+            os.environ[var] = ""
+            files.expandenv(var)
 
     def test_files_validation(self):
         envvars = {
@@ -186,9 +185,9 @@ class Expand(TestCase):
 
 
 class Which(TestCase):
-    @raises(OSError)
     def test_which_oserror(self):
-        files.which("<FOO>")
+        with self.assertRaises(OSError):
+            files.which("<FOO>")
 
     def test_path(self):
         fh, filename = tempfile.mkstemp(
