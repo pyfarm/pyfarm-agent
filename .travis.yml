@@ -7,8 +7,12 @@ python:
 install:
   - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install unittest2 simplejson --use-mirrors ; fi
   - pip install "psutil>=1.0.0" netifaces netaddr --use-mirrors
+  - pip install coverage python-coveralls --use-mirrors
   - pip install . --use-mirrors
 
 script:
   - pip freeze
   - nosetests -s --verbose tests
+
+after_success:
+  - coveralls
