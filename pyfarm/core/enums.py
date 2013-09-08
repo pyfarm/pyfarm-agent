@@ -93,6 +93,7 @@ AgentState = _AgentState(
 JobTypeLoadMode = _JobTypeLoadMode(
     DOWNLOAD=15, OPEN=16, IMPORT=17)
 
+
 def _getOS():
     """returns the current operating system"""
     if sys.platform.startswith("linux"):

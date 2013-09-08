@@ -32,7 +32,7 @@ from StringIO import StringIO
 
 try:
     import json
-except ImportError:
+except ImportError: # pragma: no cover
     import simplejson as json
 
 from pyfarm.core.warning import CompatibilityWarning
@@ -42,13 +42,11 @@ SESSION_DIRECTORY = tempfile.mkdtemp(prefix=DEFAULT_DIRECTORY_PREFIX)
 DEFAULT_PERMISSIONS = stat.S_IRWXU|stat.S_IRWXG
 
 try:
-    _chown = os.chown
-except AttributeError:
-    # TODO: need to write a windows equivalent with win32api
-    _chown = lambda *args, **kwargs: None
+    os.chown
+except AttributeError:  # pragma: no cover
+    os.chown = lambda *args, **kwargs: None
     warn("windows does not implement chown()", CompatibilityWarning)
 
-os.chown = _chown
 
 class TempFile(file):
 
