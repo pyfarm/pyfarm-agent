@@ -99,31 +99,17 @@ AgentState = _AgentState(OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
 JobTypeLoadMode = _JobTypeLoadMode(DOWNLOAD=15, OPEN=16, IMPORT=17)
 
 
-def _getOS():
-    """returns the current operating system"""
-    if sys.platform.startswith("linux"):
+def _getOS(platform=sys.platform):
+    """returns the operating system for the given platform"""
+    if platform.startswith("linux"):
         return OperatingSystem.LINUX
-    elif sys.platform.startswith("win"):
+    elif platform.startswith("win"):
         return OperatingSystem.WINDOWS
-    elif sys.platform.startswith("darwin"):
+    elif platform.startswith("darwin"):
         return OperatingSystem.MAC
     else:
-        warn("unknown operating system: %s" % sys.platform,
-             NotImplementedWarning)
+        warn("unknown operating system: %s" % platform, NotImplementedWarning)
         return OperatingSystem.OTHER
 
 
 OS = _getOS()
-
-
-def checkForDuplicates():
-    values = []
-    for name, value in globals().iteritems():
-        if hasattr(value, "_asdict") and not name.startswith("_"):
-            values.extend(value._asdict().values())
-
-    assert len(values) == len(set(values)), "repeated numbers found"
-
-# check for programmer error
-checkForDuplicates()
-del checkForDuplicates
