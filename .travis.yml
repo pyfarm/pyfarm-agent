@@ -12,7 +12,7 @@ install:
 
 script:
   - pip freeze
-  - nosetests -s --verbose tests
+  - nosetests -s --verbose --with-coverage --cover-package=pyfarm.core tests
 
 after_success:
   - coveralls
