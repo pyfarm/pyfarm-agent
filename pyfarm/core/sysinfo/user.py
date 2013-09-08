@@ -30,7 +30,7 @@ pwd, getpass = None, None
 try:
     import pwd
 
-except ImportError:
+except ImportError:  # pragma: no cover
     import getpass
 
 from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
@@ -45,13 +45,13 @@ def username():
     """
     if pwd is not None:
         return pwd.getpwuid(os.getuid())[0]
-    elif getpass is not None:
+    elif getpass is not None:  # pragma: no cover
         return getpass.getuser()
-    else:
+    else:  # pragma: no cover
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
 
 
-def isAdmin():
+def isAdmin():  # pragma: no cover
     """
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).

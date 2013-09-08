@@ -117,7 +117,7 @@ class NetworkInfo(object):
                 if addr is not None:
                     try:
                         ip = netaddr.IPAddress(addr)
-                    except ValueError:
+                    except ValueError:  # pragma: no cover
                         warn(
                             "could not convert %s to a valid IP object" % addr,
                             NetworkWarning)
@@ -158,7 +158,7 @@ class NetworkInfo(object):
                     # off of the name, select the first name only
                     return interface.split(":")[0]
 
-        raise ValueError(
+        raise ValueError(  # pragma: no cover
             "could not determine network interface for `%s`" % addr)
 
     def ip(self):
@@ -185,7 +185,7 @@ class NetworkInfo(object):
             interface = self.interface(address)
             try:
                 counter = counters[interface]
-            except KeyError:
+            except KeyError:  # pragma: no cover
                 bytes_sent, bytes_recv, packets_sent, packets_recv = 0, 0, 0, 0
             else:
                 bytes_sent = counter.bytes_sent
@@ -207,19 +207,20 @@ class NetworkInfo(object):
             if netaddr.IPAddress(dnsip) in IP_LOOPBACK:
                 dnsip = None
 
-        except socket.gaierror:
+        except socket.gaierror:  # pragma: no cover
             dnsip = None
 
-        if not sums and dnsip is None:
+        if not sums and dnsip is None:  # pragma: no cover
             raise NetworkError("no ip address found")
 
-        # sort addresses based on how 'acive' they appear
+        # sort addresses based on how 'active' they appear
         sums.sort(cmp=lambda a, b: 1 if a[1] > b[1] else -1, reverse=True)
 
         # if the most active address is not the address
         # that's mapped via dns, print a warning and return
         # the dns address
-        if dnsip is not None and sums and sums[0][0] != dnsip:
+        if (dnsip is not None
+                and sums and sums[0][0] != dnsip):  # pragma: no cover
             warn("DNS address != most active active address",
                  NetworkWarning)
 

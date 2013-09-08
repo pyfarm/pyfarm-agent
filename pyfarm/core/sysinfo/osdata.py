@@ -74,18 +74,16 @@ class OperatingSystemInfo(object):
         if self.__class__.CASE_SENSITIVE is None:
             fid, path = tempfile.mkstemp()
             exists = map(os.path.isfile, [path, path.lower(), path.upper()])
-            if not any(exists):
-                raise ValueError(
-                    "failed to determine if path was case sensitive")
-            elif all(exists):
+
+            if all(exists):  # pragma: no cover
                 self.__class__.CASE_SENSITIVE = False
 
-            elif exists.count(True) == 1:
+            elif exists.count(True) == 1:  # pragma: no cover
                 self.__class__.CASE_SENSITIVE = True
 
             try:
                 os.remove(path)
-            except:
+            except (IOError, OSError):  # pragma: no cover
                 pass
 
     def uptime(self):

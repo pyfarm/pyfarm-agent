@@ -28,7 +28,7 @@ try:
     from multiprocessing import cpu_count
     NUM_CPUS = cpu_count()
 
-except (ImportError, NotImplementedError):
+except (ImportError, NotImplementedError):  # pragma: no cover
     NUM_CPUS = psutil.NUM_CPUS
 
 
@@ -52,7 +52,7 @@ class ProcessorInfo(object):
         Returns the load across all cpus value from zero to one.  A value
         of 1.0 means the average load across all cpus is 100%.
         """
-        return psutil.cpu_percent(iterval) / self.NUM_CPUS
+        return psutil.cpu_percent(iterval) / self.NUM_CPUS  # pragma: no cover
 
     def userTime(self):
         """
@@ -87,5 +87,5 @@ class ProcessorInfo(object):
             cpu_times = psutil.cpu_times()
             if hasattr(cpu_times, "iowait"):
                 return psutil.cpu_times().iowait
-        except AttributeError:
+        except AttributeError:  # pragma: no cover
             return None
