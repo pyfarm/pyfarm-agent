@@ -29,6 +29,27 @@ detailed information.
     WINDOWS, operating system on agent is a Windows variant
     MAC, operating system on agent is an Apple OS variant
 
+
+.. csv-table:: **JobTypeLoadMode**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    DOWNLOAD, download the jobtype file from a url
+    OPEN, open the jobtype file from a url
+    IMPORT, import the jobtype from the given string (ex. `foo.bar.ClassName`)
+
+
+.. csv-table:: **AgentState**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    OFFLINE, agent cannot be reached
+    ONLINE, agent is waiting for work
+    DISABLED, agent is online but cannot accept work
+    RUNNING, agent is currently processing work
+    ALLOC, special internal state used when the agent entry is being built
+
+
 .. csv-table:: **WorkState**
     :header: Attribute, Description
     :widths: 10, 50
@@ -40,23 +61,7 @@ detailed information.
     RUNNING, work is currently being processed
     DONE, work is finished (previous failures may be present)
     FAILED, work as failed and cannot be continued
-
-.. csv-table:: **AgentState**
-    :header: Attribute, Description
-    :widths: 10, 50
-
-    OFFLINE, agent cannot be reached
-    ONLINE, agent is waiting for work
-    DISABLED, agent is online but cannot accept work
-    RUNNING, agent is currently processing work
-
-.. csv-table:: **JobTypeLoadMode**
-    :header: Attribute, Description
-    :widths: 10, 50
-
-    DOWNLOAD, download the jobtype file from a url
-    OPEN, open the jobtype file from a url
-    IMPORT, import the jobtype from the given string (ex. `foo.bar.ClassName`)
+    ALLOC, special internal state for a job or task entry is being built
 """
 
 import sys
@@ -71,32 +76,39 @@ from pyfarm.core.warning import NotImplementedWarning
 
 
 class _OperatingSystem(namedtuple(
-    "OperatingSystem", ["LINUX", "WINDOWS", "MAC", "OTHER"])):
+    "OperatingSystem",
+    ["LINUX", "WINDOWS", "MAC", "OTHER"])):
     """base class for OperatingSystem"""
 
+class _JobTypeLoadMode(namedtuple(
+    "JobTypeLoadMode",
+    ["DOWNLOAD", "OPEN", "IMPORT"])):
+        """base class for JobTypeLoadMode"""
+
+class _AgentState(namedtuple(
+    "AgentState",
+    ["OFFLINE", "ONLINE", "DISABLED", "RUNNING", "ALLOC"])):
+        """base class for AgentState"""
 
 class _WorkState(namedtuple(
-    "WorkState", ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING",
-                  "DONE", "FAILED"])):
+    "WorkState",
+    ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING", "DONE",
+     "FAILED", "ALLOC"])):
     """base class for WorkState"""
 
 
-class _AgentState(namedtuple(
-    "AgentState", ["OFFLINE", "ONLINE", "DISABLED", "RUNNING"])):
-    """base class for AgentState"""
+OperatingSystem = _OperatingSystem(
+    LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
 
+JobTypeLoadMode = _JobTypeLoadMode(
+    DOWNLOAD=4, OPEN=5, IMPORT=6)
 
-class _JobTypeLoadMode(namedtuple(
-    "JobTypeLoadMode", ["DOWNLOAD", "OPEN", "IMPORT"])):
-    """base class for JobTypeLoadMode"""
+AgentState = _AgentState(
+    OFFLINE=7, ONLINE=8, DISABLED=9, RUNNING=10, ALLOC=11)
 
-
-# instance and apply values
-OperatingSystem = _OperatingSystem(LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
-WorkState = _WorkState(PAUSED=4, BLOCKED=5, QUEUED=6, ASSIGN=7, RUNNING=8,
-                       DONE=9, FAILED=10)
-AgentState = _AgentState(OFFLINE=11, ONLINE=12, DISABLED=13, RUNNING=14)
-JobTypeLoadMode = _JobTypeLoadMode(DOWNLOAD=15, OPEN=16, IMPORT=17)
+WorkState = _WorkState(
+    PAUSED=12, BLOCKED=13, QUEUED=14, ASSIGN=15, RUNNING=16,
+    DONE=17, FAILED=18, ALLOC=19)
 
 
 def _getOS(platform=sys.platform):
