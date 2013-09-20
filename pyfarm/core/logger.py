@@ -37,7 +37,7 @@ ROOT_FORMAT = logging.Formatter(
     fmt="[%(asctime)s] %(name)"+str(NAME_SEP)+"s %(levelname)s - %(message)s",
     datefmt="%d/%b/%Y %H:%M:%S"
 )
-ROOT_HANDLER = logging.StreamHandler(stream=sys.stdout)
+ROOT_HANDLER = logging.StreamHandler(sys.stdout)
 ROOT_HANDLER.setFormatter(ROOT_FORMAT)
 
 # create the root logger and apply the handler
