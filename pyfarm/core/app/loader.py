@@ -21,6 +21,7 @@ Proxy
 Serves as a proxy object
 """
 
+import os
 from pyfarm.core.logger import getLogger
 
 logger = getLogger("core.app")
@@ -41,7 +42,7 @@ class PackageLoader(object):
     DEBUG = False
 
     # configuration data
-    CONFIG_CLASS = "Debug"  # TODO: use os.environ.get().capitalize()
+    CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
     LOADED_CONFIGURATIONS = []
     CONFIGURATION_MODULES = [
         "pyfarm.core.app.config.%(class)s"]
