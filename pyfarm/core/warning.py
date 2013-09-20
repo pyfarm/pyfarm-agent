@@ -40,6 +40,13 @@ class ConfigurationWarning(PyFarmWarning):
     """
 
 
+class EnvironmentWarning(ConfigurationWarning):
+    """
+    Emitted when there's a missing environment variable or the
+    variable contains data that may be not desirable.
+    """
+
+
 class DBConfigWarning(ConfigurationWarning):
     """
     Emitted when there's a problem that's specific
