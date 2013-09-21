@@ -32,4 +32,3 @@ class TestLogger(unittest.TestCase):
         self.assertFalse(logger.handlers)
         self.assertEqual(logger.propagate, 1)
         self.assertEqual(logger.level, DEFAULT_LEVEL)
-        
