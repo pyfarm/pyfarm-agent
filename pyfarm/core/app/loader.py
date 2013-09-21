@@ -71,9 +71,8 @@ class package(object):
         instead of being appended.
         """
         with cls.THREAD_LOCK:
-            if config in cls.CONFIGURATION_MODULES:
-                return
-            elif index is None:
+            logger.debug("adding configuration: %s" % config)
+            if index is None:
                 cls.CONFIGURATION_MODULES.append(config)
             else:
                 cls.CONFIGURATION_MODULES.insert(index, config)
