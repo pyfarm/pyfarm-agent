@@ -16,7 +16,7 @@
 
 import os
 import sys
-from utcore import unittest, TestCase
+from utcore import TestCase
 from pyfarm.core.app.loader import package
 
 Flask = None
@@ -40,12 +40,14 @@ if Flask is not None:
     class TestPackageLoader(TestCase):
         @classmethod
         def setUpClass(cls):
+            TestCase.setUpClass()
             cls._application = package._application
             cls._database = package._database
             cls._admin = package._admin
             cls._security = package._security
 
         def setUp(self):
+            super(TestPackageLoader).setUp()
             del package.CONFIGURATION_MODULES[:]
             del package.LOADED_CONFIGURATIONS[:]
             package._application = self._application
