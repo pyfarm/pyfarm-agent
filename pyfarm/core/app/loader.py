@@ -141,7 +141,6 @@ class package(object):
         with cls.THREAD_LOCK:
             if cls._security_datastore is None:
                 db = cls.database()
-                assert User and Role, "User and Role tables are required"
                 from flask.ext.security import SQLAlchemyUserDatastore
                 cls._security_datastore = SQLAlchemyUserDatastore(db,
                                                                   User, Role)
