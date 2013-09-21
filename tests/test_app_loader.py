@@ -29,6 +29,7 @@ else:
         from flask.ext.sqlalchemy import SQLAlchemy
         from flask.ext.security import Security, SQLAlchemyUserDatastore
         from flask.ext.admin import Admin
+
     except ImportError, e:
         Flask = None
         skip_message = "import failure: %s" % e
@@ -73,6 +74,42 @@ class TestPackageLoader(unittest.TestCase):
         db = package.database()
         self.assertIs(package._database, db)
         self.assertIsInstance(db, SQLAlchemy)
+
+    def test_instance_security_datastore(self):
+        with self.assertRaises(AssertionError):
+            package.security_datastore()
+
+        db = package.database()
+
+        class User(db.Model):
+            __tablename__ = "unittest_security_user"
+            id = db.Column(db.Integer, primary_key=True)
+
+        class Role(db.Model):
+            __tablename__ = "unittest_security_role"
+            id = db.Column(db.Integer, primary_key=True)
+
+        datastore = package.security_datastore(User, Role)
+        self.assertIs(package._security_datastore, datastore)
+        self.assertIsInstance(datastore, SQLAlchemyUserDatastore)
+
+    def test_instance_security(self):
+        with self.assertRaises(AssertionError):
+            package.security()
+
+        db = package.database()
+
+        class User(db.Model):
+            __tablename__ = "unittest_security_user"
+            id = db.Column(db.Integer, primary_key=True)
+
+        class Role(db.Model):
+            __tablename__ = "unittest_security_role"
+            id = db.Column(db.Integer, primary_key=True)
+
+        security = package.security(User, Role)
+        self.assertIs(package._security, security)
+        self.assertIsInstance(security, Security)
 
     def test_add_config_append(self):
         package.add_config("foo1")

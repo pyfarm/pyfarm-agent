@@ -58,6 +58,7 @@ class package(object):
     _database = None
     _admin = None
     _security = None
+    _security_datastore = None
 
     def __init__(self):
         raise NotImplementedError("this class should not be instanced")
@@ -114,11 +115,11 @@ class package(object):
                 logger.debug(
                     "loaded configuration(s): %s" % ", ".join(newly_loaded))
 
-            return cls._application
+        return cls._application
 
     @classmethod
     def database(cls):
-        """Instance or return a :class:`.SQLAlchemy` object"""
+        """Instance or return a :class:`flask_sqlalchemy.SQLAlchemy` object"""
         with cls.THREAD_LOCK:
             if cls._database is None:
                 app = cls.application()
@@ -129,4 +130,34 @@ class package(object):
                 logger.debug("instancing database")
                 cls._database = SQLAlchemy(app)
 
-            return cls._database
+        return cls._database
+
+    @classmethod
+    def security_datastore(cls, User=None, Role=None):
+        """
+        Instance and return a
+        :class:`flask_security.SQLAlchemyUserDatastore` object
+        """
+        with cls.THREAD_LOCK:
+            if cls._security_datastore is None:
+                db = cls.database()
+                assert User and Role, "User and Role tables are required"
+                from flask.ext.security import SQLAlchemyUserDatastore
+                cls._security_datastore = SQLAlchemyUserDatastore(db,
+                                                                  User, Role)
+
+        return cls._security_datastore
+
+    @classmethod
+    def security(cls, User=None, Role=None):
+        """
+        Instance and return a :class:`flask_security.Security` object.
+        """
+        with cls.THREAD_LOCK:
+            if cls._security is None:
+                app = cls.application()
+                datastore = cls.security_datastore(User=User, Role=Role)
+                from flask.ext.security import Security
+                cls._security = Security(app, datastore)
+
+        return cls._security
