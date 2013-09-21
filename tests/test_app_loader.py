@@ -16,7 +16,7 @@
 
 import os
 import sys
-from utcore import unittest
+from utcore import unittest, TestCase
 from pyfarm.core.app.loader import package
 
 Flask = None
@@ -36,7 +36,7 @@ else:
 
 
 @unittest.skipIf(Flask is None, skip_message)
-class TestPackageLoader(unittest.TestCase):
+class TestPackageLoader(TestCase):
     @classmethod
     def setUpClass(cls):
         cls._application = package._application
@@ -76,9 +76,6 @@ class TestPackageLoader(unittest.TestCase):
         self.assertIsInstance(db, SQLAlchemy)
 
     def test_instance_security_datastore(self):
-        with self.assertRaises(AssertionError):
-            package.security_datastore()
-
         db = package.database()
 
         class User(db.Model):
@@ -94,9 +91,6 @@ class TestPackageLoader(unittest.TestCase):
         self.assertIsInstance(datastore, SQLAlchemyUserDatastore)
 
     def test_instance_security(self):
-        with self.assertRaises(AssertionError):
-            package.security()
-
         db = package.database()
 
         class User(db.Model):
