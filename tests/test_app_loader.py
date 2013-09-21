@@ -56,9 +56,13 @@ class TestPackageLoader(unittest.TestCase):
             package.CONFIG_CLASS,
             os.environ.get("PYFARM_CONFIG", "Debug"))
 
-    def test_cannot_instance(self):
+    def test_cannot_instance_class(self):
         with self.assertRaises(NotImplementedError):
             package()
+
+    def test_instance_once(self):
+        self.assertIs(package.application(), package.application())
+        self.assertIs(package.database(), package.database())
 
     def test_instance_application(self):
         app = package.application()
@@ -70,6 +74,26 @@ class TestPackageLoader(unittest.TestCase):
         self.assertIs(package._database, db)
         self.assertIsInstance(db, SQLAlchemy)
 
-    def test_instance_once(self):
-        self.assertIs(package.application(), package.application())
-        self.assertIs(package.database(), package.database())
+    def test_add_config_append(self):
+        package.add_config("foo1")
+        package.add_config("foo2")
+        self.assertListEqual(package.CONFIGURATION_MODULES, ["foo1", "foo2"])
+
+    def test_add_config_insert(self):
+        package.add_config("foo1", 0)
+        package.add_config("foo2", 0)
+        self.assertListEqual(package.CONFIGURATION_MODULES, ["foo2", "foo1"])
+
+    def test_load_config(self):
+        package.add_config("pyfarm.core.app.config.Debug")
+        package.application()
+        self.assertIn(
+            "pyfarm.core.app.config.Debug", package.LOADED_CONFIGURATIONS)
+        self.assertNotIn(
+            "pyfarm.core.app.config.Debug", package.CONFIGURATION_MODULES)
+
+    def test_load_config_error(self):
+        package.add_config("foo")
+        package.application()
+        self.assertNotIn("foo", package.LOADED_CONFIGURATIONS)
+        self.assertIn("foo", package.CONFIGURATION_MODULES)
