@@ -25,7 +25,6 @@ of PyFarm.
 from __future__ import division
 
 import os
-import binascii
 from decimal import Decimal, ROUND_HALF_DOWN
 
 try:
@@ -36,7 +35,7 @@ except NameError:  # pragma: no cover
 
 def randstr():
     """returns a random hexidecimal string based on :func:`os.urandom`"""
-    return binascii.b2a_hex(os.urandom(6))
+    return os.urandom(6).encode("hex")
 
 
 def randint():
