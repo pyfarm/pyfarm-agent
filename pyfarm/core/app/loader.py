@@ -38,9 +38,6 @@ class PackageLoader(object):
         will be removed from this list and added
         to :var:`LOADED_CONFIGURATIONS`
     """
-    # decides which
-    DEBUG = False
-
     # configuration data
     CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
     LOADED_CONFIGURATIONS = []
