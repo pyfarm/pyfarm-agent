@@ -27,7 +27,9 @@ from pyfarm.core.logger import getLogger
 logger = getLogger("core.app")
 
 
-class PackageLoader(object):
+# we want a developer to treat this like an instanced
+# object so we're naming it like a normal variable...
+class package(object):
     """
     Serves as a proxy object so we are always guaranteed to have
     one and only one :class:`flask.Flask` instance.
@@ -37,6 +39,9 @@ class PackageLoader(object):
         from.  Once a configuration has been loaded the load string
         will be removed from this list and added
         to :var:`LOADED_CONFIGURATIONS`
+
+    .. warning::
+        this class is not meant to be instanced
     """
     # configuration data
     CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
@@ -49,53 +54,57 @@ class PackageLoader(object):
     _admin = None
     _security = None
 
-    def application(self):
-        if self._application is None:
+    def __init__(self):
+        raise NotImplementedError("this class should not be instanced")
+
+    @classmethod
+    def application(cls):
+        """Instance or return a :class:`.Flask` application object"""
+        if cls._application is None:
             # import here so we don't break other packages
             # that don't need this
             from flask import Flask
             logger.debug("instancing flask application")
-            self._application = Flask("PyFarm")
+            cls._application = Flask("PyFarm")
 
         # if any configurations exist, load them
         newly_loaded = []
-        configuration_count = len(self.CONFIGURATION_MODULES)
-        for config_template in self.CONFIGURATION_MODULES[:]:
-            config_string = config_template % {"class": self.CONFIG_CLASS}
+        configuration_count = len(cls.CONFIGURATION_MODULES)
+        for config_template in cls.CONFIGURATION_MODULES[:]:
+            config_string = config_template % {"class": cls.CONFIG_CLASS}
 
             # attempt to load the config
             try:
-                self._application.config.from_object(config_string)
+                cls._application.config.from_object(config_string)
 
             except ImportError:
                 logger.debug("cannot import config: %s" % config_string)
 
             else:
-                self.CONFIGURATION_MODULES.remove(config_template)
-                self.LOADED_CONFIGURATIONS.append(config_string)
+                cls.CONFIGURATION_MODULES.remove(config_template)
+                cls.LOADED_CONFIGURATIONS.append(config_string)
                 newly_loaded.append(config_string)
 
         # configurations exist, none were loaded
         if (configuration_count > 0
-            and configuration_count == len(self.CONFIGURATION_MODULES)):
+            and configuration_count == len(cls.CONFIGURATION_MODULES)):
             logger.error("failed to load any configurations")
         else:
             logger.debug(
                 "loaded configuration(s): %s" % ".".join(newly_loaded))
 
-        return self._application
+        return cls._application
 
-    def database(self):
-        if self._database is None:
-            app = self.application()
+    @classmethod
+    def database(cls):
+        """Instance or return a :class:`.SQLAlchemy` object"""
+        if cls._database is None:
+            app = cls.application()
 
             # import here so we don't break other packages
             # that don't need this
             from flask.ext.sqlalchemy import SQLAlchemy
             logger.debug("instancing database")
-            self._database = SQLAlchemy(app)
+            cls._database = SQLAlchemy(app)
 
-        return self._database
-
-
-package = PackageLoader()
+        return cls._database
