@@ -21,7 +21,9 @@ Proxy
 Serves as a proxy object
 """
 
+from __future__ import with_statement
 import os
+import threading
 from pyfarm.core.logger import getLogger
 
 logger = getLogger("core.app")
@@ -46,6 +48,7 @@ class package(object):
         from
     """
     # configuration data
+    THREAD_LOCK = threading.RLock()
     CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
     LOADED_CONFIGURATIONS = []
     CONFIGURATION_MODULES = []
@@ -66,59 +69,64 @@ class package(object):
         provided an index `config`` will be added at the provided location
         instead of being appended.
         """
-        if index is None:
-            cls.CONFIGURATION_MODULES.append(config)
-        else:
-            cls.CONFIGURATION_MODULES.insert(index, config)
+        with cls.THREAD_LOCK:
+            if config in cls.CONFIGURATION_MODULES:
+                return
+            elif index is None:
+                cls.CONFIGURATION_MODULES.append(config)
+            else:
+                cls.CONFIGURATION_MODULES.insert(index, config)
 
     @classmethod
     def application(cls):
         """Instance or return a :class:`.Flask` application object"""
-        if cls._application is None:
-            # import here so we don't break other packages
-            # that don't need this
-            from flask import Flask
-            logger.debug("instancing flask application")
-            cls._application = Flask("PyFarm")
+        with cls.THREAD_LOCK:
+            if cls._application is None:
+                # import here so we don't break other packages
+                # that don't need this
+                from flask import Flask
+                logger.debug("instancing flask application")
+                cls._application = Flask("PyFarm")
 
-        # if any configurations exist, load them
-        newly_loaded = []
-        configuration_count = len(cls.CONFIGURATION_MODULES)
-        for config_template in cls.CONFIGURATION_MODULES[:]:
-            config_string = config_template % {"class": cls.CONFIG_CLASS}
+            # if any configurations exist, load them
+            newly_loaded = []
+            configuration_count = len(cls.CONFIGURATION_MODULES)
+            for config_template in cls.CONFIGURATION_MODULES[:]:
+                config_string = config_template % {"class": cls.CONFIG_CLASS}
 
-            # attempt to load the config
-            try:
-                cls._application.config.from_object(config_string)
+                # attempt to load the config
+                try:
+                    cls._application.config.from_object(config_string)
 
-            except ImportError:
-                logger.debug("cannot import config: %s" % config_string)
+                except ImportError:
+                    logger.debug("cannot import config: %s" % config_string)
 
+                else:
+                    cls.CONFIGURATION_MODULES.remove(config_template)
+                    cls.LOADED_CONFIGURATIONS.append(config_string)
+                    newly_loaded.append(config_string)
+
+            # configurations exist, none were loaded
+            if (configuration_count > 0
+                and configuration_count == len(cls.CONFIGURATION_MODULES)):
+                logger.error("failed to load any configurations")
             else:
-                cls.CONFIGURATION_MODULES.remove(config_template)
-                cls.LOADED_CONFIGURATIONS.append(config_string)
-                newly_loaded.append(config_string)
+                logger.debug(
+                    "loaded configuration(s): %s" % ".".join(newly_loaded))
 
-        # configurations exist, none were loaded
-        if (configuration_count > 0
-            and configuration_count == len(cls.CONFIGURATION_MODULES)):
-            logger.error("failed to load any configurations")
-        else:
-            logger.debug(
-                "loaded configuration(s): %s" % ".".join(newly_loaded))
-
-        return cls._application
+            return cls._application
 
     @classmethod
     def database(cls):
         """Instance or return a :class:`.SQLAlchemy` object"""
-        if cls._database is None:
-            app = cls.application()
+        with cls.THREAD_LOCK:
+            if cls._database is None:
+                app = cls.application()
 
-            # import here so we don't break other packages
-            # that don't need this
-            from flask.ext.sqlalchemy import SQLAlchemy
-            logger.debug("instancing database")
-            cls._database = SQLAlchemy(app)
+                # import here so we don't break other packages
+                # that don't need this
+                from flask.ext.sqlalchemy import SQLAlchemy
+                logger.debug("instancing database")
+                cls._database = SQLAlchemy(app)
 
-        return cls._database
+            return cls._database
