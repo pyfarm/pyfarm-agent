@@ -39,7 +39,7 @@ def get_secret_key(warning=True):
         warn("$PYFARM_SECRET_KEY not present in environment",
              EnvironmentWarning)
 
-        return str(uuid4()).replace("-", "").decode("hex")
+    return str(uuid4()).replace("-", "").decode("hex")
 
 
 class _Prod(object):
