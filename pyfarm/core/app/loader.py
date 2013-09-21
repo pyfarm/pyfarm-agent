@@ -44,8 +44,7 @@ class PackageLoader(object):
     # configuration data
     CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
     LOADED_CONFIGURATIONS = []
-    CONFIGURATION_MODULES = [
-        "pyfarm.core.app.config.%(class)s"]
+    CONFIGURATION_MODULES = []
 
     # internal instances
     _application = None

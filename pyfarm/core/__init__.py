@@ -20,3 +20,8 @@ PyFarm Core
 
 Core library used by other components of PyFarm.
 """
+
+from pyfarm.core.app.loader import PackageLoader
+
+PackageLoader.CONFIGURATION_MODULES.append(
+    "pyfarm.core.app.config.%(class)s")
