@@ -32,16 +32,18 @@ logger = getLogger("core.app")
 class package(object):
     """
     Serves as a proxy object so we are always guaranteed to have
-    one and only one :class:`flask.Flask` instance.
+    only on instance of each of the following:
+        * :class:`flask.Flask`
+        * :class:`flask_sqlalchemy.SQLAlchemy`
+        * :class:`flask_security.Security`
+        * :class:`flask_admin.Admin`
 
-    :var CONFIGURATION_MODULES:
+    Configuration for each class is not defined here however.  For
+    configuration information see :cvar:`.CONFIGURATION_MODULES`.
+
+    :cvar CONFIGURATION_MODULES:
         String list of module where we should load configurations
-        from.  Once a configuration has been loaded the load string
-        will be removed from this list and added
-        to :var:`LOADED_CONFIGURATIONS`
-
-    .. warning::
-        this class is not meant to be instanced
+        from
     """
     # configuration data
     CONFIG_CLASS = os.environ.get("PYFARM_CONFIG", "Debug")
@@ -56,6 +58,18 @@ class package(object):
 
     def __init__(self):
         raise NotImplementedError("this class should not be instanced")
+
+    @classmethod
+    def add_config(cls, config, index=None):
+        """
+        Add configuration to load into :cvar:`.CONFIGURATION_MODULES`.  If
+        provided an index `config`` will be added at the provided location
+        instead of being appended.
+        """
+        if index is None:
+            cls.CONFIGURATION_MODULES.append(config)
+        else:
+            cls.CONFIGURATION_MODULES.insert(index, config)
 
     @classmethod
     def application(cls):
