@@ -29,6 +29,7 @@ import __builtin__
 from operator import itemgetter as _itemgetter
 from keyword import iskeyword as _iskeyword
 import sys as _sys
+from logging import Handler as _Handler
 
 
 def product(*args, **kwds):
@@ -184,3 +185,27 @@ def namedtuple(typename, field_names, verbose=False, rename=False):
         pass
 
     return result
+
+
+class NullHandler(_Handler):
+    """
+    This handler does nothing. It's intended to be used to avoid the
+    "No handlers could be found for logger XXX" one-off warning. This is
+    important for library code, which may contain code to log events. If a user
+    of the library does not configure logging, the one-off warning might be
+    produced; to avoid this, the library developer simply needs to instantiate
+    a NullHandler and add it to the top-level logger of the library module or
+    package.
+
+    .. note::
+        this is a copy of Python 2.7's NullHandler for use in older
+        versions of Python
+    """
+    def handle(self, record):
+        pass
+
+    def emit(self, record):
+        pass
+
+    def createLock(self):
+        self.lock = None
