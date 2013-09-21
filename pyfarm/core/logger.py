@@ -35,8 +35,7 @@ DEFAULT_LEVEL = logging.DEBUG
 NAME_SEP = 15
 ROOT_FORMAT = logging.Formatter(
     fmt="[%(asctime)s] %(name)"+str(NAME_SEP)+"s %(levelname)s - %(message)s",
-    datefmt="%d/%b/%Y %H:%M:%S"
-)
+    datefmt="%d/%b/%Y %H:%M:%S")
 ROOT_HANDLER = logging.StreamHandler(sys.stdout)
 ROOT_HANDLER.setFormatter(ROOT_FORMAT)
 
