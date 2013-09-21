@@ -49,7 +49,7 @@ class TestPackageLoader(TestCase):
         if not Flask and skip_message:
             self.skipTest(skip_message)
 
-        super(TestPackageLoader).setUp()
+        super(TestPackageLoader, self).setUp()
         del package.CONFIGURATION_MODULES[:]
         del package.LOADED_CONFIGURATIONS[:]
         package._application = self._application
