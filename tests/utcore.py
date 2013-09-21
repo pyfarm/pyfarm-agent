@@ -36,6 +36,17 @@ def skip_on_ci(func):
     return wrapper
 
 
+# silence PyFarm's logger
+try:
+    from logging import NullHandler
+except ImportError:
+    from pyfarm.core.backports import NullHandler
+
+from pyfarm.core.logger import root as pyfarm_logger
+del pyfarm_logger.handlers[:]
+pyfarm_logger.addHandler(NullHandler())
+
+
 class TestCase(unittest.TestCase):
     TEMPDIR_PREFIX = ""
     BUILDBOT_UUID = os.environ.get("BUILDBOT_UUID")
