@@ -23,7 +23,7 @@ from pyfarm.core.app.loader import package
 Flask = None
 skip_message = ""
 if sys.version_info[0:2] < (2, 6):
-    skip_message = "test intended for Python 2.7"
+    skip_message = "test intended for Python 2.6+"
 else:
     try:
         from flask import Flask
