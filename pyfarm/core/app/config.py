@@ -24,7 +24,8 @@ Base configuration classes for the Flask application
 import os
 from uuid import uuid4
 from warnings import warn
-from pyfarm.core.warning import ConfigurationWarning
+from pyfarm.core.warning import EnvironmentWarning
+
 
 
 def get_secret_key(warning=True):
@@ -34,10 +35,9 @@ def get_secret_key(warning=True):
     """
     if "PYFARM_SECRET_KEY" in os.environ:
         return os.environ["PYFARM_SECRET_KEY"]
-    else:
-        if warning:
-            warn("$PYFARM_SECRET_KEY not present in environment",
-                 ConfigurationWarning)
+    elif warning:
+        warn("$PYFARM_SECRET_KEY not present in environment",
+             EnvironmentWarning)
 
         return str(uuid4()).replace("-", "").decode("hex")
 
