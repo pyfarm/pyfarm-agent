@@ -111,7 +111,7 @@ class package(object):
             if (configuration_count > 0
                 and configuration_count == len(cls.CONFIGURATION_MODULES)):
                 logger.error("failed to load any configurations")
-            else:
+            elif newly_loaded:
                 logger.debug(
                     "loaded configuration(s): %s" % ", ".join(newly_loaded))
 
