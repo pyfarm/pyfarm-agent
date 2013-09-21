@@ -6,7 +6,7 @@ python:
 
 install:
   - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install unittest2 simplejson --use-mirrors; fi
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls --use-mirrors; fi
+  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls flask flask-sqlalchemy flask-security flask-admin --use-mirrors; fi
   - pip install "psutil>=1.0.0" netifaces netaddr --use-mirrors
   - pip install . --use-mirrors
 
