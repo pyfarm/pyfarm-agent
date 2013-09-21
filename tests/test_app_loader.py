@@ -28,8 +28,6 @@ else:
     try:
         from flask import Flask
         from flask.ext.sqlalchemy import SQLAlchemy
-        from flask.ext.security import Security, SQLAlchemyUserDatastore
-        from flask.ext.admin import Admin
 
     except ImportError, e:
         Flask = None
@@ -42,8 +40,6 @@ class TestPackageLoader(TestCase):
         TestCase.setUpClass()
         cls._application = package._application
         cls._database = package._database
-        cls._admin = package._admin
-        cls._security = package._security
 
     def setUp(self):
         if not Flask and skip_message:
@@ -54,8 +50,6 @@ class TestPackageLoader(TestCase):
         del package.LOADED_CONFIGURATIONS[:]
         package._application = self._application
         package._database = self._database
-        package._admin = self._security
-        package._security = self._security
 
     def test_config_class_var(self):
         self.assertEqual(
@@ -79,36 +73,6 @@ class TestPackageLoader(TestCase):
         db = package.database()
         self.assertIs(package._database, db)
         self.assertIsInstance(db, SQLAlchemy)
-
-    def test_instance_security_datastore(self):
-        db = package.database()
-
-        class User(db.Model):
-            __tablename__ = "unittest_security_user"
-            id = db.Column(db.Integer, primary_key=True)
-
-        class Role(db.Model):
-            __tablename__ = "unittest_security_role"
-            id = db.Column(db.Integer, primary_key=True)
-
-        datastore = package.security_datastore(User, Role)
-        self.assertIs(package._security_datastore, datastore)
-        self.assertIsInstance(datastore, SQLAlchemyUserDatastore)
-
-    def test_instance_security(self):
-        db = package.database()
-
-        class User(db.Model):
-            __tablename__ = "unittest_security_user"
-            id = db.Column(db.Integer, primary_key=True)
-
-        class Role(db.Model):
-            __tablename__ = "unittest_security_role"
-            id = db.Column(db.Integer, primary_key=True)
-
-        security = package.security(User, Role)
-        self.assertIs(package._security, security)
-        self.assertIsInstance(security, Security)
 
     def test_add_config_append(self):
         package.add_config("foo1")

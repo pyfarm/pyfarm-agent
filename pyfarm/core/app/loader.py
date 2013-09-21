@@ -56,9 +56,6 @@ class package(object):
     # internal instances
     _application = None
     _database = None
-    _admin = None
-    _security = None
-    _security_datastore = None
 
     def __init__(self):
         raise NotImplementedError("this class should not be instanced")
@@ -130,32 +127,3 @@ class package(object):
                 cls._database = SQLAlchemy(app)
 
         return cls._database
-
-    @classmethod
-    def security_datastore(cls, User=None, Role=None):
-        """
-        Instance and return a
-        :class:`flask_security.SQLAlchemyUserDatastore` object
-        """
-        with cls.THREAD_LOCK:
-            if cls._security_datastore is None:
-                db = cls.database()
-                from flask.ext.security import SQLAlchemyUserDatastore
-                cls._security_datastore = SQLAlchemyUserDatastore(db,
-                                                                  User, Role)
-
-        return cls._security_datastore
-
-    @classmethod
-    def security(cls, User=None, Role=None):
-        """
-        Instance and return a :class:`flask_security.Security` object.
-        """
-        with cls.THREAD_LOCK:
-            if cls._security is None:
-                app = cls.application()
-                datastore = cls.security_datastore(User=User, Role=Role)
-                from flask.ext.security import Security
-                cls._security = Security(app, datastore)
-
-        return cls._security
