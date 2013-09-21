@@ -112,7 +112,7 @@ class package(object):
                 logger.error("failed to load any configurations")
             else:
                 logger.debug(
-                    "loaded configuration(s): %s" % ".".join(newly_loaded))
+                    "loaded configuration(s): %s" % ", ".join(newly_loaded))
 
             return cls._application
 
