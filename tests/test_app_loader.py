@@ -35,8 +35,7 @@ else:
         Flask = None
         skip_message = "import failure: %s" % e
 
-# can't use the skip function here as a decorator
-# because of Python2.5
+
 class TestPackageLoader(TestCase):
     @classmethod
     def setUpClass(cls):
