@@ -32,9 +32,9 @@ import logging
 DEFAULT_LEVEL = logging.DEBUG
 
 # setup the root logger for PyFarm
-NAME_SEP = 15
+NAME_SEP = 20
 ROOT_FORMAT = logging.Formatter(
-    fmt="[%(asctime)s] %(name)"+str(NAME_SEP)+"s %(levelname)s - %(message)s",
+    fmt="[%(asctime)s] %(name)"+str(NAME_SEP)+"s %(levelname)8s - %(message)s",
     datefmt="%d/%b/%Y %H:%M:%S")
 ROOT_HANDLER = logging.StreamHandler(sys.stdout)
 ROOT_HANDLER.setFormatter(ROOT_FORMAT)

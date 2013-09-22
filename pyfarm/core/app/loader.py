@@ -96,7 +96,7 @@ class package(object):
                     cls._application.config.from_object(config_string)
 
                 except ImportError:
-                    logger.debug("cannot import config: %s" % config_string)
+                    logger.warning("cannot import config: %s" % config_string)
 
                 else:
                     cls.CONFIGURATION_MODULES.remove(config_template)
@@ -108,7 +108,7 @@ class package(object):
                 and configuration_count == len(cls.CONFIGURATION_MODULES)):
                 logger.error("failed to load any configurations")
             elif newly_loaded:
-                logger.debug(
+                logger.info(
                     "loaded configuration(s): %s" % ", ".join(newly_loaded))
 
         return cls._application
