@@ -62,6 +62,14 @@ detailed information.
     DONE, work is finished (previous failures may be present)
     FAILED, work as failed and cannot be continued
     ALLOC, special internal state for a job or task entry is being built
+
+.. csv-table:: **MimeType**
+    :header: Attribute, Description
+    :widths: 10, 50
+
+    JSON, content type 'application/json'
+    PLAINTEXT, content type 'text/plain'
+    JOBTYPE, content type 'text/jobtype'
 """
 
 import sys
@@ -80,21 +88,30 @@ class _OperatingSystem(namedtuple(
     ["LINUX", "WINDOWS", "MAC", "OTHER"])):
     """base class for OperatingSystem"""
 
+
 class _JobTypeLoadMode(namedtuple(
     "JobTypeLoadMode",
     ["DOWNLOAD", "OPEN", "IMPORT"])):
         """base class for JobTypeLoadMode"""
+
 
 class _AgentState(namedtuple(
     "AgentState",
     ["OFFLINE", "ONLINE", "DISABLED", "RUNNING", "ALLOC"])):
         """base class for AgentState"""
 
+
 class _WorkState(namedtuple(
     "WorkState",
     ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING", "DONE",
      "FAILED", "ALLOC"])):
     """base class for WorkState"""
+
+
+class _MimeType(namedtuple(
+    "MimeType",
+    ["JSON", "PLAINTEXT", "JOBTYPE"])):
+    """base class forMimeType"""
 
 
 OperatingSystem = _OperatingSystem(
@@ -109,6 +126,10 @@ AgentState = _AgentState(
 WorkState = _WorkState(
     PAUSED=12, BLOCKED=13, QUEUED=14, ASSIGN=15, RUNNING=16,
     DONE=17, FAILED=18, ALLOC=19)
+
+MimeType = _MimeType(
+    JSON="application/json", PLAINTEXT="text/plain",
+    JOBTYPE="text/jobtype")
 
 
 def _getOS(platform=sys.platform):
