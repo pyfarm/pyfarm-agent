@@ -83,7 +83,10 @@ class package(object):
                 # that don't need this
                 from flask import Flask
                 logger.debug("instancing flask application")
-                cls._application = Flask("PyFarm")
+                cls._application = Flask(
+                    "PyFarm",
+                    template_folder="pyfarm/master/templates",
+                    static_folder="pyfarm/master/static")
 
             # if any configurations exist, load them
             newly_loaded = []
