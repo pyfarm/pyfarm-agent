@@ -38,7 +38,6 @@ setup(
     version="0.7.0-dev7",
     packages=["pyfarm",
               "pyfarm.core",
-              "pyfarm.core.app",
               "pyfarm.core.sysinfo"],
     namespace_packages=["pyfarm"],
     install_requires=install_requires,
