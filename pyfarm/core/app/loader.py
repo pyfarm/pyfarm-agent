@@ -85,6 +85,7 @@ class package(object):
                 logger.debug("instancing flask application")
                 cls._application = Flask(
                     "PyFarm",
+                    static_url_path="/pyfarm/static",
                     template_folder="pyfarm/master/templates",
                     static_folder="pyfarm/master/static")
 
