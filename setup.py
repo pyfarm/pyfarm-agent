@@ -20,7 +20,6 @@ import sys
 assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
 
 from os.path import isfile
-from textwrap import dedent
 from setuptools import setup
 
 install_requires = ["pyfarm.core"]
@@ -43,8 +42,8 @@ setup(
     license="Apache v2.0",
     author="Oliver Palmer",
     author_email="development@pyfarm.net",
-    description=dedent("""Sub-library which contains the code necessary to
-    handle specific kinds of jobs on PyFarm."""),
+    description="Sub-library which contains the code necessary to handle "
+                "specific kinds of jobs on PyFarm.",
     long_description=long_description,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
