@@ -108,11 +108,11 @@ class _WorkState(namedtuple(
     """base class for WorkState"""
 
 
-class _MimeType(namedtuple(
-    "MimeType",
-    ["JSON", "PLAINTEXT", "JOBTYPE"])):
-    """base class forMimeType"""
-
+class _APIError(namedtuple(
+    "APIError",
+    ["JSON_DECODE_FAILED", "UNEXPECTED_DATATYPE", "MISSING_FIELDS",
+     "UNEXPECTED_NULL"])):
+    """base class for APIError"""
 
 OperatingSystem = _OperatingSystem(
     LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
@@ -127,10 +127,14 @@ WorkState = _WorkState(
     PAUSED=12, BLOCKED=13, QUEUED=14, ASSIGN=15, RUNNING=16,
     DONE=17, FAILED=18, ALLOC=19)
 
-MimeType = _MimeType(
-    JSON="application/json", PLAINTEXT="text/plain",
-    JOBTYPE="text/jobtype")
-
+APIError = _APIError(
+    JSON_DECODE_FAILED=(0, "failed to decode any json data from the request"),
+    UNEXPECTED_DATATYPE=(1, "the base data type decoded for the json class was "
+                            "not what was expected"),
+    MISSING_FIELDS=(2, "one or more of the expected fields were missing in "
+                       "the request"),
+    UNEXPECTED_NULL=(3, "a null value was found in a field that requires a "
+                        "non-null value"))
 
 def _getOS(platform=sys.platform):
     """returns the operating system for the given platform"""
