@@ -37,6 +37,9 @@ class TestEnums(TestCase):
     def test_duplicate_enum_values(self):
         values = []
         for name, value in vars(enums).iteritems():
+            if name.startswith("_") or name == "APIErrorValue":
+                continue
+
             if hasattr(value, "_asdict") and not name.startswith("_"):
                 values.extend(value._asdict().values())
 
