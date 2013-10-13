@@ -29,7 +29,6 @@ detailed information.
     WINDOWS, operating system on agent is a Windows variant
     MAC, operating system on agent is an Apple OS variant
 
-
 .. csv-table:: **JobTypeLoadMode**
     :header: Attribute, Description
     :widths: 10, 50
@@ -37,7 +36,6 @@ detailed information.
     DOWNLOAD, download the jobtype file from a url
     OPEN, open the jobtype file from a url
     IMPORT, import the jobtype from the given string (ex. `foo.bar.ClassName`)
-
 
 .. csv-table:: **AgentState**
     :header: Attribute, Description
@@ -48,7 +46,6 @@ detailed information.
     DISABLED, agent is online but cannot accept work
     RUNNING, agent is currently processing work
     ALLOC, special internal state used when the agent entry is being built
-
 
 .. csv-table:: **WorkState**
     :header: Attribute, Description
@@ -63,13 +60,15 @@ detailed information.
     FAILED, work as failed and cannot be continued
     ALLOC, special internal state for a job or task entry is being built
 
-.. csv-table:: **MimeType**
-    :header: Attribute, Description
-    :widths: 10, 50
+.. csv-table:: **APIError**
+    :header: Attribute, Integer Value, Description
+    :widths: 10, 5, 50
 
-    JSON, content type 'application/json'
-    PLAINTEXT, content type 'text/plain'
-    JOBTYPE, content type 'text/jobtype'
+    JSON_DECODE_FAILED, 0 failed to decode any json data from the request
+    UNEXPECTED_DATATYPE, 1, the base data type decoded for the json class was not what was, expected
+    MISSING_FIELDS, 2, one or more of the expected fields were missing in the request
+    UNEXPECTED_NULL, 3, a null value was found in a field that requires a non-null value
+    DATABASE_ERROR, 4, problem inserting or updating entry in database
 """
 
 import sys
@@ -114,6 +113,17 @@ class _APIError(namedtuple(
      "UNEXPECTED_NULL", "DATABASE_ERROR"])):
     """base class for APIError"""
 
+
+class APIErrorValue(namedtuple(
+    "APIErrorValue",
+    ["value", "description"])):
+    """base class for values within :class:`.APIError`"""
+
+    def to_dict(self):
+        """returns the dictionary representation of the class"""
+        return {"value": self.value, "description": self.description}
+
+
 OperatingSystem = _OperatingSystem(
     LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
 
@@ -128,14 +138,17 @@ WorkState = _WorkState(
     DONE=17, FAILED=18, ALLOC=19)
 
 APIError = _APIError(
-    JSON_DECODE_FAILED=(0, "failed to decode any json data from the request"),
-    UNEXPECTED_DATATYPE=(1, "the base data type decoded for the json class was "
-                            "not what was expected"),
-    MISSING_FIELDS=(2, "one or more of the expected fields were missing in "
-                       "the request"),
-    UNEXPECTED_NULL=(3, "a null value was found in a field that requires a "
-                        "non-null value"),
-    DATABASE_ERROR=(4, "problem inserting or updating entry in database"))
+    JSON_DECODE_FAILED=APIErrorValue(
+        0, "failed to decode any json data from the request"),
+    UNEXPECTED_DATATYPE=APIErrorValue(
+        1, "the base data type decoded for the json class was not what was "
+           "expected"),
+    MISSING_FIELDS=APIErrorValue(
+        2, "one or more of the expected fields were missing in the request"),
+    UNEXPECTED_NULL=APIErrorValue(
+        3, "a null value was found in a field that requires a non-null value"),
+    DATABASE_ERROR=APIErrorValue(
+        4, "problem inserting or updating entry in database"))
 
 
 def _getOS(platform=sys.platform):
