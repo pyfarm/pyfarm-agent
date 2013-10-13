@@ -111,7 +111,7 @@ class _WorkState(namedtuple(
 class _APIError(namedtuple(
     "APIError",
     ["JSON_DECODE_FAILED", "UNEXPECTED_DATATYPE", "MISSING_FIELDS",
-     "UNEXPECTED_NULL"])):
+     "UNEXPECTED_NULL", "DATABASE_ERROR"])):
     """base class for APIError"""
 
 OperatingSystem = _OperatingSystem(
@@ -134,7 +134,9 @@ APIError = _APIError(
     MISSING_FIELDS=(2, "one or more of the expected fields were missing in "
                        "the request"),
     UNEXPECTED_NULL=(3, "a null value was found in a field that requires a "
-                        "non-null value"))
+                        "non-null value"),
+    DATABASE_ERROR=(4, "problem inserting or updating entry in database"))
+
 
 def _getOS(platform=sys.platform):
     """returns the operating system for the given platform"""
