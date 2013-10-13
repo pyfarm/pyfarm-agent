@@ -22,6 +22,11 @@ Basic module used for changing and storing configuration values used by all
 modules at execution time.
 """
 
+try:
+    from ast import literal_eval
+except ImportError:
+    from pyfarm.core.backports import literal_eval
+
 NOTSET = object()
 
 
@@ -38,7 +43,7 @@ class Config(object):
     def __iter__(self):
         return self.__data.__iter__()
 
-    def __repr__(self): # pragma: no cover
+    def __repr__(self):  # pragma: no cover
         return self.__data.__repr__()
 
     def __contains__(self, item):
@@ -72,5 +77,35 @@ class Config(object):
         assert isinstance(data, dict), "`data` must be a dictionary"
         return self.__data.update(data)
 
+
+def read_env(envvar, default=NOTSET, desc=None, log_value=True,
+             warn_if_default=False, raise_eval_exception=True):
+    """
+    Lookup and evaluate an environment variable.
+
+    :param string envvar:
+        The environment variable to lookup in :class:`os.environ`
+
+    :param object default:
+        Alternate value to return if ``envvar`` is not present.  If this
+        is instead set to ``NOTSET`` then an exception will be raised if
+        ``envvar`` is not found.
+
+    :keyword string desc:
+        Describes the purpose of the value being returned.  This may also
+        be read in at the time the documentation is built.
+
+    :keyword bool log_value:
+        If True, log the value we're returning for the environment variable.
+
+    :keyword bool warn_if_default:
+        If True, log a warning if the value being returned is the same
+        as ``default``
+
+    :keyword bool raise_eval_exception:
+        If True and we failed to parse ``envvar`` with :func:`.literal_eval`
+        then raise a :class:`EnvironmentKeyError`
+    """
+    pass
 
 cfg = Config()
