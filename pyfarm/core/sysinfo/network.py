@@ -30,7 +30,6 @@ import netaddr
 import psutil
 
 from pyfarm.core.utility import convert
-from pyfarm.core.error import NetworkError
 from pyfarm.core.warning import NetworkWarning
 
 
@@ -211,7 +210,7 @@ class NetworkInfo(object):
             dnsip = None
 
         if not sums and dnsip is None:  # pragma: no cover
-            raise NetworkError("no ip address found")
+            raise ValueError("no ip address found")
 
         # sort addresses based on how 'active' they appear
         sums.sort(cmp=lambda a, b: 1 if a[1] > b[1] else -1, reverse=True)
