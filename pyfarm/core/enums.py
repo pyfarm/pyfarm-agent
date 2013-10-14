@@ -65,7 +65,7 @@ detailed information.
     :widths: 10, 5, 50
 
     JSON_DECODE_FAILED, 0 failed to decode any json data from the request
-    UNEXPECTED_DATATYPE, 1, the base data type decoded for the json class was not what was, expected
+    UNEXPECTED_DATATYPE, 1, the base data type decoded for the json class was not what was expected
     MISSING_FIELDS, 2, one or more of the expected fields were missing in the request
     UNEXPECTED_NULL, 3, a null value was found in a field that requires a non-null value
     DATABASE_ERROR, 4, problem inserting or updating entry in database
