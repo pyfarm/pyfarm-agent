@@ -22,10 +22,16 @@ Basic module used for changing and storing configuration values used by all
 modules at execution time.
 """
 
+import os
+
 try:
     from ast import literal_eval
 except ImportError:
     from pyfarm.core.backports import literal_eval
+
+from pyfarm.core.logger import getLogger
+
+logger = getLogger("core.config")
 
 NOTSET = object()
 
@@ -78,34 +84,74 @@ class Config(object):
         return self.__data.update(data)
 
 
-def read_env(envvar, default=NOTSET, desc=None, log_value=True,
-             warn_if_default=False, raise_eval_exception=True):
+def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
+             raise_eval_exception=True, log_result=True, desc=None):
     """
     Lookup and evaluate an environment variable.
 
     :param string envvar:
         The environment variable to lookup in :class:`os.environ`
 
-    :param object default:
+    :keyword object default:
         Alternate value to return if ``envvar`` is not present.  If this
         is instead set to ``NOTSET`` then an exception will be raised if
         ``envvar`` is not found.
 
-    :keyword string desc:
-        Describes the purpose of the value being returned.  This may also
-        be read in at the time the documentation is built.
-
-    :keyword bool log_value:
-        If True, log the value we're returning for the environment variable.
-
-    :keyword bool warn_if_default:
+    :keyword bool warn_if_unset:
         If True, log a warning if the value being returned is the same
         as ``default``
+
+    :keyword eval_literal:
+        if True, run :func:`.literal_eval` on the value retrieved
+        from the environment
 
     :keyword bool raise_eval_exception:
         If True and we failed to parse ``envvar`` with :func:`.literal_eval`
         then raise a :class:`EnvironmentKeyError`
+
+    :keyword bool log_result:
+        If True, log the query and result to INFO.  If False, only log the
+        query itself to DEBUG.  This keyword mainly exists so environment
+        variables such as :envvar:`PYFARM_SECRET` or
+        :envvar:`PYFARM_DATABASE_URI` stay out of log files.
+
+    :keyword string desc:
+        Describes the purpose of the value being returned.  This may also
+        be read in at the time the documentation is built.
     """
-    pass
+    if not log_result:
+        logger.debug("read_env(%s)" % repr(envvar))
+
+    if envvar not in os.environ:
+        # default not provided, raise an exception
+        if default is NOTSET:
+            raise EnvironmentError("$%s is not in the environment" % envvar)
+
+        if warn_if_unset:
+            logger.warning("$%s is using a default value" % envvar)
+
+        if log_result:
+            logger.info("read_env(%s): %s" % (repr(envvar), repr(default)))
+
+        return default
+    else:
+        value = os.environ[envvar]
+
+        if not eval_literal:
+            logger.debug("skipped literal_eval($%s)" % repr(envvar))
+            return value
+
+        try:
+            return literal_eval(value)
+
+        except (ValueError, SyntaxError), e:
+            if raise_eval_exception:
+                raise
+
+            args = (envvar, e)
+            logger.error(
+                "$%s contains a value which could not be parsed: %s" % args)
+            logger.warning("returning default value for $%s" % envvar)
+            return default
 
 cfg = Config()
