@@ -30,7 +30,7 @@ from operator import itemgetter as _itemgetter
 from keyword import iskeyword as _iskeyword
 import sys as _sys
 from logging import Handler as _Handler
-from ast import (
+from _ast import (  # import from _ast, ast was introduced in Python 2.6
     PyCF_ONLY_AST, Expression, Str, Num, Tuple,
     List, Dict, Name, BinOp, Add, Sub)
 
