@@ -69,6 +69,7 @@ detailed information.
     MISSING_FIELDS, 2, one or more of the expected fields were missing in the request
     UNEXPECTED_NULL, 3, a null value was found in a field that requires a non-null value
     DATABASE_ERROR, 4, problem inserting or updating entry in database
+    EXTRA_FIELDS_ERROR, 5, an unexpected number of fields or columns were provided
 """
 
 import sys
@@ -110,7 +111,7 @@ class _WorkState(namedtuple(
 class _APIError(namedtuple(
     "APIError",
     ["JSON_DECODE_FAILED", "UNEXPECTED_DATATYPE", "MISSING_FIELDS",
-     "UNEXPECTED_NULL", "DATABASE_ERROR"])):
+     "UNEXPECTED_NULL", "DATABASE_ERROR", "EXTRA_FIELDS_ERROR"])):
     """base class for APIError"""
 
 
@@ -148,7 +149,9 @@ APIError = _APIError(
     UNEXPECTED_NULL=APIErrorValue(
         3, "a null value was found in a field that requires a non-null value"),
     DATABASE_ERROR=APIErrorValue(
-        4, "problem inserting or updating entry in database"))
+        4, "problem inserting or updating entry in database"),
+    EXTRA_FIELDS_ERROR=APIErrorValue(
+        5, "an unexpected number of fields or columns were provided"))
 
 
 def _getOS(platform=sys.platform):
