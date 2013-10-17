@@ -105,8 +105,8 @@ constant however the error message may be rewritten.
     EXTRA_FIELDS_ERROR, 5, an unexpected number of fields or columns were provided
 
 
-Preferred Agent Address
------------------------
+Use Agent Address
+-----------------
 
 Describes which address should be used to contact the agent
 
@@ -132,7 +132,7 @@ from pyfarm.core.warning import NotImplementedWarning
 
 __all__ = [
     "OperatingSystem", "JobTypeLoadMode", "AgentState", "WorkState",
-    "APIError", "PreferAgentAddress"]
+    "APIError", "UseAgentAddress"]
 
 
 class _OperatingSystem(namedtuple(
@@ -167,10 +167,10 @@ class _APIError(namedtuple(
     """base class for APIError"""
 
 
-class _PreferAgentAddress(namedtuple(
-    "PreferAgentAddress",
+class _UseAgentAddress(namedtuple(
+    "UseAgentAddress",
     ["LOCAL", "REMOTE", "HOSTNAME"])):
-    """base class for PreferAgentAddress"""
+    """base class for UseAgentAddress"""
 
 
 class APIErrorValue(namedtuple(
@@ -211,8 +211,7 @@ APIError = _APIError(
     EXTRA_FIELDS_ERROR=APIErrorValue(
         5, "an unexpected number of fields or columns were provided"))
 
-
-PreferAgentAddress = _PreferAgentAddress(
+UseAgentAddress = _UseAgentAddress(
     LOCAL=20, REMOTE=21, HOSTNAME=22, PASSIVE=23)
 
 
