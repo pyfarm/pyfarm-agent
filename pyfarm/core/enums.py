@@ -169,7 +169,7 @@ class _APIError(namedtuple(
 
 class _UseAgentAddress(namedtuple(
     "UseAgentAddress",
-    ["LOCAL", "REMOTE", "HOSTNAME"])):
+    ["LOCAL", "REMOTE", "HOSTNAME", "PASSIVE"])):
     """base class for UseAgentAddress"""
 
 
