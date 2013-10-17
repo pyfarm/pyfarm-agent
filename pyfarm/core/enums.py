@@ -117,6 +117,7 @@ Describes which address should be used to contact the agent
     LOCAL, use the address which was provided by the agent
     REMOTE, use the address which we received the request from
     HOSTNAME, disregard both the local IP and the remote IP and use the hostname
+    PASSIVE, agent cannot be contacted but will still request work and process jobs
 """
 
 import sys
@@ -213,7 +214,7 @@ APIError = _APIError(
 
 
 PreferAgentAddress = _PreferAgentAddress(
-    LOCAL=20, REMOTE=21, HOSTNAME=22)
+    LOCAL=20, REMOTE=21, HOSTNAME=22, PASSIVE=23)
 
 
 def get_operating_system(platform=sys.platform):
