@@ -48,10 +48,10 @@ class TestEnums(TestCase):
 
     def test_getOs(self):
         self.assertEqual(
-            enums._getOS("linux"), enums.OperatingSystem.LINUX)
+            enums.get_operating_system("linux"), enums.OperatingSystem.LINUX)
         self.assertEqual(
-            enums._getOS("win"), enums.OperatingSystem.WINDOWS)
+            enums.get_operating_system("win"), enums.OperatingSystem.WINDOWS)
         self.assertEqual(
-            enums._getOS("darwin"), enums.OperatingSystem.MAC)
+            enums.get_operating_system("darwin"), enums.OperatingSystem.MAC)
         self.assertEqual(
-            enums._getOS("FOO"), enums.OperatingSystem.OTHER)
+            enums.get_operating_system("FOO"), enums.OperatingSystem.OTHER)
