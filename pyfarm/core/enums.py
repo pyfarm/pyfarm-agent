@@ -130,7 +130,9 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.warning import NotImplementedWarning
 
-
+__all__ = [
+    "OperatingSystem", "JobTypeLoadMode", "AgentState", "WorkState",
+    "APIError", "PreferAgentAddress"]
 
 
 class _OperatingSystem(namedtuple(
@@ -180,9 +182,6 @@ class APIErrorValue(namedtuple(
         """returns the dictionary representation of the class"""
         return {"value": self.value, "description": self.description}
 
-__all__ = [
-    "OperatingSystem", "JobTypeLoadMode", "AgentState", "WorkState",
-    "APIError", "PreferAgentAddress"]
 
 OperatingSystem = _OperatingSystem(
     LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
