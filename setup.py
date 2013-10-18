@@ -45,7 +45,7 @@ setup(
     license="Apache v2.0",
     author="Oliver Palmer",
     author_email="development@pyfarm.net",
-    description="Core module containing code to run PyFarm's agent."
+    description="Core module containing code to run PyFarm's agent.",
     long_description=long_description,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
