@@ -29,7 +29,7 @@ if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
 
 if sys.version_info[0:2] == (2, 5):
-    install_requires.append("twisted==12.3.0")
+    install_requires.append("twisted==12.1.0")
 else:
     install_requires.append("twisted")
 
