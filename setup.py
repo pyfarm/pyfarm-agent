@@ -23,10 +23,15 @@ from os.path import isfile
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "twisted", "psutil", "netifaces", "netaddr"]
+    "pyfarm.core", "psutil", "netifaces", "netaddr"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
+
+if sys.version_info[0:2] == (2, 5):
+    install_requires.append("twisted==12.3.0")
+else:
+    install_requires.append("twisted")
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
