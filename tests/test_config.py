@@ -16,6 +16,7 @@
 
 from __future__ import with_statement
 
+import os
 import sys
 
 if sys.version_info[0:2] < (2, 7):
@@ -23,7 +24,7 @@ if sys.version_info[0:2] < (2, 7):
 else:
     from unittest import TestCase
 
-from pyfarm.core.config import Config, cfg as _cfg
+from pyfarm.core.config import Config, cfg as _cfg, read_env, NOTSET
 
 
 class TestConfig(TestCase):
@@ -75,3 +76,33 @@ class TestConfig(TestCase):
         cfg = Config(data)
         self.assertEqual(
             set(key for key in cfg), set(data.keys()))
+
+    def test_readenv_missing(self):
+        key = os.urandom(12).encode("hex")
+        with self.assertRaises(EnvironmentError):
+            read_env(key)
+        self.assertEqual(read_env(key, 42), 42)
+
+    def test_readenv_exists(self):
+        key = os.urandom(12).encode("hex")
+        value = os.urandom(12).encode("hex")
+        os.environ[key] = value
+        self.assertEqual(read_env(key), value)
+        del os.environ[key]
+
+    def test_readenv_eval(self):
+        key = os.urandom(12).encode("hex")
+
+        for value in (True, False, 42, 3.141, None, [1, 2, 3]):
+            os.environ[key] = str(value)
+            self.assertEqual(read_env(key, eval_literal=True), value)
+
+        os.environ[key] = "f"
+        with self.assertRaises(ValueError):
+            read_env(key, eval_literal=True)
+
+        self.assertEqual(
+            read_env(key, 42, eval_literal=True, raise_eval_exception=False),
+            42)
+
+        del os.environ[key]
