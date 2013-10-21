@@ -61,7 +61,9 @@ def getLogger(name):
     return logger
 
 
-def disable_logging(disable):
+# this function is not covered by tests because running it turn a test
+# can have an adverse impact on other tests
+def disable_logging(disable):  # pragma: no cover
     """enables or disables all of PyFarm's logging"""
     if disable:
         root.disabled = 1
