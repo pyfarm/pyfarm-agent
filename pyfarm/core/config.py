@@ -26,7 +26,7 @@ import os
 
 try:
     from ast import literal_eval
-except ImportError:
+except ImportError:  # pragma: no cover
     from pyfarm.core.backports import literal_eval
 
 from pyfarm.core.logger import getLogger
@@ -119,7 +119,7 @@ def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
         Describes the purpose of the value being returned.  This may also
         be read in at the time the documentation is built.
     """
-    if not log_result:
+    if not log_result:  # pragma: no cover
         logger.debug("read_env(%s)" % repr(envvar))
 
     if envvar not in os.environ:
@@ -127,10 +127,10 @@ def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
         if default is NOTSET:
             raise EnvironmentError("$%s is not in the environment" % envvar)
 
-        if warn_if_unset:
+        if warn_if_unset:  # pragma: no cover
             logger.warning("$%s is using a default value" % envvar)
 
-        if log_result:
+        if log_result:  # pragma: no cover
             logger.info("read_env(%s): %s" % (repr(envvar), repr(default)))
 
         return default
