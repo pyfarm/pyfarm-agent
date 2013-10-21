@@ -29,6 +29,11 @@ message formatting.
 import sys
 import logging
 
+try:
+    from logging import NullHandler
+except ImportError:
+    from pyfarm.core.backports import NullHandler
+
 DEFAULT_LEVEL = logging.DEBUG
 
 # setup the root logger for PyFarm
@@ -54,3 +59,15 @@ def getLogger(name):
     logger = logging.getLogger(".".join([root.name, name]))
     logger.setLevel(DEFAULT_LEVEL)
     return logger
+
+
+def disable_logging(disable):
+    """enables or disables all of PyFarm's logging"""
+    if disable:
+        root.disabled = 1
+        del root.handlers[:]
+        root.addHandler(NullHandler())
+    else:
+        root.disabled = 0
+        root.addHandler(ROOT_HANDLER)
+        root.setLevel(DEFAULT_LEVEL)
