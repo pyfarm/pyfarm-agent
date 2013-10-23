@@ -19,7 +19,8 @@ from __future__ import with_statement
 import sys
 assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
 
-from os.path import isfile
+from os import walk
+from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
@@ -41,13 +42,32 @@ if isfile("README.rst"):
 else:
     long_description = ""
 
+
+def get_package_data():
+    master_root = join("pyfarm", "agent")
+    packge_data_roots = (
+        join("pyfarm", "agent", "twisted"),)
+
+    output = [join("twisted", "plugins")]
+    for top in packge_data_roots:
+        for root, dirs, files in walk(top):
+            for filename in files:
+                output.append(join(root, filename).split(master_root)[-1][1:])
+
+    return output
+
 setup(
     name="pyfarm.agent",
     version="0.7.0-dev0",
-    packages=["pyfarm",
+    packages=["twisted.plugins",
+              "pyfarm",
               "pyfarm.agent",
-              "pyfarm.entrypoints"],
+              "pyfarm.agent.http",
+              "pyfarm.agent.sysinfo",
+              "pyfarm.agent.entrypoints"],
     namespace_packages=["pyfarm"],
+    include_package_data=True,
+    package_data={"pyfarm.agent": get_package_data()},
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-core",
     license="Apache v2.0",
