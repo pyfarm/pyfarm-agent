@@ -13,3 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+Agent System Information Sub-Package
+====================================
+
+Smaller subpackage of PyFarm's agent which reports system information
+to the http server to be forwarded along to the master.
+"""

@@ -13,3 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+"""
+Agent HTTP Sub-Package
+======================
+
+This package contains the http server which serves as an interface between
+processes, system monitoring, the master, and any other service the Agent
+may run.
+"""
