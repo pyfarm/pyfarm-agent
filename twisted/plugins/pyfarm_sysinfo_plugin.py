@@ -23,9 +23,10 @@ from twisted.application.service import IServiceMaker
 from pyfarm.agent.sysinfo.service import SysInfoService
 
 
+# TODO: may need a local broker port
 class Options(usage.Options):
     optParameters = [
-        ("perspective-broker", "b", "127.0.0.1:50001",
+        ("broker", "b", "127.0.0.1:50001",
          "the host:port combination which is running the perspective broker")]
 
 
