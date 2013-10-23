@@ -25,8 +25,8 @@ from pyfarm.agent.sysinfo.service import SysInfoService
 
 class Options(usage.Options):
     optParameters = [
-        ("port", "p",
-         50002, "port number to listen for broker connections on")]
+        ("perspective-broker", "b", "127.0.0.1:50001",
+         "the host:port combination which is running the perspective broker")]
 
 
 @implementer(IServiceMaker, IPlugin)
