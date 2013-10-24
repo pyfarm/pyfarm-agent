@@ -14,13 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Processor Service
+=================
+
+Runs the processes sent to the services from twisted's perspective broker by
+the agent's manager service
+"""
+
 
 from zope.interface import implementer
 from twisted.python import usage
 from twisted.plugin import IPlugin
-from twisted.application.service import IServiceMaker
+from twisted.application.service import IServiceMaker, Service
 
-from pyfarm.agent.sysinfo.service import SysInfoService
+
+class ProcessorService(Service):
+    def __init__(self, options):
+        self.options = options
 
 
 # TODO: may need a local broker port
@@ -31,16 +42,10 @@ class Options(usage.Options):
 
 
 @implementer(IServiceMaker, IPlugin)
-class SysInfoServiceMaker(object):
+class ProcessorServiceMaker(object):
     options = Options
-    tapname = "pyfarm.agent.sysinfo"
-    description = ("Sends and receives information from other services on "
-                  "the system as well as from the master.  By default this "
-                  "service does nothing and must be provided information "
-                  "from external processes such as pyfarm.agent.sysinfo")
+    tapname = "pyfarm.agent.processor"
+    description = __doc__.split("=================")[-1]  # get doc from module
 
     def makeService(self, options):
-        return SysInfoService(options)
-
-
-serviceMaker = SysInfoServiceMaker()
+        return ProcessorService(options)

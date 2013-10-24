@@ -14,13 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-System Information Service
-==========================
-"""
 
-from pyfarm.agent.service import UnprivilegedService
+from pyfarm.agent.processor.service import ProcessorServiceMaker
 
-
-class SysInfoService(UnprivilegedService):
-    pass
+serviceMaker = ProcessorServiceMaker()

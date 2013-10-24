@@ -14,13 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Manager Service
+===============
+
+Sends and receives information from the master and performs systems level tasks
+such as log reading, system information gathering, and management of processes.
+"""
 
 from zope.interface import implementer
 from twisted.python import usage
 from twisted.plugin import IPlugin
-from twisted.application.service import IServiceMaker
+from twisted.application.service import IServiceMaker, Service
 
-from pyfarm.agent.http.service import HTTPService
+
+class ManagerService(Service):
+    def __init__(self, options):
+        self.options = options
 
 
 class Options(usage.Options):
@@ -36,16 +46,10 @@ class Options(usage.Options):
 
 
 @implementer(IServiceMaker, IPlugin)
-class HTTPServiceMaker(object):
+class ManagerServiceMaker(object):
     options = Options
-    tapname = "pyfarm.agent.http"
-    description = ("Sends and receives information from other services on "
-                  "the system as well as from the master.  By default this "
-                  "service does nothing and must be provided information "
-                  "from external processes such as pyfarm.agent.sysinfo")
+    tapname = "pyfarm.agent.manager"
+    description = __doc__.split("===============")[-1]  # get doc from module
 
     def makeService(self, options):
-        return HTTPService(options)
-
-
-serviceMaker = HTTPServiceMaker()
+        return ManagerService(options)

@@ -14,21 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Base Service
-============
-"""
 
-from twisted.application.service import Service as TwistedService
+from pyfarm.agent.manager.service import ManagerServiceMaker
 
-
-class UnprivilegedService(TwistedService):
-    """Base service for all service application in PyFarm's agent"""
-    def __init__(self, options):
-        self.options = options
-
-    def startService(self):
-        raise NotImplementedError
-
-    def stopService(self):
-        raise NotImplementedError
+serviceMaker = ManagerServiceMaker()
