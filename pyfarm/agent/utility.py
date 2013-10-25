@@ -42,8 +42,9 @@ def pack_result_tuple(code, message):
     # be explict about our requirements
     assert isinstance(message, str), "expected string for `message`"
     assert isinstance(code, int), "expected integer for `code`"
-    assert code <= 65535, "valid range for `code` is -32768 -> 32767"
-    assert message_length <= 4294967295, "len(`message`) must be <= 4294967295"
+    assert 0 <= code <= 65535, "assert(0 <= code <= 65535)"
+    assert 0 <= message_length <= 4294967295,\
+        "assert(0 <= len(message) <= 4294967295)"
 
     return struct.pack(
         ">HI%ss" % message_length, code, message_length, message)
