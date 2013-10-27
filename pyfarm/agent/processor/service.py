@@ -22,30 +22,91 @@ Runs the processes sent to the services from twisted's perspective broker by
 the agent's manager service
 """
 
+import traceback
 
 from zope.interface import implementer
 from twisted.python import usage
 from twisted.plugin import IPlugin
-from twisted.application.service import IServiceMaker, Service
+from twisted.python import log
+from twisted.internet import reactor
+from twisted.internet.protocol import Factory
+from twisted.application import internet
+from twisted.application.service import IServiceMaker, MultiService
+from google.protobuf.message import DecodeError
+
+from pyfarm.agent.protocols import IPCReceiverProtocolBase
+from pyfarm.agent.utility import protobuf_from_error
 
 
-class ProcessorService(Service):
+class IPCProtocol(IPCReceiverProtocolBase):
+    """handles each individual bit of incoming data"""
+
+    def reply(self, protobuf):
+        self.transport.write(protobuf.SerializeToString())
+        self.transport.loseConnection()
+        log.msg("fo")
+
+    def rawDataReceived(self, data):
+        log.msg("receiving message from %s:%s" % self.transport.client)
+        self.factory.known_hosts.add(self.transport.client[0])
+
+        try:
+            pb = self.protobuf()
+            pb.ParseFromString(data)
+
+        except Exception, e:
+            log.err("error in message from %s: %s" % (self.transport.client, e))
+            data = protobuf_from_error(e)
+
+        else:
+            data = self.protobuf()
+
+        reactor.callLater(0, self.reply, data)
+
+
+class IPCReceieverFactory(Factory):
+    """
+    Receives incoming connections and hands them off to the protocol
+    object.  In addition this class will also keep a list of all hosts
+    which have connected so they can be notified upon shutdown.
+    """
+    protocol = IPCProtocol
+    known_hosts = set()
+
+    def stopFactory(self):  # TODO: notify all connected hosts we are stopping
+        if self.known_hosts:
+            log.msg("notifying all known hosts of termination")
+
+
+class ProcessorService(MultiService):
+    """the service object itself"""
     def __init__(self, options):
+        MultiService.__init__(self)
         self.options = options
-
-
-# TODO: may need a local broker port
-class Options(usage.Options):
-    optParameters = [
-        ("broker", "b", "127.0.0.1:50001",
-         "the host:port combination which is running the perspective broker")]
+        self.ipc_port = int(self.options.get("ipc-port"))
 
 
 @implementer(IServiceMaker, IPlugin)
 class ProcessorServiceMaker(object):
-    options = Options
+    """
+    constructs the service which twistd will use including command line
+    options, documentation, and the underlying servers
+    """
     tapname = "pyfarm.agent.processor"
     description = __doc__.split("=================")[-1]  # get doc from module
 
+    class options(usage.Options):
+        """contains the command line options the twisted plugin will use"""
+        optParameters = [
+            ("ipc-port", "p", 50000,
+             "the port which runs the local IPC server for the service")]
+
     def makeService(self, options):
-        return ProcessorService(options)
+        service = ProcessorService(options)
+
+        # ipc service setup
+        ipc_factory = IPCReceieverFactory()
+        ipc_server = internet.TCPServer(service.ipc_port, ipc_factory)
+        ipc_server.setServiceParent(service)
+
+        return service
