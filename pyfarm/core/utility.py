@@ -197,3 +197,31 @@ class convert(object):
         2.0
         """
         return value / 1024
+
+    @staticmethod
+    def stoi(value):
+        """
+        converts a string to an integer or fails with a useful error
+        message
+
+        :attr string value:
+            the value to convert to an integer
+
+        :exception TypeError:
+            raised if ``value`` is not a string
+
+        :exception ValueError:
+            raised if ``value`` cannot be converted
+        """
+        if isinstance(value, int):
+            return value
+
+        elif not isinstance(value, basestring):
+            raise TypeError("%s is not a string" % repr(value))
+
+        try:
+            return int(value)
+
+        except ValueError, e:
+            raise ValueError(
+                "failed to convert %s to an integer: %s" % (repr(value), e))
