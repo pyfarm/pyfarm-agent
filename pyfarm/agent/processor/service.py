@@ -31,11 +31,12 @@ from twisted.python import log
 from twisted.internet import reactor
 from twisted.internet.protocol import Factory
 from twisted.application import internet
-from twisted.application.service import IServiceMaker, MultiService
+from twisted.application.service import IServiceMaker
 from google.protobuf.message import DecodeError
 
 from pyfarm.agent.protocols import IPCReceiverProtocolBase
 from pyfarm.agent.utility import protobuf_from_error
+from pyfarm.agent.service import MultiService, Options
 
 
 class IPCProtocol(IPCReceiverProtocolBase):
@@ -80,10 +81,7 @@ class IPCReceieverFactory(Factory):
 
 class ProcessorService(MultiService):
     """the service object itself"""
-    def __init__(self, options):
-        MultiService.__init__(self)
-        self.options = options
-        self.ipc_port = int(self.options.get("ipc-port"))
+    DEFAULT_IPC_PORT = 50000
 
 
 @implementer(IServiceMaker, IPlugin)
@@ -94,19 +92,15 @@ class ProcessorServiceMaker(object):
     """
     tapname = "pyfarm.agent.processor"
     description = __doc__.split("=================")[-1]  # get doc from module
-
-    class options(usage.Options):
-        """contains the command line options the twisted plugin will use"""
-        optParameters = [
-            ("ipc-port", "p", 50000,
-             "the port which runs the local IPC server for the service")]
+    options = Options
 
     def makeService(self, options):
         service = ProcessorService(options)
-
+        
         # ipc service setup
         ipc_factory = IPCReceieverFactory()
-        ipc_server = internet.TCPServer(service.ipc_port, ipc_factory)
+        ipc_server = internet.TCPServer(service.options.get("ipc-port"),
+                                        ipc_factory)
         ipc_server.setServiceParent(service)
 
         return service
