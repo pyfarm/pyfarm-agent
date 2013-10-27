@@ -62,7 +62,6 @@ setup(
     packages=["twisted.plugins",
               "pyfarm",
               "pyfarm.agent",
-              "pyfarm.agent.entrypoints",
               "pyfarm.agent.manager",
               "pyfarm.agent.processor"],
     namespace_packages=["pyfarm"],
