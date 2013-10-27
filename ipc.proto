@@ -20,7 +20,7 @@ message DynamicType {
         BOOLEAN = 2;
     }
     required PythonType type = 1;
-    optional int32 int32 = 2;
+    optional int32 int = 2;
     optional string string = 3;
     optional bool boolean = 4;
 }

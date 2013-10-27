@@ -11,7 +11,7 @@ from google.protobuf import descriptor_pb2
 DESCRIPTOR = descriptor.FileDescriptor(
   name='ipc.proto',
   package='',
-  serialized_pb='\n\tipc.proto\"\x98\x01\n\x0b\x44ynamicType\x12%\n\x04type\x18\x01 \x02(\x0e\x32\x17.DynamicType.PythonType\x12\r\n\x05int32\x18\x02 \x01(\x05\x12\x0e\n\x06string\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\"2\n\nPythonType\x12\n\n\x06STRING\x10\x00\x12\x0b\n\x07INTEGER\x10\x01\x12\x0b\n\x07\x42OOLEAN\x10\x02\"|\n\tException\x12\x11\n\tclassname\x18\x01 \x02(\t\x12\x1a\n\x04\x61rgs\x18\x02 \x03(\x0b\x32\x0c.DynamicType\x12\r\n\x05\x65rrno\x18\x03 \x01(\x05\x12\x0f\n\x07message\x18\x04 \x01(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12\x11\n\ttraceback\x18\x06 \x01(\t\"F\n\nIPCMessage\x12\x19\n\x05\x65rror\x18\x01 \x01(\x0b\x32\n.Exception\x12\x0c\n\x04\x63ode\x18\x02 \x01(\x05\x12\x0f\n\x07message\x18\x03 \x01(\t')
+  serialized_pb='\n\tipc.proto\"\x96\x01\n\x0b\x44ynamicType\x12%\n\x04type\x18\x01 \x02(\x0e\x32\x17.DynamicType.PythonType\x12\x0b\n\x03int\x18\x02 \x01(\x05\x12\x0e\n\x06string\x18\x03 \x01(\t\x12\x0f\n\x07\x62oolean\x18\x04 \x01(\x08\"2\n\nPythonType\x12\n\n\x06STRING\x10\x00\x12\x0b\n\x07INTEGER\x10\x01\x12\x0b\n\x07\x42OOLEAN\x10\x02\"|\n\tException\x12\x11\n\tclassname\x18\x01 \x02(\t\x12\x1a\n\x04\x61rgs\x18\x02 \x03(\x0b\x32\x0c.DynamicType\x12\r\n\x05\x65rrno\x18\x03 \x01(\x05\x12\x0f\n\x07message\x18\x04 \x01(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12\x11\n\ttraceback\x18\x06 \x01(\t\"F\n\nIPCMessage\x12\x19\n\x05\x65rror\x18\x01 \x01(\x0b\x32\n.Exception\x12\x0c\n\x04\x63ode\x18\x02 \x01(\x05\x12\x0f\n\x07message\x18\x03 \x01(\t')
 
 
 
@@ -36,8 +36,8 @@ _DYNAMICTYPE_PYTHONTYPE = descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=116,
-  serialized_end=166,
+  serialized_start=114,
+  serialized_end=164,
 )
 
 
@@ -56,7 +56,7 @@ _DYNAMICTYPE = descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     descriptor.FieldDescriptor(
-      name='int32', full_name='DynamicType.int32', index=1,
+      name='int', full_name='DynamicType.int', index=1,
       number=2, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
@@ -87,7 +87,7 @@ _DYNAMICTYPE = descriptor.Descriptor(
   is_extendable=False,
   extension_ranges=[],
   serialized_start=14,
-  serialized_end=166,
+  serialized_end=164,
 )
 
 
@@ -149,8 +149,8 @@ _EXCEPTION = descriptor.Descriptor(
   options=None,
   is_extendable=False,
   extension_ranges=[],
-  serialized_start=168,
-  serialized_end=292,
+  serialized_start=166,
+  serialized_end=290,
 )
 
 
@@ -191,8 +191,8 @@ _IPCMESSAGE = descriptor.Descriptor(
   options=None,
   is_extendable=False,
   extension_ranges=[],
-  serialized_start=294,
-  serialized_end=364,
+  serialized_start=292,
+  serialized_end=362,
 )
 
 _DYNAMICTYPE.fields_by_name['type'].enum_type = _DYNAMICTYPE_PYTHONTYPE
