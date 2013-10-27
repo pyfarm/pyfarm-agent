@@ -21,3 +21,30 @@ Protocols
 Contains basic and common protocols which are used in similar ways in different
 parts of the project.
 """
+
+from twisted.protocols.basic import LineReceiver
+
+from pyfarm.agent.ipc_pb2 import IPCMessage
+
+
+class ProtobufProtocol(LineReceiver):
+    """
+    Basic protocol based on Twisted's :class:`.LineReceiver` protocol
+    with specific modifications for protocol buffers.
+    """
+    protobuf = NotImplemented
+    line_mode = 0
+
+    def __init__(self):
+        assert self.protobuf is not NotImplemented, "self.protobuf not set"
+
+    def rawDataReceived(self, data):
+        raise NotImplementedError("rawDataReceived() must be overridden")
+
+
+class IPCReceiverProtocolBase(ProtobufProtocol):
+    """
+    Subclass of :class:`.ProtobufProtocol` which sets the :attr:`.protobuf`
+    attribute to :class:`.IPCMessage`
+    """
+    protobuf = IPCMessage
