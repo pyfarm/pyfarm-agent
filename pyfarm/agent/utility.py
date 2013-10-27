@@ -23,6 +23,8 @@ basic data.
 """
 
 import struct
+import traceback
+from pyfarm.agent.ipc_pb2 import IPCMessage, DynamicType
 
 
 def pack_result_tuple(code, message):
@@ -61,3 +63,34 @@ def unpack_result_tuple(packed):
     """
     code, message_length = struct.unpack(">HI", packed[:6])
     return code, struct.unpack(">%ss" % message_length, packed[6:])[0]
+
+
+def protobuf_from_error(error):
+    """
+    produce a :class:`.IPCMessage` protobuf which contains an exception
+    """
+    assert isinstance(error, Exception), "expected an exception"
+    protobuf = IPCMessage()
+
+    # add data from exception
+    protobuf.error.classname = error.__class__.__name__
+    protobuf.error.message = error.message
+    protobuf.error.traceback = traceback.format_exc()
+
+    # add input arguments from exception to error args
+    for arg_value in getattr(error, "args", []):
+        arg = protobuf.error.args.add()
+        if isinstance(arg_value, basestring):
+            arg.type = DynamicType.PythonType.Value("STRING")
+            arg.string = arg_value
+        elif isinstance(arg_value, int):
+            arg.type = DynamicType.PythonType.Value("INTEGER")
+            arg.int = arg_value
+        elif isinstance(arg_value, bool):
+            arg.type = DynamicType.PythonType.Value("BOOLEAN")
+            arg.bool = arg_value
+        else:
+            arg.type = DynamicType.PythonType.Value("STRING")
+            arg.string = str(arg_value)
+
+    return protobuf
