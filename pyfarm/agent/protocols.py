@@ -19,7 +19,8 @@ Protocols
 =========
 
 Contains basic and common protocols which are used in similar ways in different
-parts of the project.
+parts of the project.  This module contains the base implementation only,
+classes from here must be subclasses.
 """
 
 from twisted.protocols.basic import LineReceiver
