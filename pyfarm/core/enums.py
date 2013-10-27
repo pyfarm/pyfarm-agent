@@ -198,18 +198,18 @@ WorkState = _WorkState(
 
 APIError = _APIError(
     JSON_DECODE_FAILED=APIErrorValue(
-        0, "failed to decode any json data from the request"),
+        1, "failed to decode any json data from the request"),
     UNEXPECTED_DATATYPE=APIErrorValue(
-        1, "the base data type decoded for the json class was not what was "
+        2, "the base data type decoded for the json class was not what was "
            "expected"),
     MISSING_FIELDS=APIErrorValue(
-        2, "one or more of the expected fields were missing in the request"),
+        3, "one or more of the expected fields were missing in the request"),
     UNEXPECTED_NULL=APIErrorValue(
-        3, "a null value was found in a field that requires a non-null value"),
+        4, "a null value was found in a field that requires a non-null value"),
     DATABASE_ERROR=APIErrorValue(
-        4, "problem inserting or updating entry in database"),
+        5, "problem inserting or updating entry in database"),
     EXTRA_FIELDS_ERROR=APIErrorValue(
-        5, "an unexpected number of fields or columns were provided"))
+        6, "an unexpected number of fields or columns were provided"))
 
 UseAgentAddress = _UseAgentAddress(
     LOCAL=20, REMOTE=21, HOSTNAME=22, PASSIVE=23)
