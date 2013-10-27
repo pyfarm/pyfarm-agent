@@ -22,10 +22,7 @@ Runs the processes sent to the services from twisted's perspective broker by
 the agent's manager service
 """
 
-import traceback
-
 from zope.interface import implementer
-from twisted.python import usage
 from twisted.plugin import IPlugin
 from twisted.python import log
 from twisted.internet import reactor
@@ -45,7 +42,6 @@ class IPCProtocol(IPCReceiverProtocolBase):
     def reply(self, protobuf):
         self.transport.write(protobuf.SerializeToString())
         self.transport.loseConnection()
-        log.msg("fo")
 
     def rawDataReceived(self, data):
         log.msg("receiving message from %s:%s" % self.transport.client)
@@ -58,11 +54,13 @@ class IPCProtocol(IPCReceiverProtocolBase):
         except Exception, e:
             log.err("error in message from %s: %s" % (self.transport.client, e))
             data = protobuf_from_error(e)
+            reactor.callLater(0, self.reply, data)
 
         else:
             data = self.protobuf()
-
-        reactor.callLater(0, self.reply, data)
+            # TODO: go off and do something with the request in a deferred
+            # TODO: pass the transport along so we know who to reply to
+            # TODO: OR start action, return 'starting' send reply later (probably better)
 
 
 class IPCReceieverFactory(Factory):
@@ -96,7 +94,7 @@ class ProcessorServiceMaker(object):
 
     def makeService(self, options):
         service = ProcessorService(options)
-        
+
         # ipc service setup
         ipc_factory = IPCReceieverFactory()
         ipc_server = internet.TCPServer(service.options.get("ipc-port"),
