@@ -29,7 +29,6 @@ from twisted.internet import reactor
 from twisted.internet.protocol import Factory
 from twisted.application import internet
 from twisted.application.service import IServiceMaker
-from google.protobuf.message import DecodeError
 
 from pyfarm.agent.protocols import IPCReceiverProtocolBase
 from pyfarm.agent.utility import protobuf_from_error
@@ -79,17 +78,16 @@ class IPCReceieverFactory(Factory):
 
 class ProcessorService(MultiService):
     """the service object itself"""
-    DEFAULT_IPC_PORT = 50000
+    DEFAULT_IPC_PORT = 50002
 
 
 @implementer(IServiceMaker, IPlugin)
 class ProcessorServiceMaker(object):
     """
-    constructs the service which twistd will use including command line
-    options, documentation, and the underlying servers
+    Service which controls process execution and monitoring
     """
     tapname = "pyfarm.agent.processor"
-    description = __doc__.split("=================")[-1]  # get doc from module
+    description = __doc__
     options = Options
 
     def makeService(self, options):
