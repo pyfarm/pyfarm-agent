@@ -53,42 +53,42 @@ class NetworkInfo(object):
         values = psutil.net_io_counters(pernic=True)
         return values[interface]
 
-    def packetsSent(self):
+    def packets_sent(self):
         """
         Returns the total number of packets sent over the network
         interface provided by :meth:`interface`
         """
         return self._iocounter.packets_sent
 
-    def packetsReceived(self):
+    def packets_received(self):
         """
         Returns the total number of packets received over the network
         interface provided by :meth:`interface`
         """
         return self._iocounter.packets_recv
 
-    def dataSent(self):
+    def data_sent(self):
         """
         Amount of data sent in megabytes over the network
         interface provided by :meth:`interface`
         """
         return convert.bytetomb(self._iocounter.bytes_sent)
 
-    def dataReceived(self):
+    def data_received(self):
         """
         Amount of data received in megabytes over the network
         interface provided by :meth:`interface`
         """
         return convert.bytetomb(self._iocounter.bytes_recv)
 
-    def errorCountIncoming(self):
+    def incoming_error_count(self):
         """
         Returns the number of packets which we failed
         to receive on the network interface provided by :meth:`interface`
         """
         return self._iocounter.errin
 
-    def errorCountOutgoing(self):
+    def outgoing_error_count(self):
         """
         Returns the number of packets which we failed
         to receive on the network interface provided by :meth:`interface`

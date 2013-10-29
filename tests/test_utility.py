@@ -25,7 +25,7 @@ except NameError:
     _range = range
 
 from utcore import TestCase
-from pyfarm.core.utility import floatrange, convert, randstr, randint, rounded
+from pyfarm.core.utility import float_range, convert, randstr, randint, rounded
 
 RAND_TEST_COUNT = 75000
 
@@ -86,49 +86,49 @@ class Rounding(TestCase):
 class Range(TestCase):
     def test_range_end_error(self):
         with self.assertRaises(ValueError):
-            floatrange(2, 1)
+            float_range(2, 1)
 
     def test_range_by_error(self):
         with self.assertRaises(ValueError):
-            floatrange(5, by=0)
+            float_range(5, by=0)
 
     def test_intrange_start(self):
-        self.assertEqual(list(floatrange(5)), list(_range(5)))
+        self.assertEqual(list(float_range(5)), list(_range(5)))
 
     def test_intrangestartby(self):
-        self.assertEqual(list(floatrange(5, by=1)), [0, 1, 2, 3, 4])
-        self.assertEqual(list(floatrange(5, by=2)), [0, 2, 4])
+        self.assertEqual(list(float_range(5, by=1)), [0, 1, 2, 3, 4])
+        self.assertEqual(list(float_range(5, by=2)), [0, 2, 4])
 
     def test_intrange_startendby(self):
-        self.assertEqual(list(floatrange(1, 1, 1)), list(_range(1, 1, 1)))
-        self.assertEqual(list(floatrange(1, 10, 1)), list(_range(1, 10, 1)))
-        self.assertEqual(list(floatrange(1, 10, 2)), list(_range(1, 10, 2)))
+        self.assertEqual(list(float_range(1, 1, 1)), list(_range(1, 1, 1)))
+        self.assertEqual(list(float_range(1, 10, 1)), list(_range(1, 10, 1)))
+        self.assertEqual(list(float_range(1, 10, 2)), list(_range(1, 10, 2)))
 
     def test_floatrange_startby(self):
         self.assertEqual(
-            list(floatrange(2.25, by=.25)),
+            list(float_range(2.25, by=.25)),
             [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25])
-        self.assertEqual(list(floatrange(2, by=.25)),
+        self.assertEqual(list(float_range(2, by=.25)),
             [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
-        self.assertEqual(list(floatrange(2, by=.75)), [0, 0.75, 1.5])
-        self.assertEqual(list(floatrange(2, by=.75, add_endpoint=True)),
+        self.assertEqual(list(float_range(2, by=.75)), [0, 0.75, 1.5])
+        self.assertEqual(list(float_range(2, by=.75, add_endpoint=True)),
             [0, 0.75, 1.5, 2.0])
-        self.assertEqual(list(floatrange(2.5, by=.15)),
+        self.assertEqual(list(float_range(2.5, by=.15)),
             [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2, 1.35, 1.5,
              1.65, 1.8, 1.95, 2.1, 2.25, 2.4])
 
     def test_floatrange_start(self):
-        self.assertEqual(list(list(floatrange(2.25))), [0, 1, 2])
-        self.assertEqual(list(list(floatrange(2.25, add_endpoint=True))),
+        self.assertEqual(list(list(float_range(2.25))), [0, 1, 2])
+        self.assertEqual(list(list(float_range(2.25, add_endpoint=True))),
                          [0, 1, 2, 2.25])
 
     def test_floatrange_startend(self):
-        self.assertEqual(list(floatrange(2.25, 5)), [2.25, 3.25, 4.25])
-        self.assertEqual(list(floatrange(2.25, 5, add_endpoint=True)),
+        self.assertEqual(list(float_range(2.25, 5)), [2.25, 3.25, 4.25])
+        self.assertEqual(list(float_range(2.25, 5, add_endpoint=True)),
                          [2.25, 3.25, 4.25, 5])
 
     def test_floatrange_startendby(self):
-        self.assertEqual(list(floatrange(1.5, 2.5, .15)),
+        self.assertEqual(list(float_range(1.5, 2.5, .15)),
             [1.5, 1.65, 1.8, 1.95, 2.1, 2.25, 2.4])
-        self.assertEqual(list(floatrange(1.5, 2.5, .15, add_endpoint=True)),
+        self.assertEqual(list(float_range(1.5, 2.5, .15, add_endpoint=True)),
             [1.5, 1.65, 1.8, 1.95, 2.1, 2.25, 2.4, 2.5])

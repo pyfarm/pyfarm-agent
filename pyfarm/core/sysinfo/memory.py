@@ -47,19 +47,19 @@ class MemoryInfo(object):
     TOTAL_RAM = convert.bytetomb(psutil.TOTAL_PHYMEM)
     TOTAL_SWAP = convert.bytetomb(psutil.swap_memory().total)
 
-    def swapUsed(self):
+    def swap_used(self):
         """Amount of swap currently in use"""
         return convert.bytetomb(psutil.swap_memory().used)
 
-    def swapFree(self):
+    def swap_free(self):
         """Amount of swap currently free"""
         return convert.bytetomb(psutil.swap_memory().free)
 
-    def ramUsed(self):
+    def ram_used(self):
         """Amount of swap currently free"""
         return convert.bytetomb(psutil.virtual_memory().used)
 
-    def ramFree(self):
+    def ram_free(self):
         """Amount of ram currently free"""
         return convert.bytetomb(psutil.virtual_memory().available)
 

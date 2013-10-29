@@ -51,7 +51,7 @@ def username():
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
 
 
-def isAdmin():  # pragma: no cover
+def is_administrator():  # pragma: no cover
     """
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
@@ -62,4 +62,4 @@ def isAdmin():  # pragma: no cover
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
 
     osname = osinfo.OS(osinfo.OS())
-    raise NotImplementedError("`isAdmin` is not implemented for %s" % osname)
+    raise NotImplementedError("`is_administrator` is not implemented for %s" % osname)

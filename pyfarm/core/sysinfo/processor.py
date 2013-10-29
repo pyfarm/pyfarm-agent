@@ -54,21 +54,21 @@ class ProcessorInfo(object):
         """
         return psutil.cpu_percent(iterval) / self.NUM_CPUS  # pragma: no cover
 
-    def userTime(self):
+    def user_time(self):
         """
         Returns the amount of time spent by the cpu in user
         space
         """
         return psutil.cpu_times().user
 
-    def systemTime(self):
+    def system_time(self):
         """
         Returns the amount of time spent by the cpu in system
         space
         """
         return psutil.cpu_times().system
 
-    def idleTime(self):
+    def idle_time(self):
         """
         Returns the amount of time spent by the cpu in idle
         space

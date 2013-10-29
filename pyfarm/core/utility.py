@@ -76,7 +76,7 @@ def rounded(value, places=4, rounding=ROUND_HALF_DOWN):
 def _floatrange_generator(start, end, by, add_endpoint):
     """
     Underlying function for generating float ranges.  Values
-    are passed into this function via :func:`floatrange`
+    are passed into this function via :func:`float_range`
     """
     # we can handle either integers or floats here
     float_start = isinstance(start, (float, int))
@@ -121,7 +121,7 @@ def _floatrange_generator(start, end, by, add_endpoint):
         yield end
 
 
-def floatrange(start, end=None, by=None, add_endpoint=False):
+def float_range(start, end=None, by=None, add_endpoint=False):
     """
     Creates a generator which produces a list between `start` and `end` with
     a spacing of `by`.  See below for some examples:
@@ -145,7 +145,7 @@ def floatrange(start, end=None, by=None, add_endpoint=False):
     :type add_endpoint: bool
     :param add_endpoint:
         If True then ensure that the last value generated
-        by :func:`floatrange` is the end value itself
+        by :func:`float_range` is the end value itself
     """
     if end is not None and end < start:
         raise ValueError("`end` must be greater than `start`")

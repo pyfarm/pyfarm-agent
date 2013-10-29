@@ -70,30 +70,30 @@ class Network(TestCase):
     def test_packets_sent(self):
         v = psutil.net_io_counters(
             pernic=True)[netinfo.interface()].packets_sent
-        self.assertEqual(netinfo.packetsSent() >= v, True)
+        self.assertEqual(netinfo.packets_sent() >= v, True)
 
     def test_packets_recv(self):
         v = psutil.net_io_counters(
             pernic=True)[netinfo.interface()].packets_recv
-        self.assertEqual(netinfo.packetsReceived() >= v, True)
+        self.assertEqual(netinfo.packets_received() >= v, True)
 
     def test_data_sent(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[netinfo.interface()].bytes_sent)
-        self.assertEqual(netinfo.dataSent() >= v, True)
+        self.assertEqual(netinfo.data_sent() >= v, True)
 
     def test_data_recv(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[netinfo.interface()].bytes_recv)
-        self.assertEqual(netinfo.dataReceived() >= v, True)
+        self.assertEqual(netinfo.data_received() >= v, True)
 
     def test_error_incoming(self):
         v = psutil.net_io_counters(pernic=True)[netinfo.interface()].errin
-        self.assertEqual(netinfo.errorCountIncoming() >= v, True)
+        self.assertEqual(netinfo.incoming_error_count() >= v, True)
 
     def test_error_outgoing(self):
         v = psutil.net_io_counters(pernic=True)[netinfo.interface()].errout
-        self.assertEqual(netinfo.errorCountOutgoing() >= v, True)
+        self.assertEqual(netinfo.outgoing_error_count() >= v, True)
 
     def test_hostname(self):
         self.assertEqual(netinfo.hostname(), socket.getfqdn())
@@ -132,15 +132,15 @@ class Processor(TestCase):
         self.assertEqual(cpuinfo.NUM_CPUS, cpu_count)
 
     def test_usertime(self):
-        self.assertEqual(psutil.cpu_times().user <= cpuinfo.userTime(),
+        self.assertEqual(psutil.cpu_times().user <= cpuinfo.user_time(),
                          True)
 
     def test_systemtime(self):
-        self.assertEqual(psutil.cpu_times().system <= cpuinfo.systemTime(),
+        self.assertEqual(psutil.cpu_times().system <= cpuinfo.system_time(),
                          True)
 
     def test_idletime(self):
-        self.assertEqual(psutil.cpu_times().idle <= cpuinfo.idleTime(),
+        self.assertEqual(psutil.cpu_times().idle <= cpuinfo.idle_time(),
                          True)
 
     def test_iowait(self):
@@ -162,20 +162,20 @@ class Memory(TestCase):
 
     def test_swapused(self):
         v1 = convert.bytetomb(psutil.swap_memory().used)
-        v2 = meminfo.swapUsed()
+        v2 = meminfo.swap_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_swapfree(self):
         v1 = convert.bytetomb(psutil.swap_memory().free)
-        v2 = meminfo.swapFree()
+        v2 = meminfo.swap_free()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramused(self):
         v1 = convert.bytetomb(psutil.virtual_memory().used)
-        v2 = meminfo.ramUsed()
+        v2 = meminfo.ram_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
-        v2 = meminfo.ramFree()
+        v2 = meminfo.ram_free()
         self.assertEqual(v1-v2 < 5, True)
