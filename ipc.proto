@@ -29,9 +29,9 @@ message DynamicType {
 // remotely
 message Exception {
     required string classname = 1;
+    required string message = 4;
     repeated DynamicType args = 2;
     optional int32 errno = 3;
-    optional string message = 4;
     optional string error = 5;
     optional string traceback = 6;
 }
