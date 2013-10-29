@@ -24,6 +24,11 @@ basic data.
 
 import struct
 import traceback
+from functools import partial
+
+from twisted.python import log
+from twisted.internet.task import LoopingCall
+
 from pyfarm.agent.ipc_pb2 import IPCMessage, DynamicType
 
 
@@ -94,3 +99,67 @@ def protobuf_from_error(error):
             arg.string = str(arg_value)
 
     return protobuf
+
+
+class ScheduledTaskManager(object):
+    """
+    Manages and keeps track of several scheduled tasks.
+    """
+    def __init__(self):
+        self.tasks = {}
+        self.log = partial(log.msg, system=self.__class__.__name__)
+
+    def register(self, function, interval, start=False,
+                 func_args=None, func_kwargs=None):
+        """
+        Register a callable function to run at a given interval.  This function
+        will do nothing if ``function`` has already been registered.
+
+        :param function:
+            a callable function that should be run on an interval
+
+        :type interval: int or float
+        :param interval:
+            the interval in which ``function`` should be urn
+
+        :param bool start:
+            if True, start the interval timer after it has been added
+
+        :param tuple func_args:
+            the positional arguments to pass into ``function``
+
+        :param dict func_kwargs:
+            the keyword arguments to pass into ``function``
+
+        :exception AssertionError:
+            raised if ``function`` is not callable
+        """
+        assert callable(function)
+        args, kwargs = func_args or (), func_kwargs or {}
+
+        if function not in self.tasks:
+            looping_call = LoopingCall(function, *args, **kwargs)
+            self.tasks[function] = (looping_call, interval)
+            self.log("registering %s")
+            if start:
+                looping_call.start(interval)
+
+    def start(self, now=True):
+        """
+        start all :class:`.LoopingCall` instances stored from
+        :meth:`.register`
+        """
+        self.log("starting tasks")
+        for function, (looping_call, interval) in self.tasks.iteritems():
+            if not looping_call.running:
+                looping_call.start(interval, now=now)
+
+    def stop(self):
+        """
+        stop all :class:`.LoopingCall` instances stored from
+        :meth:`.register`
+        """
+        self.log("stopping tasks")
+        for function, (looping_call, interval) in self.tasks.iteritems():
+            if not looping_call.running:
+                looping_call.stop(interval)

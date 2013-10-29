@@ -25,11 +25,14 @@ addition these objects will also:
     * statsd client setup
 """
 
+from functools import partial
+
 import statsd
-from twisted.python import usage
+from twisted.python import log, usage
 from twisted.application.service import MultiService as _MultiService
 
 from pyfarm.core.utility import convert
+from pyfarm.agent.utility import ScheduledTaskManager
 
 
 class Options(usage.Options):
@@ -42,10 +45,10 @@ class Options(usage.Options):
         the resulting data.
     """
     optParameters = [
-        ("--statsd", "s", "localhost:8125",
+        ("statsd", "s", "localhost:8125",
          "host to send stats information to, this will not result in errors if "
          "the service non-existent or down"),
-        ("--ipc-port", "-i", None,
+        ("ipc-port", "-i", None,
          "the local port to run the inter process communication on for this "
          "service")]
 
@@ -62,14 +65,20 @@ class MultiService(_MultiService):
     def __init__(self, options):
         _MultiService.__init__(self)
         self.options = options
+        self.config = {}
+        self.scheduled_tasks = ScheduledTaskManager()
+        self.log = partial(log.msg, system=self.__class__.__name__)
+
+        # TODO: add statsd setup
+        # TODO: add statsd argument parsing
 
         # iterate over all options and run them through
         # a converter
         for key, value in self.options.items():
-            if isinstance(key, basestring) and key.startswith("--"):
-                key = key[2:]
+            self.config[key] = self.convert_option(key, value)
 
-            self.options[key] = self.convert_option(key, value)
+        import logging
+        self.log("options: %s" % self.options, level=logging.WARNING)
 
     def convert_option(self, key, value):
         """
@@ -88,3 +97,11 @@ class MultiService(_MultiService):
 
         # default action, return original value
         return value
+
+    def startService(self):
+        self.log("starting service")
+        self.scheduled_tasks.start()
+
+    def stopService(self):
+        self.log("stopping service")
+        self.scheduled_tasks.stop()

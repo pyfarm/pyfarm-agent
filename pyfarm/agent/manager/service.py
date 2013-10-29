@@ -29,8 +29,16 @@ from twisted.internet.protocol import Factory
 from twisted.application import internet
 from twisted.application.service import IServiceMaker
 
-from pyfarm.agent.service import MultiService, Options
+from pyfarm.agent.service import MultiService, Options as BaseOptions
 from pyfarm.agent.manager.protocols import IPCProtocol
+from pyfarm.agent.manager.tasks import memory_utilization
+
+
+class Options(BaseOptions):
+    optParameters = [
+        ("memory-check-interval", "mci", 10,
+         "how often swap and ram resources should be checked and sent to the "
+         "master")]
 
 
 class IPCReceieverFactory(Factory):
@@ -51,6 +59,16 @@ class ManagerService(MultiService):
     """the service object itself"""
     DEFAULT_IPC_PORT = 50001
 
+    def __init__(self, options):
+        MultiService.__init__(self, options)
+        self.scheduled_tasks.register(
+            memory_utilization, self.options.get("memory-check-interval"))
+
+    def convert_option(self, key, value):
+        if key == "memory-check-interval":
+            return int(value)
+        return MultiService.convert_option(self, key, value)
+
 
 
 @implementer(IServiceMaker, IPlugin)
@@ -67,9 +85,10 @@ class ManagerServiceMaker(object):
     def makeService(self, options):
         service = ManagerService(options)
 
+        #raise Exception(type(self.options))
         # ipc service setup
         ipc_factory = IPCReceieverFactory()
-        ipc_server = internet.TCPServer(service.options.get("ipc-port"),
+        ipc_server = internet.TCPServer(service.config.get("ipc-port"),
                                         ipc_factory)
         ipc_server.setServiceParent(service)
 
