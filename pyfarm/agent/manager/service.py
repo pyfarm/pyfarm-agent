@@ -25,41 +25,12 @@ such as log reading, system information gathering, and management of processes.
 from zope.interface import implementer
 from twisted.python import log
 from twisted.plugin import IPlugin
-from twisted.internet import reactor
 from twisted.internet.protocol import Factory
 from twisted.application import internet
 from twisted.application.service import IServiceMaker
 
-from pyfarm.agent.protocols import IPCReceiverProtocolBase
-from pyfarm.agent.utility import protobuf_from_error
 from pyfarm.agent.service import MultiService, Options
-
-
-class IPCProtocol(IPCReceiverProtocolBase):
-    """handles each individual bit of incoming data"""
-
-    def reply(self, protobuf):
-        self.transport.write(protobuf.SerializeToString())
-        self.transport.loseConnection()
-
-    def rawDataReceived(self, data):
-        log.msg("receiving message from %s:%s" % self.transport.client)
-        self.factory.known_hosts.add(self.transport.client[0])
-
-        try:
-            pb = self.protobuf()
-            pb.ParseFromString(data)
-
-        except Exception, e:
-            log.err("error in message from %s: %s" % (self.transport.client, e))
-            data = protobuf_from_error(e)
-            reactor.callLater(0, self.reply, data)
-
-        else:
-            data = self.protobuf()
-            # TODO: go off and do something with the request in a deferred
-            # TODO: pass the transport along so we know who to reply to
-            # TODO: OR start action, return 'starting' send reply later (probably better)
+from pyfarm.agent.manager.protocols import IPCProtocol
 
 
 class IPCReceieverFactory(Factory):
