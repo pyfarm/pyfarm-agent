@@ -24,7 +24,8 @@ import netifaces
 from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
-from pyfarm.core.sysinfo import osinfo, netinfo, cpuinfo, meminfo, username
+from pyfarm.core.sysinfo import (
+    os_info, network_info, cpu_info, memory_info, user_info)
 
 
 class BaseSystem(TestCase):
@@ -37,20 +38,20 @@ class BaseSystem(TestCase):
             import getpass
             sysuser = getpass.getuser()
 
-        self.assertEqual(username(), sysuser)
+        self.assertEqual(user_info.username(), sysuser)
 
     def test_uptime(self):
-        t1 = osinfo.uptime()
+        t1 = os_info.uptime()
         t2 = time.time() - psutil.BOOT_TIME
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_classvars(self):
-        self.assertEqual(osinfo.OS, OS)
-        self.assertEqual(osinfo.IS_LINUX, OS == OperatingSystem.LINUX)
-        self.assertEqual(osinfo.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
-        self.assertEqual(osinfo.IS_MAC, OS == OperatingSystem.MAC)
-        self.assertEqual(osinfo.IS_OTHER, OS == OperatingSystem.OTHER)
-        self.assertEqual(osinfo.IS_POSIX,
+        self.assertEqual(os_info.OS, OS)
+        self.assertEqual(os_info.IS_LINUX, OS == OperatingSystem.LINUX)
+        self.assertEqual(os_info.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
+        self.assertEqual(os_info.IS_MAC, OS == OperatingSystem.MAC)
+        self.assertEqual(os_info.IS_OTHER, OS == OperatingSystem.OTHER)
+        self.assertEqual(os_info.IS_POSIX,
                          OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
 
     def test_case_sensitive(self):
@@ -59,9 +60,9 @@ class BaseSystem(TestCase):
         if not any(exists):
             raise ValueError("failed to determine if path was case sensitive")
         elif all(exists):
-            self.assertEqual(osinfo.CASE_SENSITIVE, False)
+            self.assertEqual(os_info.CASE_SENSITIVE, False)
         elif exists.count(True) == 1:
-            self.assertEqual(osinfo.CASE_SENSITIVE, True)
+            self.assertEqual(os_info.CASE_SENSITIVE, True)
 
         self.remove(path)
 
@@ -69,42 +70,42 @@ class BaseSystem(TestCase):
 class Network(TestCase):
     def test_packets_sent(self):
         v = psutil.net_io_counters(
-            pernic=True)[netinfo.interface()].packets_sent
-        self.assertEqual(netinfo.packets_sent() >= v, True)
+            pernic=True)[network_info.interface()].packets_sent
+        self.assertEqual(network_info.packets_sent() >= v, True)
 
     def test_packets_recv(self):
         v = psutil.net_io_counters(
-            pernic=True)[netinfo.interface()].packets_recv
-        self.assertEqual(netinfo.packets_received() >= v, True)
+            pernic=True)[network_info.interface()].packets_recv
+        self.assertEqual(network_info.packets_received() >= v, True)
 
     def test_data_sent(self):
         v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[netinfo.interface()].bytes_sent)
-        self.assertEqual(netinfo.data_sent() >= v, True)
+            pernic=True)[network_info.interface()].bytes_sent)
+        self.assertEqual(network_info.data_sent() >= v, True)
 
     def test_data_recv(self):
         v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[netinfo.interface()].bytes_recv)
-        self.assertEqual(netinfo.data_received() >= v, True)
+            pernic=True)[network_info.interface()].bytes_recv)
+        self.assertEqual(network_info.data_received() >= v, True)
 
     def test_error_incoming(self):
-        v = psutil.net_io_counters(pernic=True)[netinfo.interface()].errin
-        self.assertEqual(netinfo.incoming_error_count() >= v, True)
+        v = psutil.net_io_counters(pernic=True)[network_info.interface()].errin
+        self.assertEqual(network_info.incoming_error_count() >= v, True)
 
     def test_error_outgoing(self):
-        v = psutil.net_io_counters(pernic=True)[netinfo.interface()].errout
-        self.assertEqual(netinfo.outgoing_error_count() >= v, True)
+        v = psutil.net_io_counters(pernic=True)[network_info.interface()].errout
+        self.assertEqual(network_info.outgoing_error_count() >= v, True)
 
     def test_hostname(self):
-        self.assertEqual(netinfo.hostname(), socket.getfqdn())
-        self.assertEqual(netinfo.hostname(fqdn=False), socket.gethostname())
+        self.assertEqual(network_info.hostname(), socket.getfqdn())
+        self.assertEqual(network_info.hostname(fqdn=False), socket.gethostname())
 
     def test_addresses(self):
-        self.assertEqual(len(netinfo.addresses()) >= 1, True)
-        self.assertEqual(isinstance(netinfo.addresses(), list), True)
+        self.assertEqual(len(network_info.addresses()) >= 1, True)
+        self.assertEqual(isinstance(network_info.addresses(), list), True)
 
     def test_interfaces(self):
-        names = netinfo.interfaces()
+        names = network_info.interfaces()
         self.assertEqual(len(names) > 1, True)
         self.assertEqual(isinstance(names, list), True)
         self.assertEqual(all(name in netifaces.interfaces() for name in names),
@@ -116,9 +117,9 @@ class Network(TestCase):
     @skip_on_ci
     def test_interface(self):
         self.assertEqual(any(
-            i.get("addr") == netinfo.ip()
+            i.get("addr") == network_info.ip()
             for i in netifaces.ifaddresses(
-            netinfo.interface()).get(socket.AF_INET, [])), True)
+            network_info.interface()).get(socket.AF_INET, [])), True)
 
 
 class Processor(TestCase):
@@ -129,53 +130,53 @@ class Processor(TestCase):
         except (ImportError, NotImplementedError):
             cpu_count = psutil.NUM_CPUS
 
-        self.assertEqual(cpuinfo.NUM_CPUS, cpu_count)
+        self.assertEqual(cpu_info.NUM_CPUS, cpu_count)
 
     def test_usertime(self):
-        self.assertEqual(psutil.cpu_times().user <= cpuinfo.user_time(),
+        self.assertEqual(psutil.cpu_times().user <= cpu_info.user_time(),
                          True)
 
     def test_systemtime(self):
-        self.assertEqual(psutil.cpu_times().system <= cpuinfo.system_time(),
+        self.assertEqual(psutil.cpu_times().system <= cpu_info.system_time(),
                          True)
 
     def test_idletime(self):
-        self.assertEqual(psutil.cpu_times().idle <= cpuinfo.idle_time(),
+        self.assertEqual(psutil.cpu_times().idle <= cpu_info.idle_time(),
                          True)
 
     def test_iowait(self):
-        if osinfo.IS_LINUX:
-            self.assertEqual(cpuinfo.iowait() <= psutil.cpu_times().iowait,
+        if os_info.IS_LINUX:
+            self.assertEqual(cpu_info.iowait() <= psutil.cpu_times().iowait,
                              True)
         else:
-            self.assertEqual(cpuinfo.iowait(), None)
+            self.assertEqual(cpu_info.iowait(), None)
 
 
 class Memory(TestCase):
     def test_totalram(self):
-        self.assertEqual(meminfo.TOTAL_RAM,
+        self.assertEqual(memory_info.TOTAL_RAM,
                          convert.bytetomb(psutil.TOTAL_PHYMEM))
 
     def test_totalswap(self):
-        self.assertEqual(meminfo.TOTAL_SWAP,
+        self.assertEqual(memory_info.TOTAL_SWAP,
                          convert.bytetomb(psutil.swap_memory().total))
 
     def test_swapused(self):
         v1 = convert.bytetomb(psutil.swap_memory().used)
-        v2 = meminfo.swap_used()
+        v2 = memory_info.swap_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_swapfree(self):
         v1 = convert.bytetomb(psutil.swap_memory().free)
-        v2 = meminfo.swap_free()
+        v2 = memory_info.swap_free()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramused(self):
         v1 = convert.bytetomb(psutil.virtual_memory().used)
-        v2 = meminfo.ram_used()
+        v2 = memory_info.ram_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
-        v2 = meminfo.ram_free()
+        v2 = memory_info.ram_free()
         self.assertEqual(v1-v2 < 5, True)

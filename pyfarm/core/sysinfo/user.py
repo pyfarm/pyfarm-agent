@@ -34,7 +34,8 @@ except ImportError:  # pragma: no cover
     import getpass
 
 from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
-osinfo = OperatingSystemInfo()
+
+os_info = OperatingSystemInfo()
 
 
 def username():
@@ -56,10 +57,10 @@ def is_administrator():  # pragma: no cover
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
     """
-    if osinfo.IS_POSIX:
+    if os_info.IS_POSIX:
         return os.getuid() == 0
-    elif osinfo.IS_WINDOWS:
+    elif os_info.IS_WINDOWS:
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
 
-    osname = osinfo.OS(osinfo.OS())
+    osname = os_info.OS(os_info.OS())
     raise NotImplementedError("`is_administrator` is not implemented for %s" % osname)

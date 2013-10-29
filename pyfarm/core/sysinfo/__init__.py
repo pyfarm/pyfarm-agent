@@ -20,16 +20,16 @@ system memory, network, and processor related information.  Unlike other
 modules in PyFarm this module is not generally meant to be overridden outside
 the package.
 
-:const osinfo:
+:const os_info:
     module level instance of :class:`.OperatingSystemInfo`
 
-:const meminfo:
+:const memory_info:
     module level instance of :class:`.MemoryInfo`
 
-:const cpuinfo:
+:const cpu_info:
     module level instance of :class:`.ProcessorInfo`
 
-:const netinfo:
+:const network_info:
     module level instance of :class:`.NetworkInfo`
 """
 
@@ -40,9 +40,9 @@ from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
 from pyfarm.core.sysinfo.memory import MemoryInfo
 from pyfarm.core.sysinfo.network import NetworkInfo
 from pyfarm.core.sysinfo.processor import ProcessorInfo
-from pyfarm.core.sysinfo.user import username, is_administrator
+from pyfarm.core.sysinfo import user as user_info
 
-osinfo = OperatingSystemInfo()
-meminfo = MemoryInfo()
-cpuinfo = ProcessorInfo()
-netinfo = NetworkInfo()
+os_info = OperatingSystemInfo()
+memory_info = MemoryInfo()
+cpu_info = ProcessorInfo()
+network_info = NetworkInfo()
