@@ -36,9 +36,13 @@ from pyfarm.agent.manager.tasks import memory_utilization
 
 class Options(BaseOptions):
     optParameters = [
-        ("memory-check-interval", "mci", 10,
+        ("memory-check-interval", "", 10,
          "how often swap and ram resources should be checked and sent to the "
-         "master")]
+         "master"),
+        ("http-auth-user", "u", None,
+         "the user to use for connecting to the master's REST api"),
+        ("http-auth-password", "v", None,
+         "the password to use to connect to the master's REST api")]
 
 
 class IPCReceieverFactory(Factory):
