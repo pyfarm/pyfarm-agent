@@ -45,10 +45,10 @@ class Options(usage.Options):
         the resulting data.
     """
     optParameters = [
-        ("statsd", "s", "localhost:8125",
+        ("statsd", "s", "127.0.0.1:8125",
          "host to send stats information to, this will not result in errors if "
          "the service non-existent or down"),
-        ("ipc-port", "-i", None,
+        ("ipc-port", "i", None,
          "the local port to run the inter process communication on for this "
          "service")]
 
