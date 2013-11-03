@@ -22,19 +22,25 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import logging
+import socket
+from functools import partial
 from urlparse import urlparse
 
 from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
-from twisted.application.service import IServiceMaker
+from twisted.application.service import IServiceMaker, MultiService
 
-from pyfarm.agent.service import MultiService, Options as BaseOptions
 from pyfarm.agent.manager.tasks import memory_utilization
+from pyfarm.agent.utility.tasks import ScheduledTaskManager
 
 
-class Options(BaseOptions):
+class Options(usage.Options):
     optParameters = [
+        ("statsd", "s", "127.0.0.1:8125",
+         "host to send stats information to, this will not result in errors if "
+         "the service non-existent or down"),
         ("memory-check-interval", "", 10,
          "how often swap and ram resources should be checked and sent to the "
          "master"),
@@ -45,7 +51,7 @@ class Options(BaseOptions):
         ("master-api", "m", None,
          "The url which points to the master's api, this value is required.  "
          "Examples: https://api.pyfarm.net or http://127.0.0.1:5000"),
-        ("port", "p", None,
+        ("port", "p", 50000,
          "The port which the master should use to talk back to the agent.")]
 
 #
@@ -65,35 +71,56 @@ class Options(BaseOptions):
 
 class ManagerService(MultiService):
     """the service object itself"""
-    DEFAULT_PORT = 50000
-    DEFAULT_IPC_PORT = 50001
+    config = {}
 
     def __init__(self, options):
-        MultiService.__init__(self, options)
+        self.options = options
+        self.scheduled_tasks = ScheduledTaskManager()
+        self.log = partial(log.msg, system=self.__class__.__name__)
+
+        # convert all incoming options to values we can use
+        for key, value in self.options.items():
+            if key == "statsd":
+                if ":" not in value:
+                    statsd_server = value
+                    statsd_port = "8125"
+                else:
+                    statsd_server, statsd_port = value.split(":")
+
+                # 'validate' the address by attempting to
+                # convert it from a string to a number
+                try:
+                    socket.inet_aton(statsd_server)
+                except socket.error:
+                    raise usage.UsageError(
+                        "invalid server name format for --%s" % key)
+
+                value = ":".join([statsd_server, statsd_port])
+
+            elif key == "memory-check-interval":
+                value = int(value)
+
+            elif key == "master-api":
+                if value is None:
+                    raise usage.UsageError("--%s must be set" % key)
+
+                parsed_url = urlparse(value)
+                if not parsed_url.scheme in ("http", "https"):
+                    raise usage.UsageError(
+                        "scheme must be http or https for --%s" % key)
+
+            self.config[key] = value
+
+        # register any scheduled tasks
         self.scheduled_tasks.register(
-            memory_utilization, self.options.get("memory-check-interval"))
+            memory_utilization, self.config["memory-check-interval"])
 
-    def convert_option(self, key, value):
-        if key == "memory-check-interval":
-            return int(value)
-
-        elif key == "master-api":
-            if value is None:
-                raise usage.UsageError("--%s must be set" % key)
-
-            parsed_url = urlparse(value)
-            if not parsed_url.scheme in ("http", "https"):
-                raise usage.UsageError(
-                    "scheme must be http or https for --%s" % key)
-
-            return value
-
-        return MultiService.convert_option(self, key, value)
+        # finally, setup the base class
+        MultiService.__init__(self)
 
     def startService(self):
-        self.log("informing master new agent")
-        MultiService.startService(self)
-
+        self.log("informing master of this agent", level=logging.INFO)
+        self.scheduled_tasks.start()
 
 
 @implementer(IServiceMaker, IPlugin)
