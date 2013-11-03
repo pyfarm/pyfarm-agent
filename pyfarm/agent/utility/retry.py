@@ -186,7 +186,8 @@ class RetryDeferred(object):
         """
         # TODO: add statsd log for # of errors
         # TODO: stat log should include some info on type (webrequest/call/etc)
-        self.errors.append(error)
+        if self.max_retries is not None:
+            self.errors.append(error)
 
         if self.should_run():
             self.log("%s attempt %s failed: %s" % (
