@@ -25,6 +25,8 @@ addition these objects will also:
     * statsd client setup
 """
 
+import logging
+import socket
 from functools import partial
 
 import statsd
@@ -78,7 +80,6 @@ class MultiService(_MultiService):
         for key, value in self.options.items():
             self.config[key] = self.convert_option(key, value)
 
-        import logging
         self.log("options: %s" % self.options, level=logging.WARNING)
 
     def convert_option(self, key, value):
@@ -95,6 +96,19 @@ class MultiService(_MultiService):
                 return self.DEFAULT_IPC_PORT
             else:
                 return convert.stoi(value)
+
+        elif key == "statsd" and value:
+            if ":" not in value:
+                statsd_server = value
+                statsd_port = "8125"
+            else:
+                statsd_server, statsd_port = value.split(":")
+
+            # 'validate' the address by attempting to
+            # convert it from a string to a number
+            socket.inet_aton(statsd_server)
+
+            return ":".join([statsd_server, statsd_port])
 
         # default action, return original value
         return value
