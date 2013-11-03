@@ -31,7 +31,7 @@ from twisted.application import internet
 from twisted.application.service import IServiceMaker
 
 from pyfarm.agent.protocols import IPCReceiverProtocolBase
-from pyfarm.agent.utility import protobuf_from_error
+from pyfarm.agent.utility.structures import protobuf_from_error
 from pyfarm.agent.service import MultiService, Options
 
 

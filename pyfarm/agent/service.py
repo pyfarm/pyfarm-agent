@@ -32,7 +32,7 @@ from twisted.python import log, usage
 from twisted.application.service import MultiService as _MultiService
 
 from pyfarm.core.utility import convert
-from pyfarm.agent.utility import ScheduledTaskManager
+from pyfarm.agent.utility.tasks import ScheduledTaskManager
 
 
 class Options(usage.Options):

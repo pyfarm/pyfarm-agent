@@ -25,7 +25,7 @@ from twisted.internet import reactor
 from twisted.python import log
 
 from pyfarm.agent.protocols import IPCReceiverProtocolBase
-from pyfarm.agent.utility import protobuf_from_error
+from pyfarm.agent.utility.structures import protobuf_from_error
 
 
 class IPCProtocol(IPCReceiverProtocolBase):
