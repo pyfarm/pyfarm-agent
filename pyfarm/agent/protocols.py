@@ -25,8 +25,6 @@ classes from here must be subclasses.
 
 from twisted.protocols.basic import LineReceiver
 
-from pyfarm.agent.ipc_pb2 import IPCMessage
-
 
 class ProtobufProtocol(LineReceiver):
     """
@@ -41,11 +39,3 @@ class ProtobufProtocol(LineReceiver):
 
     def rawDataReceived(self, data):
         raise NotImplementedError("rawDataReceived() must be overridden")
-
-
-class IPCReceiverProtocolBase(ProtobufProtocol):
-    """
-    Subclass of :class:`.ProtobufProtocol` which sets the :attr:`.protobuf`
-    attribute to :class:`.IPCMessage`
-    """
-    protobuf = IPCMessage
