@@ -16,7 +16,7 @@
 
 """
 Structures
-----------
+==========
 
 Functions for dealing with various kinds of structures which
 can be sent over the network.
