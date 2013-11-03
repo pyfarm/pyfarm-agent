@@ -24,17 +24,17 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "psutil", "netifaces", "netaddr", "protobuf", "statsd"]
+    "pyfarm.core", "psutil", "netifaces", "netaddr", "protobuf", "statsd",
+    "twisted"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
 
 if sys.version_info[0:2] == (2, 5):
+    install_requires.remove("twisted")
     install_requires.extend([
         "zope.interface==3.8.0",
         "twisted==12.1.0"])
-else:
-    install_requires.append("twisted")
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
