@@ -77,8 +77,10 @@ class ScheduledTaskManager(object):
         :meth:`.register`
         """
         self.log("starting tasks")
+
         for function, (looping_call, interval) in self.tasks.iteritems():
             if not looping_call.running:
+                self.log("...starting %s" % function.__name__)
                 looping_call.start(interval, now=now)
 
     def stop(self):
@@ -87,6 +89,10 @@ class ScheduledTaskManager(object):
         :meth:`.register`
         """
         self.log("stopping tasks")
+
         for function, (looping_call, interval) in self.tasks.iteritems():
-            if not looping_call.running:
-                looping_call.stop(interval)
+            if looping_call.running:
+                self.log("...stopping %s" % function.__name__)
+                looping_call.stop()
+            else:
+                self.log("...%s is already stopped" % function.__name__)
