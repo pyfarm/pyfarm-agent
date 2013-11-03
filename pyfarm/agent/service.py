@@ -60,7 +60,7 @@ class MultiService(_MultiService):
     Core service object which should be subclassed by other services.  This
     class is instanced whenever twistd runs and does a few things:
 
-        * ensures certain commandline parameters are provided defauls
+        * ensures certain commandline parameters are provided defaults
         * prepares a statsd client
     """
     DEFAULT_IPC_PORT = NotImplemented
