@@ -24,8 +24,7 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "psutil", "netifaces", "netaddr", "protobuf", "statsd",
-    "twisted"]
+    "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")

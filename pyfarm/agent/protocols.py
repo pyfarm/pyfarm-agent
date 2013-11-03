@@ -23,19 +23,3 @@ parts of the project.  This module contains the base implementation only,
 classes from here must be subclasses.
 """
 
-from twisted.protocols.basic import LineReceiver
-
-
-class ProtobufProtocol(LineReceiver):
-    """
-    Basic protocol based on Twisted's :class:`.LineReceiver` protocol
-    with specific modifications for protocol buffers.
-    """
-    protobuf = NotImplemented
-    line_mode = 0
-
-    def __init__(self):
-        assert self.protobuf is not NotImplemented, "self.protobuf not set"
-
-    def rawDataReceived(self, data):
-        raise NotImplementedError("rawDataReceived() must be overridden")
