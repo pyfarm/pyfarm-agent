@@ -27,12 +27,9 @@ from urlparse import urlparse
 from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
-from twisted.internet.protocol import Factory
-from twisted.application import internet
 from twisted.application.service import IServiceMaker
 
 from pyfarm.agent.service import MultiService, Options as BaseOptions
-from pyfarm.agent.manager.protocols import IPCProtocol
 from pyfarm.agent.manager.tasks import memory_utilization
 
 
@@ -47,25 +44,28 @@ class Options(BaseOptions):
          "the password to use to connect to the master's REST api"),
         ("master-api", "m", None,
          "The url which points to the master's api, this value is required.  "
-         "Examples: https://api.pyfarm.net or http://127.0.0.1:5000")]
+         "Examples: https://api.pyfarm.net or http://127.0.0.1:5000"),
+        ("port", "p", None,
+         "The port which the master should use to talk back to the agent.")]
 
-
-class IPCReceieverFactory(Factory):
-    """
-    Receives incoming connections and hands them off to the protocol
-    object.  In addition this class will also keep a list of all hosts
-    which have connected so they can be notified upon shutdown.
-    """
-    protocol = IPCProtocol
-    known_hosts = set()
-
-    def stopFactory(self):  # TODO: notify all connected hosts we are stopping
-        if self.known_hosts:
-            log.msg("notifying all known hosts of termination")
+#
+#class IPCReceieverFactory(Factory):
+#    """
+#    Receives incoming connections and hands them off to the protocol
+#    object.  In addition this class will also keep a list of all hosts
+#    which have connected so they can be notified upon shutdown.
+#    """
+#    protocol = IPCProtocol
+#    known_hosts = set()
+#
+#    def stopFactory(self):  # TODO: notify all connected hosts we are stopping
+#        if self.known_hosts:
+#            log.msg("notifying all known hosts of termination")
 
 
 class ManagerService(MultiService):
     """the service object itself"""
+    DEFAULT_PORT = 50000
     DEFAULT_IPC_PORT = 50001
 
     def __init__(self, options):
@@ -90,6 +90,10 @@ class ManagerService(MultiService):
 
         return MultiService.convert_option(self, key, value)
 
+    def startService(self):
+        self.log("informing master new agent")
+        MultiService.startService(self)
+
 
 
 @implementer(IServiceMaker, IPlugin)
@@ -106,11 +110,10 @@ class ManagerServiceMaker(object):
     def makeService(self, options):
         service = ManagerService(options)
 
-        #raise Exception(type(self.options))
         # ipc service setup
-        ipc_factory = IPCReceieverFactory()
-        ipc_server = internet.TCPServer(service.config.get("ipc-port"),
-                                        ipc_factory)
-        ipc_server.setServiceParent(service)
+        #ipc_factory = IPCReceieverFactory()
+        #ipc_server = internet.TCPServer(service.config.get("ipc-port"),
+        #                                ipc_factory)
+        #ipc_server.setServiceParent(service)
 
         return service

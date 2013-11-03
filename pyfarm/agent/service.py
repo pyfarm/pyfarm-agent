@@ -49,10 +49,7 @@ class Options(usage.Options):
     optParameters = [
         ("statsd", "s", "127.0.0.1:8125",
          "host to send stats information to, this will not result in errors if "
-         "the service non-existent or down"),
-        ("ipc-port", "i", None,
-         "the local port to run the inter process communication on for this "
-         "service")]
+         "the service non-existent or down")]
 
 
 class MultiService(_MultiService):

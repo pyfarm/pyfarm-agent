@@ -63,7 +63,6 @@ setup(
               "pyfarm",
               "pyfarm.agent",
               "pyfarm.agent.manager",
-              "pyfarm.agent.processor",
               "pyfarm.agent.utility"],
     namespace_packages=["pyfarm"],
     include_package_data=True,
