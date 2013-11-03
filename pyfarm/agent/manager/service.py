@@ -22,8 +22,10 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+from urlparse import urlparse
+
 from zope.interface import implementer
-from twisted.python import log
+from twisted.python import log, usage
 from twisted.plugin import IPlugin
 from twisted.internet.protocol import Factory
 from twisted.application import internet
@@ -42,7 +44,10 @@ class Options(BaseOptions):
         ("http-auth-user", "u", None,
          "the user to use for connecting to the master's REST api"),
         ("http-auth-password", "v", None,
-         "the password to use to connect to the master's REST api")]
+         "the password to use to connect to the master's REST api"),
+        ("master-api", "m", None,
+         "The url which points to the master's api, this value is required.  "
+         "Examples: https://api.pyfarm.net or http://127.0.0.1:5000")]
 
 
 class IPCReceieverFactory(Factory):
@@ -71,6 +76,18 @@ class ManagerService(MultiService):
     def convert_option(self, key, value):
         if key == "memory-check-interval":
             return int(value)
+
+        elif key == "master-api":
+            if value is None:
+                raise usage.UsageError("--%s must be set" % key)
+
+            parsed_url = urlparse(value)
+            if not parsed_url.scheme in ("http", "https"):
+                raise usage.UsageError(
+                    "scheme must be http or https for --%s" % key)
+
+            return value
+
         return MultiService.convert_option(self, key, value)
 
 

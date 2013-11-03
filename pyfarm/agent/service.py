@@ -106,7 +106,11 @@ class MultiService(_MultiService):
 
             # 'validate' the address by attempting to
             # convert it from a string to a number
-            socket.inet_aton(statsd_server)
+            try:
+                socket.inet_aton(statsd_server)
+            except socket.error:
+                raise usage.UsageError(
+                    "invalid server name format for --%s" % key)
 
             return ":".join([statsd_server, statsd_port])
 
