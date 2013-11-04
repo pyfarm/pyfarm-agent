@@ -22,8 +22,9 @@ The client library the manager uses to communicate with
 the master server.
 """
 
-from httplib import NO_CONTENT
 import logging
+from httplib import NO_CONTENT, RESET_CONTENT
+from functools import partial
 from urllib import getproxies
 from urlparse import urlparse
 
@@ -42,23 +43,10 @@ from twisted.python import log
 from twisted.internet import reactor, defer, protocol
 from twisted.web.iweb import IBodyProducer
 from twisted.web.client import (
-    HTTPConnectionPool as _HTTPConnectionPool, Agent, ProxyAgent)
+    HTTPConnectionPool as _HTTPConnectionPool, Agent, ProxyAgent, ResponseDone)
 from twisted.web.http_headers import Headers
 from twisted.internet.endpoints import TCP4ClientEndpoint
 from twisted.internet.ssl import ClientContextFactory as _ClientContextFactory
-
-
-# TODO: add documentation
-class StringReceiver(protocol.Protocol):
-    def __init__(self, deferred):
-        self.buffer = ""
-        self.deferred = deferred
-
-    def dataReceived(self, data):
-        self.buf += data
-
-    def connectionLost(self, reason):
-        self.deferred.callback(self.buffer)
 
 
 class StringProducer(object):
@@ -95,7 +83,7 @@ class HTTPConnectionPool(_HTTPConnectionPool):
     maxPersistentPerHost = 1  # more than one could cause problems at scale
 
 
-class Client(object):
+class WebClient(object):
     """
     Basic HTTP web client which should handle SSL, proxies, and normal
     requests.
@@ -110,11 +98,11 @@ class Client(object):
             this value only applies to non-proxied connections.
     """
     SUPPORTED_METHODS = set(("GET", "POST", "DELETE", "PUT"))
-    connection_pool = HTTPConnectionPool()
 
-    def __init__(self, base_uri=None, connect_timeout=30):
+    def __init__(self, base_uri=None, connect_timeout=10):
         self.base_uri = base_uri
         self.requests = OrderedDict()  # currently active requests
+        self.log = partial(log.msg, system=self.__class__.__name__)
 
         # setup the agent
         proxies = getproxies()
@@ -137,18 +125,57 @@ class Client(object):
             self.construct_agent = lambda: ProxyAgent(
                 TCP4ClientEndpoint(reactor, proxy_server, proxy_port),
                 reactor=reactor,
-                pool=self.connection_pool)
+                pool=HTTPConnectionPool(reactor))
 
         # non-proxy agent
         else:
             self.construct_agent = lambda: Agent(
                 reactor,
                 connectTimeout=connect_timeout,
-                pool=self.connection_pool)
+                pool=HTTPConnectionPool(reactor))
 
         # Instance the agent from the lambda function.  This will allow
         # us to 'reconstruct' an agent later on if needed (such as for retries)
         self.agent = self.construct_agent()
+
+    def handle_response(self, response):
+        if response.code in (NO_CONTENT, RESET_CONTENT):
+            return defer.succeed("")
+
+        elif response.code >= 400:
+            # TODO: add statsd codes
+            return defer.fail(response)
+
+        else:
+            class SimpleReceiver(protocol.Protocol):
+                def __init__(self, deferred):
+                    self.buffer = ""
+                    self.deferred = deferred
+
+                def dataReceived(self, data):
+                    self.buffer += data
+
+                def connectionLost(self, reason):
+                    # TODO: add statsd for response
+
+                    # if the headers specify json content, convert
+                    # it before returning the data
+                    content_types = [] or response.headers.getRawHeaders(
+                        "content-type")
+                    for content_type in content_types:
+                        if "application/json" in content_type:
+                            self.buffer = json.loads(self.buffer)
+                            break
+
+                    # check the reason type 'the twisted way'...
+                    if reason.type is ResponseDone:
+                        self.deferred.callback(self.buffer)
+                    else:
+                        self.deferred.errback(reason)
+
+            d = defer.Deferred()
+            response.deliverBody(SimpleReceiver(d))
+            return d
 
     def request(self, method, uri, data=None, headers=None,
                 data_dumps=json.dumps):
@@ -180,7 +207,7 @@ class Client(object):
             if the data provided for a value, such as ``headers`` is of
             the wrong type.  TypeError will not be raised here because
             :meth:`.request` is an internal method which usually is not
-            called outside of :class:`Client`
+            called outside of :class:`WebClient`
 
         :return:
             returns an instance of :class:`.defer.Deferred`
@@ -217,20 +244,55 @@ class Client(object):
         self.requests[(method, uri, headers, data, body_producer)] = None
 
         # TODO: add deferreds and remaining bits necessary for POST, see example
+        log_msg = "%s %s" % (method, uri)
+        if data is not None:
+            log_msg += " data: %s" % data
+
+        if headers is not None:
+            log_msg += " headers: %s" % headers
+
+        self.log(log_msg)
         deferred = self.agent.request(
             method, uri, headers=headers, bodyProducer=body_producer)
 
-        def handle_resonse(response):
-            if response.code == NO_CONTENT:
-                d = defer.succeed("")
-            else:
-                d = defer.Deferred()
-                response.delieverBody(StringReceiver(d))
+        # add in our response handler which will help
+        # to fire the proper callback/errback
+        deferred.addCallback(self.handle_response)
 
-            return d
-
-        # TODO: add errback
-        deferred.addCallback(handle_resonse)
         return deferred
 
+    # TODO: documentation
+    def post(self, uri, data=None, headers=None):
+        return self.request("POST", uri, data=data, headers=headers)
 
+    # TODO: documentation
+    def get(self, uri, headers=None):
+        return self.request("GET", uri, headers=headers)
+
+    # TODO: documentation
+    def put(self, uri, data=None, headers=None):
+        return self.request("PUT", uri, data=data, headers=headers)
+
+    # TODO: documentation
+    def delete(self, uri, headers=None):
+        return self.request("DELETE", uri, headers=headers)
+
+
+# TODO: documentation
+def post(uri, data=None, headers=None):
+    return WebClient().post(uri, data=data, headers=headers)
+
+
+# TODO: documentation
+def get(uri, headers=None):
+    return WebClient().get(uri, headers=headers)
+
+
+# TODO: documentation
+def put(uri, data=None, headers=None):
+    return WebClient().put(uri, data=data, headers=headers)
+
+
+# TODO: documentation
+def delete(uri, headers=None):
+    return WebClient().delete(uri, headers=headers)

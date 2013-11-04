@@ -32,6 +32,13 @@ from twisted.python import log, usage
 from twisted.plugin import IPlugin
 from twisted.application.service import IServiceMaker, MultiService
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
+from pyfarm.agent.http.client import post as http_post
+from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.manager.tasks import memory_utilization
 from pyfarm.agent.utility.tasks import ScheduledTaskManager
 
@@ -48,11 +55,16 @@ class Options(usage.Options):
          "the user to use for connecting to the master's REST api"),
         ("http-auth-password", "v", None,
          "the password to use to connect to the master's REST api"),
+        ("http-max-retries", "", "unlimited",
+         "the max number of times to retry a request back to the master"),
+        ("http-retry-delay", "", 3,
+         "if a http request back to the master has failed, wait this amount of "
+         "time before trying again"),
         ("master-api", "m", None,
          "The url which points to the master's api, this value is required.  "
          "Examples: https://api.pyfarm.net or http://127.0.0.1:5000"),
         ("port", "p", 50000,
-         "The port which the master should use to talk back to the agent.")]
+         "The port which the master should use to talk back to the agent."),]
 
 #
 #class IPCReceieverFactory(Factory):
@@ -80,6 +92,9 @@ class ManagerService(MultiService):
 
         # convert all incoming options to values we can use
         for key, value in self.options.items():
+            if value == "unlimited":
+                value = None
+
             if key == "statsd":
                 if ":" not in value:
                     statsd_server = value
@@ -97,8 +112,15 @@ class ManagerService(MultiService):
 
                 value = ":".join([statsd_server, statsd_port])
 
-            elif key == "memory-check-interval":
-                value = int(value)
+            elif key in (
+                "memory-check-interval", "http-max-retries",
+                "http-retry-delay"):
+                if not isinstance(value, basestring):
+                    value = value  # unchanged
+                elif "." in value:
+                    value = float(value)
+                else:
+                    value = int(value)
 
             elif key == "master-api":
                 if value is None:
@@ -119,8 +141,33 @@ class ManagerService(MultiService):
         MultiService.__init__(self)
 
     def startService(self):
-        self.log("informing master of this agent", level=logging.INFO)
-        self.scheduled_tasks.start()
+        self.log("informing master of agent startup", level=logging.INFO)
+
+        def start_service(response):
+            print "start_service ===========",response
+            #print dir(response)
+            #from twisted.internet import defer
+            #response_body = http.StringReceiver(defer.Deferred())
+            #response.delieverBody(lambda: True)
+            self.log("connected to master")
+            self.scheduled_tasks.start()
+
+        def failure(error):
+            print "FAIL", error.value
+
+        # prepare a retry request to POST to the master
+        retry_post_agent = RetryDeferred(
+            http_post, start_service, failure,
+            max_retries=self.config["http-max-retries"],
+            timeout=None,
+            retry_delay=self.config["http-retry-delay"])
+
+        retry_post_agent(
+            self.config["master-api"] + "/", data=json.dumps({"foo": True}))
+
+    def stopService(self):
+        self.scheduled_tasks.stop()
+        self.log("informing master of agent shutdown", level=logging.INFO)
 
 
 @implementer(IServiceMaker, IPlugin)
