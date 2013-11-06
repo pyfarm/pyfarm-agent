@@ -25,7 +25,6 @@ such as log reading, system information gathering, and management of processes.
 import logging
 import socket
 from functools import partial
-from urlparse import urlparse
 
 from zope.interface import implementer
 from twisted.python import log, usage
@@ -37,35 +36,93 @@ try:
 except ImportError:
     import simplejson as json
 
+from pyfarm.core.utility import convert
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.manager.tasks import memory_utilization
 from pyfarm.agent.utility.tasks import ScheduledTaskManager
 
 
+def convert_option_ston(key, value):
+    # special "infinite" value reserved for some flags
+    if (isinstance(value, basestring) and key == "http-max-retries"
+            and value.lower() in ("inf", "infinite", "unlimited")):
+        return float("inf")
+
+    try:
+        return convert.ston(value)
+
+    except ValueError:
+        raise usage.UsageError(
+            "--%s requires a number but got %s" % (key, repr(value)))
+
+
+def check_address(value):
+    # is this a valid ip address?
+    try:
+        socket.inet_aton(value)
+        return value
+
+    except socket.error:
+        pass
+
+    # could we map the hostname to an address?
+    try:
+        socket.gethostbyname(value)
+        return value
+
+    except socket.gaierror:
+        raise usage.UsageError("failed to resolve %s to an address" % value)
+
+
 class Options(usage.Options):
     optParameters = [
-        ("statsd", "s", "127.0.0.1:8125",
-         "host to send stats information to, this will not result in errors if "
-         "the service non-existent or down"),
+        ("master", "", None,
+         "The master server's hostname or address.  If no other options are "
+         "provided to describe the location of specific services then the "
+         "resource urls will be built off of this address."),
+        ("port", "p", 50000,
+         "The port which the master should use to talk back to the agent."),
         ("memory-check-interval", "", 10,
          "how often swap and ram resources should be checked and sent to the "
          "master"),
-        ("http-auth-user", "u", None,
-         "the user to use for connecting to the master's REST api"),
-        ("http-auth-password", "v", None,
-         "the password to use to connect to the master's REST api"),
         ("http-max-retries", "", "unlimited",
          "the max number of times to retry a request back to the master"),
         ("http-retry-delay", "", 3,
          "if a http request back to the master has failed, wait this amount of "
          "time before trying again"),
-        ("master-api", "m", None,
-         "The url which points to the master's api, this value is required.  "
-         "Examples: https://api.pyfarm.net or http://127.0.0.1:5000"),
-        ("port", "p", 50000,
-         "The port which the master should use to talk back to the agent."),]
+        ("http-auth-user", "", None,
+         "the user to use for connecting to the master's REST api.  The "
+         "default is communication without authentication."),
+        ("http-auth-password", "", None,
+         "the password to use to connect to the master's REST api.  The "
+         "default is communication without authentication."),
+        ("http-api-port", "", 5000,
+         "Default port the restfull HTTP api runs on.  By default this value "
+         "is combined with --master but could also be combined with the "
+         "alternate --http-api-server"),
+        ("http-api-scheme", "", "http",
+         "The scheme to use to communicate over http.  Valid values are "
+         "'http' or 'https'"),
+        ("statsd-port", "", 8125,
+         "Default port that statsd runs on.  By default this value is combined "
+         "with --master but could also be combined with the alternate "
+         "--statsd-server"),
+        ("http-api-server", "", None,
+         "Alternate server which is running the restfull HTTP server.  This "
+         "will replace the value provided by the --master flag."),
+        ("statsd-server", "", None,
+         "Alternate server which is running the statsd service.  This will "
+         "replace the value provided by the --master flag.")]
 
+    # special variable used for inferring type in makeService
+    optConverters = {
+        "port": convert_option_ston,
+        "memory-check-interval": convert_option_ston,
+        "http-max-retries": convert_option_ston,
+        "http-retry-delay": convert_option_ston,
+        "http-api-port": convert_option_ston,
+        "statsd-port": convert_option_ston}
 #
 #class IPCReceieverFactory(Factory):
 #    """
@@ -85,53 +142,10 @@ class ManagerService(MultiService):
     """the service object itself"""
     config = {}
 
-    def __init__(self, options):
-        self.options = options
+    def __init__(self, config):
+        self.config.update(config)
         self.scheduled_tasks = ScheduledTaskManager()
         self.log = partial(log.msg, system=self.__class__.__name__)
-
-        # convert all incoming options to values we can use
-        for key, value in self.options.items():
-            if value == "unlimited":
-                value = None
-
-            if key == "statsd":
-                if ":" not in value:
-                    statsd_server = value
-                    statsd_port = "8125"
-                else:
-                    statsd_server, statsd_port = value.split(":")
-
-                # 'validate' the address by attempting to
-                # convert it from a string to a number
-                try:
-                    socket.inet_aton(statsd_server)
-                except socket.error:
-                    raise usage.UsageError(
-                        "invalid server name format for --%s" % key)
-
-                value = ":".join([statsd_server, statsd_port])
-
-            elif key in (
-                "memory-check-interval", "http-max-retries",
-                "http-retry-delay"):
-                if not isinstance(value, basestring):
-                    value = value  # unchanged
-                elif "." in value:
-                    value = float(value)
-                else:
-                    value = int(value)
-
-            elif key == "master-api":
-                if value is None:
-                    raise usage.UsageError("--%s must be set" % key)
-
-                parsed_url = urlparse(value)
-                if not parsed_url.scheme in ("http", "https"):
-                    raise usage.UsageError(
-                        "scheme must be http or https for --%s" % key)
-
-            self.config[key] = value
 
         # register any scheduled tasks
         self.scheduled_tasks.register(
@@ -163,7 +177,7 @@ class ManagerService(MultiService):
             retry_delay=self.config["http-retry-delay"])
 
         retry_post_agent(
-            self.config["master-api"] + "/", data=json.dumps({"foo": True}))
+            self.config["http-api"] + "/", data=json.dumps({"foo": True}))
 
     def stopService(self):
         self.scheduled_tasks.stop()
@@ -173,16 +187,50 @@ class ManagerService(MultiService):
 @implementer(IServiceMaker, IPlugin)
 class ManagerServiceMaker(object):
     """
-    Main service which which serves as the entry point into the internals
-    of the agent.  This services runs an HTTP server for external interfacing
-    and an IPC server based on protocol buffers for internal usage.
+    Main service which which serves runs PyFarm's agent which consists
+    of and HTTP REST api and process management/monitoring.
     """
-    tapname = "pyfarm.agent.manager"
+    tapname = "pyfarm.agent"
     description = __doc__
     options = Options
 
     def makeService(self, options):
-        service = ManagerService(options)
+        config = {}
+
+        # convert all incoming options to values we can use
+        for key, value in options.items():
+            if value is not None and key in options.optConverters:
+                value = options.optConverters[key](key, value)
+
+            config[key] = value
+
+        # set or raise error about missing http api server
+        http_server = config.get("http-api-server") or config.get("master")
+        if http_server is None:
+            raise usage.UsageError(
+                "--master or --http-api-server must be provided")
+        else:
+            # make sure the http scheme is set properly
+            if config["http-api-scheme"] not in ("http", "https"):
+                raise usage.UsageError(
+                    "valid schemes for --http-api-scheme are 'http' or 'https'")
+
+            check_address(http_server)
+            config["http-api"] = (
+                config["http-api-scheme"] +
+                "://%s" % ":".join([http_server, str(config["http-api-port"])]))
+
+        # set or raise error about missing statstd server
+        statsd_server = config.get("statsd-server") or config.get("master")
+        if statsd_server is None:
+            raise usage.UsageError(
+                "--master or --statsd-server must be provided")
+        else:
+            check_address(statsd_server)
+            config["statsd"] = ":".join(
+                [statsd_server, str(config["statsd-port"])])
+
+        service = ManagerService(config)
 
         # ipc service setup
         #ipc_factory = IPCReceieverFactory()
