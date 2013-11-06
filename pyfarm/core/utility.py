@@ -28,6 +28,11 @@ import os
 from decimal import Decimal, ROUND_HALF_DOWN
 
 try:
+    from ast import literal_eval
+except ImportError:
+    from pyfarm.core.backports import literal_eval
+
+try:
     _range = xrange
 except NameError:  # pragma: no cover
     _range = range
@@ -199,7 +204,7 @@ class convert(object):
         return value / 1024
 
     @staticmethod
-    def stoi(value):
+    def ston(value):
         """
         converts a string to an integer or fails with a useful error
         message
@@ -207,21 +212,25 @@ class convert(object):
         :attr string value:
             the value to convert to an integer
 
-        :exception TypeError:
-            raised if ``value`` is not a string
-
         :exception ValueError:
-            raised if ``value`` cannot be converted
+            raised if ``value`` could not be converted using
+            :func:`.literval_eval`
+
+        :exception TypeError:
+            raised if ``value`` was not converted to a float, integer, or long
         """
-        if isinstance(value, int):
+        # already a number
+        if isinstance(value, (int, float, long)):
             return value
 
-        elif not isinstance(value, basestring):
-            raise TypeError("%s is not a string" % repr(value))
+        # we only convert strings
+        if not isinstance(value, basestring):
+            raise TypeError("`value` must be a string")
 
-        try:
-            return int(value)
+        value = literal_eval(value)
 
-        except ValueError, e:
-            raise ValueError(
-                "failed to convert %s to an integer: %s" % (repr(value), e))
+        # ensure we got a number out of literal_eval
+        if not isinstance(value, (int, float, long)):
+            raise ValueError("`value` did not convert to a number")
+
+        return value

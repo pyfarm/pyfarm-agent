@@ -39,15 +39,15 @@ class Convert(TestCase):
         self.assertEqual(convert.mbtogb(2048), 2.0)
         self.assertEqual(convert.mbtogb(4608), 4.5)
 
-    def test_convert_stoi(self):
-        self.assertEqual(convert.stoi(42), 42)
-        self.assertEqual(convert.stoi("42"), 42)
+    def test_convert_ston(self):
+        self.assertEqual(convert.ston(42), 42)
+        self.assertEqual(convert.ston("42"), 42)
 
         with self.assertRaises(TypeError):
-            convert.stoi(None)
+            convert.ston(None)
 
         with self.assertRaises(ValueError):
-            convert.stoi("foo")
+            convert.ston("foo")
 
 
 class Random(TestCase):
