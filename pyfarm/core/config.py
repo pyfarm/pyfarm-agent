@@ -18,11 +18,25 @@
 Configuration Object
 ====================
 
-Basic module used for changing and storing configuration values used by all
-modules at execution time.
+Basic module used for reading configuration data into PyFarm
+in various forms.
+
+:const BOOLEAN_TRUE:
+    set of values which will return a True boolean value from
+    :func:`.read_env_bool`
+
+:const BOOLEAN_FALSE:
+    set of values which will return a False boolean value from
+    :func:`.read_env_bool`
+
+:const NOTSET:
+    instanced :class:`object` which is returned when no data was found and
+    no default was provided
 """
 
 import os
+import warnings
+from functools import partial
 
 try:
     from ast import literal_eval
@@ -33,55 +47,12 @@ from pyfarm.core.logger import getLogger
 
 logger = getLogger("core.config")
 
+# Boolean values as strings that can match a value we
+# pulled from the environment after calling .lower().
+BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes"])
+BOOLEAN_FALSE = set(["0", "f", "n", "false", "no"])
+
 NOTSET = object()
-
-
-class Config(object):
-    """
-    Dictionary like object used to centrally store configuration
-    information.  Generally this will be used at the module level and
-    populated on startup.
-    """
-    def __init__(self, data=None):
-        assert isinstance(data, dict) or data is None, "bad type for `data`"
-        self.__data = {} if data is None else data.copy()
-
-    def __iter__(self):
-        return self.__data.__iter__()
-
-    def __repr__(self):  # pragma: no cover
-        return self.__data.__repr__()
-
-    def __contains__(self, item):
-        return self.__data.__contains__(item)
-
-    def items(self):
-        """same as :meth:`dict.iteritems` in Python < 3.x"""
-        return self.__data.iteritems()
-
-    def get(self, key, default=NOTSET):
-        """
-        similar to :meth:`dict.get` except that if a value does not exist
-        it will raise an exception unless a default is provided
-        """
-        if default is NOTSET and key not in self:
-            raise KeyError("%s not found" % key)
-        return self.__data.get(key, default)
-
-    def set(self, key, value):
-        """sets `key` to `value`"""
-        self.__data.__setitem__(key, value)
-
-    def setdefault(self, key, default=None):
-        return self.__data.setdefault(key, default)
-
-    def update(self, data):
-        """
-        similar to :meth:`dict.update` except only a dictionary as input
-        is allowed
-        """
-        assert isinstance(data, dict), "`data` must be a dictionary"
-        return self.__data.update(data)
 
 
 def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
@@ -138,7 +109,6 @@ def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
         value = os.environ[envvar]
 
         if not eval_literal:
-            logger.debug("skipped literal_eval($%s)" % repr(envvar))
             return value
 
         try:
@@ -154,4 +124,103 @@ def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
             logger.warning("returning default value for $%s" % envvar)
             return default
 
-cfg = Config()
+
+def read_env_bool(*args, **kwargs):
+    """
+    Wrapper around :func:`.read_env` which converts environment variables
+    to boolean values.  Please see the documentation for
+    :func:`.read_env` for additional information on exceptions and input
+    arguments.
+
+    :exception AssertionError:
+        raised if a default value is not provided
+
+    :exception TypeError:
+        raised if the environment variable found was a string and could
+        not be converted to a boolean.
+    """
+    notset = object()
+
+    if len(args) == 1:
+        kwargs.setdefault("default", notset)
+
+    kwargs["eval_literal"] = False  # we'll handle this ourselves here
+    value = read_env(*args, **kwargs)
+    assert value is not notset, "default value required for `read_env_bool`"
+
+    if isinstance(value, basestring):
+        value = value.lower()
+
+        if value in BOOLEAN_TRUE:
+            return True
+
+        elif value in BOOLEAN_FALSE:
+            return False
+
+        else:
+            raise TypeError(
+                "could not convert %s to a boolean from $%s" % (
+                    repr(value), args[0]))
+
+    if not isinstance(value, bool):
+        raise TypeError("expected a boolean default value for `read_env_bool`")
+
+    return value
+
+
+def read_env_number(*args, **kwargs):
+    """
+    Wrapper around :func:`.read_env` which will read a numerical value
+    from an environment variable.  Please see the documentation for
+    :func:`.read_env` for additional information on exceptions and input
+    arguments.
+
+    :exception TypeError:
+        raised if we either failed to convert the value from the environment
+        variable or the value was not a float, integer, or long
+    """
+    notset = object()
+
+    if len(args) == 1:
+        kwargs.setdefault("default", notset)
+
+    kwargs["eval_literal"] = True
+    try:
+        value = read_env(*args, **kwargs)
+    except ValueError:
+        raise ValueError("failed to evaluate the data in $%s" % args[0])
+
+    assert value is not notset, "default value required for `read_env_number`"
+
+    if not isinstance(value, (float, int, long)):
+        raise TypeError("`read_env_number` did not return a number type object")
+
+    return value
+
+
+def read_env_strict_number(*args, **kwargs):
+    """
+    Strict version of :func:`.read_env_number` which will only return an integer
+
+    :keyword number_type:
+        the type of number(s) this function must return
+
+    :exception AsssertionError:
+        raised if the number_type keyword is not provided (required to check
+        the type on output)
+
+    :exception TypeError:
+        raised if the type of the result is not an instance of `number_type`
+    """
+    number_type = kwargs.pop("number_type", None)
+    assert number_type is not None, "`number_type` keyword is required for"
+    value = read_env_number(*args, **kwargs)
+
+    if not isinstance(value, number_type):
+        raise TypeError("%s is not an %s object" % (repr(value), number_type))
+
+    return value
+
+
+read_env_int = partial(read_env_strict_number, number_type=int)
+read_env_float = partial(read_env_strict_number, number_type=float)

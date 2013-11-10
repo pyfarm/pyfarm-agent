@@ -24,59 +24,12 @@ if sys.version_info[0:2] < (2, 7):
 else:
     from unittest import TestCase
 
-from pyfarm.core.config import Config, cfg as _cfg, read_env, NOTSET
+from pyfarm.core.config import (
+    read_env, read_env_number, read_env_bool, read_env_strict_number,
+    BOOLEAN_FALSE, BOOLEAN_TRUE)
 
 
 class TestConfig(TestCase):
-    def test_type(self):
-        self.assertIsInstance(_cfg, Config)
-
-    def test_items(self):
-        cfg = Config()
-        cfg.update({"true": True, "false": False})
-
-        items = {}
-        for key, value in cfg.items():
-            items[key] = value
-
-        self.assertEqual(items, {"true": True, "false": False})
-
-    def test_get(self):
-        cfg = Config()
-        cfg.set("foo", True)
-        self.assertEqual(cfg.get("foo"), True)
-        self.assertEqual(cfg.get("bar", False), False)
-
-    def test_get_error(self):
-        with self.assertRaises(KeyError):
-            Config().get("foo")
-
-    def test_contains(self):
-        self.assertIn("foo", Config({"foo": True}))
-
-    def test_set(self):
-        cfg = Config()
-        cfg.set("foo", True)
-        self.assertEqual(cfg.get("foo"), True)
-        cfg.set("foo", False)
-        self.assertEqual(cfg.get("foo"), False)
-
-    def test_setdefault(self):
-        cfg = Config()
-        self.assertEqual(cfg.setdefault("foo", True), True)
-        self.assertEqual(cfg.setdefault("foo", False), True)
-
-    def test_update_error(self):
-        cfg = Config()
-        with self.assertRaises(AssertionError):
-            cfg.update(None)
-
-    def test_iter(self):
-        data = {"true": True, "false": False}
-        cfg = Config(data)
-        self.assertEqual(
-            set(key for key in cfg), set(data.keys()))
-
     def test_readenv_missing(self):
         key = os.urandom(12).encode("hex")
         with self.assertRaises(EnvironmentError):
@@ -106,3 +59,61 @@ class TestConfig(TestCase):
             42)
 
         del os.environ[key]
+
+    def test_read_env_bool(self):
+        for true in BOOLEAN_TRUE:
+            key = os.urandom(12).encode("hex")
+            os.environ[key] = true
+            self.assertTrue(read_env_bool(key, False))
+
+        for false in BOOLEAN_FALSE:
+            key = os.urandom(12).encode("hex")
+            os.environ[key] = false
+            self.assertFalse(read_env_bool(key, True))
+
+        with self.assertRaises(AssertionError):
+            read_env_bool("")
+
+        with self.assertRaises(TypeError):
+            key = os.urandom(12).encode("hex")
+            os.environ[key] = "42"
+            read_env_bool(key, 1)
+
+        with self.assertRaises(TypeError):
+            key = os.urandom(12).encode("hex")
+            self.assertTrue(read_env_bool(key, 1))
+
+        key = os.urandom(12).encode("hex")
+        self.assertTrue(read_env_bool(key, True))
+
+    def test_read_env_number(self):
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "42"
+        self.assertEqual(read_env_number(key), 42)
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "3.14159"
+        self.assertEqual(read_env_number(key), 3.14159)
+
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "foo"
+        with self.assertRaises(ValueError):
+            self.assertEqual(read_env_number(key))
+
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "None"
+        with self.assertRaises(TypeError):
+            self.assertEqual(read_env_number(key))
+
+    def test_read_env_strict_number(self):
+        with self.assertRaises(AssertionError):
+            read_env_strict_number("")
+
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "3.14159"
+        self.assertEqual(read_env_strict_number(key, number_type=float),
+                         3.14159)
+
+        key = os.urandom(12).encode("hex")
+        os.environ[key] = "42"
+        with self.assertRaises(TypeError):
+            read_env_strict_number(key, number_type=float)
