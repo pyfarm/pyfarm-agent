@@ -43,20 +43,6 @@ from pyfarm.agent.manager.tasks import memory_utilization
 from pyfarm.agent.utility.tasks import ScheduledTaskManager
 
 
-def convert_option_ston(key, value):
-    # special "infinite" value reserved for some flags
-    if (isinstance(value, basestring) and key == "http-max-retries"
-            and value.lower() in ("inf", "infinite", "unlimited")):
-        return float("inf")
-
-    try:
-        return convert.ston(value)
-
-    except ValueError:
-        raise usage.UsageError(
-            "--%s requires a number but got %s" % (key, repr(value)))
-
-
 def check_address(value):
     # is this a valid ip address?
     try:
@@ -75,22 +61,35 @@ def check_address(value):
         raise usage.UsageError("failed to resolve %s to an address" % value)
 
 
+def convert_option_ston(key, value):
+    # special "infinite" value reserved for some flags
+    if (isinstance(value, basestring) and key == "http-max-retries"
+            and value.lower() in ("inf", "infinite", "unlimited")):
+        return float("inf")
+
+    try:
+        return convert.ston(value)
+
+    except ValueError:
+        raise usage.UsageError(
+            "--%s requires a number but got %s" % (key, repr(value)))
+
+
+def convert_option_projects(key, value):
+    return filter(bool, map(str.strip, value.split(",")))
+
+
 class Options(usage.Options):
     optParameters = [
+        # local 'server' settings
+        ("port", "p", 50000,
+         "The port which the master should use to talk back to the agent."),
+
+        # agent -> master communications
         ("master", "", None,
          "The master server's hostname or address.  If no other options are "
          "provided to describe the location of specific services then the "
          "resource urls will be built off of this address."),
-        ("port", "p", 50000,
-         "The port which the master should use to talk back to the agent."),
-        ("memory-check-interval", "", 10,
-         "how often swap and ram resources should be checked and sent to the "
-         "master"),
-        ("http-max-retries", "", "unlimited",
-         "the max number of times to retry a request back to the master"),
-        ("http-retry-delay", "", 3,
-         "if a http request back to the master has failed, wait this amount of "
-         "time before trying again"),
         ("http-auth-user", "", None,
          "the user to use for connecting to the master's REST api.  The "
          "default is communication without authentication."),
@@ -104,6 +103,8 @@ class Options(usage.Options):
         ("http-api-scheme", "", "http",
          "The scheme to use to communicate over http.  Valid values are "
          "'http' or 'https'"),
+
+        # statsd setup
         ("statsd-port", "", 8125,
          "Default port that statsd runs on.  By default this value is combined "
          "with --master but could also be combined with the alternate "
@@ -113,7 +114,25 @@ class Options(usage.Options):
          "will replace the value provided by the --master flag."),
         ("statsd-server", "", None,
          "Alternate server which is running the statsd service.  This will "
-         "replace the value provided by the --master flag.")]
+         "replace the value provided by the --master flag."),
+
+        # http retries/detailed configuration
+        ("http-max-retries", "", "unlimited",
+         "the max number of times to retry a request back to the master"),
+        ("http-retry-delay", "", 3,
+         "if a http request back to the master has failed, wait this amount of "
+         "time before trying again"),
+
+        # local agent settings which control some resources
+        # and restrictions
+        ("memory-check-interval", "", 10,
+         "how often swap and ram resources should be checked and sent to the "
+         "master"),
+        ("projects", "", "*",
+         "A comma separated list of projects this agent is allowed to do work "
+         "for.  Note however that this only updates the master at the time "
+         "the agent is run.  Once the agent has been launched all further "
+         "'membership' is present in the database and acted on by the queue.")]
 
     # special variable used for inferring type in makeService
     optConverters = {
@@ -122,7 +141,8 @@ class Options(usage.Options):
         "http-max-retries": convert_option_ston,
         "http-retry-delay": convert_option_ston,
         "http-api-port": convert_option_ston,
-        "statsd-port": convert_option_ston}
+        "statsd-port": convert_option_ston,
+        "projects": convert_option_projects}
 #
 #class IPCReceieverFactory(Factory):
 #    """
