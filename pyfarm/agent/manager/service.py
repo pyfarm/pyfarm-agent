@@ -24,6 +24,7 @@ such as log reading, system information gathering, and management of processes.
 
 import logging
 import socket
+from pprint import pformat
 from functools import partial
 
 from zope.interface import implementer
@@ -36,7 +37,9 @@ try:
 except ImportError:
     import simplejson as json
 
+from pyfarm.core.enums import UseAgentAddress
 from pyfarm.core.utility import convert
+from pyfarm.core.sysinfo import network_info, memory_info, cpu_info
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.manager.tasks import memory_utilization
@@ -61,22 +64,47 @@ def check_address(value):
         raise usage.UsageError("failed to resolve %s to an address" % value)
 
 
-def convert_option_ston(key, value):
+def convert_option_ston(key, value, types=None):
     # special "infinite" value reserved for some flags
     if (isinstance(value, basestring) and key == "http-max-retries"
             and value.lower() in ("inf", "infinite", "unlimited")):
         return float("inf")
 
     try:
-        return convert.ston(value)
+        if types is None:
+            value = convert.ston(value)
+        else:
+            value = convert.ston(value, types=types)
+
+        if key == "ram":
+            value = int(value)
 
     except ValueError:
         raise usage.UsageError(
             "--%s requires a number but got %s" % (key, repr(value)))
 
+    return value
+
+convert_option_stoi = partial(convert_option_ston, types=int)
+
 
 def convert_option_projects(key, value):
     return filter(bool, map(str.strip, value.split(",")))
+
+
+def convert_option_contact_addr(key, value):
+    value = value.lower()
+    mappings = {
+        "hostname": UseAgentAddress.HOSTNAME,
+        "ip": UseAgentAddress.LOCAL,
+        "remote-ip": UseAgentAddress.REMOTE}
+
+    if value not in mappings:
+        usage.UsageError(
+            "invalid value for --%s, valid values are %s" % (
+                key, mappings.keys()))
+    else:
+        return mappings[value]
 
 
 class Options(usage.Options):
@@ -94,7 +122,7 @@ class Options(usage.Options):
          "the user to use for connecting to the master's REST api.  The "
          "default is communication without authentication."),
         ("http-auth-password", "", None,
-         "the password to use to connect to the master's REST api.  The "
+         "The password to use to connect to the master's REST api.  The "
          "default is communication without authentication."),
         ("http-api-port", "", 5000,
          "Default port the restfull HTTP api runs on.  By default this value "
@@ -118,31 +146,55 @@ class Options(usage.Options):
 
         # http retries/detailed configuration
         ("http-max-retries", "", "unlimited",
-         "the max number of times to retry a request back to the master"),
+         "The max number of times to retry a request back to the master"),
         ("http-retry-delay", "", 3,
-         "if a http request back to the master has failed, wait this amount of "
+         "If a http request back to the master has failed, wait this amount of "
          "time before trying again"),
+
+        # information about this agent which we send to the master
+        # before starting the main service code
+        ("hostname", "", network_info.hostname(),
+         "The agent's hostname to send to the master"),
+        ("ip", "", network_info.ip(),
+         "The agent's local ip address to send to the master"),
+        ("remote-ip", "", "",
+         "The remote ip address to report, this may be different than"
+         "--ip"),
+        ("contact-address", "", "hostname",
+         "Which address the master should use when talking back to an agent.  "
+         "Valid options are 'hostname', 'ip', and 'remote-ip'"),
+        ("ram", "", memory_info.TOTAL_RAM,
+         "The total amount of ram installed on the agent which will be"
+         "sent to the master"),
+        ("cpus", "", cpu_info.NUM_CPUS,
+         "The number of cpus this agent has which will be sent to the master."),
+
+        # TODO: add *_allocation columns
 
         # local agent settings which control some resources
         # and restrictions
         ("memory-check-interval", "", 10,
          "how often swap and ram resources should be checked and sent to the "
          "master"),
-        ("projects", "", "*",
+        ("projects", "", "",
          "A comma separated list of projects this agent is allowed to do work "
          "for.  Note however that this only updates the master at the time "
          "the agent is run.  Once the agent has been launched all further "
-         "'membership' is present in the database and acted on by the queue.")]
+         "'membership' is present in the database and acted on by the queue.  "
+         "By default, an agent can execute work for any project.")]
 
     # special variable used for inferring type in makeService
     optConverters = {
-        "port": convert_option_ston,
+        "port": convert_option_stoi,
         "memory-check-interval": convert_option_ston,
-        "http-max-retries": convert_option_ston,
+        "http-max-retries": convert_option_stoi,
         "http-retry-delay": convert_option_ston,
-        "http-api-port": convert_option_ston,
-        "statsd-port": convert_option_ston,
-        "projects": convert_option_projects}
+        "http-api-port": convert_option_stoi,
+        "statsd-port": convert_option_stoi,
+        "projects": convert_option_projects,
+        "contact-address": convert_option_contact_addr,
+        "ram": convert_option_ston,
+        "cpus": convert_option_stoi}
 #
 #class IPCReceieverFactory(Factory):
 #    """
@@ -176,6 +228,8 @@ class ManagerService(MultiService):
 
     def startService(self):
         self.log("informing master of agent startup", level=logging.INFO)
+        self.log("%s" % pformat(self.config), level=logging.DEBUG,
+                 system="%s.config" % self.__class__.__name__)
 
         def start_service(response):
             print "start_service ===========",response
@@ -189,6 +243,23 @@ class ManagerService(MultiService):
         def failure(error):
             print "FAIL", error.value
 
+        def get_agent_data():
+            data = {
+                "hostname": self.config["hostname"],
+                "ip": self.config["ip"],
+                "use_address": self.config["contact-address"],
+                "ram": self.config["ram"],
+                "cpus": self.config["cpus"],
+                "port": self.config["port"]}
+
+            if self.config["remote-ip"]:
+                data.update(remote_ip=self.config["remote-ip"])
+
+            if self.config["projects"]:
+               data.update(projects=self.config["projects"])
+
+            return data
+
         # prepare a retry request to POST to the master
         retry_post_agent = RetryDeferred(
             http_post, start_service, failure,
@@ -197,7 +268,7 @@ class ManagerService(MultiService):
             retry_delay=self.config["http-retry-delay"])
 
         retry_post_agent(
-            self.config["http-api"] + "/", data=json.dumps({"foo": True}))
+            self.config["http-api"] + "/", data=json.dumps(get_agent_data()))
 
     def stopService(self):
         self.scheduled_tasks.stop()
@@ -223,6 +294,8 @@ class ManagerServiceMaker(object):
                 value = options.optConverters[key](key, value)
 
             config[key] = value
+
+        #print pformat(config)
 
         # set or raise error about missing http api server
         http_server = config.get("http-api-server") or config.get("master")
