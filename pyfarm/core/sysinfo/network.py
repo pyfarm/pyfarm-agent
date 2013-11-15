@@ -22,16 +22,15 @@ Returns information about the network including ip address, dns, data
 sent/received, and some error information.
 """
 
-from warnings import warn
-
 import netifaces
 import socket
 import netaddr
 import psutil
 
+from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.core.warning import NetworkWarning
 
+logger = getLogger("network_info")
 
 class NetworkInfo(object):
     """
@@ -41,9 +40,6 @@ class NetworkInfo(object):
     Namespace class which returns information about the network
     adapters and their state information.
     """
-    def __init__(self):
-        self._cached_ip = None
-
     @property
     def _iocounter(self):
         """
@@ -95,19 +91,35 @@ class NetworkInfo(object):
         """
         return self._iocounter.errout
 
-    def hostname(self, fqdn=True):
+    def hostname(self):
         """
-        Returns the hostname of this machine.  If `fqdn` is True then
-        return the fully qualified hostname
+        Returns the the best guess hostname of this machine by comparing the
+        hostname, fqdn, and reverse lookup of the ip address.
         """
-        if fqdn:
-            return socket.getfqdn()
+        hostname_is_local = False
+        hostname = socket.gethostname()
+        fqdn = socket.getfqdn()
+
+        # we might get the proper fqdn if we finish the hostname
+        if fqdn == hostname:
+            fqdn = socket.getfqdn(hostname + ".")
+
+        if hostname.startswith("localhost"):
+            logger.warning("hostname resolved to or contains 'locahost'")
+            hostname_is_local = True
+
+        if fqdn.startswith("localhost"):
+            logger.warning("fqdn resolved to or contains 'locahost'")
+
+        if hostname_is_local or fqdn != hostname:
+            return fqdn
         else:
-            return socket.gethostname()
+            return hostname
 
     def addresses(self):
         """Returns a list of all non-local ip addresses."""
-        output = []
+        addresses = []
+
         for interface in self.interfaces():
             addrinfo = netifaces.ifaddresses(interface)
             for address in addrinfo.get(socket.AF_INET, []):
@@ -117,30 +129,33 @@ class NetworkInfo(object):
                     try:
                         ip = netaddr.IPAddress(addr)
                     except ValueError:  # pragma: no cover
-                        warn(
-                            "could not convert %s to a valid IP object" % addr,
-                            NetworkWarning)
+                        logger.error(
+                            "could not convert %s to a valid IP object" % addr)
                     else:
                         if ip in IP_PRIVATE:
-                            output.append(addr)
+                            yield addr
+                            addresses.append(addr)
 
-        assert output, "failed to find any ipv4 addresses"
-        return output
+        if not addresses:
+            logger.error("no addresses could be found")
 
     def interfaces(self):
         """Returns the names of all valid network interface names"""
-        names = []
+        results = []
+
         for name in netifaces.interfaces():
             # only add network interfaces which have IPv4
             addresses = netifaces.ifaddresses(name)
-            if (
-                socket.AF_INET in addresses
-                and any(addr.get("addr") for addr in addresses[socket.AF_INET])
-            ):
-                names.append(name)
 
-        assert names, "failed to find any network interface names"
-        return names
+            if socket.AF_INET not in addresses:
+                continue
+
+            if any(addr.get("addr") for addr in addresses[socket.AF_INET]):
+                yield name
+                results.append(name)
+
+        if not results:
+            logger.warning("failed to find any interfaces")
 
     def interface(self, addr=None):
         """
@@ -160,7 +175,7 @@ class NetworkInfo(object):
         raise ValueError(  # pragma: no cover
             "could not determine network interface for `%s`" % addr)
 
-    def ip(self):
+    def ip(self, as_object=False):
         """
         Attempts to retrieve the ip address for use on the network.  Because
         a host could have several network adapters installed this method will:
@@ -172,60 +187,56 @@ class NetworkInfo(object):
         * return the adapter with the most number of packets and bytes
           sent and received
         """
-        if self._cached_ip is not None:
-            return self._cached_ip
-
         # get the amount of traffic for each network interface,
         # we use this to help determine if the most active interface
         # is the interface dns provides
         sums = []
         counters = psutil.net_io_counters(pernic=True)
+
         for address in self.addresses():
             interface = self.interface(address)
+
             try:
                 counter = counters[interface]
+
             except KeyError:  # pragma: no cover
-                bytes_sent, bytes_recv, packets_sent, packets_recv = 0, 0, 0, 0
+                total_bytes = 0
+
             else:
-                bytes_sent = counter.bytes_sent
-                bytes_recv = counter.bytes_recv
-                packets_recv = counter.bytes_recv
-                packets_sent = counter.bytes_sent
+                total_bytes = counter.bytes_sent + counter.bytes_recv
 
-            sums.append((
-                address,
-                bytes_recv + bytes_sent + packets_sent + packets_recv))
+            sums.append((address, total_bytes))
 
-
-        hostname = self.hostname(fqdn=True)
-        try:
-            dnsip = socket.gethostbyname(hostname)
-
-            # depending on the system dns implementation
-            # socket.gethostbyname might give us a loopback address
-            if netaddr.IPAddress(dnsip) in IP_LOOPBACK:  # pragma: no cover
-                dnsip = None
-
-        except socket.gaierror:  # pragma: no cover
-            dnsip = None
-
-        if not sums and dnsip is None:  # pragma: no cover
+        if not sums:  # pragma: no cover
             raise ValueError("no ip address found")
 
         # sort addresses based on how 'active' they appear
         sums.sort(cmp=lambda a, b: 1 if a[1] > b[1] else -1, reverse=True)
 
-        # if the most active address is not the address
-        # that's mapped via dns, print a warning and return
-        # the dns address
-        if (dnsip is not None
-                and sums and sums[0][0] != dnsip):  # pragma: no cover
-            warn("DNS address != most active active address",
-                 NetworkWarning)
+        ip = netaddr.IPAddress(sums[0][0])
 
-        self._cached_ip = sums[0][0]
+        # now that we have an address, check it against some of
+        # our address groups but don't raise exceptions since that
+        # should be handled/fail in higher level code
 
-        return self._cached_ip
+        if ip in IP_SPECIAL_USE:
+            logger.warning("ip() discovered a special use address")
+
+        if ip in IP_LOOPBACK:
+            logger.warning("ip() discoverd a loopback address")
+
+        if ip in IP_LINK_LOCAL:
+            logger.error("ip() discovered a link local address")
+
+        if ip in IP_MULTICAST:
+            logger.error("ip() discovered a multicast address")
+
+        if ip in IP_BROADCAST:
+            logger.error("ip() discovered a broadcast address")
+
+        return str(ip) if not as_object else ip
+
+
 
 
 IP_SPECIAL_USE = netaddr.IPNetwork("0.0.0.0/8")
@@ -236,12 +247,10 @@ IP_BROADCAST = netaddr.IPNetwork("255.255.255.255")
 IP_PRIVATE = netaddr.IPSet([
     netaddr.IPNetwork("10.0.0.0/8"),
     netaddr.IPNetwork("172.16.0.0/12"),
-    netaddr.IPNetwork("192.168.0.0/16")
-])
+    netaddr.IPNetwork("192.168.0.0/16")])
 IP_NONNETWORK = netaddr.IPSet([
     IP_SPECIAL_USE,
     IP_LINK_LOCAL,
     IP_LOOPBACK,
     IP_MULTICAST,
-    IP_BROADCAST
-])
+    IP_BROADCAST])

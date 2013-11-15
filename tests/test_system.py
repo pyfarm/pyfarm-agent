@@ -97,15 +97,22 @@ class Network(TestCase):
         self.assertEqual(network_info.outgoing_error_count() >= v, True)
 
     def test_hostname(self):
-        self.assertEqual(network_info.hostname(), socket.getfqdn())
-        self.assertEqual(network_info.hostname(fqdn=False), socket.gethostname())
+        _hostname = socket.gethostname()
+        hostnames = set([
+            _hostname, _hostname + ".", socket.getfqdn(),
+            socket.getfqdn(_hostname + ".")])
+        for hostname in hostnames:
+            if hostname == network_info.hostname():
+                break
+        else:
+            self.fail("failed to get hostname")
 
     def test_addresses(self):
-        self.assertEqual(len(network_info.addresses()) >= 1, True)
-        self.assertEqual(isinstance(network_info.addresses(), list), True)
+        self.assertEqual(len(list(network_info.addresses())) >= 1, True)
+        self.assertEqual(isinstance(list(network_info.addresses()), list), True)
 
     def test_interfaces(self):
-        names = network_info.interfaces()
+        names = list(network_info.interfaces())
         self.assertEqual(len(names) > 1, True)
         self.assertEqual(isinstance(names, list), True)
         self.assertEqual(all(name in netifaces.interfaces() for name in names),
