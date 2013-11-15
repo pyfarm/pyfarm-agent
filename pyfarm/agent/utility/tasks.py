@@ -61,8 +61,11 @@ class ScheduledTaskManager(object):
         :exception AssertionError:
             raised if ``function`` is not callable
         """
+        args = func_args or ()
+        kwargs = func_kwargs or {}
         assert callable(function)
-        args, kwargs = func_args or (), func_kwargs or {}
+        assert isinstance(args, (tuple, list))
+        assert isinstance(kwargs, dict)
 
         if function not in self.tasks:
             looping_call = LoopingCall(function, *args, **kwargs)
