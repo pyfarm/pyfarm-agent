@@ -204,7 +204,7 @@ class convert(object):
         return value / 1024
 
     @staticmethod
-    def ston(value):
+    def ston(value, types=(int, float, long)):
         """
         converts a string to an integer or fails with a useful error
         message
@@ -220,7 +220,7 @@ class convert(object):
             raised if ``value`` was not converted to a float, integer, or long
         """
         # already a number
-        if isinstance(value, (int, float, long)):
+        if isinstance(value, types):
             return value
 
         # we only convert strings
@@ -230,7 +230,7 @@ class convert(object):
         value = literal_eval(value)
 
         # ensure we got a number out of literal_eval
-        if not isinstance(value, (int, float, long)):
+        if not isinstance(value, types):
             raise ValueError("`value` did not convert to a number")
 
         return value
