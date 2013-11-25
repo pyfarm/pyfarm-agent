@@ -131,6 +131,9 @@ class Options(usage.Options):
         ("http-api-scheme", "", "http",
          "The scheme to use to communicate over http.  Valid values are "
          "'http' or 'https'"),
+        ("http-api-prefix", "", "/api/v1",
+         "The prefix for accessing the http api on the master, this does not"
+         "include the server, scheme, port, etc"),
 
         # statsd setup
         ("statsd-port", "", 8125,
@@ -263,12 +266,14 @@ class ManagerService(MultiService):
         # prepare a retry request to POST to the master
         retry_post_agent = RetryDeferred(
             http_post, start_service, failure,
+            headers={"Content-Type": "application/json"},
             max_retries=self.config["http-max-retries"],
             timeout=None,
-            retry_delay=self.config["http-retry-delay"])
+            retry_delay=self.config["http-retry-delay"],)
 
         retry_post_agent(
-            self.config["http-api"] + "/", data=json.dumps(get_agent_data()))
+            self.config["http-api"] + "/agents",
+            data=json.dumps(get_agent_data()))
 
     def stopService(self):
         self.scheduled_tasks.stop()
@@ -309,9 +314,13 @@ class ManagerServiceMaker(object):
                     "valid schemes for --http-api-scheme are 'http' or 'https'")
 
             check_address(http_server)
-            config["http-api"] = (
-                config["http-api-scheme"] +
-                "://%s" % ":".join([http_server, str(config["http-api-port"])]))
+
+        config["http-api"] = "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
+            "scheme": config["http-api-scheme"],
+            "server": http_server,
+            "port": str(config["http-api-port"]),
+            "prefix": config["http-api-prefix"]}
+
 
         # set or raise error about missing statstd server
         statsd_server = config.get("statsd-server") or config.get("master")
