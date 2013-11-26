@@ -300,8 +300,6 @@ class ManagerServiceMaker(object):
 
             config[key] = value
 
-        #print pformat(config)
-
         # set or raise error about missing http api server
         http_server = config.get("http-api-server") or config.get("master")
         if http_server is None:
