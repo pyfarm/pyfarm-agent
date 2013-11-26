@@ -70,7 +70,7 @@ class RetryDeferred(object):
     DEFAULT_RETRY_DELAY = 1
     DEFAULT_TIMEOUT = 120
 
-    def __init__(self, function, success, failure,
+    def __init__(self, function, success, failure, headers=None,
                  max_retries=DEFAULT_RETRIES, retry_delay=DEFAULT_RETRY_DELAY,
                  timeout=DEFAULT_TIMEOUT):
         assert callable(function), "`function` must be callable"
@@ -84,11 +84,16 @@ class RetryDeferred(object):
         else:
             self.timeout = None
 
+        # headers set?  Make sure they're of the correct type
+        if headers is not None:
+            assert isinstance(headers, dict), "`headers` must be a dictionary"
+
         self.log = partial(log.msg, system=self.__class__.__name__)
         self.runs = 0
         self.called = False
         self.success = success
         self.failure = failure
+        self.headers = headers
         self.time_started = None
         self.max_retries = max_retries
         self._retry_delay = retry_delay
@@ -191,8 +196,8 @@ class RetryDeferred(object):
 
         if self.should_run():
             self.log("%s attempt %s failed: %s" % (
-                self.func_repr, self.failures, str(error)),
-                    level=logging.WARNING)
+                self.func_repr, self.failures, error),
+                level=logging.WARNING)
 
             # rerun the function
             self.run()
@@ -213,6 +218,14 @@ class RetryDeferred(object):
         """
         assert self.called is False, "__call__ already run for this instance"
         self.called = True
+
+        # if headers were provided, be sure to pass them along
+        # to kwargs before the function is called
+        if self.headers is not None:
+            headers = kwargs.setdefault("headers", {})
+            for key, value in self.headers.iteritems():
+                if key not in headers:
+                    headers[key] = value
 
         # prepare some attribute to reuse the call the function
         self.func = lambda: self._func(*args, **kwargs)
