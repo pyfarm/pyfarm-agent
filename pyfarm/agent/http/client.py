@@ -49,6 +49,43 @@ from twisted.internet.endpoints import TCP4ClientEndpoint
 from twisted.internet.ssl import ClientContextFactory as _ClientContextFactory
 
 
+class SimpleReceiver(protocol.Protocol):
+    """Simple class used to receive and process response objects"""
+    def __init__(self, deferred, response):
+        self.buffer = ""
+        self.deferred = deferred
+        self.response = response
+
+    def dataReceived(self, data):
+        self.buffer += data
+
+    def connectionLost(self, reason):
+        # TODO: add statsd for response
+
+        # if the headers specify json content, convert
+        # it before returning the data
+        content_types = [] or self.response.headers.getRawHeaders(
+            "Content-Type")
+
+        for content_type in content_types:
+            if "application/json" in content_type:
+                self.buffer = json.loads(self.buffer)
+                break
+
+        # there's a problem with the incoming response, the buffer
+        # should contain the error so pass it to the errback
+        if self.response.code >= 400:
+            self.deferred.errback(self.buffer)
+
+        # nothing left to do, call the callback (success)
+        elif reason.type is ResponseDone:
+            self.deferred.callback(self.buffer)
+
+        # we're not done and we don't have a specific error code
+        else:
+            self.deferred.errback(reason)
+
+
 class StringProducer(object):
     """
     Implementation of :class:`.IBodyProducer` which
@@ -142,40 +179,10 @@ class WebClient(object):
         if response.code in (NO_CONTENT, RESET_CONTENT):
             return defer.succeed("")
 
-        elif response.code >= 400:
-            # TODO: add statsd codes
-            return defer.fail(response)
-
-        else:
-            class SimpleReceiver(protocol.Protocol):
-                def __init__(self, deferred):
-                    self.buffer = ""
-                    self.deferred = deferred
-
-                def dataReceived(self, data):
-                    self.buffer += data
-
-                def connectionLost(self, reason):
-                    # TODO: add statsd for response
-
-                    # if the headers specify json content, convert
-                    # it before returning the data
-                    content_types = [] or response.headers.getRawHeaders(
-                        "content-type")
-                    for content_type in content_types:
-                        if "application/json" in content_type:
-                            self.buffer = json.loads(self.buffer)
-                            break
-
-                    # check the reason type 'the twisted way'...
-                    if reason.type is ResponseDone:
-                        self.deferred.callback(self.buffer)
-                    else:
-                        self.deferred.errback(reason)
-
-            d = defer.Deferred()
-            response.deliverBody(SimpleReceiver(d))
-            return d
+        # pull down our body object
+        d = defer.Deferred()
+        response.deliverBody(SimpleReceiver(d, response))
+        return d
 
     def request(self, method, uri, data=None, headers=None,
                 data_dumps=json.dumps):
@@ -215,7 +222,7 @@ class WebClient(object):
         assert method in self.SUPPORTED_METHODS, \
             "unsupported method %s" % repr(method)
 
-        # if data was provided dump it t
+        # if data was provided dump it to a string producer
         if data is not None:
             body_producer = StringProducer(data_dumps(data))
         else:
@@ -231,9 +238,6 @@ class WebClient(object):
 
             output_headers = Headers()
             for key, value in headers.iteritems():
-                if isinstance(value, basestring):
-                    value = [value]
-
                 output_headers.addRawHeader(key, value)
 
             headers = output_headers
