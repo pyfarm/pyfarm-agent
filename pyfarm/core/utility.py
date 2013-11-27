@@ -25,6 +25,8 @@ of PyFarm.
 from __future__ import division
 
 import os
+from StringIO import StringIO
+from UserDict import UserDict
 from decimal import Decimal, ROUND_HALF_DOWN
 
 try:
@@ -234,3 +236,49 @@ class convert(object):
             raise ValueError("`value` did not convert to a number")
 
         return value
+
+
+def dictformat(data, indent="    ", columns=4):
+    """
+    basic dictionary formatter similar to :func:`pprint.pformat` but
+    with a few extra options
+
+    :param str indent:
+        the indentation which will prefix each line
+
+    :param int columns:
+        how many keys should be displayed on a single line
+    """
+    assert isinstance(data, (UserDict, dict))
+    assert isinstance(columns, int) and columns >= 1
+
+    # UserDict objects need to use the base data
+    if isinstance(data, UserDict):
+        data = data.data.copy()
+    else:
+        data = data.copy()
+
+    output = StringIO()
+
+    while data:
+        last_line = False
+        values = []
+
+        # pull as many keys as requested out of the
+        # dictionary
+        for i in xrange(columns):
+            try:
+                key, value = data.popitem()
+            except KeyError:
+                last_line = True
+                break
+            else:
+                values.append(": ".join([repr(key), repr(value)]))
+
+        value = indent + ", ".join(values)
+        if not last_line:
+            value += ","
+
+        print >> output, value
+
+    return indent + "{" + output.getvalue().strip() + "}"
