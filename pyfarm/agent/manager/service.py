@@ -22,6 +22,7 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import os
 import logging
 import socket
 from pprint import pformat
@@ -131,6 +132,9 @@ class Options(usage.Options):
         ("http-api-scheme", "", "http",
          "The scheme to use to communicate over http.  Valid values are "
          "'http' or 'https'"),
+        ("http-api-prefix", "", "/api/v1",
+         "The prefix for accessing the http api on the master, this does not"
+         "include the server, scheme, port, etc"),
 
         # statsd setup
         ("statsd-port", "", 8125,
@@ -218,6 +222,7 @@ class ManagerService(MultiService):
         self.config.update(config)
         self.scheduled_tasks = ScheduledTaskManager()
         self.log = partial(log.msg, system=self.__class__.__name__)
+        self.err = partial(log.err, system=self.__class__.__name__)
 
         # register any scheduled tasks
         self.scheduled_tasks.register(
@@ -226,22 +231,20 @@ class ManagerService(MultiService):
         # finally, setup the base class
         MultiService.__init__(self)
 
+    def _startServiceCallback(self, response):
+        """internal callback used to start the service itself"""
+        self.log("starting service")
+        self.log("agent database entry: %s%s" % (os.linesep, pformat(response)))
+        self.scheduled_tasks.start()
+
+    def _failureCallback(self, response):
+        """internal callback which is run when the service fails to start"""
+        self.err(response)
+
     def startService(self):
         self.log("informing master of agent startup", level=logging.INFO)
         self.log("%s" % pformat(self.config), level=logging.DEBUG,
                  system="%s.config" % self.__class__.__name__)
-
-        def start_service(response):
-            print "start_service ===========",response
-            #print dir(response)
-            #from twisted.internet import defer
-            #response_body = http.StringReceiver(defer.Deferred())
-            #response.delieverBody(lambda: True)
-            self.log("connected to master")
-            self.scheduled_tasks.start()
-
-        def failure(error):
-            print "FAIL", error.value
 
         def get_agent_data():
             data = {
@@ -250,7 +253,8 @@ class ManagerService(MultiService):
                 "use_address": self.config["contact-address"],
                 "ram": self.config["ram"],
                 "cpus": self.config["cpus"],
-                "port": self.config["port"]}
+                "port": self.config["port"],
+                "free_ram": memory_info.ram_free()}
 
             if self.config["remote-ip"]:
                 data.update(remote_ip=self.config["remote-ip"])
@@ -262,13 +266,15 @@ class ManagerService(MultiService):
 
         # prepare a retry request to POST to the master
         retry_post_agent = RetryDeferred(
-            http_post, start_service, failure,
+            http_post, self._startServiceCallback, self._failureCallback,
+            headers={"Content-Type": "application/json"},
             max_retries=self.config["http-max-retries"],
             timeout=None,
-            retry_delay=self.config["http-retry-delay"])
+            retry_delay=self.config["http-retry-delay"],)
 
         retry_post_agent(
-            self.config["http-api"] + "/", data=json.dumps(get_agent_data()))
+            self.config["http-api"] + "/agents",
+            data=json.dumps(get_agent_data()))
 
     def stopService(self):
         self.scheduled_tasks.stop()
@@ -295,8 +301,6 @@ class ManagerServiceMaker(object):
 
             config[key] = value
 
-        #print pformat(config)
-
         # set or raise error about missing http api server
         http_server = config.get("http-api-server") or config.get("master")
         if http_server is None:
@@ -309,9 +313,13 @@ class ManagerServiceMaker(object):
                     "valid schemes for --http-api-scheme are 'http' or 'https'")
 
             check_address(http_server)
-            config["http-api"] = (
-                config["http-api-scheme"] +
-                "://%s" % ":".join([http_server, str(config["http-api-port"])]))
+
+        config["http-api"] = "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
+            "scheme": config["http-api-scheme"],
+            "server": http_server,
+            "port": str(config["http-api-port"]),
+            "prefix": config["http-api-prefix"]}
+
 
         # set or raise error about missing statstd server
         statsd_server = config.get("statsd-server") or config.get("master")

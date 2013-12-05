@@ -24,7 +24,8 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd"]
+    "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd",
+    "PyOpenSSL"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
@@ -63,9 +64,11 @@ setup(
               "pyfarm.agent",
               "pyfarm.agent.manager",
               "pyfarm.agent.utility"],
+    package_data={
+        "pyfarm.agent": get_package_data(),
+        "twisted": [join("twisted", "pyfarm_plugin.py")]},
     namespace_packages=["pyfarm"],
     include_package_data=True,
-    package_data={"pyfarm.agent": get_package_data()},
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-core",
     license="Apache v2.0",
@@ -85,3 +88,14 @@ setup(
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Topic :: System :: Distributed Computing"])
+
+
+# though not always true, touching the plugin cache can
+# sometimes ensure our plugins show up in twistd
+try:
+    import twisted.plugins
+    from twisted.plugin import getCache
+    getCache(twisted.plugins)
+
+except ImportError:
+    pass
