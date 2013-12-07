@@ -37,6 +37,5 @@ the package.
 # use it
 
 from pyfarm.core.sysinfo.network import NetworkInfo
-from pyfarm.core.sysinfo import user as user_info
 
 network_info = NetworkInfo()
