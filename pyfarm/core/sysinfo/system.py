@@ -15,8 +15,8 @@
 # limitations under the License.
 
 """
-Operating System
-----------------
+System
+------
 
 Information about the operating system including type, filesystem information,
 and other relevant information.  This module may also contain os specific

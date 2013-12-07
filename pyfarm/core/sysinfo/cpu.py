@@ -15,10 +15,10 @@
 # limitations under the License.
 
 """
-Processor
----------
+CPU
+---
 
-Contains information about the processor and its relation to the operating
+Contains information about the cpu and its relation to the operating
 system such as load, processing times, etc.
 
 :const NUM_CPUS:
