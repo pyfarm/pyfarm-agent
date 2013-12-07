@@ -25,7 +25,7 @@ from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import (
-    system, network_info, cpu, memory, user_info)
+    system, network_info, cpu, memory, user)
 
 
 class BaseSystem(TestCase):
@@ -38,7 +38,7 @@ class BaseSystem(TestCase):
             import getpass
             sysuser = getpass.getuser()
 
-        self.assertEqual(user_info.username(), sysuser)
+        self.assertEqual(user.username(), sysuser)
 
     def test_uptime(self):
         t1 = system.uptime()
