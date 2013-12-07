@@ -25,7 +25,7 @@ from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import (
-    os_info, network_info, cpu_info, memory_info, user_info)
+    os_info, network_info, cpu_info, memory, user_info)
 
 
 class BaseSystem(TestCase):
@@ -161,29 +161,29 @@ class Processor(TestCase):
 
 class Memory(TestCase):
     def test_totalram(self):
-        self.assertEqual(memory_info.TOTAL_RAM,
+        self.assertEqual(memory.TOTAL_RAM,
                          convert.bytetomb(psutil.TOTAL_PHYMEM))
 
     def test_totalswap(self):
-        self.assertEqual(memory_info.TOTAL_SWAP,
+        self.assertEqual(memory.TOTAL_SWAP,
                          convert.bytetomb(psutil.swap_memory().total))
 
     def test_swapused(self):
         v1 = convert.bytetomb(psutil.swap_memory().used)
-        v2 = memory_info.swap_used()
+        v2 = memory.swap_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_swapfree(self):
         v1 = convert.bytetomb(psutil.swap_memory().free)
-        v2 = memory_info.swap_free()
+        v2 = memory.swap_free()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramused(self):
         v1 = convert.bytetomb(psutil.virtual_memory().used)
-        v2 = memory_info.ram_used()
+        v2 = memory.ram_used()
         self.assertEqual(v1-v2 < 5, True)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
-        v2 = memory_info.ram_free()
+        v2 = memory.ram_free()
         self.assertEqual(v1-v2 < 5, True)

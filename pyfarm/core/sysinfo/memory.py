@@ -18,49 +18,38 @@
 Memory
 ------
 
-Returns information about memory including swap usage, system memory usage,
+Provides information about memory including swap usage, system memory usage,
 and general capacity information.
+
+:const TOTAL_RAM:
+    Total physical memory (ram) installed on the system
+
+:const TOTAL_SWAP:
+    Total virtual memory (swap) installed on the system
 """
 
 import psutil
 from pyfarm.core.utility import convert
 
-
-class MemoryInfo(object):
-    """
-    .. note::
-        This class has already been instanced onto `pyfarm.system.memory`
-
-    Namespace class which returns information about both physical and
-    virtual memory on the system.  Unless otherwise noted all units are in
-    megabytes.
-
-    This class is a wrapper around methods present on :mod:`psutil` and is
-    normally accessed using the instance found on `memory`:
-
-    :attr TOTAL_RAM:
-        Total physical memory (ram) installed on the system
-
-    :attr TOTAL_SWAP:
-        Total virtual memory (swap) installed on the system
-    """
-    TOTAL_RAM = convert.bytetomb(psutil.TOTAL_PHYMEM)
-    TOTAL_SWAP = convert.bytetomb(psutil.swap_memory().total)
-
-    def swap_used(self):
-        """Amount of swap currently in use"""
-        return convert.bytetomb(psutil.swap_memory().used)
-
-    def swap_free(self):
-        """Amount of swap currently free"""
-        return convert.bytetomb(psutil.swap_memory().free)
-
-    def ram_used(self):
-        """Amount of swap currently free"""
-        return convert.bytetomb(psutil.virtual_memory().used)
-
-    def ram_free(self):
-        """Amount of ram currently free"""
-        return convert.bytetomb(psutil.virtual_memory().available)
+TOTAL_RAM = convert.bytetomb(psutil.TOTAL_PHYMEM)
+TOTAL_SWAP = convert.bytetomb(psutil.swap_memory().total)
 
 
+def swap_used():
+    """Amount of swap currently in use"""
+    return convert.bytetomb(psutil.swap_memory().used)
+
+
+def swap_free():
+    """Amount of swap currently free"""
+    return convert.bytetomb(psutil.swap_memory().free)
+
+
+def ram_used():
+    """Amount of swap currently free"""
+    return convert.bytetomb(psutil.virtual_memory().used)
+
+
+def ram_free():
+    """Amount of ram currently free"""
+    return convert.bytetomb(psutil.virtual_memory().available)
