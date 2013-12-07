@@ -16,7 +16,7 @@
 
 """
 Memory
-------
+++++++
 
 Provides information about memory including swap usage, system memory usage,
 and general capacity information.

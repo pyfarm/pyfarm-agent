@@ -35,7 +35,6 @@ in various forms.
 """
 
 import os
-import warnings
 from functools import partial
 
 try:
