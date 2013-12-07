@@ -24,14 +24,14 @@ manager service.
 """
 
 from twisted.python import log
-from pyfarm.core.sysinfo import memory_info
+from pyfarm.core.sysinfo import memory
 
 
 def memory_utilization():
     """
     Returns the amount of free free and the amount of swap used.
     """
-    ram_free, swap_used = memory_info.ram_free(), memory_info.swap_used()
+    ram_free, swap_used = memory.ram_free(), memory.swap_used()
     log.msg("ram_free=%s, swap_used=%s" % (ram_free, swap_used),
             system="task.memory_utilization")
     return ram_free, swap_used

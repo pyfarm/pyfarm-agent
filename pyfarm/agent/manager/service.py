@@ -40,7 +40,7 @@ except ImportError:
 
 from pyfarm.core.enums import UseAgentAddress
 from pyfarm.core.utility import convert
-from pyfarm.core.sysinfo import network_info, memory_info, cpu_info
+from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.manager.tasks import memory_utilization
@@ -157,9 +157,9 @@ class Options(usage.Options):
 
         # information about this agent which we send to the master
         # before starting the main service code
-        ("hostname", "", network_info.hostname(),
+        ("hostname", "", network.hostname(),
          "The agent's hostname to send to the master"),
-        ("ip", "", network_info.ip(),
+        ("ip", "", network.ip(),
          "The agent's local ip address to send to the master"),
         ("remote-ip", "", "",
          "The remote ip address to report, this may be different than"
@@ -167,10 +167,10 @@ class Options(usage.Options):
         ("contact-address", "", "hostname",
          "Which address the master should use when talking back to an agent.  "
          "Valid options are 'hostname', 'ip', and 'remote-ip'"),
-        ("ram", "", memory_info.TOTAL_RAM,
+        ("ram", "", memory.TOTAL_RAM,
          "The total amount of ram installed on the agent which will be"
          "sent to the master"),
-        ("cpus", "", cpu_info.NUM_CPUS,
+        ("cpus", "", cpu.NUM_CPUS,
          "The number of cpus this agent has which will be sent to the master."),
 
         # TODO: add *_allocation columns
@@ -254,7 +254,7 @@ class ManagerService(MultiService):
                 "ram": self.config["ram"],
                 "cpus": self.config["cpus"],
                 "port": self.config["port"],
-                "free_ram": memory_info.ram_free()}
+                "free_ram": memory.ram_free()}
 
             if self.config["remote-ip"]:
                 data.update(remote_ip=self.config["remote-ip"])
