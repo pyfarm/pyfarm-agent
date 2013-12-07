@@ -71,6 +71,7 @@ import platform
 import sys
 import time
 import tempfile
+import uuid
 
 import psutil
 
@@ -88,16 +89,13 @@ def _case_sensitive_filesystem():  # pragma: no cover
 
 def _case_sensitive_environment():  # pragma: no cover
     """returns True if the environment is case sensitive"""
-    envvar_lower = os.urandom(4).encode("hex")
+    envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().get_hex()
     envvar_upper = envvar_lower.upper()
 
-    # populate environment then compare the difference
+    # populate environment then compare the difference (clean afterwards)
     os.environ.update({envvar_lower: "0", envvar_upper: "1"})
     result = os.environ[envvar_lower] != os.environ[envvar_upper]
-
-    # cleanup
-    os.environ.pop(envvar_lower)
-    os.environ.pop(envvar_upper)
+    map(os.environ.pop, (envvar_lower, envvar_upper))
 
     return result
 

@@ -19,6 +19,7 @@ import time
 import socket
 import psutil
 import tempfile
+import uuid
 import netifaces
 
 from utcore import TestCase, skip_on_ci
@@ -64,7 +65,7 @@ class BaseSystem(TestCase):
         self.remove(path)
 
     def test_case_sensitive_environment(self):
-        envvar_lower = os.urandom(4).encode("hex")
+        envvar_lower = uuid.uuid4().get_hex()
         envvar_upper = envvar_lower.upper()
 
         # populate environment then compare the difference
