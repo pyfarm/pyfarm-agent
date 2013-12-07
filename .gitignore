@@ -9,6 +9,7 @@
 .coverage
 .profile
 .idea
+.setup.py.last
 build
 dist
 MANIFEST
