@@ -25,7 +25,7 @@ from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import (
-    os_info, network_info, cpu_info, memory, user_info)
+    system, network_info, cpu_info, memory, user_info)
 
 
 class BaseSystem(TestCase):
@@ -41,30 +41,41 @@ class BaseSystem(TestCase):
         self.assertEqual(user_info.username(), sysuser)
 
     def test_uptime(self):
-        t1 = os_info.uptime()
+        t1 = system.uptime()
         t2 = time.time() - psutil.BOOT_TIME
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_classvars(self):
-        self.assertEqual(os_info.OS, OS)
-        self.assertEqual(os_info.IS_LINUX, OS == OperatingSystem.LINUX)
-        self.assertEqual(os_info.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
-        self.assertEqual(os_info.IS_MAC, OS == OperatingSystem.MAC)
-        self.assertEqual(os_info.IS_OTHER, OS == OperatingSystem.OTHER)
-        self.assertEqual(os_info.IS_POSIX,
+        self.assertEqual(system.OS, OS)
+        self.assertEqual(system.IS_LINUX, OS == OperatingSystem.LINUX)
+        self.assertEqual(system.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
+        self.assertEqual(system.IS_MAC, OS == OperatingSystem.MAC)
+        self.assertEqual(system.IS_OTHER, OS == OperatingSystem.OTHER)
+        self.assertEqual(system.IS_POSIX,
                          OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
 
-    def test_case_sensitive(self):
-        fid, path = tempfile.mkstemp()
-        exists = map(os.path.isfile, [path, path.lower(), path.upper()])
-        if not any(exists):
-            raise ValueError("failed to determine if path was case sensitive")
-        elif all(exists):
-            self.assertEqual(os_info.CASE_SENSITIVE, False)
-        elif exists.count(True) == 1:
-            self.assertEqual(os_info.CASE_SENSITIVE, True)
+    def test_case_sensitive_filesystem(self):
+        fd, path = tempfile.mkstemp()
+        if path.islower() or not path.isupper():
+            senstive = os.path.isfile(path) and not os.path.isfile(path.upper())
+        else:
+            senstive = os.path.isfile(path) and not os.path.isfile(path.lower())
 
+        self.assertEqual(system.CASE_SENSITIVE_FILESYSTEM, senstive)
         self.remove(path)
+
+    def test_case_sensitive_environment(self):
+        envvar_lower = os.urandom(4).encode("hex")
+        envvar_upper = envvar_lower.upper()
+
+        # populate environment then compare the difference
+        os.environ.update({envvar_lower: "0", envvar_upper: "1"})
+        self.assertEqual(
+            system.CASE_SENSITIVE_ENVIRONMENT,
+            os.environ[envvar_lower] != os.environ[envvar_upper])
+
+        os.environ.pop(envvar_lower)
+        os.environ.pop(envvar_upper)
 
 
 class Network(TestCase):
@@ -152,7 +163,7 @@ class Processor(TestCase):
                          True)
 
     def test_iowait(self):
-        if os_info.IS_LINUX:
+        if system.IS_LINUX:
             self.assertEqual(cpu_info.iowait() <= psutil.cpu_times().iowait,
                              True)
         else:

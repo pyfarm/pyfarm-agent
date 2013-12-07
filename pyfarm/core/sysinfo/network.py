@@ -29,10 +29,9 @@ import psutil
 
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
+from pyfarm.core.sysinfo import system
 
 logger = getLogger("network_info")
-os_info = OperatingSystemInfo()
 
 
 class NetworkInfo(object):
@@ -114,7 +113,7 @@ class NetworkInfo(object):
         if fqdn.startswith("localhost"):
             logger.warning("fqdn resolved to or contains 'locahost'")
 
-        if os_info.IS_MAC and fqdn.endswith(".local"):
+        if system.IS_MAC and fqdn.endswith(".local"):
             logger.warning(
                 "OS X appended '.local' to hostname, this may cause unexpected "
                 "problems with DNS on the network")

@@ -36,11 +36,9 @@ the package.
 # NOTE: OperatingSystemInfo should be instanced first so other subpackages can
 # use it
 
-from pyfarm.core.sysinfo.osdata import OperatingSystemInfo
 from pyfarm.core.sysinfo.network import NetworkInfo
 from pyfarm.core.sysinfo.processor import ProcessorInfo
 from pyfarm.core.sysinfo import user as user_info
 
-os_info = OperatingSystemInfo()
 cpu_info = ProcessorInfo()
 network_info = NetworkInfo()
