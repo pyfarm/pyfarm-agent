@@ -37,8 +37,6 @@ the package.
 # use it
 
 from pyfarm.core.sysinfo.network import NetworkInfo
-from pyfarm.core.sysinfo.processor import ProcessorInfo
 from pyfarm.core.sysinfo import user as user_info
 
-cpu_info = ProcessorInfo()
 network_info = NetworkInfo()

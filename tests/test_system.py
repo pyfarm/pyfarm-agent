@@ -25,7 +25,7 @@ from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import (
-    system, network_info, cpu_info, memory, user_info)
+    system, network_info, cpu, memory, user_info)
 
 
 class BaseSystem(TestCase):
@@ -148,26 +148,22 @@ class Processor(TestCase):
         except (ImportError, NotImplementedError):
             cpu_count = psutil.NUM_CPUS
 
-        self.assertEqual(cpu_info.NUM_CPUS, cpu_count)
+        self.assertEqual(cpu.NUM_CPUS, cpu_count)
 
     def test_usertime(self):
-        self.assertEqual(psutil.cpu_times().user <= cpu_info.user_time(),
-                         True)
+        self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
 
     def test_systemtime(self):
-        self.assertEqual(psutil.cpu_times().system <= cpu_info.system_time(),
-                         True)
+        self.assertEqual(psutil.cpu_times().system <= cpu.system_time(), True)
 
     def test_idletime(self):
-        self.assertEqual(psutil.cpu_times().idle <= cpu_info.idle_time(),
-                         True)
+        self.assertEqual(psutil.cpu_times().idle <= cpu.idle_time(), True)
 
     def test_iowait(self):
         if system.IS_LINUX:
-            self.assertEqual(cpu_info.iowait() <= psutil.cpu_times().iowait,
-                             True)
+            self.assertEqual(cpu.iowait() <= psutil.cpu_times().iowait, True)
         else:
-            self.assertEqual(cpu_info.iowait(), None)
+            self.assertEqual(cpu.iowait(), None)
 
 
 class Memory(TestCase):
