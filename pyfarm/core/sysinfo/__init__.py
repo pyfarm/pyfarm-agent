@@ -15,26 +15,12 @@
 # limitations under the License.
 
 """
+System Information
+------------------
+
 Top level module which provides information about the operating system,
-system memory, network, and processor related information.  Unlike other
-modules in PyFarm this module is not generally meant to be overridden outside
-the package.
-
-:const os_info:
-    module level instance of :class:`.OperatingSystemInfo`
-
-:const memory_info:
-    module level instance of :class:`.MemoryInfo`
-
-:const cpu_info:
-    module level instance of :class:`.ProcessorInfo`
-
-:const network_info:
-    module level instance of :class:`.NetworkInfo`
+system memory, network, and processor related information
 """
-
-# NOTE: OperatingSystemInfo should be instanced first so other subpackages can
-# use it
 
 from pyfarm.core.sysinfo.network import NetworkInfo
 
