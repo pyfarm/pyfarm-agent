@@ -24,8 +24,7 @@ import netifaces
 from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import OS, OperatingSystem
-from pyfarm.core.sysinfo import (
-    system, network_info, cpu, memory, user)
+from pyfarm.core.sysinfo import system, network, cpu, memory, user
 
 
 class BaseSystem(TestCase):
@@ -81,31 +80,31 @@ class BaseSystem(TestCase):
 class Network(TestCase):
     def test_packets_sent(self):
         v = psutil.net_io_counters(
-            pernic=True)[network_info.interface()].packets_sent
-        self.assertEqual(network_info.packets_sent() >= v, True)
+            pernic=True)[network.interface()].packets_sent
+        self.assertEqual(network.packets_sent() >= v, True)
 
     def test_packets_recv(self):
         v = psutil.net_io_counters(
-            pernic=True)[network_info.interface()].packets_recv
-        self.assertEqual(network_info.packets_received() >= v, True)
+            pernic=True)[network.interface()].packets_recv
+        self.assertEqual(network.packets_received() >= v, True)
 
     def test_data_sent(self):
         v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[network_info.interface()].bytes_sent)
-        self.assertEqual(network_info.data_sent() >= v, True)
+            pernic=True)[network.interface()].bytes_sent)
+        self.assertEqual(network.data_sent() >= v, True)
 
     def test_data_recv(self):
         v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[network_info.interface()].bytes_recv)
-        self.assertEqual(network_info.data_received() >= v, True)
+            pernic=True)[network.interface()].bytes_recv)
+        self.assertEqual(network.data_received() >= v, True)
 
     def test_error_incoming(self):
-        v = psutil.net_io_counters(pernic=True)[network_info.interface()].errin
-        self.assertEqual(network_info.incoming_error_count() >= v, True)
+        v = psutil.net_io_counters(pernic=True)[network.interface()].errin
+        self.assertEqual(network.incoming_error_count() >= v, True)
 
     def test_error_outgoing(self):
-        v = psutil.net_io_counters(pernic=True)[network_info.interface()].errout
-        self.assertEqual(network_info.outgoing_error_count() >= v, True)
+        v = psutil.net_io_counters(pernic=True)[network.interface()].errout
+        self.assertEqual(network.outgoing_error_count() >= v, True)
 
     def test_hostname(self):
         _hostname = socket.gethostname()
@@ -113,17 +112,17 @@ class Network(TestCase):
             _hostname, _hostname + ".", socket.getfqdn(),
             socket.getfqdn(_hostname + ".")])
         for hostname in hostnames:
-            if hostname == network_info.hostname():
+            if hostname == network.hostname():
                 break
         else:
             self.fail("failed to get hostname")
 
     def test_addresses(self):
-        self.assertEqual(len(list(network_info.addresses())) >= 1, True)
-        self.assertEqual(isinstance(list(network_info.addresses()), list), True)
+        self.assertEqual(len(list(network.addresses())) >= 1, True)
+        self.assertEqual(isinstance(list(network.addresses()), list), True)
 
     def test_interfaces(self):
-        names = list(network_info.interfaces())
+        names = list(network.interfaces())
         self.assertEqual(len(names) > 1, True)
         self.assertEqual(isinstance(names, list), True)
         self.assertEqual(all(name in netifaces.interfaces() for name in names),
@@ -135,9 +134,9 @@ class Network(TestCase):
     @skip_on_ci
     def test_interface(self):
         self.assertEqual(any(
-            i.get("addr") == network_info.ip()
+            i.get("addr") == network.ip()
             for i in netifaces.ifaddresses(
-            network_info.interface()).get(socket.AF_INET, [])), True)
+            network.interface()).get(socket.AF_INET, [])), True)
 
 
 class Processor(TestCase):

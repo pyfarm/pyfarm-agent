@@ -21,7 +21,3 @@ System Information
 Top level module which provides information about the operating system,
 system memory, network, and processor related information
 """
-
-from pyfarm.core.sysinfo.network import NetworkInfo
-
-network_info = NetworkInfo()
