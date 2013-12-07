@@ -16,7 +16,7 @@
 
 """
 CPU
-+++
+---
 
 Contains information about the cpu and its relation to the operating
 system such as load, processing times, etc.

@@ -16,7 +16,7 @@
 
 """
 User
-++++
+----
 
 Returns information about the current user such as the user name, admin
 access, or other related information.

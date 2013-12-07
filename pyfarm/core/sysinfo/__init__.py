@@ -15,9 +15,6 @@
 # limitations under the License.
 
 """
-System Information
-------------------
-
 Top level module which provides information about the operating system,
 system memory, network, and processor related information
 """
