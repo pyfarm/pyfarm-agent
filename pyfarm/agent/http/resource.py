@@ -30,6 +30,7 @@ try:
 except ImportError:
     import simplejson as json
 
+from twisted.web.server import NOT_DONE_YET
 from twisted.python.compat import nativeString
 from twisted.web.error import Error, UnsupportedMethod
 from twisted.web.resource import Resource as _Resource
@@ -121,7 +122,11 @@ class JSONResource(Resource):
         except ValueError, e:
             raise Error(BAD_REQUEST, str(e))
         else:
-            result = instance_method(data)
+            result = instance_method(data, request)
+
+            if result == NOT_DONE_YET:
+                return result
+
             try:
                 return self.dumps(result)
             except ValueError:
