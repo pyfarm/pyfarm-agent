@@ -23,11 +23,13 @@ such as log reading, system information gathering, and management of processes.
 """
 
 import os
+import time
 import logging
 import socket
 from pprint import pformat
 from functools import partial
 
+import ntplib
 from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
@@ -185,7 +187,14 @@ class Options(usage.Options):
          "for.  Note however that this only updates the master at the time "
          "the agent is run.  Once the agent has been launched all further "
          "'membership' is present in the database and acted on by the queue.  "
-         "By default, an agent can execute work for any project.")]
+         "By default, an agent can execute work for any project."),
+        ("ntp-server", "", "pool.ntp.org",
+         "The default network time server this agent should query to "
+         "retrieve the real time.  This will be used to help determine the "
+         "agent's click skew (if any)."),
+        ("ntp-server-version", "", 2,
+         "The version of the NTP server in case it's running an older or "
+         "newer version.  The default value should generally be used.")]
 
     # special variable used for inferring type in makeService
     optConverters = {
@@ -198,7 +207,8 @@ class Options(usage.Options):
         "projects": convert_option_projects,
         "contact-address": convert_option_contact_addr,
         "ram": convert_option_ston,
-        "cpus": convert_option_stoi}
+        "cpus": convert_option_stoi,
+        "ntp-server-version": convert_option_stoi}
 #
 #class IPCReceieverFactory(Factory):
 #    """
@@ -217,6 +227,7 @@ class Options(usage.Options):
 class ManagerService(MultiService):
     """the service object itself"""
     config = {}
+    ntp_client = ntplib.NTPClient()
 
     def __init__(self, config):
         self.config.update(config)
@@ -247,6 +258,20 @@ class ManagerService(MultiService):
                  system="%s.config" % self.__class__.__name__)
 
         def get_agent_data():
+            ntp_client = ntplib.NTPClient()
+            try:
+                pool_time = ntp_client.request(self.config["ntp-server"])
+                time_offset = int(pool_time.tx_time - time.time())
+
+            except Exception, e:
+                time_offset = 0
+                self.log("failed to determine network time: %s" % e,
+                         level=logging.WARNING)
+            else:
+                if time_offset:
+                    self.log("agent time offset is %s" % time_offset,
+                             level=logging.INFO)
+
             data = {
                 "hostname": self.config["hostname"],
                 "ip": self.config["ip"],
@@ -254,7 +279,8 @@ class ManagerService(MultiService):
                 "ram": self.config["ram"],
                 "cpus": self.config["cpus"],
                 "port": self.config["port"],
-                "free_ram": memory.ram_free()}
+                "free_ram": memory.ram_free(),
+                "time_offset": time_offset}
 
             if self.config["remote-ip"]:
                 data.update(remote_ip=self.config["remote-ip"])

@@ -75,7 +75,7 @@ class SimpleReceiver(protocol.Protocol):
         # there's a problem with the incoming response, the buffer
         # should contain the error so pass it to the errback
         if self.response.code >= 400:
-            self.deferred.errback(self.buffer)
+            self.deferred.errback(reason)
 
         # nothing left to do, call the callback (success)
         elif reason.type is ResponseDone:
