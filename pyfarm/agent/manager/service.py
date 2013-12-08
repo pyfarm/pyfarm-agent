@@ -220,7 +220,11 @@ class Options(usage.Options):
         "contact-address": convert_option_contact_addr,
         "ram": convert_option_ston,
         "cpus": convert_option_stoi,
-        "ntp-server-version": convert_option_stoi}
+        "ntp-server-version": convert_option_stoi,
+        "ram-report-delta": convert_option_stoi,
+        "swap-report-delta": convert_option_stoi,
+        "ram-record-delta": convert_option_stoi,
+        "swap-record-delta": convert_option_stoi}
 
 
 class ManagerService(MultiService):
@@ -238,7 +242,8 @@ class ManagerService(MultiService):
 
         # register any scheduled tasks
         self.scheduled_tasks.register(
-            memory_utilization, self.config["memory-check-interval"])
+            memory_utilization, self.config["memory-check-interval"],
+            func_args=(self.config, ))
 
         # finally, setup the base class
         MultiService.__init__(self)

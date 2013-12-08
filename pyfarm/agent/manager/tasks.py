@@ -23,14 +23,29 @@ Simple tasks which are run at a scheduled interval by the
 manager service.
 """
 
+from functools import partial
+
 from twisted.python import log
+
 from pyfarm.core.sysinfo import memory
 
+memlog = partial(log.msg, system="task.memory_utilization")
 
-def memory_utilization():
+
+def memory_utilization(config):
     """
     Returns the amount of free free and the amount of swap used.
     """
+    try:
+        ram_report_delta = config["ram_report_delta"]
+        ram_record_delta = config["ram_record_delta"]
+        swap_report_delta = config["swap_report_delta"]
+        swap_record_delta = config["swap_record_delta"]
+
+    except KeyError:
+        memlog("configuration not available yet")
+        return
+
     ram_free, swap_used = memory.ram_free(), memory.swap_used()
     log.msg("ram_free=%s, swap_used=%s" % (ram_free, swap_used),
             system="task.memory_utilization")
