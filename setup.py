@@ -25,7 +25,7 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd",
-    "PyOpenSSL"]
+    "PyOpenSSL", "ntplib", "requests"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")

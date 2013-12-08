@@ -150,13 +150,6 @@ class Options(usage.Options):
          "Alternate server which is running the statsd service.  This will "
          "replace the value provided by the --master flag."),
 
-        # http retries/detailed configuration
-        ("http-max-retries", "", "unlimited",
-         "The max number of times to retry a request back to the master"),
-        ("http-retry-delay", "", 3,
-         "If a http request back to the master has failed, wait this amount of "
-         "time before trying again"),
-
         # information about this agent which we send to the master
         # before starting the main service code
         ("hostname", "", network.hostname(),
@@ -166,7 +159,7 @@ class Options(usage.Options):
         ("remote-ip", "", "",
          "The remote ip address to report, this may be different than"
          "--ip"),
-        ("contact-address", "", "hostname",
+        ("contact-address", "", "remote-ip",
          "Which address the master should use when talking back to an agent.  "
          "Valid options are 'hostname', 'ip', and 'remote-ip'"),
         ("ram", "", memory.TOTAL_RAM,
@@ -175,6 +168,13 @@ class Options(usage.Options):
         ("cpus", "", cpu.NUM_CPUS,
          "The number of cpus this agent has which will be sent to the master."),
 
+        # http retries/detailed configuration
+        ("http-max-retries", "", "unlimited",
+         "The max number of times to retry a request back to the master"),
+        ("http-retry-delay", "", 3,
+         "If a http request back to the master has failed, wait this amount of "
+         "time before trying again"),
+
         # TODO: add *_allocation columns
 
         # local agent settings which control some resources
@@ -182,6 +182,18 @@ class Options(usage.Options):
         ("memory-check-interval", "", 10,
          "how often swap and ram resources should be checked and sent to the "
          "master"),
+        ("ram-report-delta", "", 75,
+         "If the amount of ram in use changes by this amount in megabytes "
+         "the the change will be reported to the master"),
+        ("swap-report-delta", "", 25,
+         "If the amount of swap in use changes by this amount in megabytes "
+         "the change will be reported to the master"),
+        ("ram-record-delta", "", 25,
+         "If the amount of ram in use changes by this amount in megabytes "
+         "the the change will recorded to the local datastore"),
+        ("swap-record-delta", "", 10,
+         "If the amount of swap in use changes by this amount in megabytes "
+         "the change will recorded to the local datastore"),
         ("projects", "", "",
          "A comma separated list of projects this agent is allowed to do work "
          "for.  Note however that this only updates the master at the time "
