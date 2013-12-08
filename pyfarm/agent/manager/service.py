@@ -208,6 +208,10 @@ class Options(usage.Options):
          "The version of the NTP server in case it's running an older or "
          "newer version.  The default value should generally be used.")]
 
+    optFlags = [
+        ("pretty-json", "",
+         "If provided then all json output is human readable")]
+
     # special variable used for inferring type in makeService
     optConverters = {
         "port": convert_option_stoi,
