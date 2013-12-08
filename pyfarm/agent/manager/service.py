@@ -381,12 +381,4 @@ class ManagerServiceMaker(object):
             config["statsd"] = ":".join(
                 [statsd_server, str(config["statsd-port"])])
 
-        service = ManagerService(config)
-
-        # ipc service setup
-        #ipc_factory = IPCReceieverFactory()
-        #ipc_server = internet.TCPServer(service.config.get("ipc-port"),
-        #                                ipc_factory)
-        #ipc_server.setServiceParent(service)
-
-        return service
+        return ManagerService(config)
