@@ -43,6 +43,7 @@ class Site(_Site):
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)
 
 
+# TODO: index documentation
 class Index(Resource):
     TEMPLATE = "pyfarm/agent/index.html"
 

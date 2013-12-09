@@ -25,9 +25,9 @@ such as log reading, system information gathering, and management of processes.
 import time
 import logging
 import socket
-from pprint import pformat
 from functools import partial
 from os.path import join, abspath, dirname
+from UserDict import IterableUserDict
 
 import ntplib
 import requests
@@ -35,6 +35,8 @@ from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
 from twisted.application.service import IServiceMaker, MultiService
+from twisted.internet.defer import Deferred
+from twisted.internet import reactor
 
 try:
     import json
@@ -265,11 +267,10 @@ class Options(usage.Options):
 
 class ManagerService(MultiService):
     """the service object itself"""
-    config = {}
     ntp_client = ntplib.NTPClient()
 
-    def __init__(self, config):
-        self.config.update(config)
+    def __init__(self, service_maker):
+        self.service_maker = service_maker
         self.scheduled_tasks = ScheduledTaskManager()
         self.log = partial(log.msg, system=self.__class__.__name__)
         self.info = partial(self.log, level=logging.INFO)
@@ -284,6 +285,10 @@ class ManagerService(MultiService):
         # finally, setup the base class
         MultiService.__init__(self)
 
+    @property
+    def config(self):
+        return self.service_maker.config
+
     def _startServiceCallback(self, response):
         """internal callback used to start the service itself"""
         self.config["agent-id"] = response["id"]
@@ -297,9 +302,9 @@ class ManagerService(MultiService):
         self.exception(response)
 
     def startService(self):
+        self.service_maker.config.log(None, None)
+
         self.info("informing master of agent startup")
-        self.log("%s" % pformat(self.config), level=logging.DEBUG,
-                 system="%s.config" % self.__class__.__name__)
 
         def get_agent_data():
             ntp_client = ntplib.NTPClient()
@@ -384,6 +389,36 @@ class ManagerService(MultiService):
                 self.error("      text: %s" % response.text)
 
 
+class LoggingConfig(IterableUserDict):
+    """
+    Special configuration object which logs when a key is changed in
+    a dictionary.  If the reactor is not running then log messages will
+    be queued until they can be emitted so they are not lost.
+    """
+    def __init__(self, dict=None, **kwargs):
+        IterableUserDict.__init__(self, dict=dict, **kwargs)
+        self._log = partial(log.msg, system=self.__class__.__name__)
+        self.logqueue = []
+
+    def __setitem__(self, key, value):
+        if key not in self.data or key in self.data and self.data[key] != value:
+            self.log(key, value)
+
+        IterableUserDict.__setitem__(self, key, value)
+
+    def log(self, k, v):
+        """either logs or waits to log depending on the reactor state"""
+        if not reactor.running and k is not None:
+            self.logqueue.append((k, v))
+        else:
+            while self.logqueue:
+                key, value = self.logqueue.pop()
+                self._log("%s=%s" % (key, repr(value)))
+
+            if k is not None and v is not None:
+                self._log("%s=%s" % (k, repr(v)))
+
+
 @implementer(IServiceMaker, IPlugin)
 class ManagerServiceMaker(object):
     """
@@ -393,48 +428,49 @@ class ManagerServiceMaker(object):
     tapname = "pyfarm.agent"
     description = __doc__
     options = Options
+    config = LoggingConfig()
 
     def makeService(self, options):
-        config = {}
-
         # convert all incoming options to values we can use
         for key, value in options.items():
             if value is not None and key in options.optConverters:
                 value = options.optConverters[key](key, value)
 
-            config[key] = value
+            self.config[key] = value
 
         # set or raise error about missing http api server
-        http_server = config.get("http-api-server") or config.get("master")
+        http_server = self.config.get("http-api-server") or \
+                      self.config.get("master")
         if http_server is None:
             raise usage.UsageError(
                 "--master or --http-api-server must be provided")
         else:
             # make sure the http scheme is set properly
-            if config["http-api-scheme"] not in ("http", "https"):
+            if self.config["http-api-scheme"] not in ("http", "https"):
                 raise usage.UsageError(
                     "valid schemes for --http-api-scheme are 'http' or 'https'")
 
             check_address(http_server)
 
-        config["http-api"] = "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
-            "scheme": config["http-api-scheme"],
+        self.config["http-api"] = "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
+            "scheme": self.config["http-api-scheme"],
             "server": http_server,
-            "port": str(config["http-api-port"]),
-            "prefix": config["http-api-prefix"]}
+            "port": str(self.config["http-api-port"]),
+            "prefix": self.config["http-api-prefix"]}
 
 
         # set or raise error about missing statstd server
-        statsd_server = config.get("statsd-server") or config.get("master")
+        statsd_server = self.config.get("statsd-server") or \
+                        self.config.get("master")
         if statsd_server is None:
             raise usage.UsageError(
                 "--master or --statsd-server must be provided")
         else:
             check_address(statsd_server)
-            config["statsd"] = ":".join(
-                [statsd_server, str(config["statsd-port"])])
+            self.config["statsd"] = ":".join(
+                [statsd_server, str(self.config["statsd-port"])])
 
-        service = ManagerService(config)
-        service.addService(make_http_server(config))
+        service = ManagerService(self)
+        service.addService(make_http_server(self.config))
 
         return service
