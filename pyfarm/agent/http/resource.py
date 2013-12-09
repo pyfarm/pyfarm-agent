@@ -48,11 +48,6 @@ class Resource(_Resource):
         _Resource.__init__(self)
         self.config = config or {}
 
-        if self.config.get("pretty-json", False):
-            self.dumps = partial(json.dumps, indent=4)
-        else:
-            self.dumps = json.dumps
-
         # CONTENT_TYPE if provided should normally be a set object
         # so misordered headers won't cause problems.  Of course
         # if we need ordered headers, __init__ can be replaced.
@@ -109,6 +104,14 @@ class JSONResource(Resource):
     responding with json
     """
     CONTENT_TYPE = set(["application/json"])
+
+    def __init__(self, config=None):
+        Resource.__init__(self, config=config)
+
+        if self.config.get("pretty-json", False):
+            self.dumps = partial(json.dumps, indent=4)
+        else:
+            self.dumps = json.dumps
 
     def handle(self, instance_method, request):
         """
