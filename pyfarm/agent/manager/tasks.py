@@ -43,7 +43,9 @@ def memory_utilization(config):
         swap_record_delta = config["swap_record_delta"]
 
     except KeyError:
-        memlog("configuration not available yet")
+        # TODO: handle this better, this was added to just stop being annoying
+        import warnings
+        warnings.warn("configuration not available yet")
         return
 
     ram_free, swap_used = memory.ram_free(), memory.swap_used()
