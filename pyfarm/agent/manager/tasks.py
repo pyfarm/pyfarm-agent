@@ -16,8 +16,8 @@
 
 
 """
-Manager Tasks
-=============
+Taks
+----
 
 Simple tasks which are run at a scheduled interval by the
 manager service.

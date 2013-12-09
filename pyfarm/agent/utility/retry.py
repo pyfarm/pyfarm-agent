@@ -17,7 +17,7 @@
 
 """
 Retry
-=====
+-----
 
 Functions and classes used for retrying callable objects or
 deferreds.

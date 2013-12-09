@@ -17,7 +17,7 @@
 
 """
 Tasks
-=====
+-----
 
 General task management of :class:`.LoopingCall` objects or other
 similar structures.

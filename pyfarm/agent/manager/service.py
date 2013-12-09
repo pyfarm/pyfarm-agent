@@ -16,7 +16,7 @@
 
 """
 Manager Service
-===============
+---------------
 
 Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
