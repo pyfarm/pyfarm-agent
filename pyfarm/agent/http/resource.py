@@ -24,6 +24,7 @@ documents, pages, or other types of data for the web.
 
 from functools import partial
 from httplib import BAD_REQUEST, INTERNAL_SERVER_ERROR
+from os.path import isdir
 
 try:
     import json
@@ -35,6 +36,8 @@ from twisted.python.compat import nativeString
 from twisted.web.error import Error, UnsupportedMethod
 from twisted.web.resource import Resource as _Resource
 
+import txtemplate
+
 
 class Resource(_Resource):
     """
@@ -43,10 +46,27 @@ class Resource(_Resource):
     """
     CONTENT_TYPE = None
     CONTENT_TYPE_SETS_RESPONSE_HEADER = True
+    TEMPLATE = NotImplemented
+    templates = None
 
-    def __init__(self, config=None):
+    def __init__(self, config):
         _Resource.__init__(self)
-        self.config = config or {}
+        self.config = config
+
+        # create the template loader at the class level so all
+        # children can share it
+        if Resource.templates is None:
+            if "html-templates" not in self.config:
+                raise KeyError("`html-templates` not present in config")
+
+            elif not isdir(self.config["html-templates"]):
+                raise OSError(
+                    "`html-templates` %s does not exist"
+                    % self.config["html-templates"])
+
+            else:
+                Resource.templates = txtemplate.Jinja2TemplateLoader(
+                    self.config["html-templates"])
 
         # CONTENT_TYPE if provided should normally be a set object
         # so misordered headers won't cause problems.  Of course
@@ -54,6 +74,15 @@ class Resource(_Resource):
         if self.CONTENT_TYPE is not None and not \
                 isinstance(self.CONTENT_TYPE, set):
             raise TypeError("expected a set object for `CONTENT_TYPE")
+
+    def template(self):
+        """
+        loads the template provided by ``TEMPLATE`` using the loader object
+        """
+        if self.TEMPLATE is NotImplemented:
+            raise NotImplementedError("you must set `TEMPLATE` first")
+
+        return self.templates.load(self.TEMPLATE)
 
     def render(self, request):
         """
