@@ -27,6 +27,7 @@ import logging
 import socket
 from pprint import pformat
 from functools import partial
+from os.path import join, abspath, dirname
 
 import ntplib
 import requests
@@ -44,9 +45,22 @@ from pyfarm.core.enums import UseAgentAddress, AgentState
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
+from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.manager.tasks import memory_utilization
 from pyfarm.agent.utility.tasks import ScheduledTaskManager
+
+# determine template location
+import pyfarm.agent
+TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
+STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
+
+# compute possible agent states
+agent_state_values = []
+for k, v in AgentState._asdict().iteritems():
+    agent_state_values.append("%s (%s)" % (v, k.lower()))
+
+AGENT_STATE_HELP = ", ".join(agent_state_values)
 
 
 def check_address(value):
@@ -103,11 +117,20 @@ def convert_option_contact_addr(key, value):
         "remote-ip": UseAgentAddress.REMOTE}
 
     if value not in mappings:
-        usage.UsageError(
+        raise usage.UsageError(
             "invalid value for --%s, valid values are %s" % (
                 key, mappings.keys()))
     else:
         return mappings[value]
+
+
+def convert_option_agent_state(key, value):
+    value = convert_option_stoi(key, value)
+    if value not in AgentState:
+        raise usage.UsageError("invalid value for --%s, valid values are %s" % (
+            key, AGENT_STATE_HELP))
+    else:
+        return value
 
 
 class Options(usage.Options):
@@ -167,6 +190,8 @@ class Options(usage.Options):
          "sent to the master"),
         ("cpus", "", cpu.NUM_CPUS,
          "The number of cpus this agent has which will be sent to the master."),
+        ("state", "", AgentState.ONLINE,
+         "The current agent state.  Valid values are %s" % AGENT_STATE_HELP),
 
         # http retries/detailed configuration
         ("http-max-retries", "", "unlimited",
@@ -206,7 +231,13 @@ class Options(usage.Options):
          "agent's click skew (if any)."),
         ("ntp-server-version", "", 2,
          "The version of the NTP server in case it's running an older or "
-         "newer version.  The default value should generally be used.")]
+         "newer version.  The default value should generally be used."),
+        ("html-templates", "", TEMPLATE_ROOT,
+         "The default location where the local web service should serve "
+         "html templates from."),
+        ("static-files", "", STATIC_ROOT,
+        "The default location where the agent should find static files"
+        "for the local web service.")]
 
     optFlags = [
         ("pretty-json", "",
@@ -228,7 +259,8 @@ class Options(usage.Options):
         "ram-report-delta": convert_option_stoi,
         "swap-report-delta": convert_option_stoi,
         "ram-record-delta": convert_option_stoi,
-        "swap-record-delta": convert_option_stoi}
+        "swap-record-delta": convert_option_stoi,
+        "state": convert_option_agent_state}
 
 
 class ManagerService(MultiService):
@@ -402,4 +434,7 @@ class ManagerServiceMaker(object):
             config["statsd"] = ":".join(
                 [statsd_server, str(config["statsd-port"])])
 
-        return ManagerService(config)
+        service = ManagerService(config)
+        service.addService(make_http_server(config))
+
+        return service
