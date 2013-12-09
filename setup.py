@@ -25,7 +25,7 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd",
-    "PyOpenSSL", "ntplib", "requests"]
+    "PyOpenSSL", "ntplib", "requests", "txtemplate"]
 
 if sys.version_info[0:2] < (2, 7):
     install_requires.append("simplejson")
@@ -46,7 +46,8 @@ else:
 def get_package_data():
     master_root = join("pyfarm", "agent")
     packge_data_roots = (
-        join("pyfarm", "agent", "twisted"),)
+        join("pyfarm", "agent", "static"),
+        join("pyfarm", "agent", "templates"))
 
     output = [join("twisted", "plugins")]
     for top in packge_data_roots:
