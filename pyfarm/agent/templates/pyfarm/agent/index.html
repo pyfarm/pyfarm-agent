@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>PyFarm:Agent - Status</title>
+        <link href="static/css/layout.css" rel="stylesheet">
+        <link href="static/css/index_table.css" rel="stylesheet">
+    </head>
+    <body>
+    <table id="box-table" summary="Employee Pay Sheet">
+        <thead>
+            <tr>
+                <th scope="col">Key</th>
+                <th scope="col">Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, value in table_data %}
+            <tr>
+                <td>{{key}}</td>
+                <td>{{value}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </body>
+</html>
