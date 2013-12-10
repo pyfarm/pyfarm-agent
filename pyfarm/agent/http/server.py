@@ -24,8 +24,13 @@ a service that the  :class:`pyfarm.agent.manager.service.ManagerServiceMaker`
 class can consume on start.
 """
 
+import time
+from datetime import datetime, timedelta
+from httplib import FORBIDDEN
+
 from twisted.web.server import Site as _Site, NOT_DONE_YET
 from twisted.web.static import File
+from twisted.web.error import Error
 from twisted.application.internet import TCPServer
 
 from pyfarm.core.enums import AgentState
@@ -45,7 +50,7 @@ class Site(_Site):
 
 # TODO: index documentation
 class Index(Resource):
-    TEMPLATE = "pyfarm/agent/index.html"
+    TEMPLATE = "pyfarm/index.html"
 
     def get(self, request):
         # TODO: handle other kinds of requests
@@ -89,6 +94,24 @@ class Index(Resource):
         return NOT_DONE_YET
 
 
+class StaticFiles(File):
+    """
+    More secure version of :class:`.File` that does not list
+    directories.  In addition this will also sending along a
+    response header asking clients to cache to data.
+    """
+    EXPIRES = 2630000
+
+    def directoryListing(self):
+        """override which ensures directories cannot be listed"""
+        raise Error(FORBIDDEN, "directory listing is not allowed")
+
+    def render(self, request):
+        """overrides :meth:`.File.render` and sets the expires header"""
+        request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
+        return File.render(self, request)
+
+
 def make_http_server(config):
     """
     make an http server and attach the endpoints to the service can use them
@@ -97,8 +120,12 @@ def make_http_server(config):
 
     # TODO: /assign endpoint
     # TODO: /stop/<jobid>/<task> endpoint
-    root.putChild("", Index(config))
-    root.putChild("static", File(config["static-files"]))
+    root.putChild(
+        "", Index(config))
+    root.putChild(
+        "favicon.ico", StaticFiles(config["static-files"] + "/favicon.ico"))
+    root.putChild(
+        "static", StaticFiles(config["static-files"]))
 
     return TCPServer(config["port"], Site(root, config))
 
