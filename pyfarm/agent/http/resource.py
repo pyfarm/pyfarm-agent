@@ -75,6 +75,7 @@ class Resource(_Resource):
                 isinstance(self.CONTENT_TYPE, set):
             raise TypeError("expected a set object for `CONTENT_TYPE")
 
+    @property
     def template(self):
         """
         loads the template provided by ``TEMPLATE`` using the loader object
