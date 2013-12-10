@@ -24,8 +24,6 @@ a service that the  :class:`pyfarm.agent.manager.service.ManagerServiceMaker`
 class can consume on start.
 """
 
-import time
-from datetime import datetime, timedelta
 from httplib import FORBIDDEN
 
 from twisted.web.server import Site as _Site, NOT_DONE_YET
@@ -82,10 +80,10 @@ class Index(Resource):
             ("Reported CPUs", self.config["cpus"]),
             ("Reported RAM", self.config["ram"]),
             ("Total CPUs", cpu.NUM_CPUS),
-            ("Total RAM", memory.TOTAL_RAM),
-            ("Free RAM", memory.ram_free()),
-            ("Total Swap", memory.TOTAL_SWAP),
-            ("Free Swap", memory.swap_free())]
+            ("Total RAM", int(memory.TOTAL_RAM)),
+            ("Free RAM", int(memory.ram_free())),
+            ("Total Swap", int(memory.TOTAL_SWAP)),
+            ("Free Swap", int(memory.swap_free()))]
 
         # schedule a deferred so the reactor can get control back
         deferred = template.render(table_data=table_data)
