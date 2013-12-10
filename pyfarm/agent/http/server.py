@@ -46,14 +46,29 @@ class Site(_Site):
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)
 
 
+class StaticFiles(File):
+    """
+    More secure version of :class:`.File` that does not list
+    directories.  In addition this will also sending along a
+    response header asking clients to cache to data.
+    """
+    EXPIRES = 2630000
+
+    def directoryListing(self):
+        """override which ensures directories cannot be listed"""
+        raise Error(FORBIDDEN, "directory listing is not allowed")
+
+    def render(self, request):
+        """overrides :meth:`.File.render` and sets the expires header"""
+        request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
+        return File.render(self, request)
+
+
 # TODO: index documentation
 class Index(Resource):
     TEMPLATE = "pyfarm/index.html"
 
     def get(self, request):
-        # TODO: handle other kinds of requests
-        template = self.template()
-
         # write out the results from the template back
         # to the original request
         def cb(content):
@@ -86,28 +101,37 @@ class Index(Resource):
             ("Free Swap", int(memory.swap_free()))]
 
         # schedule a deferred so the reactor can get control back
-        deferred = template.render(table_data=table_data)
+        deferred = self.template.render(table_data=table_data)
         deferred.addCallback(cb)
 
         return NOT_DONE_YET
 
 
-class StaticFiles(File):
+class Assign(Resource):
     """
-    More secure version of :class:`.File` that does not list
-    directories.  In addition this will also sending along a
-    response header asking clients to cache to data.
+    Provides public access so work can be assigned to the agent.  This
+    resource only supports ``GET`` and ``POST``.  Using ``GET`` on this
+    resource will describe what should be used for a ``POST`` request.
+
+    .. note::
+        Results from a ``GET`` request are intended to be used as a guide
+        for building input to ``POST``.  Do not use ``GET`` for non-human
+        consumption.
     """
-    EXPIRES = 2630000
+    TEMPLATE = "pyfarm/assign.html"
 
-    def directoryListing(self):
-        """override which ensures directories cannot be listed"""
-        raise Error(FORBIDDEN, "directory listing is not allowed")
+    def get(self, request):
+        # write out the results from the template back
+        # to the original request
+        def cb(content):
+            request.write(content)
+            request.setResponseCode(200)
+            request.finish()
 
-    def render(self, request):
-        """overrides :meth:`.File.render` and sets the expires header"""
-        request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
-        return File.render(self, request)
+        deferred = self.template.render(uri=request.prePathURL())
+        deferred.addCallback(cb)
+
+        return NOT_DONE_YET
 
 
 def make_http_server(config):
@@ -124,6 +148,8 @@ def make_http_server(config):
         "favicon.ico", StaticFiles(config["static-files"] + "/favicon.ico"))
     root.putChild(
         "static", StaticFiles(config["static-files"]))
+    root.putChild(
+        "assign", Assign(config))
 
     return TCPServer(config["port"], Site(root, config))
 

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PyFarm:Agent - Assign</title>
+    <link href="static/css/layout.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- TODO: style/layout needs some work -->
+    <h2>Agent Assignment Parameters</h2>
+    <p>
+        To assign work to this agent you may send a <i>POST</i> request to
+        <a href="{{uri}}">{{uri}}</a>.  Below is a list of response codes you
+        should normally expect to handle.  Any response code other than those
+        listed below should be considered an unhandled error that warrants
+        being retried.
+
+        <ul>
+            <li><b>201 ACCEPTED</b> -
+                task was accepted successfully</li>
+            <li><b>400 BAD REQUEST</b> -
+                there's something wrong with the data that was provided.
+                Check the response for help.</li>
+            <li><b>409 CONFLICT</b> -
+                The provided task is already running on this machine</li>
+            <li><b>503 SERVICE UNAVAILABLE</b> -
+                There are not enough available resources to handle the
+                requested task at this time</li>
+        </ul>
+
+        The below is a typical <b>POST</b> request.  Unless otherwise noted
+        each section should be considered required.  All data should be
+        converted to json (application/json) before being transmitted.
+        <pre>
+        {
+            "project": 42,
+            "job": 1,
+            "task": 7,
+            "user": "bob",  # optional, ignored on windows
+            "job": {
+                "jobtype": "pyfarm.jobtypes.foo.Bar",
+                "cmd": "foo",
+                "args" "-s %(start_frame)s -e %(end_frame)s -b %(by_frame)s -c %(cpus)s"
+            },
+            "resources": {
+                "cpus": 2,
+                "ram": 1024,
+                "ram_warning": 900,  # if not present, default to -1 (not set)
+                "ram_max": 1200,  # if not present, default to -1 (not set)
+            },
+            "frame": {
+                "start_frame": 7.0,
+                "end_frame": 7.0,  # if not present, defaults to `start_frame`
+                "by_frame": 1.0,  # if not present, defaults to 1.0
+            },
+            "env": {  # optional, updates the environment on the host at runtime
+                "FOO": "foo",
+                "BAR": "bar"
+            },
+            "data": {  # optional, data passed into the job type at runtime
+                "project": "/projects/42",
+                "output": "/projects/42/foo"
+            }
+        }
+        </pre>
+
+    </p>
+
+</body>
+</html>
