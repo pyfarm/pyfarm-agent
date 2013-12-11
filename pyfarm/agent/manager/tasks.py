@@ -32,6 +32,8 @@ from pyfarm.core.sysinfo import memory
 memlog = partial(log.msg, system="task.memory_utilization")
 
 
+# TODO: only send memory information if memory has risen by X amount in N time
+# TODO: replace with callable class (to support the above)
 def memory_utilization(config):
     """
     Returns the amount of free free and the amount of swap used.
