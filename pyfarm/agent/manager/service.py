@@ -27,7 +27,6 @@ import logging
 import socket
 from functools import partial
 from os.path import join, abspath, dirname
-from UserDict import IterableUserDict
 
 import ntplib
 import requests
@@ -35,8 +34,6 @@ from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
 from twisted.application.service import IServiceMaker, MultiService
-from twisted.internet.defer import Deferred
-from twisted.internet import reactor
 
 try:
     import json
@@ -49,8 +46,9 @@ from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
-from pyfarm.agent.manager.tasks import memory_utilization
 from pyfarm.agent.utility.tasks import ScheduledTaskManager
+from pyfarm.agent.utility.objects import LoggingDictionary
+from pyfarm.agent.manager.tasks import memory_utilization
 
 # determine template location
 import pyfarm.agent
@@ -381,35 +379,6 @@ class ManagerService(MultiService):
                 self.error("      text: %s" % response.text)
 
 
-class LoggingConfig(IterableUserDict):
-    """
-    Special configuration object which logs when a key is changed in
-    a dictionary.  If the reactor is not running then log messages will
-    be queued until they can be emitted so they are not lost.
-    """
-    def __init__(self, dict=None, **kwargs):
-        IterableUserDict.__init__(self, dict=dict, **kwargs)
-        self._log = partial(log.msg, system=self.__class__.__name__)
-        self.logqueue = []
-
-    def __setitem__(self, key, value):
-        if key not in self.data or key in self.data and self.data[key] != value:
-            self.log(key, value)
-
-        IterableUserDict.__setitem__(self, key, value)
-
-    def log(self, k, v):
-        """either logs or waits to log depending on the reactor state"""
-        if not reactor.running and k is not None:
-            self.logqueue.append((k, v))
-        else:
-            while self.logqueue:
-                key, value = self.logqueue.pop()
-                self._log("%s=%s" % (key, repr(value)))
-
-            if k is not None and v is not None:
-                self._log("%s=%s" % (k, repr(v)))
-
 
 @implementer(IServiceMaker, IPlugin)
 class ManagerServiceMaker(object):
@@ -420,7 +389,7 @@ class ManagerServiceMaker(object):
     tapname = "pyfarm.agent"
     description = __doc__
     options = Options
-    config = LoggingConfig()
+    config = LoggingDictionary(logger_name="config_change")
 
     def makeService(self, options):
         # convert all incoming options to values we can use
