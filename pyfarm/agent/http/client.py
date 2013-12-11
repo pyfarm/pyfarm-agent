@@ -29,9 +29,9 @@ from urllib import getproxies
 from urlparse import urlparse
 
 try:
-    import json
-except ImportError:
     import simplejson as json
+except ImportError:
+    import json
 
 try:
     from collections import OrderedDict
