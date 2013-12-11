@@ -36,9 +36,9 @@ from twisted.plugin import IPlugin
 from twisted.application.service import IServiceMaker, MultiService
 
 try:
-    import simplejson as json
-except ImportError:
     import json
+except ImportError:
+    import simplejson as json
 
 
 from pyfarm.core.enums import UseAgentAddress, AgentState
