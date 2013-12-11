@@ -72,15 +72,7 @@ def check_address(value):
         return value
 
     except socket.error:
-        pass
-
-    # could we map the hostname to an address?
-    try:
-        socket.gethostbyname(value)
-        return value
-
-    except socket.gaierror:
-        raise usage.UsageError("failed to resolve %s to an address" % value)
+        raise ValueError("%s is not a valid IPv4 address" % value)
 
 
 def convert_option_ston(key, value, types=None):
@@ -452,12 +444,12 @@ class ManagerServiceMaker(object):
 
             check_address(http_server)
 
-        self.config["http-api"] = "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
-            "scheme": self.config["http-api-scheme"],
-            "server": http_server,
-            "port": str(self.config["http-api-port"]),
-            "prefix": self.config["http-api-prefix"]}
-
+        self.config["http-api"] = \
+            "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
+                "scheme": self.config["http-api-scheme"],
+                "server": http_server,
+                "port": str(self.config["http-api-port"]),
+                "prefix": self.config["http-api-prefix"]}
 
         # set or raise error about missing statstd server
         statsd_server = self.config.get("statsd-server") or \
