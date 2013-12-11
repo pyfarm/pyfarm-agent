@@ -23,7 +23,7 @@ documents, pages, or other types of data for the web.
 """
 
 from functools import partial
-from httplib import BAD_REQUEST, INTERNAL_SERVER_ERROR
+from httplib import responses, BAD_REQUEST, INTERNAL_SERVER_ERROR
 from os.path import isdir
 
 try:
@@ -31,12 +31,31 @@ try:
 except ImportError:
     import simplejson as json
 
-from twisted.web.server import NOT_DONE_YET
-from twisted.python.compat import nativeString
+from twisted.web.server import Request as _Request, NOT_DONE_YET
+from twisted.python import log
+from twisted.python.compat import nativeString, intToBytes
 from twisted.web.error import Error, UnsupportedMethod
 from twisted.web.resource import Resource as _Resource
 
 import txtemplate
+
+
+class Request(_Request):
+    """
+    Overrides the default :class:`._Request` so we can produce
+    custom errors
+    """
+    def processingFailed(self, reason):
+        if reason.type is JSONError:
+            log.err(reason)
+            body = json.dumps((reason.value.status, reason.value.message))
+            self.setResponseCode(reason.value.status)
+            self.setHeader(b"content-type", b"application/json")
+            self.setHeader(b"content-length", intToBytes(len(body)))
+            self.write(body)
+            self.finish()
+        else:
+            return _Request.processingFailed(self, reason)
 
 
 class Resource(_Resource):
@@ -164,3 +183,15 @@ class JSONResource(Resource):
                 return self.dumps(result)
             except ValueError:
                 raise Error(INTERNAL_SERVER_ERROR, "failed to dump response")
+
+
+class JSONError(Error):
+    """
+    Replacement for Twisted's :class:`.Error` class that's specifically
+    geared towards to providing an error in a json style format.
+    """
+    def __init__(self, code, message, response=None):
+        assert code in responses, "invalid code for a response"
+        self.status = code
+        self.message = message
+        self.response = response

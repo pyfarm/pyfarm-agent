@@ -33,7 +33,7 @@ from twisted.application.internet import TCPServer
 
 from pyfarm.core.enums import AgentState
 from pyfarm.core.sysinfo import memory, cpu
-from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.resource import Resource, Request
 from pyfarm.agent.http.assign import Assign
 
 
@@ -42,6 +42,9 @@ class Site(_Site):
     Site object similar to Twisted's except it also carries along
     some of the internal agent data.
     """
+    requestFactory = Request
+    displayTracebacks = False
+
     def __init__(self, resource, config, logPath=None, timeout=60*60*12):
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)
         self.config = config
@@ -125,4 +128,3 @@ def make_http_server(config):
         "assign", Assign(config))
 
     return TCPServer(config["port"], Site(root, config))
-
