@@ -34,6 +34,7 @@ from twisted.application.internet import TCPServer
 from pyfarm.core.enums import AgentState
 from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.assign import Assign
 
 
 class Site(_Site):
@@ -42,8 +43,8 @@ class Site(_Site):
     some of the internal agent data.
     """
     def __init__(self, resource, config, logPath=None, timeout=60*60*12):
-        self.config = config
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)
+        self.config = config
 
 
 class StaticFiles(File):
@@ -64,8 +65,8 @@ class StaticFiles(File):
         return File.render(self, request)
 
 
-# TODO: index documentation
 class Index(Resource):
+    """serves request for the root, '/', target"""
     TEMPLATE = "pyfarm/index.html"
 
     def get(self, request):
@@ -107,41 +108,13 @@ class Index(Resource):
         return NOT_DONE_YET
 
 
-class Assign(Resource):
-    """
-    Provides public access so work can be assigned to the agent.  This
-    resource only supports ``GET`` and ``POST``.  Using ``GET`` on this
-    resource will describe what should be used for a ``POST`` request.
-
-    .. note::
-        Results from a ``GET`` request are intended to be used as a guide
-        for building input to ``POST``.  Do not use ``GET`` for non-human
-        consumption.
-    """
-    TEMPLATE = "pyfarm/assign.html"
-
-    def get(self, request):
-        # write out the results from the template back
-        # to the original request
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(200)
-            request.finish()
-
-        deferred = self.template.render(uri=request.prePathURL())
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
-
-
 def make_http_server(config):
     """
     make an http server and attach the endpoints to the service can use them
     """
     root = Resource(config)
 
-    # TODO: /assign endpoint
-    # TODO: /stop/<jobid>/<task> endpoint
+    # TODO: DELETE /tasks/<jobid>/<task> endpoint
     root.putChild(
         "", Index(config))
     root.putChild(
