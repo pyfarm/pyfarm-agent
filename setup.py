@@ -57,7 +57,9 @@ setup(
     packages=["twisted.plugins",
               "pyfarm",
               "pyfarm.agent",
+              "pyfarm.agent.http",
               "pyfarm.agent.manager",
+              "pyfarm.agent.process",
               "pyfarm.agent.utility"],
     package_data={
         "pyfarm.agent": get_package_data(),
