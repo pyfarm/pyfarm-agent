@@ -56,7 +56,7 @@ class PostProcessedSchema(Schema):
             if not isinstance(key, basestring):
                 raise Invalid("expected string for env key '%s'" % key)
 
-            if not isinstance(data, basestring):
+            if not isinstance(value, basestring):
                 raise Invalid("expected string for env value '%s'" % value)
 
         return data
@@ -100,6 +100,8 @@ class Assign(Resource):
             Optional("ram_warning"): All(int, Range(min=1)),
             Optional("ram_max"): All(int, Range(min=1))},
         Optional("user"): basestring,
+        Optional("data"): Any(
+            dict, list, basestring, int, float, long,type(None)),
         Optional("env"): PostProcessedSchema.string_keys_and_values})
     
     def get(self, request):
@@ -132,10 +134,10 @@ class Assign(Resource):
         except Error, e:
             self.error(request, str(e))
             return
+        else:
+            request.finish()
 
-        # TODO: schedule
-        # TODO: populate missing data and their defaults
-        request.finish()
+        # TODO: start internal assignment
 
     def decode_post_data(self, args):
         """ensures the data is real json"""
