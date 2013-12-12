@@ -17,7 +17,7 @@
 from __future__ import with_statement
 
 import sys
-assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
+assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 from os import walk
 from os.path import isfile, join
@@ -25,16 +25,10 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd",
-    "PyOpenSSL", "ntplib", "requests", "txtemplate"]
+    "PyOpenSSL", "ntplib", "requests", "txtemplate", "voluptuous"]
 
-if sys.version_info[0:2] < (2, 7):
+if sys.version_info[0:2] != (2, 7):
     install_requires.append("simplejson")
-
-if sys.version_info[0:2] == (2, 5):
-    install_requires.remove("twisted")
-    install_requires.extend([
-        "zope.interface==3.8.0",
-        "twisted==12.1.0"])
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
