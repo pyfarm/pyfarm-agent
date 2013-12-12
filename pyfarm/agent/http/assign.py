@@ -30,15 +30,45 @@ try:
 except ImportError:
     import simplejson as json
 
-
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 from twisted.internet.task import deferLater
 from twisted.python.compat import intToBytes
+from voluptuous import (
+    Error, Invalid, Schema, Required, Optional, Any, All, Range)
 
 from pyfarm.agent.http.resource import Resource, JSONError
 
 number = (int, float, long)
+
+
+class PostProcessedSchema(Schema):
+    """
+    Subclass of :class:`.Schema` which does some additional
+    processing on the dictionary
+    """
+    @staticmethod
+    def string_keys_and_values(data):
+        if not isinstance(data, dict):
+            raise Invalid("invalid type")
+
+        for key, value in data.iteritems():
+            if not isinstance(key, basestring):
+                raise Invalid("expected string for env key '%s'" % key)
+
+            if not isinstance(data, basestring):
+                raise Invalid("expected string for env value '%s'" % value)
+
+        return data
+
+    def __call__(self, data):
+        data = super(PostProcessedSchema, self).__call__(data)
+
+        frame_data = data["frame"]
+        frame_data.setdefault("end_frame", data["frame"]["start_frame"])
+        frame_data.setdefault("by_frame", 1)
+
+        return data
 
 
 class Assign(Resource):
@@ -53,6 +83,24 @@ class Assign(Resource):
         consumption.
     """
     TEMPLATE = "pyfarm/assign.html"
+    SCHEMA = PostProcessedSchema({
+        Required("project"): int,
+        Required("job"): int,
+        Required("task"): int,
+        Required("jobtype"): {
+            Required("import"): basestring,
+            Required("cmd"): basestring,
+            Required("args"): basestring},
+        Required("frame"): {
+            Required("start_frame"): Any(int, float, long),
+            Optional("end_frame"): Any(int, float, long),
+            Optional("by_frame"): Any(int, float, long)},
+        Optional("resources"): {
+            Optional("cpus"): All(int, Range(min=1)),
+            Optional("ram_warning"): All(int, Range(min=1)),
+            Optional("ram_max"): All(int, Range(min=1))},
+        Optional("user"): basestring,
+        Optional("env"): PostProcessedSchema.string_keys_and_values})
     
     def get(self, request):
         # write out the results from the template back
@@ -79,56 +127,10 @@ class Assign(Resource):
     def validate_post_data(self, args):
         request, content = args
 
-        if not isinstance(content, dict):
-            self.error(
-                request, "invalid type for post data, expected dictionary")
-            return
-
-        errors = []
-
-        # basic top level keys that are required
-        for key in ("project", "job", "task"):
-            if key not in content or not isinstance(content[key], int):
-                errors.append("%s must be an integer" % repr(key))
-
-        # top level dictionaries that are required
-        for key in ("jobtype", "frame"):
-            if key not in content or not isinstance(content[key], dict):
-                errors.append("%s must be a dictionary" % repr(key))
-
-            else:
-                if key == "jobtype":
-                    for subkey in ("import", "cmd", "args"):
-                        if subkey not in content[key] or not \
-                        isinstance(content[key][subkey], basestring):
-                            errors.append(
-                                "%s in %s must be a string" % (
-                                    repr(subkey), repr(key)))
-
-                elif key == "frame":
-                    for subkey in ("start_frame", "end_frame", "by_frame"):
-                        if subkey not in content[key] or not \
-                        isinstance(content[key][subkey], (int, long, float)):
-                            errors.append(
-                                "%s in %s must be an int, long, or float" % (
-                                    repr(subkey), repr(key)))
-
-        if "user" in content and not isinstance(content["user"], basestring):
-            errors.append("'user' must be a string")
-
-        if "env" in content and not isinstance(content["env"], dict):
-            errors.append("'env' must be a dictionary")
-
-        elif "env" in content:
-            for key, value in content["env"].iteritems():
-                if not isinstance(key, basestring) or not \
-                    isinstance(value, basestring):
-                    errors.append(
-                        "'env' only supports string key value pairs")
-                    break
-
-        if errors:
-            self.error(request, errors)
+        try:
+            data = self.SCHEMA(content)
+        except Error, e:
+            self.error(request, str(e))
             return
 
         # TODO: schedule
