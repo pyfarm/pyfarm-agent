@@ -138,6 +138,7 @@ class Assign(Resource):
             request.finish()
 
         # TODO: start internal assignment
+        deferred = deferLater(reactor, )
 
     def decode_post_data(self, args):
         """ensures the data is real json"""
