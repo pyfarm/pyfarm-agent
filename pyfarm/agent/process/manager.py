@@ -14,12 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 """
-Agent HTTP Sub-Package
-======================
+Manager
+-------
 
-This package contains the http server which serves as an interface between
-processes, system monitoring, the master, and any other service the Agent
-may run.
+Root class for spawning and management of new processes.
 """
+
+from twisted.python import log
+
+
+class ProcessManager(object):
+    processes = {}
+
+    def __init__(self, config):
+        self.config = config
+
+
