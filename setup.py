@@ -17,6 +17,7 @@
 from __future__ import with_statement
 
 import sys
+assert sys.version_info[0:2] < (3, 0), "Python 3.x is not yet supported"
 assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 from os import walk
@@ -27,8 +28,8 @@ install_requires = [
     "pyfarm.core", "psutil", "netifaces", "netaddr", "twisted", "statsd",
     "PyOpenSSL", "ntplib", "requests", "txtemplate", "voluptuous"]
 
-if sys.version_info[0:2] != (2, 7):
-    install_requires.append("simplejson")
+if sys.version_info[0:2] < (2, 7):
+    install_requires += ["simplejson", "importlib"]
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
