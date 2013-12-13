@@ -49,6 +49,7 @@ from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.utility.objects import LoggingDictionary
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
+from pyfarm.agent.process.manager import ProcessManager
 
 # determine template location
 import pyfarm.agent
@@ -341,6 +342,8 @@ class ManagerService(MultiService):
         retry_post_agent(
             self.config["http-api"] + "/agents",
             data=json.dumps(get_agent_data()))
+
+        self.config["manager"] = ProcessManager(self.config)
 
     def stopService(self):
         self.scheduled_tasks.stop()
