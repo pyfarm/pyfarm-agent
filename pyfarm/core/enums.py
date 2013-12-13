@@ -135,68 +135,72 @@ __all__ = [
     "APIError", "UseAgentAddress"]
 
 
-class _OperatingSystem(namedtuple(
-    "OperatingSystem",
-    ["LINUX", "WINDOWS", "MAC", "OTHER"])):
-    """base class for OperatingSystem"""
+def Enum(classname, **kwargs):
+    """
+    Produce an enum object using :func:`.namedtuple`
+
+    >>> Foo = Enum("Foo", A=1, B=2)
+    >>> assert Foo.A == 1 and Foo.B == 2
+    >>> FooTemplate = Enum("Foo", A=int, instance=False)
+    >>> Foo = FooTemplate(A=1)
+    >>> assert Foo.A == 1
+
+    :param str classname:
+        the name of the class to produce
+
+    :keyword to_dict:
+        a callable function to add to the named tuple for
+        converting the internal values into a dictionary
+
+    :keyword bool instance:
+        by default calling :func:`.Enum` will produce an instanced
+        :func:`.namedtuple` object, setting ``instance`` to False
+        will instead produce the named tuple without instancing it
+    """
+    to_dict = kwargs.pop("to_dict", None)
+    instance = kwargs.pop("instance", True)
+    template = namedtuple(classname, kwargs.keys())
+
+    if to_dict is not None:
+        setattr(template, "to_dict", to_dict)
+
+    if instance:
+        return template(**kwargs)
+    return template
 
 
-class _JobTypeLoadMode(namedtuple(
-    "JobTypeLoadMode",
-    ["DOWNLOAD", "OPEN", "IMPORT"])):
-        """base class for JobTypeLoadMode"""
-
-
-class _AgentState(namedtuple(
-    "AgentState",
-    ["OFFLINE", "ONLINE", "DISABLED", "RUNNING", "ALLOC"])):
-        """base class for AgentState"""
-
-
-class _WorkState(namedtuple(
+# 1xx - work states
+WorkState = Enum(
     "WorkState",
-    ["PAUSED", "BLOCKED", "QUEUED", "ASSIGN", "RUNNING", "DONE",
-     "FAILED", "ALLOC"])):
-    """base class for WorkState"""
+    PAUSED=100, QUEUED=101, BLOCKED=102, ALLOC=103, ASSIGN=104,
+    RUNNING=105, DONE=106, FAILED=107, FAILED_IMPORT=108)
 
+# 2xx - agent states
+AgentState = Enum(
+    "AgentState",
+    DISABLED=200, OFFLINE=201, ONLINE=202, RUNNING=203)
 
-class _APIError(namedtuple(
-    "APIError",
-    ["JSON_DECODE_FAILED", "UNEXPECTED_DATATYPE", "MISSING_FIELDS",
-     "UNEXPECTED_NULL", "DATABASE_ERROR", "EXTRA_FIELDS_ERROR"])):
-    """base class for APIError"""
+# 3xx - non-queue related modes or states
+OperatingSystem = Enum(
+    "OperatingSystem",
+    LINUX=300, WINDOWS=301, MAC=302, OTHER=303)
 
-
-class _UseAgentAddress(namedtuple(
+UseAgentAddress = Enum(
     "UseAgentAddress",
-    ["LOCAL", "REMOTE", "HOSTNAME", "PASSIVE"])):
-    """base class for UseAgentAddress"""
+    LOCAL=310, REMOTE=311, HOSTNAME=312, PASSIVE=313)
 
+JobTypeLoadMode = Enum(
+    "JobTypeLoadMode",
+    DOWNLOAD=320, OPEN=321, IMPORT=322)
 
-class APIErrorValue(namedtuple(
+APIErrorValue = Enum(
     "APIErrorValue",
-    ["value", "description"])):
-    """base class for values within :class:`.APIError`"""
+    value=int, description=str,
+    instance=False, to_dict=lambda self: {
+        "value": self.value, "description": self.description})
 
-    def to_dict(self):
-        """returns the dictionary representation of the class"""
-        return {"value": self.value, "description": self.description}
-
-
-OperatingSystem = _OperatingSystem(
-    LINUX=0, WINDOWS=1, MAC=2, OTHER=3)
-
-JobTypeLoadMode = _JobTypeLoadMode(
-    DOWNLOAD=4, OPEN=5, IMPORT=6)
-
-AgentState = _AgentState(
-    OFFLINE=7, ONLINE=8, DISABLED=9, RUNNING=10, ALLOC=11)
-
-WorkState = _WorkState(
-    PAUSED=12, BLOCKED=13, QUEUED=14, ASSIGN=15, RUNNING=16,
-    DONE=17, FAILED=18, ALLOC=19)
-
-APIError = _APIError(
+APIError = Enum(
+    "APIError",
     JSON_DECODE_FAILED=APIErrorValue(
         1, "failed to decode any json data from the request"),
     UNEXPECTED_DATATYPE=APIErrorValue(
@@ -210,9 +214,6 @@ APIError = _APIError(
         5, "problem inserting or updating entry in database"),
     EXTRA_FIELDS_ERROR=APIErrorValue(
         6, "an unexpected number of fields or columns were provided"))
-
-UseAgentAddress = _UseAgentAddress(
-    LOCAL=20, REMOTE=21, HOSTNAME=22, PASSIVE=23)
 
 
 def get_operating_system(platform=sys.platform):
