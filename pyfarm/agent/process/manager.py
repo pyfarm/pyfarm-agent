@@ -21,7 +21,12 @@ Manager
 Root class for spawning and management of new processes.
 """
 
+from functools import partial
+from importlib import import_module
+
 from twisted.python import log
+
+from pyfarm.core.enums import WorkState, JobTypeLoadMode
 
 
 class ProcessManager(object):
@@ -29,5 +34,45 @@ class ProcessManager(object):
 
     def __init__(self, config):
         self.config = config
+        self.log = partial(log.msg, system=self.__class__.__name__)
+
+    def load_jobclass(self, load_type, load_from):
+        # TODO: handle the other import_type cases after this is working
+        if load_type == JobTypeLoadMode.IMPORT:
+            # try to load the module, report if not
+            try:
+                module = import_module(load_from)
+            except Exception, e:
+                # TODO: POST to /tasks/<id> with WorkState.FAILED_IMPORT state
+                return None
+
+        # TODO: check class exists as attribute (add new error to pyfarm.core)
+        # TODO: ensure class is subclassing the jobtype base class (error if not)
+        return module
+
+    def spawn(self, assignment):
+        self.log(
+            "attempting to spawn process for "
+            "job %(job)s task %(task)s" % assignment)
+
+        # attempt to load the jobtype class
+        jobclass = self.load_jobclass(
+            assignment["jobtype"]["load_type"],
+            assignment["jobtype"]["load_from"])
+
+        if jobclass is None:
+            self.log("spawn failed for job %(job)s task %(task)s" % assignment)
+            return
+
+        # TODO: instance jobclass with assignment data
+        # TODO: instance the protocol object, pass in jobclass
+        # TODO: use jobclass to construct arguments to reactor.spawnProcess
+        # TODO: run reactor.spawnProcess (protocol will use jobclass to POST to /tasks/<id>)
+        # TODO: store in self.processes
+
+    def stop(self, assignment):
+        # TODO: /basically/ the reverse of the above
+        pass
+
 
 
