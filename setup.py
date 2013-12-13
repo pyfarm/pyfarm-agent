@@ -17,7 +17,7 @@
 from __future__ import with_statement
 
 import sys
-assert sys.version_info[0:2] >= (2, 5), "Python 2.5 or higher is required"
+assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 from os.path import isfile
 from setuptools import setup
