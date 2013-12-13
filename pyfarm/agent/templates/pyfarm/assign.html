@@ -42,7 +42,8 @@
 
             # required
             "jobtype": {
-                "import": "pyfarm.jobtypes.foo.Bar",
+                "load_type": JobTypeLoadMode.IMPORT,
+                "load_from": "pyfarm.jobtypes.foo.Bar",
                 "cmd": "foo",
                 "args" "-s %(start_frame)s -e %(end_frame)s -b %(by_frame)s -c %(cpus)s"
             },

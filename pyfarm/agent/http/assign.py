@@ -35,8 +35,9 @@ from twisted.internet import reactor
 from twisted.internet.task import deferLater
 from twisted.python.compat import intToBytes
 from voluptuous import (
-    Error, Invalid, Schema, Required, Optional, Any, All, Range)
+    Error, Invalid, Schema, Required, Optional, Any, All, Range, IsFile)
 
+from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.resource import Resource, JSONError
 
 number = (int, float, long)
@@ -88,7 +89,9 @@ class Assign(Resource):
         Required("job"): int,
         Required("task"): int,
         Required("jobtype"): {
-            Required("import"): basestring,
+            Required("load_type"): All(
+                int, Range(min=min(JobTypeLoadMode), max=max(JobTypeLoadMode))),
+            Required("load_from"): Any(basestring, IsFile),
             Required("cmd"): basestring,
             Required("args"): basestring},
         Required("frame"): {
