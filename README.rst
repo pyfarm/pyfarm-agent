@@ -33,3 +33,15 @@ host to:
     * request, receieve, and execute work
     * track and control individual processes
     * measure and limit system resource usage
+
+
+Developer Notes
+---------------
+
+This section contains useful commands for working with the agent.  It is not
+generally intended for use outside of development.
+
+
+Start the agent in for foreground connect to the master on the local host::
+
+  -> twistd -n pyfarm.agent --master=127.0.0.1
