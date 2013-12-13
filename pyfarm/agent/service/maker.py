@@ -47,9 +47,8 @@ from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
-from pyfarm.agent.utility.tasks import ScheduledTaskManager
 from pyfarm.agent.utility.objects import LoggingDictionary
-from pyfarm.agent.manager.tasks import memory_utilization
+from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 
 # determine template location
 import pyfarm.agent

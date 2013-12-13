@@ -19,13 +19,19 @@
 Tasks
 -----
 
-General task management of :class:`.LoopingCall` objects or other
-similar structures.
+Simple tasks which are run at a scheduled interval by
+:class:`.ScheduledTaskManager`
 """
 
+
 from functools import partial
-from twisted.internet.task import LoopingCall
+
 from twisted.python import log
+from twisted.internet.task import LoopingCall
+
+from pyfarm.core.sysinfo import memory
+
+memlog = partial(log.msg, system="task.memory_utilization")
 
 
 class ScheduledTaskManager(object):
@@ -99,3 +105,28 @@ class ScheduledTaskManager(object):
                 looping_call.stop()
             else:
                 self.log("...%s is already stopped" % function.__name__)
+
+
+
+# TODO: only send memory information if memory has risen by X amount in N time
+# TODO: replace with callable class (to support the above)
+def memory_utilization(config):
+    """
+    Returns the amount of free free and the amount of swap used.
+    """
+    try:
+        ram_report_delta = config["ram_report_delta"]
+        ram_record_delta = config["ram_record_delta"]
+        swap_report_delta = config["swap_report_delta"]
+        swap_record_delta = config["swap_record_delta"]
+
+    except KeyError:
+        # TODO: handle this better, this was added to just stop being annoying
+        import warnings
+        warnings.warn("configuration not available yet")
+        return
+
+    ram_free, swap_used = memory.ram_free(), memory.swap_used()
+    log.msg("ram_free=%s, swap_used=%s" % (ram_free, swap_used),
+            system="task.memory_utilization")
+    return ram_free, swap_used

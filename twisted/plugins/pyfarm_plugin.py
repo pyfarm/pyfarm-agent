@@ -15,6 +15,6 @@
 # limitations under the License.
 
 
-from pyfarm.agent.manager.service import ManagerServiceMaker
+from pyfarm.agent.service.maker import ManagerServiceMaker
 
 serviceMaker = ManagerServiceMaker()
