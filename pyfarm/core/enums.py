@@ -170,11 +170,12 @@ def Enum(classname, **kwargs):
 
 
 # 1xx - work states
+# NOTE: these values are directly tested test_enums.test_direct_work_values
 WorkState = Enum(
     "WorkState",
     PAUSED=100, QUEUED=101, BLOCKED=102, ALLOC=103, ASSIGN=104,
     RUNNING=105, DONE=106, FAILED=107, JOBTYPE_FAILED_IMPORT=108,
-    JOBTYPE_INVALID_CLASS=109, NO_SUCH_COMMAND=109)
+    JOBTYPE_INVALID_CLASS=109, NO_SUCH_COMMAND=110)
 
 RUNNING_WORK_STATES = set([
     WorkState.ALLOC, WorkState.ASSIGN, WorkState.RUNNING])
@@ -184,19 +185,23 @@ FAILED_WORK_STATES = set([
     WorkState.JOBTYPE_INVALID_CLASS, WorkState.NO_SUCH_COMMAND])
 
 # 2xx - agent states
+# NOTE: these values are directly tested test_enums.test_direct_agent_values
 AgentState = Enum(
     "AgentState",
     DISABLED=200, OFFLINE=201, ONLINE=202, RUNNING=203)
 
 # 3xx - non-queue related modes or states
+# NOTE: these values are directly tested test_enums.test_direct_os_values
 OperatingSystem = Enum(
     "OperatingSystem",
     LINUX=300, WINDOWS=301, MAC=302, OTHER=303)
 
+# NOTE: these values are directly tested test_enums.test_direct_agent_addr
 UseAgentAddress = Enum(
     "UseAgentAddress",
     LOCAL=310, REMOTE=311, HOSTNAME=312, PASSIVE=313)
 
+# NOTE: these values are directly tested test_enums.test_direct_agent_addr
 JobTypeLoadMode = Enum(
     "JobTypeLoadMode",
     DOWNLOAD=320, OPEN=321, IMPORT=322)
