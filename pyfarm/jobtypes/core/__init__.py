@@ -13,16 +13,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-class JobType(object):
-    """base class for all other job types (placeholder only)"""
-
-    # TODO: [GENERAL] - this operates on the agent, abstract away as much of the async work as possible
-    # TODO: get_process_protocol() - by default uses self._process_protocol
-    # TODO: spawn_process()
-    # TODO: process_started()
-    # TODO: process_stopped()
-    # TODO: stdout_received()
-    # TODO: stderr_received()
-    # TODO: post_status_change()
