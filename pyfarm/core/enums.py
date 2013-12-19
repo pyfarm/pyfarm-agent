@@ -190,6 +190,11 @@ AgentState = Enum(
     "AgentState",
     DISABLED=200, OFFLINE=201, ONLINE=202, RUNNING=203)
 
+AgentStateMap = {AgentState.DISABLED: "disabled",
+                 AgentState.OFFLINE: "offline",
+                 AgentState.ONLINE: "online",
+                 AgentState.RUNNING: "running"}
+
 # 3xx - non-queue related modes or states
 # NOTE: these values are directly tested test_enums.test_direct_os_values
 OperatingSystem = Enum(
@@ -200,6 +205,11 @@ OperatingSystem = Enum(
 UseAgentAddress = Enum(
     "UseAgentAddress",
     LOCAL=310, REMOTE=311, HOSTNAME=312, PASSIVE=313)
+
+UseAgentAddressMap = {UseAgentAddress.LOCAL: "local",
+                      UseAgentAddress.REMOTE: "remote",
+                      UseAgentAddress.HOSTNAME: "hostname",
+                      UseAgentAddress.PASSIVE: "passive"}
 
 # NOTE: these values are directly tested test_enums.test_direct_agent_addr
 JobTypeLoadMode = Enum(
