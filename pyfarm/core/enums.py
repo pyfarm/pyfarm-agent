@@ -163,7 +163,7 @@ def Enum(classname, **kwargs):
     return template(**kwargs) if instance else template
 
 
-class EnumValue(namedtuple("EnumValue", ("int", "str"))):
+class Values(namedtuple("EnumValue", ("int", "str"))):
     """
     Stores values to be used in an enum.  Each time this
     class is instanced it will ensure that the input values
@@ -178,10 +178,88 @@ class EnumValue(namedtuple("EnumValue", ("int", "str"))):
         if not isinstance(self.str, basestring):
             raise TypeError("`str` must be a string")
 
-        if self.int in self._values:
+        if kwargs.get("unique", True) and self.int in self._values:
             raise ValueError("value %s is being reused" % self.int)
 
         self._values.add(self.int)
+
+
+class EnumValue(object):
+    """
+    Special object which wraps an ``enum`` and a ``value`` so they can
+    be compared to each other.
+    """
+    def __init__(self, enum, value):
+        self._enum = enum
+        self._value = value
+
+        if isinstance(value, int):
+            self._i = value
+            self._s = self._enum._map[value]
+        else:
+            self._s = value
+            self._i = self._enum._map[value]
+
+        self._ints = []
+        self._strings = []
+
+        for value in enum:
+            if isinstance(value, int):
+                self._ints.append(value)
+                self._strings.insert(0, self._enum._map[value])
+            else:
+                self._strings.insert(0, value)
+                self._ints.append(self._enum._map[value])
+
+    def __contains__(self, item):
+        return item in (self._i, self._s)
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (self.__class__.__name__, self._i, repr(self._s))
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __ge__(self, other):
+        return self.__eq__(other) or self.__gt__(other)
+
+    def __le__(self, other):
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __eq__(self, other):
+        if isinstance(other, EnumValue):
+            return other._i == self._i
+        elif other == self._i or other == self._s:
+            return True
+        else:
+            return False
+
+    def __gt__(self, other):
+        if isinstance(other, EnumValue):
+            return other._i > self._i
+        elif other not in self._enum._map:
+            raise ValueError(
+                "%s is not part of this enum's values" % repr(other))
+        elif isinstance(other, int):
+            return self._ints.index(other) > self._ints.index(self._i)
+        elif isinstance(other, basestring):
+
+            return self._strings.index(other) > self._strings.index(self._s)
+        else:
+            return False
+
+    def __lt__(self, other):
+        if isinstance(other, EnumValue):
+            return other._i < self._i
+        elif other not in self._enum._map:
+            raise ValueError(
+                "%s is not part of this enum's values" % repr(other))
+        elif isinstance(other, int):
+            return self._ints.index(other) < self._ints.index(self._i)
+        elif isinstance(other, basestring):
+            return self._strings.index(other) < self._strings.index(self._s)
+        else:
+            return False
 
 
 def cast_enum(enum, enum_type):
@@ -228,50 +306,50 @@ def cast_enum(enum, enum_type):
 # NOTE: these values are directly tested test_enums.test_direct_work_values
 _WorkState = Enum(
     "WorkState",
-    PAUSED=EnumValue(100, "paused"),
-    QUEUED=EnumValue(101, "queued"),
-    BLOCKED=EnumValue(102, "blocked"),
-    ALLOC=EnumValue(103, "alloc"),
-    ASSIGN=EnumValue(104, "assign"),
-    RUNNING=EnumValue(105, "running"),
-    DONE=EnumValue(106, "done"),
-    FAILED=EnumValue(107, "failed"),
-    JOBTYPE_FAILED_IMPORT=EnumValue(108, "jobtype_failed_import"),
-    JOBTYPE_INVALID_CLASS=EnumValue(109, "jobtype_invalid_class"),
-    NO_SUCH_COMMAND=EnumValue(110, "no_such_command"))
+    PAUSED=Values(100, "paused"),
+    QUEUED=Values(101, "queued"),
+    BLOCKED=Values(102, "blocked"),
+    ALLOC=Values(103, "alloc"),
+    ASSIGN=Values(104, "assign"),
+    RUNNING=Values(105, "running"),
+    DONE=Values(106, "done"),
+    FAILED=Values(107, "failed"),
+    JOBTYPE_FAILED_IMPORT=Values(108, "jobtype_failed_import"),
+    JOBTYPE_INVALID_CLASS=Values(109, "jobtype_invalid_class"),
+    NO_SUCH_COMMAND=Values(110, "no_such_command"))
 
 # 2xx - agent states
 # NOTE: these values are directly tested test_enums.test_direct_agent_values
 _AgentState = Enum(
     "AgentState",
-    DISABLED=EnumValue(200, "disabled"),
-    OFFLINE=EnumValue(201, "offline"),
-    ONLINE=EnumValue(202, "online"),
-    RUNNING=EnumValue(203, "running"))
+    DISABLED=Values(200, "disabled"),
+    OFFLINE=Values(201, "offline"),
+    ONLINE=Values(202, "online"),
+    RUNNING=Values(203, "running"))
 
 # 3xx - non-queue related modes or states
 # NOTE: these values are directly tested test_enums.test_direct_os_values
 _OperatingSystem = Enum(
     "OperatingSystem",
-    LINUX=EnumValue(300, "linux"),
-    WINDOWS=EnumValue(301, "windows"),
-    MAC=EnumValue(302, "mac"),
-    OTHER=EnumValue(303, "other"))
+    LINUX=Values(300, "linux"),
+    WINDOWS=Values(301, "windows"),
+    MAC=Values(302, "mac"),
+    OTHER=Values(303, "other"))
 
 # NOTE: these values are directly tested test_enums.test_direct_agent_addr
 _UseAgentAddress = Enum(
     "UseAgentAddress",
-    LOCAL=EnumValue(310, "local"),
-    REMOTE=EnumValue(311, "remote"),
-    HOSTNAME=EnumValue(312, "hostname"),
-    PASSIVE=EnumValue(313, "passive"))
+    LOCAL=Values(310, "local"),
+    REMOTE=Values(311, "remote"),
+    HOSTNAME=Values(312, "hostname"),
+    PASSIVE=Values(313, "passive"))
 
 # NOTE: these values are directly tested test_enums.test_direct_agent_addr
 _JobTypeLoadMode = Enum(
     "JobTypeLoadMode",
-    DOWNLOAD=EnumValue(320, "download"),
-    OPEN=EnumValue(321, "open"),
-    IMPORT=EnumValue(322, "import"))
+    DOWNLOAD=Values(320, "download"),
+    OPEN=Values(321, "open"),
+    IMPORT=Values(322, "import"))
 
 # cast the enums defined above
 WorkState = cast_enum(_WorkState, str)

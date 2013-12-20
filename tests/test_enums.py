@@ -28,7 +28,7 @@ from pyfarm.core.enums import (
     JobTypeLoadMode, get_operating_system, _WorkState, _AgentState,
     _OperatingSystem, _UseAgentAddress, _JobTypeLoadMode, DBUseAgentAddress,
     DBAgentState, DBOperatingSystem, DBWorkState, DBJobTypeLoadMode, Enum,
-    EnumValue, cast_enum)
+    EnumValue, Values, cast_enum)
 from pyfarm.core.warning import NotImplementedWarning
 
 
@@ -63,6 +63,7 @@ class TestEnums(TestCase):
         #             print "        self.assertEqual(\n      " \
         #                   "      %s.%s, %s)" % (
         #                 "DB"+name[1:], k, v.int)
+
         self.assertEqual(
             _UseAgentAddress.PASSIVE.int, 313)
         self.assertEqual(
@@ -286,7 +287,7 @@ class TestEnums(TestCase):
             enums.get_operating_system("FOO"), enums.OperatingSystem.OTHER)
 
     def test_cast_enum(self):
-        e = Enum("e", A=EnumValue(-sys.maxint, "A"))
+        e = Enum("e", A=Values(-sys.maxint, "A"))
         self.assertEqual(e.A.int, -sys.maxint)
         self.assertEqual(e.A.str, "A")
         s = cast_enum(e, str)
@@ -294,3 +295,45 @@ class TestEnums(TestCase):
         i = cast_enum(e, int)
         self.assertEqual(i.A, -sys.maxint)
         self.assertEqual(i._map, {"A": -sys.maxint, -sys.maxint: "A"})
+
+
+class TestEnumValueClass(TestCase):
+    def setUp(self):
+        Values._values.clear()
+        self.str = "foobar"
+        self.int = -42
+        self.enum = Enum(
+            "enum",
+            a=Values(self.int + 1, self.str + "a"),
+            b=Values(self.int + 2, self.str + "b"),
+            c=Values(self.int + 3, self.str + "c"))
+
+    def test_equal(self):
+        for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
+            value = EnumValue(enum, self.int + 1)
+            self.assertEqual(value, self.int + 1)
+            self.assertEqual(value, self.str + "a")
+            self.assertEqual(value, value)
+
+    def test_not_equal(self):
+        for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
+            value = EnumValue(enum, self.int + 1)
+            self.assertNotEqual(value, None)
+            self.assertNotEqual(value, "foo")
+
+    def test_greater_int(self):
+        for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
+            value = EnumValue(enum, self.int + 3)
+            self.assertGreater(self.int + 1, value)
+            self.assertGreaterEqual(self.int + 3, value)
+
+    def test_greater_string(self):
+        for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
+            value = EnumValue(enum, self.str + "a")
+            self.assertGreater(self.str + "b", value)
+            self.assertGreaterEqual(self.str + "c", value)
+
+    def test_contains(self):
+        for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
+            self.assertIn(self.int + 1, EnumValue(enum, self.str + "a"))
+            self.assertIn(self.str + "a", EnumValue(enum, self.str + "a"))
