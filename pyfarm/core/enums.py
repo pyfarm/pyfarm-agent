@@ -130,10 +130,6 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.warning import NotImplementedWarning
 
-__all__ = [
-    "OperatingSystem", "JobTypeLoadMode", "AgentState", "WorkState",
-    "APIError", "UseAgentAddress"]
-
 
 def Enum(classname, **kwargs):
     """
@@ -164,57 +160,152 @@ def Enum(classname, **kwargs):
     if to_dict is not None:
         setattr(template, "to_dict", to_dict)
 
-    if instance:
-        return template(**kwargs)
-    return template
+    return template(**kwargs) if instance else template
+
+
+class EnumValue(namedtuple("EnumValue", ("int", "str"))):
+    """
+    Stores values to be used in an enum.  Each time this
+    class is instanced it will ensure that the input values
+    are of the correct type and unique.
+    """
+    _values = set()
+
+    def __init__(self, *args, **kwargs):
+        if not isinstance(self.int, int):
+            raise TypeError("`int` must be an integer")
+
+        if not isinstance(self.str, basestring):
+            raise TypeError("`str` must be a string")
+
+        if self.int in self._values:
+            raise ValueError("value %s is being reused" % self.int)
+
+        self._values.add(self.int)
+
+
+def cast_enum(enum, enum_type):
+    """
+    Pulls the requested ``enum_type`` from ``enum`` and produce a new
+    named tuple which contains only the requested data
+
+    >>> from pyfarm.core.enums import Enum, EnumValue
+    >>> FooBase = Enum("Foo", A=EnumValue(int=1, str="1")
+    >>> Foo = cast_enum(FooBase, str)
+    >>> assert Foo.A == "1"
+    >>> Foo = cast_enum(FooBase, int)
+    >>> assert Foo.A == 1
+    >>> assert Foo._map == {"A": 1, 1: "A"}
+
+    .. warning::
+        This function does not perform any kind of caching.  For the most
+        efficient usage it should only be called once per process or
+        module for a given enum and enum_type combination.
+    """
+    enum_data = {}
+    reverse_map = {}
+
+    # construct the reverse mapping and push
+    # the request type into enum_data
+    for key, value in enum._asdict().iteritems():
+        reverse_map[value.int] = value.str
+        reverse_map[value.str] = value.int
+
+        if enum_type is int:
+            enum_data[key] = value.int
+        elif enum_type is str:
+            enum_data[key] = value.str
+        else:
+            raise ValueError("valid values for `enum_type` are int or str")
+
+    class MappedEnum(namedtuple(enum.__class__.__name__, enum_data.keys())):
+        _map = reverse_map
+
+    return MappedEnum(**enum_data)
 
 
 # 1xx - work states
 # NOTE: these values are directly tested test_enums.test_direct_work_values
-WorkState = Enum(
+_WorkState = Enum(
     "WorkState",
-    PAUSED=100, QUEUED=101, BLOCKED=102, ALLOC=103, ASSIGN=104,
-    RUNNING=105, DONE=106, FAILED=107, JOBTYPE_FAILED_IMPORT=108,
-    JOBTYPE_INVALID_CLASS=109, NO_SUCH_COMMAND=110)
-
-RUNNING_WORK_STATES = set([
-    WorkState.ALLOC, WorkState.ASSIGN, WorkState.RUNNING])
-
-FAILED_WORK_STATES = set([
-    WorkState.FAILED, WorkState.JOBTYPE_FAILED_IMPORT,
-    WorkState.JOBTYPE_INVALID_CLASS, WorkState.NO_SUCH_COMMAND])
+    PAUSED=EnumValue(100, "paused"),
+    QUEUED=EnumValue(101, "queued"),
+    BLOCKED=EnumValue(102, "blocked"),
+    ALLOC=EnumValue(103, "alloc"),
+    ASSIGN=EnumValue(104, "assign"),
+    RUNNING=EnumValue(105, "running"),
+    DONE=EnumValue(106, "done"),
+    FAILED=EnumValue(107, "failed"),
+    JOBTYPE_FAILED_IMPORT=EnumValue(108, "jobtype_failed_import"),
+    JOBTYPE_INVALID_CLASS=EnumValue(109, "jobtype_invalid_class"),
+    NO_SUCH_COMMAND=EnumValue(110, "no_such_command"))
 
 # 2xx - agent states
 # NOTE: these values are directly tested test_enums.test_direct_agent_values
-AgentState = Enum(
+_AgentState = Enum(
     "AgentState",
-    DISABLED=200, OFFLINE=201, ONLINE=202, RUNNING=203)
-
-AgentStateMap = {AgentState.DISABLED: "disabled",
-                 AgentState.OFFLINE: "offline",
-                 AgentState.ONLINE: "online",
-                 AgentState.RUNNING: "running"}
+    DISABLED=EnumValue(200, "disabled"),
+    OFFLINE=EnumValue(201, "offline"),
+    ONLINE=EnumValue(202, "online"),
+    RUNNING=EnumValue(203, "running"))
 
 # 3xx - non-queue related modes or states
 # NOTE: these values are directly tested test_enums.test_direct_os_values
-OperatingSystem = Enum(
+_OperatingSystem = Enum(
     "OperatingSystem",
-    LINUX=300, WINDOWS=301, MAC=302, OTHER=303)
+    LINUX=EnumValue(300, "linux"),
+    WINDOWS=EnumValue(301, "windows"),
+    MAC=EnumValue(302, "mac"),
+    OTHER=EnumValue(303, "other"))
 
 # NOTE: these values are directly tested test_enums.test_direct_agent_addr
-UseAgentAddress = Enum(
+_UseAgentAddress = Enum(
     "UseAgentAddress",
-    LOCAL=310, REMOTE=311, HOSTNAME=312, PASSIVE=313)
-
-UseAgentAddressMap = {UseAgentAddress.LOCAL: "local",
-                      UseAgentAddress.REMOTE: "remote",
-                      UseAgentAddress.HOSTNAME: "hostname",
-                      UseAgentAddress.PASSIVE: "passive"}
+    LOCAL=EnumValue(310, "local"),
+    REMOTE=EnumValue(311, "remote"),
+    HOSTNAME=EnumValue(312, "hostname"),
+    PASSIVE=EnumValue(313, "passive"))
 
 # NOTE: these values are directly tested test_enums.test_direct_agent_addr
-JobTypeLoadMode = Enum(
+_JobTypeLoadMode = Enum(
     "JobTypeLoadMode",
-    DOWNLOAD=320, OPEN=321, IMPORT=322)
+    DOWNLOAD=EnumValue(320, "download"),
+    OPEN=EnumValue(321, "open"),
+    IMPORT=EnumValue(322, "import"))
+
+# cast the enums defined above
+WorkState = cast_enum(_WorkState, str)
+AgentState = cast_enum(_AgentState, str)
+OperatingSystem = cast_enum(_OperatingSystem, str)
+UseAgentAddress = cast_enum(_UseAgentAddress, str)
+JobTypeLoadMode = cast_enum(_JobTypeLoadMode, str)
+DBWorkState = cast_enum(_WorkState, int)
+DBAgentState = cast_enum(_AgentState, int)
+DBOperatingSystem = cast_enum(_OperatingSystem, int)
+DBUseAgentAddress = cast_enum(_UseAgentAddress, int)
+DBJobTypeLoadMode = cast_enum(_JobTypeLoadMode, int)
+
+RUNNING_WORK_STATES = set([
+    WorkState.ALLOC,
+    WorkState.ASSIGN,
+    WorkState.RUNNING])
+
+DB_RUNNING_WORK_STATES = set([
+    DBWorkState.ALLOC,
+    DBWorkState.ASSIGN,
+    DBWorkState.RUNNING])
+
+FAILED_WORK_STATES = set([
+    WorkState.FAILED,
+    WorkState.JOBTYPE_FAILED_IMPORT,
+    WorkState.JOBTYPE_INVALID_CLASS,
+    WorkState.NO_SUCH_COMMAND])
+
+DB_FAILED_WORK_STATES = set([
+    DBWorkState.FAILED,
+    DBWorkState.JOBTYPE_FAILED_IMPORT,
+    DBWorkState.JOBTYPE_INVALID_CLASS,
+    DBWorkState.NO_SUCH_COMMAND])
 
 APIErrorValue = Enum(
     "APIErrorValue",
