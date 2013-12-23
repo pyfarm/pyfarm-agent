@@ -169,7 +169,7 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
-    _values = set()
+    _integers = set()
 
     def __init__(self, *args, **kwargs):
         if not isinstance(self.int, int):
@@ -178,10 +178,17 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
         if not isinstance(self.str, basestring):
             raise TypeError("`str` must be a string")
 
-        if kwargs.get("unique", True) and self.int in self._values:
+        if kwargs.get("unique", True) and self.int in self._integers:
             raise ValueError("value %s is being reused" % self.int)
 
-        self._values.add(self.int)
+        self._integers.add(self.int)
+        self._values = set([self.int, self.str])
+
+    def __contains__(self, item):
+        return item in self._values
+
+    def __eq__(self, other):
+        return other in self._values
 
     def __int__(self):
         return self.int
@@ -304,6 +311,9 @@ def cast_enum(enum, enum_type):
 
     class MappedEnum(namedtuple(enum.__class__.__name__, enum_data.keys())):
         _map = reverse_map
+
+        def __contains__(self, item):
+            return item in self._map
 
     return MappedEnum(**enum_data)
 
