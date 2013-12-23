@@ -247,8 +247,8 @@ def cast_enum(enum, enum_type):
     Pulls the requested ``enum_type`` from ``enum`` and produce a new
     named tuple which contains only the requested data
 
-    >>> from pyfarm.core.enums import Enum, EnumValue
-    >>> FooBase = Enum("Foo", A=EnumValue(int=1, str="1")
+    >>> from pyfarm.core.enums import Enum, Values
+    >>> FooBase = Enum("Foo", A=Values(int=1, str="1")
     >>> Foo = cast_enum(FooBase, str)
     >>> assert Foo.A == "1"
     >>> Foo = cast_enum(FooBase, int)
