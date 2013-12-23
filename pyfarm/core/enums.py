@@ -171,9 +171,10 @@ class Values(namedtuple("Values", ("int", "str"))):
     """
     check_uniqueness = True
     _integers = set()
+    _number_types = (int, long)
 
     def __init__(self, *args, **kwargs):
-        if not isinstance(self.int, int):
+        if not isinstance(self.int, self._number_types):
             raise TypeError("`int` must be an integer")
 
         if not isinstance(self.str, basestring):
@@ -199,7 +200,7 @@ class Values(namedtuple("Values", ("int", "str"))):
     def __contains__(self, item):
         if isinstance(item, basestring):
             return item == self.str
-        elif isinstance(item, int):
+        elif isinstance(item, self._number_types):
             return item == self.int
         elif isinstance(item, Values):
             return item.str == self.str and item.int == self.int
@@ -210,7 +211,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         return self.__contains__(other)
 
     def __gt__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, self._number_types):
             return other < self.int
         elif isinstance(other, Values):
             return other.int < self.int
@@ -218,7 +219,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __ge__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, self._number_types):
             return other <= self.int
         elif isinstance(other, Values):
             return other.int <= self.int
@@ -226,7 +227,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __lt__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, self._number_types):
             return other > self.int
         elif isinstance(other, Values):
             return other.int > self.int
@@ -234,7 +235,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __le__(self, other):
-        if isinstance(other, int):
+        if isinstance(other, self._number_types):
             return other >= self.int
         elif isinstance(other, Values):
             return other.int >= self.int
