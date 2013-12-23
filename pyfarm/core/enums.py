@@ -183,6 +183,12 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
 
         self._values.add(self.int)
 
+    def __int__(self):
+        return self.int
+
+    def __str__(self):
+        return self.str
+
 
 class EnumValue(object):
     """

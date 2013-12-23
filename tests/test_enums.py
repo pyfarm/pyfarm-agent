@@ -337,3 +337,7 @@ class TestEnumValueClass(TestCase):
         for enum in (cast_enum(self.enum, str), cast_enum(self.enum, int)):
             self.assertIn(self.int + 1, EnumValue(enum, self.str + "a"))
             self.assertIn(self.str + "a", EnumValue(enum, self.str + "a"))
+
+    def test_convert_types(self):
+        self.assertEqual(int(self.enum.a), self.enum.a.int)
+        self.assertEqual(str(self.enum.a), self.enum.a.str)
