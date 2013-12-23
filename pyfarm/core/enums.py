@@ -188,7 +188,12 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
         return item in self._values
 
     def __eq__(self, other):
-        return other in self._values
+        if other is self or other in self:
+            return True
+        elif isinstance(other, Values):
+            return other.int == self.int and other.str == self.str
+        else:
+            return False
 
     def __int__(self):
         return self.int
@@ -215,6 +220,7 @@ class EnumValue(object):
 
         self._ints = []
         self._strings = []
+        self._values = set([self._i, self._s])
 
         for value in enum:
             if isinstance(value, int):
@@ -225,7 +231,7 @@ class EnumValue(object):
                 self._ints.append(self._enum._map[value])
 
     def __contains__(self, item):
-        return item in (self._i, self._s)
+        return item in self._values
 
     def __repr__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self._i, repr(self._s))
@@ -256,7 +262,6 @@ class EnumValue(object):
         elif isinstance(other, int):
             return self._ints.index(other) > self._ints.index(self._i)
         elif isinstance(other, basestring):
-
             return self._strings.index(other) > self._strings.index(self._s)
         else:
             return False
