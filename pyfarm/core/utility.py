@@ -24,7 +24,6 @@ of PyFarm.
 
 from __future__ import division
 
-import os
 from StringIO import StringIO
 from UserDict import UserDict
 from decimal import Decimal, ROUND_HALF_DOWN
@@ -38,16 +37,6 @@ try:
     _range = xrange
 except NameError:  # pragma: no cover
     _range = range
-
-
-def randstr():
-    """returns a random hexidecimal string based on :func:`os.urandom`"""
-    return os.urandom(6).encode("hex")
-
-
-def randint():
-    """returns a base 16 integer from :func:`randstr`"""
-    return int(randstr(), 16)
 
 
 def rounded(value, places=4, rounding=ROUND_HALF_DOWN):

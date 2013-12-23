@@ -25,7 +25,7 @@ except NameError:
     _range = range
 
 from utcore import TestCase
-from pyfarm.core.utility import float_range, convert, randstr, randint, rounded
+from pyfarm.core.utility import float_range, convert, rounded
 
 RAND_TEST_COUNT = 75000
 
@@ -48,24 +48,6 @@ class Convert(TestCase):
 
         with self.assertRaises(ValueError):
             convert.ston("foo")
-
-
-class Random(TestCase):
-    def test_randstr(self):
-        generated = set()
-        regex = re.compile("^[a-f0-9]{12}$")
-        for i in xrange(RAND_TEST_COUNT):
-            value = randstr()
-            self.assertEqual(value not in generated, True)
-            self.assertEqual(regex.match(value) is not None, True)
-
-    def test_randint(self):
-        generated = set()
-        for i in xrange(RAND_TEST_COUNT):
-            value = randint()
-            self.assertEqual(value < 281474976710655 and value >= 0, True)
-            self.assertEqual(value not in generated, True)
-            generated.add(value)
 
 
 class Rounding(TestCase):
