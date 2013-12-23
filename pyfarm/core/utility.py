@@ -45,24 +45,28 @@ except ImportError:
     import simplejson as json
 
 from pyfarm.core.config import read_env_bool
-from pyfarm.core.enums import EnumValue, Values
+from pyfarm.core.enums import Values
 
 
-def json_default_dumper(value):
-    """
-    A default (fallback) object dumper for use in :func:`json.dumps`.  This
-    function will dump a json friendly result for the ``value`` provided.
-    """
-    if isinstance(value, (EnumValue, Values)):
-        return str(value)
-    else:
-        raise TypeError("don't know how to handle %s" % value)
+class PyFarmJSONEncoder(json.JSONEncoder):
+    def encode(self, o):
+        # Introspect dictionary objects for our
+        # enum value type so we can dump out the string
+        # value explicitly.  Otherwise, json.dumps will
+        # dump out a tuple object instead.
+        if isinstance(o, dict):
+            o = o.copy()
+            for key, value in o.iteritems():
+                if isinstance(value, Values):
+                    o[key] = value.str
+
+        return super(PyFarmJSONEncoder, self).encode(o)
 
 
 dumps = partial(
     json.dumps,
     indent=4 if read_env_bool("PYFARM_PRETTY_JSON", False) else None,
-    default=json_default_dumper)
+    cls=PyFarmJSONEncoder)
 
 
 def rounded(value, places=4, rounding=ROUND_HALF_DOWN):

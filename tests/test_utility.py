@@ -16,7 +16,6 @@
 
 from __future__ import with_statement
 
-import re
 import math
 
 try:
@@ -24,10 +23,14 @@ try:
 except NameError:
     _range = range
 
-from utcore import TestCase
-from pyfarm.core.utility import float_range, convert, rounded
+try:
+    from json import loads
+except ImportError:
+    from simplejson import loads
 
-RAND_TEST_COUNT = 75000
+from utcore import TestCase
+from pyfarm.core.enums import Values
+from pyfarm.core.utility import float_range, convert, rounded, dumps
 
 
 class Convert(TestCase):
@@ -114,3 +117,13 @@ class Range(TestCase):
             [1.5, 1.65, 1.8, 1.95, 2.1, 2.25, 2.4])
         self.assertEqual(list(float_range(1.5, 2.5, .15, add_endpoint=True)),
             [1.5, 1.65, 1.8, 1.95, 2.1, 2.25, 2.4, 2.5])
+
+
+class JSONDumper(TestCase):
+    def setUp(self):
+        Values.check_uniqueness = False
+
+    def test_dump_enum_value(self):
+        self.assertEqual(
+            loads(dumps({"data": Values(1, "A")})),
+            loads(dumps({"data": "A"})))
