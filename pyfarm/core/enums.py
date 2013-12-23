@@ -201,6 +201,10 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
     def __str__(self):
         return self.str
 
+    def __repr__(self):
+        return "%s(%s, %s)" % (
+            self.__class__.__name__, self.int, repr(self.str))
+
 
 class EnumValue(object):
     """
@@ -316,9 +320,17 @@ def cast_enum(enum, enum_type):
 
     class MappedEnum(namedtuple(enum.__class__.__name__, enum_data.keys())):
         _map = reverse_map
+        _enum = enum
 
         def __contains__(self, item):
-            return item in self._map
+            if item in self._map:
+                return True
+            else:
+                for key, value in self._enum._asdict().iteritems():
+                    if item in value:
+                        return True
+            return False
+
 
     return MappedEnum(**enum_data)
 
