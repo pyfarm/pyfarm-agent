@@ -240,6 +240,12 @@ class EnumValue(object):
     def __repr__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self._i, repr(self._s))
 
+    def __str__(self):
+        return self._s
+
+    def __int__(self):
+        return self._i
+
     def __ne__(self, other):
         return not self.__eq__(other)
 
@@ -330,7 +336,6 @@ def cast_enum(enum, enum_type):
                     if item in value:
                         return True
             return False
-
 
     return MappedEnum(**enum_data)
 
