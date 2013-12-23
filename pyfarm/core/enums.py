@@ -163,12 +163,13 @@ def Enum(classname, **kwargs):
     return template(**kwargs) if instance else template
 
 
-class Values(namedtuple("EnumValue", ("int", "str"))):
+class Values(namedtuple("Values", ("int", "str"))):
     """
     Stores values to be used in an enum.  Each time this
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
+    check_uniqueness = True
     _integers = set()
 
     def __init__(self, *args, **kwargs):
@@ -178,22 +179,12 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
         if not isinstance(self.str, basestring):
             raise TypeError("`str` must be a string")
 
-        if kwargs.get("unique", True) and self.int in self._integers:
+        if self.check_uniqueness and self.int in self._integers:
             raise ValueError("value %s is being reused" % self.int)
-
-        self._integers.add(self.int)
-        self._values = set([self.int, self.str])
-
-    def __contains__(self, item):
-        return item in self._values
-
-    def __eq__(self, other):
-        if other is self or other in self:
-            return True
-        elif isinstance(other, Values):
-            return other.int == self.int and other.str == self.str
         else:
-            return False
+            self._integers.add(self.int)
+
+        self._values = set([self.int, self.str])
 
     def __int__(self):
         return self.int
@@ -205,87 +196,48 @@ class Values(namedtuple("EnumValue", ("int", "str"))):
         return "%s(%s, %s)" % (
             self.__class__.__name__, self.int, repr(self.str))
 
-
-class EnumValue(object):
-    """
-    Special object which wraps an ``enum`` and a ``value`` so they can
-    be compared to each other.
-    """
-    def __init__(self, enum, value):
-        self._enum = enum
-        self._value = value
-
-        if isinstance(value, int):
-            self._i = value
-            self._s = self._enum._map[value]
-        else:
-            self._s = value
-            self._i = self._enum._map[value]
-
-        self._ints = []
-        self._strings = []
-        self._values = set([self._i, self._s])
-
-        for value in enum:
-            if isinstance(value, int):
-                self._ints.append(value)
-                self._strings.insert(0, self._enum._map[value])
-            else:
-                self._strings.insert(0, value)
-                self._ints.append(self._enum._map[value])
-
     def __contains__(self, item):
-        return item in self._values
-
-    def __repr__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self._i, repr(self._s))
-
-    def __str__(self):
-        return self._s
-
-    def __int__(self):
-        return self._i
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __ge__(self, other):
-        return self.__eq__(other) or self.__gt__(other)
-
-    def __le__(self, other):
-        return self.__eq__(other) or self.__lt__(other)
-
-    def __eq__(self, other):
-        if isinstance(other, EnumValue):
-            return other._i == self._i
-        elif other == self._i or other == self._s:
-            return True
+        if isinstance(item, basestring):
+            return item == self.str
+        elif isinstance(item, int):
+            return item == self.int
+        elif isinstance(item, Values):
+            return item.str == self.str and item.int == self.int
         else:
             return False
 
+    def __eq__(self, other):
+        return self.__contains__(other)
+
     def __gt__(self, other):
-        if isinstance(other, EnumValue):
-            return other._i > self._i
-        elif other not in self._enum._map:
-            raise ValueError(
-                "%s is not part of this enum's values" % repr(other))
-        elif isinstance(other, int):
-            return self._ints.index(other) > self._ints.index(self._i)
-        elif isinstance(other, basestring):
-            return self._strings.index(other) > self._strings.index(self._s)
+        if isinstance(other, int):
+            return other < self.int
+        elif isinstance(other, Values):
+            return other.int < self.int
+        else:
+            return False
+
+    def __ge__(self, other):
+        if isinstance(other, int):
+            return other <= self.int
+        elif isinstance(other, Values):
+            return other.int <= self.int
         else:
             return False
 
     def __lt__(self, other):
-        if isinstance(other, EnumValue):
-            return other._i < self._i
-        elif other not in self._enum._map:
-            raise ValueError(
-                "%s is not part of this enum's values" % repr(other))
-        elif isinstance(other, int):
-            return self._ints.index(other) < self._ints.index(self._i)
-        elif isinstance(other, basestring):
-            return self._strings.index(other) < self._strings.index(self._s)
+        if isinstance(other, int):
+            return other > self.int
+        elif isinstance(other, Values):
+            return other.int > self.int
+        else:
+            return False
+
+    def __le__(self, other):
+        if isinstance(other, int):
+            return other >= self.int
+        elif isinstance(other, Values):
+            return other.int >= self.int
         else:
             return False
 
