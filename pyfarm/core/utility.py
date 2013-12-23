@@ -24,9 +24,15 @@ of PyFarm.
 
 from __future__ import division
 
-from StringIO import StringIO
-from UserDict import UserDict
 from decimal import Decimal, ROUND_HALF_DOWN
+from functools import partial
+from UserDict import UserDict
+from StringIO import StringIO
+
+try:
+    _range = xrange
+except NameError:  # pragma: no cover
+    _range = range
 
 try:
     from ast import literal_eval
@@ -34,9 +40,29 @@ except ImportError:
     from pyfarm.core.backports import literal_eval
 
 try:
-    _range = xrange
-except NameError:  # pragma: no cover
-    _range = range
+    import json
+except ImportError:
+    import simplejson as json
+
+from pyfarm.core.config import read_env_bool
+from pyfarm.core.enums import EnumValue, Values
+
+
+def json_default_dumper(value):
+    """
+    A default (fallback) object dumper for use in :func:`json.dumps`.  This
+    function will dump a json friendly result for the ``value`` provided.
+    """
+    if isinstance(value, (EnumValue, Values)):
+        return str(value)
+    else:
+        raise TypeError("don't know how to handle %s" % value)
+
+
+dumps = partial(
+    json.dumps,
+    indent=4 if read_env_bool("PYFARM_PRETTY_JSON", False) else None,
+    default=json_default_dumper)
 
 
 def rounded(value, places=4, rounding=ROUND_HALF_DOWN):
