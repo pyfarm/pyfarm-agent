@@ -56,13 +56,6 @@ import pyfarm.agent
 TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
 STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
 
-# compute possible agent states
-agent_state_values = []
-for k, v in AgentState._asdict().iteritems():
-    agent_state_values.append("%s (%s)" % (v, k.lower()))
-
-AGENT_STATE_HELP = ", ".join(agent_state_values)
-
 
 def check_address(value):
     # is this a valid ip address?
@@ -118,10 +111,9 @@ def convert_option_contact_addr(key, value):
 
 
 def convert_option_agent_state(key, value):
-    value = convert_option_stoi(key, value)
     if value not in AgentState:
         raise usage.UsageError("invalid value for --%s, valid values are %s" % (
-            key, AGENT_STATE_HELP))
+            key, list(AgentState)))
     else:
         return value
 
@@ -184,7 +176,7 @@ class Options(usage.Options):
         ("cpus", "", cpu.NUM_CPUS,
          "The number of cpus this agent has which will be sent to the master."),
         ("state", "", AgentState.ONLINE,
-         "The current agent state.  Valid values are %s" % AGENT_STATE_HELP),
+         "The current agent state.  Valid values are %s" % list(AgentState)),
 
         # http retries/detailed configuration
         ("http-max-retries", "", "unlimited",
