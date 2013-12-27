@@ -1,0 +1,29 @@
+{
+    "project": 1,
+    "job": 1,
+    "task": 1,
+    "jobtype": {
+        "load_type": "import",
+        "load_from": "foo.bar",
+        "cmd": "ping",
+        "args": "-c 1 127.0.0.1"},
+    "frame": {
+        "start": 1,
+        "end": 1,
+        "by": 1
+    },
+    "resources": {
+        "cpus": 1,
+        "ram_warning": 128,
+        "ram_max": 256
+    },
+    "user": "foobar",
+    "data": {
+        "a": 1,
+        "b": 2
+    },
+    "env": {
+        "ENVVAR_A": "A",
+        "ENVVAR_B": "B"
+    }
+}
