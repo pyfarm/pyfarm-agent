@@ -4,14 +4,9 @@ python:
   - 2.7
 
 install:
+  - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
   - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install simplejson --use-mirrors; fi
-  #- if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls flask flask-sqlalchemy --use-mirrors; fi
   - pip install . --use-mirrors
 
 script:
   - pip freeze
-  #- if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then nosetests -s --verbose --with-coverage --cover-package=pyfarm.core tests; fi
-  #- if [[ $TRAVIS_PYTHON_VERSION == "2.5" ]]; then nosetests -s --verbose tests; fi
-
-#after_success:
-#  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then coveralls; fi
