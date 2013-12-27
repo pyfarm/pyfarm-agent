@@ -23,6 +23,8 @@ not start new work but knows how to pass it along to the next
 component and respond to requests.
 """
 
+import logging
+from functools import partial
 from httplib import UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 
 try:
@@ -30,17 +32,16 @@ try:
 except ImportError:
     import simplejson as json
 
-from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 from twisted.internet.task import deferLater
+from twisted.python import log
 from twisted.python.compat import intToBytes
+from twisted.web.server import NOT_DONE_YET
 from voluptuous import (
-    Error, Invalid, Schema, Required, Optional, Any, All, Range, IsFile)
+    Error, Invalid, Schema, Required, Optional, Any, All, Range)
 
 from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.resource import Resource, JSONError
-
-number = (int, float, long)
 
 
 class PostProcessedSchema(Schema):
@@ -65,8 +66,9 @@ class PostProcessedSchema(Schema):
     def __call__(self, data):
         data = super(PostProcessedSchema, self).__call__(data)
 
+        # set default frames
         frame_data = data["frame"]
-        frame_data.setdefault("end_frame", data["frame"]["start_frame"])
+        frame_data.setdefault("end", data["frame"]["start"])
         frame_data.setdefault("by_frame", 1)
 
         return data
@@ -84,28 +86,41 @@ class Assign(Resource):
         consumption.
     """
     TEMPLATE = "pyfarm/assign.html"
+    NUMBER_TYPES = Any(int, float, long)
+
+    try:
+        STRING_TYPES = basestring
+    except NameError:
+        STRING_TYPES = unicode
+
     SCHEMA = PostProcessedSchema({
         Required("project"): int,
         Required("job"): int,
         Required("task"): int,
         Required("jobtype"): {
             Required("load_type"): All(
-                int, Range(min=min(JobTypeLoadMode), max=max(JobTypeLoadMode))),
-            Required("load_from"): Any(basestring, IsFile),
-            Required("cmd"): basestring,
-            Required("args"): basestring},
+                STRING_TYPES, Any(*list(JobTypeLoadMode))),
+            Required("load_from"): STRING_TYPES,
+            Required("cmd"): STRING_TYPES,
+            Required("args"): STRING_TYPES},
         Required("frame"): {
-            Required("start_frame"): Any(int, float, long),
-            Optional("end_frame"): Any(int, float, long),
-            Optional("by_frame"): Any(int, float, long)},
+            Required("start"): NUMBER_TYPES,
+            Optional("end"): NUMBER_TYPES,
+            Optional("by"): NUMBER_TYPES},
         Optional("resources"): {
             Optional("cpus"): All(int, Range(min=1)),
             Optional("ram_warning"): All(int, Range(min=1)),
             Optional("ram_max"): All(int, Range(min=1))},
-        Optional("user"): basestring,
+        Optional("user"): STRING_TYPES,
         Optional("data"): Any(
-            dict, list, basestring, int, float, long,type(None)),
+            dict, list, STRING_TYPES, int, float, long, type(None)),
         Optional("env"): PostProcessedSchema.string_keys_and_values})
+
+    def __init__(self, config):
+        Resource.__init__(self, config)
+        self.log = partial(log.msg, system=self.__class__.__name__)
+        self.info = partial(self.log, level=logging.INFO)
+        self.debug = partial(self.log, level=logging.DEBUG)
     
     def get(self, request):
         # write out the results from the template back
@@ -146,11 +161,19 @@ class Assign(Resource):
     def decode_post_data(self, args):
         """ensures the data is real json"""
         request, content = args
+
+        if not content:
+            self.info("no data provided in assignment POST")
+            self.error(request, "no data provided")
+            return
+
         try:
             content = json.loads(content)
         except ValueError:
+            self.info("failed to decode incoming assignment data")
             self.error(request, "json decode failed")
         else:
+            self.info("incoming assignment data: %s" % repr(content))
             deferred = deferLater(reactor, 0, lambda: [request, content])
             deferred.addCallback(self.validate_post_data)
 
