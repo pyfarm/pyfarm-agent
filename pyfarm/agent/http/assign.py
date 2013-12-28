@@ -23,7 +23,11 @@ not start new work but knows how to pass it along to the next
 component and respond to requests.
 """
 
+import ast
+import importlib
 import logging
+import os
+import pkgutil
 from functools import partial
 from httplib import UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 
@@ -41,7 +45,14 @@ from voluptuous import (
     Error, Invalid, Schema, Required, Optional, Any, All, Range)
 
 from pyfarm.core.enums import JobTypeLoadMode
+from pyfarm.core.utility import read_env_bool
+from pyfarm.jobtypes.core.jobtype import JobType
 from pyfarm.agent.http.resource import Resource, JSONError
+
+ALLOW_MODULE_CODE_EXECUTION = read_env_bool(
+    "PYFARM_JOBTYPE_ALLOW_CODE_EXECUTION_IN_MODULE_ROOT", False)
+JOBTYPE_SUBCLASSES_BASE_CLASS = read_env_bool(
+    "PYFARM_JOBTYPE_SUBCLASSES_BASE_CLASS", True)
 
 
 class PostProcessedSchema(Schema):
@@ -49,8 +60,14 @@ class PostProcessedSchema(Schema):
     Subclass of :class:`.Schema` which does some additional
     processing on the dictionary
     """
+    def __init__(self, schema, required=None, extra=None):
+        Schema.__init__(self, schema, required=required, extra=extra)
+        self.log = partial(log.msg, system=self.__class__.__name__)
+        self.warn = partial(self.log, level=logging.WARNING)
+
     @staticmethod
     def string_keys_and_values(data):
+        """ensures that all keys and values in ``data`` are strings"""
         if not isinstance(data, dict):
             raise Invalid("invalid type")
 
@@ -63,13 +80,100 @@ class PostProcessedSchema(Schema):
 
         return data
 
-    def __call__(self, data):
+    def parse_module_source(self, path):
+        """
+        Parse the souce of the
+        """
+        # parse the module to ensure there's not any syntax
+        with open(path, "r") as stream:
+            sourcecode = stream.read()
+
+        try:
+            parsed = ast.parse(sourcecode, filename=path)
+        except Exception, e:
+            raise Invalid("failed to parse %s: %s" % (
+                os.path.abspath(path), e))
+
+        if not isinstance(parsed, ast.Module):
+            raise Invalid("expected to have imported a module")
+
+        # check all top level objects in the module
+        for ast_object in parsed.body:
+            # Code execution may not be allowed in the module root for
+            # security/consistency reasons.  This does not cover all cases
+            # of course but should cover the vast majority of them.
+            if not ALLOW_MODULE_CODE_EXECUTION:
+                if (isinstance(ast_object, ast.Expr) and
+                        isinstance(ast_object.value, ast.Call)) or \
+                        isinstance(ast_object, ast.Exec):
+                    raise Invalid(
+                        "function calls are not allowed in the root of "
+                        "the module (line %s)" % ast_object.lineno)
+
+    def import_jobclass(self, import_name, classname):
+        """import the job class from the module"""
+        module = importlib.import_module(import_name)
+
+        # module does not have the required class name
+        if not hasattr(module, classname):
+            raise Invalid(
+                "module %s does not have the "
+                "class %s" % (import_name, classname))
+
+        jobclass = getattr(module, classname)
+        if not issubclass(jobclass, JobType):
+            raise Invalid(
+                "job type class in %s does not subclass base class" % (
+                    os.path.abspath(module.__file__)))
+
+        return jobclass
+
+    def __call__(self, data, config):
+        """
+        Performs additional processing on the schema object.  After
+        calling the base :meth:`.Schema.__call__` this will:
+            * populate the ``frame`` data with missing information
+            * ensure that the job type module's source is valid
+            *
+        """
         data = super(PostProcessedSchema, self).__call__(data)
 
-        # set default frames
+        # set default frame data
         frame_data = data["frame"]
         frame_data.setdefault("end", data["frame"]["start"])
         frame_data.setdefault("by_frame", 1)
+
+        # validate the jobtype
+        if data["jobtype"]["load_type"] == JobTypeLoadMode.IMPORT:
+            if ":" not in data["jobtype"]["load_from"]:
+                raise Invalid(
+                    "`load_type` does not match the "
+                    "'import_name:ClassName' format")
+
+            import_name, classname = data["jobtype"]["load_from"].split(":")
+
+            # make sure that we can import the module
+            try:
+                loader = pkgutil.get_loader(import_name)
+            except ImportError, e:
+                raise Invalid("failed to import parent module in 'load_from'")
+
+            # parent module(s) work but we couldn't import something else
+            if loader is None:
+                raise Invalid(
+                    "no such jobtype module %s" % data["jobtype"]["load_from"])
+
+            # parse the module source code now so we can just return
+            # a response containing information about the problem
+            self.parse_module_source(loader.filename)
+
+            jobclass = self.import_jobclass(import_name, classname)
+            data["jobtype"]["jobtype"] = jobclass(data, config)
+
+        else:
+            raise Invalid(
+                "load_type %s is not implemented" %
+                repr(data["jobtype"]["load_type"]))
 
         return data
 
@@ -98,6 +202,7 @@ class Assign(Resource):
         Required("job"): int,
         Required("task"): int,
         Required("jobtype"): {
+            # jobtype - the instanced job class
             Required("load_type"): All(
                 STRING_TYPES, Any(*list(JobTypeLoadMode))),
             Required("load_from"): STRING_TYPES,
@@ -147,8 +252,10 @@ class Assign(Resource):
     def validate_post_data(self, args):
         request, content = args
 
+        # load up the schema both to validate the data and
+        # to perform the post validation steps
         try:
-            data = self.SCHEMA(content)
+            data = self.SCHEMA(content, self.config)
         except Error, e:
             self.error(request, str(e))
             return
