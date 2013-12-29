@@ -54,7 +54,7 @@ class TestConversionFunctions(TestCase):
             self.assertEqual(convert_option_contact_addr("", i), i)
             upper_i = i.upper()
             self.assertEqual(convert_option_contact_addr("", upper_i), i)
-        self.assertRaisesRegexp(
+        self.assertRaises(
             UsageError, lambda: convert_option_contact_addr("", "foobar"))
 
     def test_enum_options(self):
