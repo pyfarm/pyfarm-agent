@@ -33,7 +33,7 @@ from httplib import UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 
 try:
     import json
-except ImportError:
+except ImportError:  # pragma: no cover
     import simplejson as json
 
 from twisted.internet import reactor
@@ -97,7 +97,9 @@ class PostProcessedSchema(Schema):
             raise Invalid("failed to parse %s: %s" % (
                 os.path.abspath(path), e))
 
-        if not isinstance(parsed, ast.Module):
+        # this should never happen but the error will be obscure if it
+        # does so we handle it here instead
+        if not isinstance(parsed, ast.Module):  # pragma: no cover
             raise Invalid("expected to have imported a module")
 
         # check all top level objects in the module
@@ -168,12 +170,12 @@ class PostProcessedSchema(Schema):
                 # make sure that we can import the module
                 try:
                     loader = pkgutil.get_loader(import_name)
-                except ImportError, e:
+                except ImportError:  # pragma: no cover
                     raise Invalid(
                         "failed to import parent module in 'load_from'")
 
                 # parent module(s) work but we couldn't import something else
-                if loader is None:
+                if loader is None:  # pragma: no cover
                     raise Invalid(
                         "no such jobtype module %s" %
                         data["jobtype"]["load_from"])
@@ -185,7 +187,7 @@ class PostProcessedSchema(Schema):
                 jobclass = self.import_jobclass(import_name, classname)
                 data["jobtype"]["jobtype"] = jobclass(data, config)
 
-            else:
+            else:  # pragma: no cover
                 raise Invalid(
                     "load_type %s is not implemented" %
                     repr(data["jobtype"]["load_type"]))
@@ -209,7 +211,7 @@ class Assign(Resource):
 
     try:
         STRING_TYPES = basestring
-    except NameError:
+    except NameError:  # pragma: no cover
         STRING_TYPES = unicode
 
     SCHEMA = PostProcessedSchema({
