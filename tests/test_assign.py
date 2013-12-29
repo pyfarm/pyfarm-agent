@@ -18,11 +18,12 @@ import os
 import sys
 import shutil
 import tempfile
+from httplib import OK, NOT_ACCEPTABLE
 from StringIO import StringIO
 
 from voluptuous import Schema, Invalid, MultipleInvalid
 
-from utcore import TestCase
+from utcore import TestCase, dummy_request
 from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
 
@@ -216,6 +217,37 @@ class TestJobTypeValidation(JobTypeValidationBase):
             lambda: Assign.SCHEMA(test_data, {}))
 
 
-class TestPost(JobTypeValidationBase):
-    def test_foo(self):
-        pass
+class TestResource(JobTypeValidationBase):
+    templates = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__), "..", "pyfarm", "agent", "templates"))
+
+    def test_get(self):
+        view = Assign({"html-templates": self.templates})
+        request = dummy_request()
+        d = self._render(view, request)
+
+        template_path = os.path.join(self.templates, "pyfarm", "assign.html")
+        with open(template_path, "r") as stream:
+            expected_data = stream.read()
+
+        def rendered(_):
+            self.assertEquals(request.responseCode, OK)
+            self.assertEquals("".join(request.written), expected_data)
+
+        d.addCallback(rendered)
+        return d
+
+    def test_post_invalid_content_type(self):
+        view = Assign({"html-templates": self.templates})
+        request = dummy_request(http_method="POST")
+        d = self._render(view, request)
+
+        def rendered(_):
+            self.assertEquals(request.responseCode, NOT_ACCEPTABLE)
+            self.assertIn(
+                "only application/json is supported", "".join(request.written))
+
+        d.addCallback(rendered)
+        return d
+

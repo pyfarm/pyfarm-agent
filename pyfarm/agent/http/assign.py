@@ -28,6 +28,7 @@ import importlib
 import logging
 import os
 import pkgutil
+from httplib import OK, NOT_ACCEPTABLE
 from functools import partial
 from httplib import UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 
@@ -298,25 +299,30 @@ class Assign(Resource):
         # write out the results from the template back
         # to the original request
         def cb(content):
+            request.setResponseCode(OK)
             request.write(content)
-            request.setResponseCode(200)
             request.finish()
 
-        deferred = self.template.render(uri=request.prePathURL())
+        deferred = self.template.render()
         deferred.addCallback(cb)
 
         return NOT_DONE_YET
 
     def post(self, request):
         # check content type before we do anything else
-        content_type = request.requestHeaders.getRawHeaders("Content-Type")
-        if "application/json" not in content_type:
-            raise JSONError(
-                UNSUPPORTED_MEDIA_TYPE, "only application/json is supported")
-
-        # handle the request with a series of deferred objects
-        # so we block for shorter periods of time
+        content_type = request.getHeader("Content-Type") or []
         deferred = deferLater(reactor, 0, lambda: request)
-        deferred.addCallback(self.unpack_post_data)
+
+        if "application/json" not in content_type:
+            def cb(_):
+                request.setResponseCode(NOT_ACCEPTABLE)
+                request.write("only application/json is supported for /assign")
+                request.finish()
+
+            deferred.addCallback(cb)
+        else:
+            # handle the request with a series of deferred objects
+            # so we block for shorter periods of time
+            deferred.addCallback(self.unpack_post_data)
 
         return NOT_DONE_YET
