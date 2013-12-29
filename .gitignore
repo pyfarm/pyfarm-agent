@@ -15,3 +15,4 @@ dist
 MANIFEST
 twistd*
 dropin.cache
+_trial_temp
