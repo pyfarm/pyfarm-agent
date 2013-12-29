@@ -49,12 +49,12 @@
             },
 
             # At least start_frame is required.
-            #   by_frame - defaults to 1 if not provided
-            #   end_frame - defaults to start_frame if not provided
+            #   by - defaults to 1 if not provided
+            #   start - defaults to start_frame if not provided
             "frame": {
-                "start_frame": 7.0,
-                "end_frame": 7.0,  # if not present, defaults to `start_frame`
-                "by_frame": 1.0  # if not present, defaults to 1.0
+                "start": 7.0,
+                "end": 7.0,  # if not present, defaults to `start_frame`
+                "by": 1.0  # if not present, defaults to 1.0
             },
 
             # optional
@@ -75,11 +75,9 @@
             "data": {}
 
             # optional, ignored on Windows
-            "user": "bob",
+            "user": "bob"
         }
         </pre>
-
     </p>
-
 </body>
 </html>
