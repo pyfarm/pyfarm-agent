@@ -20,9 +20,9 @@ import shutil
 import tempfile
 from StringIO import StringIO
 
-from twisted.trial.unittest import TestCase
 from voluptuous import Schema, Invalid, MultipleInvalid
 
+from utcore import TestCase
 from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
 
