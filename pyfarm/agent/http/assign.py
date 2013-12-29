@@ -28,8 +28,9 @@ import importlib
 import logging
 import os
 import pkgutil
-from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
+import uuid
 from functools import partial
+from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
 
 try:
     import json
@@ -264,10 +265,13 @@ class Assign(Resource):
             self.error(request, str(e))
             return
         else:
+            request_uid = uuid.uuid4()
+            request.setResponseCode(ACCEPTED)
+            request.write(json.dumps(str(request_uid)))
             request.finish()
 
-        # TODO: start internal assignment
-        deferred = deferLater(reactor, )
+            # TODO: start internal assignment
+            # deferred = deferLater(reactor, request_uid)
 
     def decode_post_data(self, args):
         """ensures the data is real json"""
@@ -282,7 +286,7 @@ class Assign(Resource):
             content = json.loads(content)
         except ValueError:
             self.info("failed to decode incoming assignment data")
-            self.error(request, "json decode failed")
+            self.error(request, "failed to decode %s via json.dumps" % content)
         else:
             self.info("incoming assignment data: %s" % repr(content))
             deferred = deferLater(reactor, 0, lambda: [request, content])

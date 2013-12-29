@@ -18,14 +18,15 @@ import os
 import sys
 import shutil
 import tempfile
+import uuid
 from functools import partial
-from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
+from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
 from StringIO import StringIO
 
 try:
-    from json import dumps
+    from json import dumps, loads
 except ImportError:
-    from simplejson import dumps
+    from simplejson import dumps, loads
 
 from voluptuous import Schema, Invalid, MultipleInvalid
 
@@ -270,6 +271,63 @@ class TestResource(JobTypeValidationBase):
             self.assertEqual(request.responseCode, BAD_REQUEST)
             self.assertEquals(
                 "".join(request.written), dumps("no data provided"))
+
+        d.addCallback(rendered)
+        return d
+
+    def test_post_invalid_data(self):
+        view = Assign({"html-templates": self.templates})
+        request = dummy_post_request(
+            headers={"Content-Type": ["application/json"]},
+            data="[", json_dumps=False)
+
+        d = self._render(view, request)
+
+        def rendered(_):
+            self.assertEqual(request.responseCode, BAD_REQUEST)
+            self.assertEquals(
+                "".join(request.written),
+                dumps("failed to decode [ via json.dumps"))
+
+        d.addCallback(rendered)
+        return d
+
+    def test_post_expected_dictionary(self):
+        view = Assign({"html-templates": self.templates})
+        request = dummy_post_request(
+            headers={"Content-Type": ["application/json"]},
+            data="")
+
+        d = self._render(view, request)
+
+        def rendered(_):
+            self.assertEqual(request.responseCode, BAD_REQUEST)
+            self.assertEquals(
+                "".join(request.written),
+                dumps("expected a dictionary"))
+
+        d.addCallback(rendered)
+        return d
+
+    def test_post_success(self):
+        test_data = self.get_test_data()
+        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
+        test_data["jobtype"]["load_from"] = self.generate_module()
+
+        view = Assign({"html-templates": self.templates})
+        request = dummy_post_request(
+            headers={"Content-Type": ["application/json"]},
+            data=test_data)
+
+        d = self._render(view, request)
+
+        def rendered(_):
+            self.assertEqual(request.responseCode, ACCEPTED)
+            request_result = loads("".join(request.written))
+
+            # success will return a uuid that we can use for tracking
+            # which means we should be able to convert it here
+            uuid.UUID(request_result)
 
         d.addCallback(rendered)
         return d

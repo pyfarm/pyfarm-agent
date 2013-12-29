@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import re
-from StringIO import StringIO
 
 try:
     from json import dumps
@@ -29,7 +28,7 @@ from twisted.trial.unittest import TestCase as _TestCase
 
 
 def dummy_request(path="", data=None, http_method="GET", headers=None,
-                  session=None):
+                  session=None, json_dumps=True):
     """
     Wrapper around the base dummy request which does not require direct
     subclassing for different kinds of request or lists for a single
@@ -46,7 +45,7 @@ def dummy_request(path="", data=None, http_method="GET", headers=None,
                 return self._content
 
         def write(self, data):
-            self._content = dumps(data)
+            self._content = data
 
     class DummyRequest(_DummyRequest):
         def __init__(self, postpath, session=None):
@@ -67,6 +66,8 @@ def dummy_request(path="", data=None, http_method="GET", headers=None,
             request.setHeader(key, value)
 
     if data is not None:
+        if json_dumps:
+            data = dumps(data)
         request.content.write(data)
 
     return request
