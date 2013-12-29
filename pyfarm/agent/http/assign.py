@@ -82,7 +82,10 @@ class PostProcessedSchema(Schema):
 
     def parse_module_source(self, path):
         """
-        Parse the souce of the
+        Parse the source of the module to ensure that it does not
+        contain any syntax errors.  In addition it also checks for
+        certain behaviors (such as function calls in the root
+        of the module).
         """
         # parse the module to ensure there's not any syntax
         with open(path, "r") as stream:
@@ -121,7 +124,7 @@ class PostProcessedSchema(Schema):
                 "class %s" % (import_name, classname))
 
         jobclass = getattr(module, classname)
-        if not issubclass(jobclass, JobType):
+        if not issubclass(jobclass, JobType) and JOBTYPE_SUBCLASSES_BASE_CLASS:
             raise Invalid(
                 "job type class in %s does not subclass base class" % (
                     os.path.abspath(module.__file__)))
@@ -147,7 +150,7 @@ class PostProcessedSchema(Schema):
         if data["jobtype"]["load_type"] == JobTypeLoadMode.IMPORT:
             if ":" not in data["jobtype"]["load_from"]:
                 raise Invalid(
-                    "`load_type` does not match the "
+                    "`load_from` does not match the "
                     "'import_name:ClassName' format")
 
             import_name, classname = data["jobtype"]["load_from"].split(":")
@@ -156,6 +159,7 @@ class PostProcessedSchema(Schema):
             try:
                 loader = pkgutil.get_loader(import_name)
             except ImportError, e:
+                self.er
                 raise Invalid("failed to import parent module in 'load_from'")
 
             # parent module(s) work but we couldn't import something else
