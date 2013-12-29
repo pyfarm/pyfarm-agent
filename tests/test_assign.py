@@ -115,9 +115,7 @@ class TestSchema(BaseTestCase):
 
     def test_invalid_load_from(self):
         self.test_data["jobtype"]["load_from"] = ""
-
-        with self.assertRaises(Invalid):
-            Assign.SCHEMA(self.test_data, {})
+        self.assertRaises(Invalid, lambda: Assign.SCHEMA(self.test_data, {}))
 
     def test_basic_import(self):
         self.test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
