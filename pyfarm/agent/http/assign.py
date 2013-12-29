@@ -238,24 +238,11 @@ class Assign(Resource):
             dict, list, STRING_TYPES, int, float, long, type(None)),
         Optional("env"): PostProcessedSchema.string_keys_and_values})
 
-    def __init__(self, config):
+    def __init__(self, config):  # pragma: no cover
         Resource.__init__(self, config)
         self.log = partial(log.msg, system=self.__class__.__name__)
         self.info = partial(self.log, level=logging.INFO)
         self.debug = partial(self.log, level=logging.DEBUG)
-    
-    def get(self, request):
-        # write out the results from the template back
-        # to the original request
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(200)
-            request.finish()
-
-        deferred = self.template.render(uri=request.prePathURL())
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
 
     def error(self, request, error, code=BAD_REQUEST):
         """writes an error to the incoming request"""
@@ -306,6 +293,19 @@ class Assign(Resource):
         content = request.content.read()
         deferred = deferLater(reactor, 0, lambda: [request, content])
         deferred.addCallback(self.decode_post_data)
+
+    def get(self, request):
+        # write out the results from the template back
+        # to the original request
+        def cb(content):
+            request.write(content)
+            request.setResponseCode(200)
+            request.finish()
+
+        deferred = self.template.render(uri=request.prePathURL())
+        deferred.addCallback(cb)
+
+        return NOT_DONE_YET
 
     def post(self, request):
         # check content type before we do anything else
