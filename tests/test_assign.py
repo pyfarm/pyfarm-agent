@@ -18,14 +18,22 @@ import os
 import sys
 import shutil
 import tempfile
-from httplib import OK, NOT_ACCEPTABLE
+from functools import partial
+from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 from StringIO import StringIO
+
+try:
+    from json import dumps
+except ImportError:
+    from simplejson import dumps
 
 from voluptuous import Schema, Invalid, MultipleInvalid
 
 from utcore import TestCase, dummy_request
 from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
+
+dummy_post_request = partial(dummy_request, http_method="POST")
 
 
 class AssignTestBase(TestCase):
@@ -229,25 +237,39 @@ class TestResource(JobTypeValidationBase):
 
         template_path = os.path.join(self.templates, "pyfarm", "assign.html")
         with open(template_path, "r") as stream:
-            expected_data = stream.read()
+            template_data = stream.read()
 
         def rendered(_):
             self.assertEquals(request.responseCode, OK)
-            self.assertEquals("".join(request.written), expected_data)
+            self.assertEquals("".join(request.written), template_data)
 
         d.addCallback(rendered)
         return d
 
     def test_post_invalid_content_type(self):
         view = Assign({"html-templates": self.templates})
-        request = dummy_request(http_method="POST")
+        request = dummy_post_request()
         d = self._render(view, request)
 
         def rendered(_):
-            self.assertEquals(request.responseCode, NOT_ACCEPTABLE)
+            self.assertEquals(request.responseCode, UNSUPPORTED_MEDIA_TYPE)
             self.assertIn(
                 "only application/json is supported", "".join(request.written))
 
         d.addCallback(rendered)
         return d
 
+    def test_post_no_data(self):
+        view = Assign({"html-templates": self.templates})
+        request = dummy_post_request(
+            headers={"Content-Type": ["application/json"]})
+
+        d = self._render(view, request)
+
+        def rendered(_):
+            self.assertEqual(request.responseCode, BAD_REQUEST)
+            self.assertEquals(
+                "".join(request.written), dumps("no data provided"))
+
+        d.addCallback(rendered)
+        return d

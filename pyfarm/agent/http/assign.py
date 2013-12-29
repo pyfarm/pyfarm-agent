@@ -28,9 +28,8 @@ import importlib
 import logging
 import os
 import pkgutil
-from httplib import OK, NOT_ACCEPTABLE
+from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 from functools import partial
-from httplib import UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST
 
 try:
     import json
@@ -48,7 +47,7 @@ from voluptuous import (
 from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.core.utility import read_env_bool
 from pyfarm.jobtypes.core.jobtype import JobType
-from pyfarm.agent.http.resource import Resource, JSONError
+from pyfarm.agent.http.resource import Resource
 
 ALLOW_MODULE_CODE_EXECUTION = read_env_bool(
     "PYFARM_JOBTYPE_ALLOW_CODE_EXECUTION_IN_MODULE_ROOT", False)
@@ -247,7 +246,7 @@ class Assign(Resource):
 
     def error(self, request, error, code=BAD_REQUEST):
         """writes an error to the incoming request"""
-        body = json.dumps((code, error))
+        body = json.dumps(error)
         request.setResponseCode(code)
         request.setHeader(b"content-type", b"application/json")
         request.setHeader(b"content-length", intToBytes(len(body)))
@@ -310,12 +309,12 @@ class Assign(Resource):
 
     def post(self, request):
         # check content type before we do anything else
-        content_type = request.getHeader("Content-Type") or []
         deferred = deferLater(reactor, 0, lambda: request)
+        content_type = request.getHeader("Content-Type") or []
 
         if "application/json" not in content_type:
             def cb(_):
-                request.setResponseCode(NOT_ACCEPTABLE)
+                request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
                 request.write("only application/json is supported for /assign")
                 request.finish()
 
