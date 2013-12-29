@@ -131,53 +131,64 @@ class PostProcessedSchema(Schema):
 
         return jobclass
 
-    def __call__(self, data, config):
+    def __call__(self, data, config, parse_jobtype=True):
         """
-        Performs additional processing on the schema object.  After
-        calling the base :meth:`.Schema.__call__` this will:
-            * populate the ``frame`` data with missing information
-            * ensure that the job type module's source is valid
-            *
+        Performs additional processing on the schema object
+
+        :param dict data:
+            the dictionary data which will be validated against the schema
+
+        :param dict data:
+            contains the configuration data which will be passed along
+            to the instance
+
+        :param bool parse_jobtype:
+            If ``True`` then run the code to parse and validate the job type.
+            Please note however that this keyword is intended for use
+            within the unittests.
         """
         data = super(PostProcessedSchema, self).__call__(data)
 
         # set default frame data
         frame_data = data["frame"]
         frame_data.setdefault("end", data["frame"]["start"])
-        frame_data.setdefault("by_frame", 1)
+        frame_data.setdefault("by", 1)
 
-        # validate the jobtype
-        if data["jobtype"]["load_type"] == JobTypeLoadMode.IMPORT:
-            if ":" not in data["jobtype"]["load_from"]:
+        if parse_jobtype:
+
+            # validate the jobtype
+            if data["jobtype"]["load_type"] == JobTypeLoadMode.IMPORT:
+                if ":" not in data["jobtype"]["load_from"]:
+                    raise Invalid(
+                        "`load_from` does not match the "
+                        "'import_name:ClassName' format")
+
+                import_name, classname = data["jobtype"]["load_from"].split(":")
+
+                # make sure that we can import the module
+                try:
+                    loader = pkgutil.get_loader(import_name)
+                except ImportError, e:
+                    raise Invalid(
+                        "failed to import parent module in 'load_from'")
+
+                # parent module(s) work but we couldn't import something else
+                if loader is None:
+                    raise Invalid(
+                        "no such jobtype module %s" %
+                        data["jobtype"]["load_from"])
+
+                # parse the module source code now so we can just return
+                # a response containing information about the problem
+                self.parse_module_source(loader.filename)
+
+                jobclass = self.import_jobclass(import_name, classname)
+                data["jobtype"]["jobtype"] = jobclass(data, config)
+
+            else:
                 raise Invalid(
-                    "`load_from` does not match the "
-                    "'import_name:ClassName' format")
-
-            import_name, classname = data["jobtype"]["load_from"].split(":")
-
-            # make sure that we can import the module
-            try:
-                loader = pkgutil.get_loader(import_name)
-            except ImportError, e:
-                self.er
-                raise Invalid("failed to import parent module in 'load_from'")
-
-            # parent module(s) work but we couldn't import something else
-            if loader is None:
-                raise Invalid(
-                    "no such jobtype module %s" % data["jobtype"]["load_from"])
-
-            # parse the module source code now so we can just return
-            # a response containing information about the problem
-            self.parse_module_source(loader.filename)
-
-            jobclass = self.import_jobclass(import_name, classname)
-            data["jobtype"]["jobtype"] = jobclass(data, config)
-
-        else:
-            raise Invalid(
-                "load_type %s is not implemented" %
-                repr(data["jobtype"]["load_type"]))
+                    "load_type %s is not implemented" %
+                    repr(data["jobtype"]["load_type"]))
 
         return data
 
