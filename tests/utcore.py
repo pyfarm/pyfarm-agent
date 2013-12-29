@@ -20,25 +20,25 @@ from twisted.trial.unittest import TestCase as _TestCase
 
 
 class TestCase(_TestCase):
-    # try:
-    #     _TestCase.assertRaisesRegexp
-    # except AttributeError:
-    def assertRaisesRegexp(
-            self, expected_exception, expected_regexp, callable_obj,
-            *args, **kwds):
+    try:
+        _TestCase.assertRaisesRegexp
+    except AttributeError:
+        def assertRaisesRegexp(
+                self, expected_exception, expected_regexp, callable_obj,
+                *args, **kwds):
 
-        exception = None
-        try:
-            callable_obj(*args, **kwds)
-        except expected_exception, ex:
-            exception = ex
+            exception = None
+            try:
+                callable_obj(*args, **kwds)
+            except expected_exception, ex:
+                exception = ex
 
-        if exception is None:
-            self.fail("%s not raised" % str(expected_exception.__name__))
+            if exception is None:
+                self.fail("%s not raised" % str(expected_exception.__name__))
 
-        if isinstance(expected_regexp, basestring):
-            expected_regexp = re.compile(expected_regexp)
+            if isinstance(expected_regexp, basestring):
+                expected_regexp = re.compile(expected_regexp)
 
-        if not expected_regexp.search(str(exception)):
-            self.fail('"%s" does not match "%s"' % (
-                expected_regexp.pattern, str(exception)))
+            if not expected_regexp.search(str(exception)):
+                self.fail('"%s" does not match "%s"' % (
+                    expected_regexp.pattern, str(exception)))
