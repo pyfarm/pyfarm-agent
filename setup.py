@@ -29,7 +29,7 @@ install_requires = [
     "PyOpenSSL", "ntplib", "requests", "txtemplate", "voluptuous"]
 
 if sys.version_info[0:2] < (2, 7):
-    install_requires += ["simplejson", "importlib"]
+    install_requires += ["simplejson", "importlib", "ordereddict"]
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:

@@ -36,7 +36,7 @@ except ImportError:
 try:
     from collections import OrderedDict
 except ImportError:
-    from pyfarm.core.backports import OrderedDict
+    from ordereddict import OrderedDict
 
 from zope.interface import implements
 from twisted.python import log
