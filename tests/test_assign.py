@@ -27,7 +27,7 @@ from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
 
 
-class TestSchema(TestCase):
+class AssignTestBase(TestCase):
     def get_test_data(self):
         return {
             "project": 0, "job": 0, "task": 0,
@@ -37,43 +37,8 @@ class TestSchema(TestCase):
                 "cmd": "", "args": ""},
             "frame": {"start": 1}}
 
-    def test_schema_subclass(self):
-        self.assertTrue(issubclass(PostProcessedSchema, Schema))
 
-    def test_instance(self):
-        self.assertIsInstance(Assign.SCHEMA, PostProcessedSchema)
-
-    def test_frame_data_population(self):
-        test_data = self.get_test_data()
-        test_data["frame"] = {"start": 1}
-        data = Assign.SCHEMA(test_data, {}, parse_jobtype=False)
-        self.assertEqual(data["frame"]["start"], 1)
-        self.assertEqual(data["frame"]["end"], 1)
-        self.assertEqual(data["frame"]["by"], 1)
-
-    def test_valid_jobtype_load_mode(self):
-        test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = ""
-        self.assertRaises(
-            MultipleInvalid,
-            lambda: Assign.SCHEMA(test_data, {}, parse_jobtype=False))
-
-    def test_strings_values_only(self):
-        self.assertEqual(
-            PostProcessedSchema.string_keys_and_values({"": ""}),
-            {"": ""})
-        self.assertRaisesRegexp(
-            Invalid, "expected string for env value",
-            lambda: PostProcessedSchema.string_keys_and_values({"": None}))
-        self.assertRaisesRegexp(
-            Invalid, "expected string for env key",
-            lambda: PostProcessedSchema.string_keys_and_values({None: ""}))
-        self.assertRaisesRegexp(
-            Invalid, "invalid type",
-            lambda: PostProcessedSchema.string_keys_and_values(None))
-
-
-class TestJobTypeValidation(TestSchema):
+class JobTypeValidationBase(AssignTestBase):
     def setUp(self):
         self.import_dir = tempfile.mkdtemp(prefix="pyfarm-agent-tests-")
 
@@ -134,6 +99,45 @@ class TestJobTypeValidation(TestSchema):
 
         return ":".join([module_name, classname])
 
+
+class TestSchema(AssignTestBase):
+    def test_schema_subclass(self):
+        self.assertTrue(issubclass(PostProcessedSchema, Schema))
+
+    def test_instance(self):
+        self.assertIsInstance(Assign.SCHEMA, PostProcessedSchema)
+
+    def test_frame_data_population(self):
+        test_data = self.get_test_data()
+        test_data["frame"] = {"start": 1}
+        data = Assign.SCHEMA(test_data, {}, parse_jobtype=False)
+        self.assertEqual(data["frame"]["start"], 1)
+        self.assertEqual(data["frame"]["end"], 1)
+        self.assertEqual(data["frame"]["by"], 1)
+
+    def test_valid_jobtype_load_mode(self):
+        test_data = self.get_test_data()
+        test_data["jobtype"]["load_type"] = ""
+        self.assertRaises(
+            MultipleInvalid,
+            lambda: Assign.SCHEMA(test_data, {}, parse_jobtype=False))
+
+    def test_strings_values_only(self):
+        self.assertEqual(
+            PostProcessedSchema.string_keys_and_values({"": ""}),
+            {"": ""})
+        self.assertRaisesRegexp(
+            Invalid, "expected string for env value",
+            lambda: PostProcessedSchema.string_keys_and_values({"": None}))
+        self.assertRaisesRegexp(
+            Invalid, "expected string for env key",
+            lambda: PostProcessedSchema.string_keys_and_values({None: ""}))
+        self.assertRaisesRegexp(
+            Invalid, "invalid type",
+            lambda: PostProcessedSchema.string_keys_and_values(None))
+
+
+class TestJobTypeValidation(JobTypeValidationBase):
     def test_invalid_load_from_format(self):
         test_data = self.get_test_data()
         test_data["jobtype"]["load_from"] = ""
@@ -210,3 +214,8 @@ class TestJobTypeValidation(TestSchema):
         self.assertRaisesRegexp(
             Invalid, "does not subclass base class",
             lambda: Assign.SCHEMA(test_data, {}))
+
+
+class TestPost(JobTypeValidationBase):
+    def test_foo(self):
+        pass
