@@ -13,7 +13,7 @@ install:
 
 script:
   - pip freeze
-  - coverage run --branch `which trial` --reporter=bwverbose tests/
+  - coverage run --branch `which trial` --reporter=bwverbose tests/*.py
 
 after_success:
   - coveralls
