@@ -5,10 +5,10 @@ python:
 
 install:
   - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install unittest2 simplejson --use-mirrors; fi
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls flask flask-sqlalchemy --use-mirrors; fi
-  - pip install "psutil>=1.0.0" netifaces netaddr --use-mirrors
-  - pip install . --use-mirrors
+  - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install unittest2 simplejson; fi
+  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls flask flask-sqlalchemy; fi
+  - pip install "psutil>=1.0.0" netifaces netaddr
+  - pip install .
 
 script:
   - pip freeze
