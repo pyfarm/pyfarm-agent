@@ -74,10 +74,16 @@ def convert_option_ston(key, value, types=None):
         return float("inf")
 
     try:
-        if types is None:
-            value = convert.ston(value)
-        else:
-            value = convert.ston(value, types=types)
+        # NOTE: some values are not covered by tests
+        # because they are covered in a base module
+        try:  # pragma: no cover
+            if types is None:
+                value = convert.ston(value)
+            else:
+                value = convert.ston(value, types=types)
+
+        except SyntaxError, e:
+            raise ValueError(e)
 
         if key == "ram":
             value = int(value)
@@ -91,34 +97,27 @@ def convert_option_ston(key, value, types=None):
 convert_option_stoi = partial(convert_option_ston, types=int)
 
 
-def convert_option_projects(key, value):
+def convert_option_projects(_, value):
     return filter(bool, map(str.strip, value.split(",")))
 
 
-def convert_option_contact_addr(key, value):
+def convert_option_enum(key, value, enum=None):
+    assert enum is not None
     value = value.lower()
-    mappings = {
-        "hostname": UseAgentAddress.HOSTNAME,
-        "ip": UseAgentAddress.LOCAL,
-        "remote-ip": UseAgentAddress.REMOTE}
+    valid_values = list(enum)
 
-    if value not in mappings:
+    if value not in valid_values:
         raise usage.UsageError(
             "invalid value for --%s, valid values are %s" % (
-                key, mappings.keys()))
-    else:
-        return mappings[value]
+                key, valid_values))
+
+    return value
+
+convert_option_contact_addr = partial(convert_option_enum, enum=UseAgentAddress)
+convert_option_agent_state = partial(convert_option_enum, enum=AgentState)
 
 
-def convert_option_agent_state(key, value):
-    if value not in AgentState:
-        raise usage.UsageError("invalid value for --%s, valid values are %s" % (
-            key, list(AgentState)))
-    else:
-        return value
-
-
-class Options(usage.Options):
+class Options(usage.Options):  # pragma: no cover
     optParameters = [
         # local 'server' settings
         ("port", "p", 50000,
@@ -286,7 +285,6 @@ class ManagerService(MultiService):
 
     def startService(self):
         self.service_maker.config.log(None, None)
-
         self.info("informing master of agent startup")
 
         def get_agent_data():
@@ -416,8 +414,9 @@ class ManagerServiceMaker(object):
                 "prefix": self.config["http-api-prefix"]}
 
         # set or raise error about missing statstd server
-        statsd_server = self.config.get("statsd-server") or \
-                        self.config.get("master")
+        statsd_server = \
+            self.config.get("statsd-server") or self.config.get("master")
+
         if statsd_server is None:
             raise usage.UsageError(
                 "--master or --statsd-server must be provided")
