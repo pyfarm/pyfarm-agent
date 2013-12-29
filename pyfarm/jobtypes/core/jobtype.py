@@ -46,10 +46,18 @@ class JobType(object):
         self.process = None
         self.protocol = None
         self._last_state = None
+        self.called = False
 
         # TODO: replace logger with observer
         # TODO: use observers to prefix certain log messages (ex. stdout)
         self.log = partial(log.msg, system=self.__class__.__name__)
+
+    def __call__(self, *args, **kwargs):
+        if self.called:
+            raise ValueError("class already called")
+
+        self.called = True
+        raise NotImplementedError("not yet implemented")
 
     @property
     def spawned_process(self):
