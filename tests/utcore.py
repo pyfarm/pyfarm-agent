@@ -15,6 +15,12 @@
 # limitations under the License.
 
 import re
+from StringIO import StringIO
+
+try:
+    from json import dumps
+except ImportError:
+    from simplejson import dumps
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
@@ -22,19 +28,47 @@ from twisted.web.test.test_web import DummyRequest as _DummyRequest
 from twisted.trial.unittest import TestCase as _TestCase
 
 
-def dummy_request(path="", http_method="GET", headers=None, session=None):
+def dummy_request(path="", data=None, http_method="GET", headers=None,
+                  session=None):
     """
     Wrapper around the base dummy request which does not require direct
     subclassing for different kinds of request or lists for a single
     url request.
     """
+    class FakeContent(object):
+        def __init__(self):
+            self._content = None
+            self._read = False
+
+        def read(self):
+            if self._read is False:
+                self._read = True
+                return self._content
+
+        def write(self, data):
+            self._content = dumps(data)
+
     class DummyRequest(_DummyRequest):
-        method = http_method
+        def __init__(self, postpath, session=None):
+            _DummyRequest.__init__(self, postpath, session=session)
+            self.method = http_method
+            self.requestHeaders = {}
+            self.content = FakeContent()
+
+        def getHeader(self, name):
+            return self.requestHeaders.get(name)
+
+        def setHeader(self, name, value):
+            self.requestHeaders[name] = value
 
     request = DummyRequest([path], session=session)
     if isinstance(headers, dict):
         for key, value in headers.iteritems():
             request.setHeader(key, value)
+
+    if data is not None:
+        request.content.write(data)
+
     return request
 
 
