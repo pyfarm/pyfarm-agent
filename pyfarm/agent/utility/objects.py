@@ -23,6 +23,7 @@ General objects within the utility package that don't
 fit well into other modules or that serve more than one purpose.
 """
 
+import logging
 
 from collections import deque
 from functools import partial
@@ -38,12 +39,13 @@ class LoggingDictionary(IterableUserDict):
     a dictionary.  If the reactor is not running then log messages will
     be queued until they can be emitted so they are not lost.
     """
-    queue = deque()
+    log_queue = deque()
+    reactor = reactor
 
     def __init__(self, dict=None, **kwargs):
         logger_name = kwargs.pop("logger_name", self.__class__.__name__)
         IterableUserDict.__init__(self, dict=dict, **kwargs)
-        self.emit = partial(log.msg, system=logger_name)
+        self.emit = partial(log.msg, system=logger_name, level=logging.INFO)
 
     def __setitem__(self, key, value):
         # key is not already set or key has changed
@@ -54,11 +56,11 @@ class LoggingDictionary(IterableUserDict):
 
     def log(self, k, v):
         """either logs or waits to log depending on the reactor state"""
-        if not reactor.running and k is not None:
-            self.queue.append((k, v))
+        if not self.reactor.running and k is not None:
+            self.log_queue.append((k, v))
         else:
-            while self.queue:
-                key, value = self.queue.popleft()
+            while self.log_queue:
+                key, value = self.log_queue.popleft()
                 self.emit("%s=%s" % (key, repr(value)))
 
             if k is not None and v is not None:

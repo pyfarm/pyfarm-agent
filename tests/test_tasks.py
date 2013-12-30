@@ -69,7 +69,6 @@ class TestScheduledTasks(TestCase):
         lc.start()
         self.assertTrue(looping_call.running)
 
-
     def test_stop_all(self):
         lc = ScheduledTaskManager()
 
@@ -84,4 +83,3 @@ class TestScheduledTasks(TestCase):
         self.assertTrue(looping_call.running)
         lc.stop()
         self.assertFalse(looping_call.running)
-        lc.stop()
