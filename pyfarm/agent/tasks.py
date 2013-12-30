@@ -38,11 +38,13 @@ class ScheduledTaskManager(object):
     """
     Manages and keeps track of several scheduled tasks.
     """
+    test_clock = None
+
     def __init__(self):
         self.tasks = {}
         self.log = partial(log.msg, system=self.__class__.__name__)
 
-    def register(self, function, interval, start=False,
+    def register(self, function, interval, start=False, clock=None,
                  func_args=None, func_kwargs=None):
         """
         Register a callable function to run at a given interval.  This function
@@ -57,6 +59,9 @@ class ScheduledTaskManager(object):
 
         :param bool start:
             if True, start the interval timer after it has been added
+
+        :param clock:
+            optional keyword that will replace the looping call's clock
 
         :param tuple func_args:
             the positional arguments to pass into ``function``
@@ -75,10 +80,17 @@ class ScheduledTaskManager(object):
 
         if function not in self.tasks:
             looping_call = LoopingCall(function, *args, **kwargs)
+
+            if clock is not None:
+                looping_call.clock = clock
+
             self.tasks[function] = (looping_call, interval)
             self.log("registering %s")
+
             if start:
                 looping_call.start(interval)
+
+            return looping_call
 
     def start(self, now=True):
         """
@@ -107,10 +119,9 @@ class ScheduledTaskManager(object):
                 self.log("...%s is already stopped" % function.__name__)
 
 
-
 # TODO: only send memory information if memory has risen by X amount in N time
 # TODO: replace with callable class (to support the above)
-def memory_utilization(config):
+def memory_utilization(config):  # pragma: no cover
     """
     Returns the amount of free free and the amount of swap used.
     """
