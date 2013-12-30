@@ -166,9 +166,9 @@ class Options(usage.Options):  # pragma: no cover
         ("remote-ip", "", "",
          "The remote ip address to report, this may be different than"
          "--ip"),
-        ("contact-address", "", "remote-ip",
+        ("contact-address", "", UseAgentAddress.REMOTE,
          "Which address the master should use when talking back to an agent.  "
-         "Valid options are 'hostname', 'ip', and 'remote-ip'"),
+         "Valid options are %s" % list(UseAgentAddress)),
         ("ram", "", memory.TOTAL_RAM,
          "The total amount of ram installed on the agent which will be"
          "sent to the master"),
@@ -334,6 +334,8 @@ class ManagerService(MultiService):
             data=json.dumps(get_agent_data()))
 
         self.config["manager"] = ProcessManager(self.config)
+
+        return retry_post_agent
 
     def stopService(self):
         self.scheduled_tasks.stop()
