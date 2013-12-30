@@ -66,4 +66,3 @@ class TestConversionFunctions(TestCase):
                 self.assertEqual(converter("", value.upper()), value)
 
             self.assertRaises(UsageError, lambda: converter("", "foobar"))
-
