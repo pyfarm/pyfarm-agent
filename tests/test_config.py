@@ -18,6 +18,7 @@ from __future__ import with_statement
 
 import os
 import sys
+import uuid
 
 if sys.version_info[0:2] < (2, 7):
     from unittest2 import TestCase
@@ -31,20 +32,20 @@ from pyfarm.core.config import (
 
 class TestConfig(TestCase):
     def test_readenv_missing(self):
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         with self.assertRaises(EnvironmentError):
             read_env(key)
         self.assertEqual(read_env(key, 42), 42)
 
     def test_readenv_exists(self):
-        key = os.urandom(12).encode("hex")
-        value = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
+        value = uuid.uuid4().hex
         os.environ[key] = value
         self.assertEqual(read_env(key), value)
         del os.environ[key]
 
     def test_readenv_eval(self):
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
 
         for value in (True, False, 42, 3.141, None, [1, 2, 3]):
             os.environ[key] = str(value)
@@ -62,12 +63,12 @@ class TestConfig(TestCase):
 
     def test_read_env_bool(self):
         for true in BOOLEAN_TRUE:
-            key = os.urandom(12).encode("hex")
+            key = uuid.uuid4().hex
             os.environ[key] = true
             self.assertTrue(read_env_bool(key, False))
 
         for false in BOOLEAN_FALSE:
-            key = os.urandom(12).encode("hex")
+            key = uuid.uuid4().hex
             os.environ[key] = false
             self.assertFalse(read_env_bool(key, True))
 
@@ -75,31 +76,31 @@ class TestConfig(TestCase):
             read_env_bool("")
 
         with self.assertRaises(TypeError):
-            key = os.urandom(12).encode("hex")
+            key = uuid.uuid4().hex
             os.environ[key] = "42"
             read_env_bool(key, 1)
 
         with self.assertRaises(TypeError):
-            key = os.urandom(12).encode("hex")
+            key = uuid.uuid4().hex
             self.assertTrue(read_env_bool(key, 1))
 
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         self.assertTrue(read_env_bool(key, True))
 
     def test_read_env_number(self):
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "42"
         self.assertEqual(read_env_number(key), 42)
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "3.14159"
         self.assertEqual(read_env_number(key), 3.14159)
 
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "foo"
         with self.assertRaises(ValueError):
             self.assertEqual(read_env_number(key))
 
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "None"
         with self.assertRaises(TypeError):
             self.assertEqual(read_env_number(key))
@@ -108,12 +109,12 @@ class TestConfig(TestCase):
         with self.assertRaises(AssertionError):
             read_env_strict_number("")
 
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "3.14159"
         self.assertEqual(read_env_strict_number(key, number_type=float),
                          3.14159)
 
-        key = os.urandom(12).encode("hex")
+        key = uuid.uuid4().hex
         os.environ[key] = "42"
         with self.assertRaises(TypeError):
             read_env_strict_number(key, number_type=float)
