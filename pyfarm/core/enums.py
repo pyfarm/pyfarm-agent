@@ -130,7 +130,7 @@ except ImportError:  # pragma: no cover
 
 NOTSET = object()
 
-if sys.version_info.major >= 3:
+if sys.version_info[0] >= 3:
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
 else:
@@ -176,7 +176,7 @@ class Values(namedtuple("Values", ("int", "str"))):
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
-    if sys.version_info.major >= 3:
+    if sys.version_info[0] >= 3:
         NUMERIC_TYPES = int
     else:
         NUMERIC_TYPES = (int, long)
