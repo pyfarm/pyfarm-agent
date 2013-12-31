@@ -65,7 +65,7 @@ class BaseSystem(TestCase):
         self.remove(path)
 
     def test_case_sensitive_environment(self):
-        envvar_lower = uuid.uuid4().get_hex()
+        envvar_lower = uuid.uuid4().hex
         envvar_upper = envvar_lower.upper()
 
         # populate environment then compare the difference
