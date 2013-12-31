@@ -274,7 +274,7 @@ def ip(as_object=False):
         raise ValueError("no ip address found")
 
     # sort addresses based on how 'active' they appear
-    sums.sort(cmp=lambda a, b: 1 if a[1] > b[1] else -1, reverse=True)
+    sums.sort(key=lambda i: i[1], reverse=True)
 
     ip = netaddr.IPAddress(sums[0][0])
 
