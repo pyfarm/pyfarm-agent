@@ -41,6 +41,8 @@ except ImportError:
     from pyfarm.core.backports import NullHandler
 
 from pyfarm.core.logger import root as pyfarm_logger
+from pyfarm.core.enums import STRING_TYPES
+
 
 class TestCase(unittest.TestCase):
     TEMPDIR_PREFIX = ""
@@ -51,7 +53,7 @@ class TestCase(unittest.TestCase):
 
     @classmethod
     def remove(cls, path):
-        assert isinstance(path, basestring), "expected a string for `path`"
+        assert isinstance(path, STRING_TYPES), "expected a string for `path`"
 
         if os.path.isfile(path):
             delete = os.remove
