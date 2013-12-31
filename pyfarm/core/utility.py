@@ -26,8 +26,12 @@ from __future__ import division
 
 from decimal import Decimal, ROUND_HALF_DOWN
 from functools import partial
-from UserDict import UserDict
-from StringIO import StringIO
+from io import StringIO
+
+try:
+    from UserDict import UserDict
+except ImportError:  # pragma: no cover
+    from collections import UserDict
 
 try:
     _range = xrange
@@ -45,7 +49,7 @@ except ImportError:
     import simplejson as json
 
 from pyfarm.core.config import read_env_bool
-from pyfarm.core.enums import Values
+from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, Values
 
 
 class PyFarmJSONEncoder(json.JSONEncoder):
@@ -56,7 +60,7 @@ class PyFarmJSONEncoder(json.JSONEncoder):
         # dump out a tuple object instead.
         if isinstance(o, dict):
             o = o.copy()
-            for key, value in o.iteritems():
+            for key, value in o.items():
                 if isinstance(value, Values):
                     o[key] = value.str
 
@@ -93,8 +97,8 @@ def rounded(value, places=4, rounding=ROUND_HALF_DOWN):
     # rounding
     dec = Decimal(str(value))
     zeros = "0" * (places - 1)
-    rounded_float = dec.quantize(Decimal("0.%s1" % zeros),
-                                 rounding=rounding)
+    rounded_float = dec.quantize(
+        Decimal("0.%s1" % zeros), rounding=rounding)
 
     return float(rounded_float)
 
@@ -105,9 +109,9 @@ def _floatrange_generator(start, end, by, add_endpoint):
     are passed into this function via :func:`float_range`
     """
     # we can handle either integers or floats here
-    float_start = isinstance(start, (float, int))
-    float_end = isinstance(end, (float, int))
-    float_by = isinstance(by, (float, int))
+    float_start = isinstance(start, NUMERIC_TYPES)
+    float_end = isinstance(end, NUMERIC_TYPES)
+    float_by = isinstance(by, NUMERIC_TYPES)
     last_value = None
 
     if float_start and end is None and by is None:
@@ -225,7 +229,7 @@ class convert(object):
         return value / 1024
 
     @staticmethod
-    def ston(value, types=(int, float, long)):
+    def ston(value, types=NUMERIC_TYPES):
         """
         converts a string to an integer or fails with a useful error
         message
@@ -245,7 +249,7 @@ class convert(object):
             return value
 
         # we only convert strings
-        if not isinstance(value, basestring):
+        if not isinstance(value, STRING_TYPES):
             raise TypeError("`value` must be a string")
 
         value = literal_eval(value)
