@@ -17,126 +17,12 @@
 from __future__ import with_statement
 
 import os
-import time
 import uuid
-import stat
 import tempfile
 
-from utcore import TestCase, skip_on_ci
+from utcore import TestCase
 
 from pyfarm.core import files
-from pyfarm.core.files import TempFile, json_load, json_dump
-
-
-class TmpFile(TestCase):
-    @skip_on_ci
-    def test_delete(self):
-        with TempFile(delete=True) as s:
-            self.assertTrue(os.path.isfile(s.name))
-
-        max_time = 30
-        start = time.time()
-
-        while time.time()-start <= max_time:
-            if not os.path.isfile(s.name):
-                return
-
-            time.sleep(.1)
-
-        self.fail("failed %s" % s.name)
-
-    def test_nodelete(self):
-        with TempFile(delete=False) as s:
-            self.assertTrue(os.path.isfile(s.name))
-
-        self.assertTrue(os.path.isfile(s.name))
-
-    def test_dirname(self):
-        d = self.mktempdir()
-        with TempFile(root=d, delete=True) as s:
-            self.assertEqual(os.path.dirname(s.name), d)
-
-    def test_basename(self):
-        d = self.mktempdir()
-
-        with TempFile(prefix="foo", suffix=".txt", root=d, delete=True) as s:
-            base = os.path.basename(s.name)
-            self.assertTrue(base.startswith("foo"))
-            self.assertTrue(base.endswith(".txt"))
-
-    def test_tempfile_basename(self):
-        d = self.mktempdir()
-        with TempFile(prefix="foo", suffix=".txt", root=d, delete=True) as s:
-            base = os.path.basename(s.name)
-            self.assertTrue(base.startswith("foo"))
-            self.assertTrue(base.endswith(".txt"))
-
-
-class DumpJson(TestCase):
-    def test_error(self):
-        with self.assertRaises(TypeError):
-            json_dump("", lambda: None)
-
-    def test_tmppath(self):
-        dump_path = json_dump("")
-        self.assertTrue(dump_path.endswith(".json"))
-        self.assertTrue(dump_path.startswith(files.SESSION_DIRECTORY))
-
-    def test_path(self):
-        d = self.mktempdir()
-        expected_dump_path = os.path.join(d, "foo", "foo.json")
-        dump_path = json_dump("", path=expected_dump_path)
-        self.assertTrue(os.path.isdir(os.path.dirname(expected_dump_path)))
-        self.assertEqual(dump_path, expected_dump_path)
-
-    def test_file(self):
-        fileno, path = tempfile.mkstemp()
-
-        with open(path, "w") as stream:
-            result = json_dump({"foo": True}, stream)
-            self.assertEqual(result, stream.name)
-
-
-class LoadJson(TestCase):
-    def test_error(self):
-        with self.assertRaises(TypeError):
-            json_load(lambda: None)
-
-    def test_path(self):
-        data = os.environ.data.copy()
-        dumped_path = json_dump(data)
-        self.assertEqual(json_load(dumped_path), data)
-        
-    def test_stream(self):
-        data = os.environ.data.copy()
-        dumped_path = json_dump(data)
-        s = open(dumped_path, "r")
-        self.assertEqual(json_load(s), data)
-        self.assertTrue(s.closed)
-
-
-class TmpFile(TestCase):
-    def test_session(self):
-        self.assertTrue(files.tempdir().startswith(files.SESSION_DIRECTORY))
-
-    def test_envvar(self):
-        os.environ["PYFARM_TMP"] = self.mktempdir()
-        self.assertEqual(files.tempdir(respect_env=True),
-                         os.environ["PYFARM_TMP"])
-        self.assertEqual(os.path.dirname(files.tempdir(respect_env=False)),
-                         files.SESSION_DIRECTORY)
-
-    def test_unique(self):
-        self.assertNotEqual(
-            files.tempdir(respect_env=False),
-            files.tempdir(respect_env=False))
-
-    def test_mode(self):
-        st_mode = os.stat(files.tempdir()).st_mode
-        self.assertEqual(stat.S_IMODE(st_mode), files.DEFAULT_PERMISSIONS)
-        mode = stat.S_IRWXU
-        st_mode = os.stat(files.tempdir(mode=mode)).st_mode
-        self.assertEqual(stat.S_IMODE(st_mode), mode)
 
 
 class Expand(TestCase):
@@ -191,15 +77,13 @@ class Which(TestCase):
 
     def test_path(self):
         fh, filename = tempfile.mkstemp(
-            prefix="pyfarm-", suffix=".sh",
-            dir=files.tempdir())
+            prefix="pyfarm-", suffix=".sh")
 
         with open(filename, "w") as stream:
             pass
 
         os.environ["PATH"] = os.pathsep.join(
-            [os.environ["PATH"], os.path.dirname(filename)]
-        )
+            [os.environ["PATH"], os.path.dirname(filename)])
         basename = os.path.basename(filename)
         self.assertEqual(files.which(basename), filename)
 
