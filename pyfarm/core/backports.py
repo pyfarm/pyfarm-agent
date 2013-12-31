@@ -25,10 +25,11 @@ present in earlier versions of Python.
     this code comes from the standard library, none of it is original
 """
 
+from __future__ import print_function
 import __builtin__
+import sys as _sys
 from operator import itemgetter as _itemgetter
 from keyword import iskeyword as _iskeyword
-import sys as _sys
 from logging import Handler as _Handler
 from _ast import (  # import from _ast, ast was introduced in Python 2.6
     PyCF_ONLY_AST, Expression, Str, Num, Tuple,
@@ -219,14 +220,14 @@ def namedtuple(typename, field_names, verbose=False, rename=False):
     for i, name in enumerate(field_names):
         template += '        %s = _property(_itemgetter(%d))\n' % (name, i)
     if verbose:
-        print template
+        print(template)
 
     # Execute the template string in a temporary namespace
     namespace = dict(_itemgetter=_itemgetter, __name__='namedtuple_%s' % typename,
                      _property=property, _tuple=tuple)
     try:
-        exec template in namespace
-    except SyntaxError, e:
+        exec(template in namespace)
+    except SyntaxError as e:
         raise SyntaxError(e.message + ':\n' + template)
     result = namespace[typename]
 
