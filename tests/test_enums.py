@@ -29,15 +29,14 @@ from pyfarm.core.enums import (
     _OperatingSystem, _UseAgentAddress, _JobTypeLoadMode, DBUseAgentAddress,
     DBAgentState, DBOperatingSystem, DBWorkState, DBJobTypeLoadMode, Enum,
     Values, cast_enum)
-from pyfarm.core.warning import NotImplementedWarning
 
 
 class TestEnums(TestCase):
     def setUp(self):
-        warnings.simplefilter("ignore", NotImplementedWarning)
+        warnings.simplefilter("ignore", UserWarning)
 
     def tearDown(self):
-        warnings.simplefilter("always", NotImplementedWarning)
+        warnings.simplefilter("always", UserWarning)
 
     def test_values(self):
         # NOTE: The test below is auto generated with the below code.
@@ -287,14 +286,14 @@ class TestEnums(TestCase):
             enums.get_operating_system("FOO"), enums.OperatingSystem.OTHER)
 
     def test_cast_enum(self):
-        e = Enum("e", A=Values(-sys.maxint, "A"))
-        self.assertEqual(e.A.int, -sys.maxint)
+        e = Enum("e", A=Values(-4242, "A"))
+        self.assertEqual(e.A.int, -4242)
         self.assertEqual(e.A.str, "A")
         s = cast_enum(e, str)
         self.assertEqual(s.A, "A")
         i = cast_enum(e, int)
-        self.assertEqual(i.A, -sys.maxint)
-        self.assertEqual(i._map, {"A": -sys.maxint, -sys.maxint: "A"})
+        self.assertEqual(i.A, -4242)
+        self.assertEqual(i._map, {"A": -4242, -4242: "A"})
 
 
 class TestEnumValueClass(TestCase):
