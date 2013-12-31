@@ -43,6 +43,7 @@ except ImportError:  # pragma: no cover
     from pyfarm.core.backports import literal_eval
 
 from pyfarm.core.logger import getLogger
+from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES, NOTSET
 
 logger = getLogger("core.config")
 
@@ -50,8 +51,6 @@ logger = getLogger("core.config")
 # pulled from the environment after calling .lower().
 BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes"])
 BOOLEAN_FALSE = set(["0", "f", "n", "false", "no"])
-
-NOTSET = object()
 
 
 def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
@@ -113,7 +112,7 @@ def read_env(envvar, default=NOTSET, warn_if_unset=False, eval_literal=False,
         try:
             return literal_eval(value)
 
-        except (ValueError, SyntaxError), e:
+        except (ValueError, SyntaxError) as e:
             if raise_eval_exception:
                 raise
 
@@ -147,7 +146,7 @@ def read_env_bool(*args, **kwargs):
     value = read_env(*args, **kwargs)
     assert value is not notset, "default value required for `read_env_bool`"
 
-    if isinstance(value, basestring):
+    if isinstance(value, STRING_TYPES):
         value = value.lower()
 
         if value in BOOLEAN_TRUE:
@@ -178,10 +177,9 @@ def read_env_number(*args, **kwargs):
         raised if we either failed to convert the value from the environment
         variable or the value was not a float, integer, or long
     """
-    notset = object()
 
     if len(args) == 1:
-        kwargs.setdefault("default", notset)
+        kwargs.setdefault("default", NOTSET)
 
     kwargs["eval_literal"] = True
     try:
@@ -189,9 +187,9 @@ def read_env_number(*args, **kwargs):
     except ValueError:
         raise ValueError("failed to evaluate the data in $%s" % args[0])
 
-    assert value is not notset, "default value required for `read_env_number`"
+    assert value is not NOTSET, "default value required for `read_env_number`"
 
-    if not isinstance(value, (float, int, long)):
+    if not isinstance(value, NUMERIC_TYPES):
         raise TypeError("`read_env_number` did not return a number type object")
 
     return value
