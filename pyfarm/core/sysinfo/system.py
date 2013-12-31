@@ -89,7 +89,7 @@ def _case_sensitive_filesystem():  # pragma: no cover
 
 def _case_sensitive_environment():  # pragma: no cover
     """returns True if the environment is case sensitive"""
-    envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().get_hex()
+    envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
     envvar_upper = envvar_lower.upper()
 
     # populate environment then compare the difference (clean afterwards)
