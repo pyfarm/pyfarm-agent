@@ -6,7 +6,7 @@ python:
 install:
   - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
   - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install simplejson; fi
-  - pip install coverage python-coveralls psutil netifaces netaddr
+  - pip install coverage python-coveralls
   - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg # TODO: remove dev install
   - pip install git+git://github.com/pyfarm/pyfarm-jobtypes.git#egg=pyfarm.jobtypes --egg # TODO: remove dev install
   - pip install .
