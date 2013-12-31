@@ -2,18 +2,20 @@ language: python
 python:
   - 2.6
   - 2.7
+  - 3.2
+  - 3.3
 
 install:
   - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install unittest2 simplejson; fi
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then pip install coverage python-coveralls flask flask-sqlalchemy; fi
-  - pip install "psutil>=1.0.0" netifaces netaddr
+  - if [[ $TRAVIS_PYTHON_VERSION == 2.6 ]]; then pip install unittest2 simplejson; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == 2.* ]]; then pip install netifaces; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.* ]]; then pip install netifaces-py3; fi
+  - pip install nose coverage python-coveralls netaddr "psutil>=1.2.0"
   - pip install .
 
 script:
   - pip freeze
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then nosetests -s --verbose --with-coverage --cover-package=pyfarm.core tests; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == "2.5" ]]; then nosetests -s --verbose tests; fi
+  - nosetests -s --verbose --with-coverage --cover-package=pyfarm.core tests
 
 after_success:
-  - if [[ $TRAVIS_PYTHON_VERSION != "2.5" ]]; then coveralls; fi
+  - coveralls
