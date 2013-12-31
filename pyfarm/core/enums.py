@@ -128,7 +128,14 @@ try:
 except ImportError:  # pragma: no cover
     from pyfarm.core.backports import namedtuple
 
-from pyfarm.core.warning import NotImplementedWarning
+NOTSET = object()
+
+if sys.version_info.major >= 3:
+    STRING_TYPES = (str, )
+    NUMERIC_TYPES = (int, float, complex)
+else:
+    STRING_TYPES = (str, unicode)
+    NUMERIC_TYPES = (int, long, float, complex)
 
 
 def Enum(classname, **kwargs):
@@ -169,15 +176,19 @@ class Values(namedtuple("Values", ("int", "str"))):
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
+    if sys.version_info.major >= 3:
+        NUMERIC_TYPES = int
+    else:
+        NUMERIC_TYPES = (int, long)
+        
     check_uniqueness = True
     _integers = set()
-    _number_types = (int, long)
 
     def __init__(self, *args, **kwargs):
-        if not isinstance(self.int, self._number_types):
-            raise TypeError("`int` must be an integer")
+        if not isinstance(self.int, self.NUMERIC_TYPES):
+            raise TypeError("`int` must be an number")
 
-        if not isinstance(self.str, basestring):
+        if not isinstance(self.str, STRING_TYPES):
             raise TypeError("`str` must be a string")
 
         if self.check_uniqueness and self.int in self._integers:
@@ -198,9 +209,9 @@ class Values(namedtuple("Values", ("int", "str"))):
             self.__class__.__name__, self.int, repr(self.str))
 
     def __contains__(self, item):
-        if isinstance(item, basestring):
+        if isinstance(item, STRING_TYPES):
             return item == self.str
-        elif isinstance(item, self._number_types):
+        elif isinstance(item, self.NUMERIC_TYPES):
             return item == self.int
         elif isinstance(item, Values):
             return item.str == self.str and item.int == self.int
@@ -211,7 +222,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         return self.__contains__(other)
 
     def __gt__(self, other):
-        if isinstance(other, self._number_types):
+        if isinstance(other, self.NUMERIC_TYPES):
             return other < self.int
         elif isinstance(other, Values):
             return other.int < self.int
@@ -219,7 +230,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __ge__(self, other):
-        if isinstance(other, self._number_types):
+        if isinstance(other, self.NUMERIC_TYPES):
             return other <= self.int
         elif isinstance(other, Values):
             return other.int <= self.int
@@ -227,7 +238,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __lt__(self, other):
-        if isinstance(other, self._number_types):
+        if isinstance(other, self.NUMERIC_TYPES):
             return other > self.int
         elif isinstance(other, Values):
             return other.int > self.int
@@ -235,7 +246,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return False
 
     def __le__(self, other):
-        if isinstance(other, self._number_types):
+        if isinstance(other, self.NUMERIC_TYPES):
             return other >= self.int
         elif isinstance(other, Values):
             return other.int >= self.int
@@ -266,7 +277,7 @@ def cast_enum(enum, enum_type):
 
     # construct the reverse mapping and push
     # the request type into enum_data
-    for key, value in enum._asdict().iteritems():
+    for key, value in enum._asdict().items():
         reverse_map[value.int] = value.str
         reverse_map[value.str] = value.int
 
@@ -285,7 +296,7 @@ def cast_enum(enum, enum_type):
             if item in self._map:
                 return True
             else:
-                for key, value in self._enum._asdict().iteritems():
+                for key, value in self._enum._asdict().items():
                     if item in value:
                         return True
             return False
@@ -408,7 +419,7 @@ def get_operating_system(platform=sys.platform):
     elif platform.startswith("darwin"):
         return OperatingSystem.MAC
     else:
-        warn("unknown operating system: %s" % platform, NotImplementedWarning)
+        warn("unknown operating system: %s" % platform)
         return OperatingSystem.OTHER
 
 
