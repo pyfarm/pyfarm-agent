@@ -50,7 +50,6 @@ setup(
     long_description=long_description,
     classifiers=[
         "Development Status :: 4 - Beta",
-        "Environment :: Other Environment",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
