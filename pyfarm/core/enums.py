@@ -198,6 +198,9 @@ class Values(namedtuple("Values", ("int", "str"))):
 
         self._values = set([self.int, self.str])
 
+    def __hash__(self):
+        return self.str.__hash__()
+
     def __int__(self):
         return self.int
 
