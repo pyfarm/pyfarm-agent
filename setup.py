@@ -17,7 +17,7 @@
 from __future__ import with_statement
 
 import sys
-assert sys.version_info[0:2] < (3, 0), "Python 3.x is not yet supported"
+assert sys.version_info[0] < 3, "Python 3.x is not yet supported"
 assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 from os import walk
@@ -25,11 +25,17 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "pyfarm.jobtypes",
-    "psutil", "netifaces", "netaddr", "twisted", "statsd",
-    "PyOpenSSL", "ntplib", "requests", "txtemplate", "voluptuous"]
+    "pyfarm.core", "pyfarm.jobtypes", "psutil",
+    "netaddr", "twisted", "statsd", "PyOpenSSL",
+    "ntplib", "requests", "txtemplate", "voluptuous"]
 
-if sys.version_info[0:2] < (2, 7):
+if sys.version_info[0] == 2:
+    install_requires += ["netifaces"]
+
+# if sys.version_info[0] >= 3:
+#     install_requires += ["netifaces-py3"]
+
+if sys.version_info[0:2] == (2, 6):
     install_requires += ["simplejson", "importlib", "ordereddict"]
 
 if isfile("README.rst"):
@@ -116,8 +122,6 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 2 :: Only",  # (for now)
-        "Programming Language :: Python :: 2.5",
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Topic :: System :: Distributed Computing"])
