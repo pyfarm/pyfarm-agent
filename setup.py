@@ -117,8 +117,7 @@ setup(
     long_description=long_description,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
-        "Environment :: Other Environment",
-        "Intended Audience :: Developers",
+        "Environment :: No Input/Output (Daemon)",
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Operating System :: OS Independent",
