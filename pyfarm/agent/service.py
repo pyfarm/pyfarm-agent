@@ -43,6 +43,7 @@ except ImportError:
 
 from pyfarm.core.enums import UseAgentAddress, AgentState
 from pyfarm.core.utility import convert
+from pyfarm.core.config import read_env
 from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.http.server import make_http_server
@@ -161,7 +162,7 @@ class Options(usage.Options):  # pragma: no cover
         # before starting the main service code
         ("hostname", "", network.hostname(),
          "The agent's hostname to send to the master"),
-        ("ip", "", network.ip(),
+        ("ip", "", None,
          "The agent's local ip address to send to the master"),
         ("remote-ip", "", "",
          "The remote ip address to report, this may be different than"
@@ -392,11 +393,21 @@ class ManagerServiceMaker(object):
             if value is not None and key in options.optConverters:
                 value = options.optConverters[key](key, value)
 
+            # make sure that if the local ip address was not provided
+            # that we ask for it
+            if key == "ip" and value is None:
+                try:
+                    value = network.ip()
+                except ValueError:
+                    raise ValueError(
+                        "failed to determine local ip address, please specify "
+                        "it using the --ip flag")
+
             self.config[key] = value
 
         # set or raise error about missing http api server
-        http_server = self.config.get("http-api-server") or \
-                      self.config.get("master")
+        http_server = \
+            self.config.get("http-api-server") or self.config.get("master")
         if http_server is None:
             raise usage.UsageError(
                 "--master or --http-api-server must be provided")
