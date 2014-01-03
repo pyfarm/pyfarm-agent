@@ -17,45 +17,143 @@
 from twisted.internet import reactor
 
 from utcore import TestCase
-from pyfarm.agent.utility.objects import LoggingDictionary
+from pyfarm.agent.utility.objects import (
+    LoggingConfiguration, ConfigurationWithCallbacks)
 
 
-class TestObjects(TestCase):
+class ChangedLoggingConfiguration(LoggingConfiguration):
+    def __init__(self, *args, **kwargs):
+        self.created = []
+        self.modified = []
+        self.deleted = []
+        LoggingConfiguration.__init__(self, *args, **kwargs)
+
+    def changed(self, change_type, key, value):
+        if change_type == self.CREATED:
+            self.created.append(key)
+        elif change_type == self.MODIFIED:
+            self.modified.append(key)
+        elif change_type == self.DELETED:
+            self.deleted.append(key)
+
+
+class TestLoggingConfiguration(TestCase):
     def setUp(self):
-        super(TestObjects, self).setUp()
+        super(TestLoggingConfiguration, self).setUp()
         self.running = False
-        self.emitted = []
+        self.messages = []
 
-        # retrofit/cleanup the class so we can
-        # capture things as they happen
-        LoggingDictionary.log_queue.clear()
-        LoggingDictionary.reactor = self
-        self.lg = LoggingDictionary()
-        self.emitter = self.lg.emit
+        def capture_logs(_, message):
+            self.messages.append(message)
 
-        def emitter(value):
-            self.emitted.append(value)
-
-        self.lg.emit = emitter
+        LoggingConfiguration.reactor = self
+        LoggingConfiguration.log_queue.clear()
+        LoggingConfiguration._log = capture_logs
 
     def tearDown(self):
-        super(TestObjects, self).tearDown()
-        LoggingDictionary.reactor = reactor
+        super(TestLoggingConfiguration, self).tearDown()
+        LoggingConfiguration.reactor = reactor
 
-    def test_queues_log_messages(self):
-        self.lg["a"] = self.lg["b"] = None
-        self.assertEqual([("a", None), ("b", None)], list(self.lg.log_queue))
+    def test_queues_messages(self):
+        config = LoggingConfiguration()
+        config.changed(LoggingConfiguration.CREATED, "a", True)
+        self.assertEqual(
+            [(LoggingConfiguration.CREATED, "a", True)], list(config.log_queue))
 
-    def test_emit_queued_messages(self):
-        self.lg["a"] = self.lg["b"] = False
+    def test_playback_queued_messages(self):
+        config = LoggingConfiguration()
+        config.changed(LoggingConfiguration.CREATED, "a", True)
         self.running = True
-        self.lg["c"] = False
-        self.assertEqual(list(self.lg.log_queue), [])
-        self.assertEqual(self.emitted, ["a=False", "b=False", "c=False"])
+        self.assertEqual([], self.messages)
+        config.changed(LoggingConfiguration.CREATED, "b", False)
+        self.assertEqual(
+            ["created 'a' = True", "created 'b' = False"], self.messages)
 
-    def test_emit_log_for_changed_value(self):
+    def test_changed(self):
         self.running = True
-        self.lg["a"] = True
-        self.lg["a"] = False
-        self.assertEqual(list(self.lg.log_queue), [])
-        self.assertEqual(self.emitted, ["a=True", "a=False"])
+
+        config = ChangedLoggingConfiguration()
+
+        # test created
+        config["a"] = True
+        config.update(b=True)
+        config.update({"c": True})
+        config.setdefault("d", True)
+        self.assertEqual(config.created, ["a", "b", "c", "d"])
+        self.assertEqual(config.modified, [])
+        self.assertEqual(config.deleted, [])
+
+        # test modified
+        config["a"] = False
+        config.update(b=False)
+        config.update({"c": False})
+        config.setdefault("d", False)
+        self.assertEqual(config.created, ["a", "b", "c", "d"])
+        self.assertEqual(config.modified, ["a", "b", "c"])
+        self.assertEqual(config.deleted, [])
+
+        # test deleted
+        del config["a"]
+        config.pop("b")
+        self.assertEqual(config.created, ["a", "b", "c", "d"])
+        self.assertEqual(config.modified, ["a", "b", "c"])
+        self.assertEqual(config.deleted, ["a", "b"])
+
+
+class TestCallbackConfiguration(TestCase):
+    def setUp(self):
+        self.running = True
+
+        ConfigurationWithCallbacks.reactor = self
+        ConfigurationWithCallbacks.log_queue.clear()
+        ConfigurationWithCallbacks.callbacks.clear()
+
+    def tearDown(self):
+        ConfigurationWithCallbacks.reactor = reactor
+
+    def test_register_callback_once(self):
+        config = ConfigurationWithCallbacks()
+        callback = lambda: None
+        config.register_callback("a", callback)
+        config.register_callback("a", callback)
+        self.assertEqual({"a": [callback]}, config.callbacks)
+
+    def test_register_callback_multiple(self):
+        config = ConfigurationWithCallbacks()
+        callback = lambda: None
+        config.register_callback("a", callback)
+        config.register_callback("a", callback, append=True)
+        self.assertEqual({"a": [callback, callback]}, config.callbacks)
+
+    def test_deregister_callback(self):
+        config = ConfigurationWithCallbacks()
+        callback = lambda: None
+        config.register_callback("a", callback)
+        config.register_callback("a", callback, append=True)
+        config.deregister_callback("a", callback)
+        self.assertEqual({}, config.callbacks)
+
+    def test_callback_called(self):
+        created = []
+        modified = []
+        deleted = []
+
+        def callback(change_type, key, value, reactor_running):
+            self.assertEqual(reactor_running, self.running)
+            if change_type == ConfigurationWithCallbacks.CREATED:
+                created.append(key)
+            elif change_type == ConfigurationWithCallbacks.MODIFIED:
+                modified.append(key)
+            elif change_type == ConfigurationWithCallbacks.DELETED:
+                deleted.append(key)
+            else:
+                self.fail("invalid change type %s" % change_type)
+
+        config = ConfigurationWithCallbacks()
+        config.register_callback("a", callback)
+        config["a"] = True
+        config["a"] = False
+        del config["a"]
+        self.assertEqual(created, ["a"])
+        self.assertEqual(modified, ["a"])
+        self.assertEqual(deleted, ["a"])

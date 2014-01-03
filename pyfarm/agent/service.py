@@ -43,12 +43,11 @@ except ImportError:
 
 from pyfarm.core.enums import UseAgentAddress, AgentState
 from pyfarm.core.utility import convert
-from pyfarm.core.config import read_env
 from pyfarm.core.sysinfo import network, memory, cpu
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
-from pyfarm.agent.utility.objects import LoggingDictionary
+from pyfarm.agent.utility.objects import LoggingConfiguration
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
 
@@ -285,7 +284,6 @@ class ManagerService(MultiService):
         self.exception(response)
 
     def startService(self):
-        self.service_maker.config.log(None, None)
         self.info("informing master of agent startup")
 
         def get_agent_data():
@@ -385,7 +383,7 @@ class ManagerServiceMaker(object):
     tapname = "pyfarm.agent"
     description = __doc__
     options = Options
-    config = LoggingDictionary(logger_name="config_change")
+    config = LoggingConfiguration(logger_name="config_change")
 
     def makeService(self, options):
         # convert all incoming options to values we can use

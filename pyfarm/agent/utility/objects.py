@@ -24,44 +24,146 @@ fit well into other modules or that serve more than one purpose.
 """
 
 import logging
-
 from collections import deque
 from functools import partial
-from UserDict import IterableUserDict
+from UserDict import IterableUserDict, UserDict
 
 from twisted.internet import reactor
 from twisted.python import log
 
 
-class LoggingDictionary(IterableUserDict):
+class LoggingConfiguration(IterableUserDict):
     """
     Special configuration object which logs when a key is changed in
     a dictionary.  If the reactor is not running then log messages will
     be queued until they can be emitted so they are not lost.
     """
+    MODIFIED = "modified"
+    CREATED = "created"
+    DELETED = "deleted"
     log_queue = deque()
     reactor = reactor
-
-    def __init__(self, dict=None, **kwargs):
-        logger_name = kwargs.pop("logger_name", self.__class__.__name__)
-        IterableUserDict.__init__(self, dict=dict, **kwargs)
-        self.emit = partial(log.msg, system=logger_name, level=logging.INFO)
+    _log = partial(log.msg, system="config", level=logging.INFO)
 
     def __setitem__(self, key, value):
-        # key is not already set or key has changed
-        if key not in self.data or key in self.data and self.data[key] != value:
-            self.log(key, value)
+        if key not in self:
+            self.changed(self.CREATED, key, value)
+        elif self[key] != value:
+            self.changed(self.MODIFIED, key, value)
 
         IterableUserDict.__setitem__(self, key, value)
 
-    def log(self, k, v):
-        """either logs or waits to log depending on the reactor state"""
-        if not self.reactor.running and k is not None:
-            self.log_queue.append((k, v))
-        else:
-            while self.log_queue:
-                key, value = self.log_queue.popleft()
-                self.emit("%s=%s" % (key, repr(value)))
+    def __delitem__(self, key):
+        IterableUserDict.__delitem__(self, key)
+        self.changed(self.DELETED, key, None)
 
-            if k is not None and v is not None:
-                self.emit("%s=%s" % (k, repr(v)))
+    def pop(self, key, *args):
+        IterableUserDict.pop(self, key, *args)
+        self.changed(self.DELETED, key, None)
+
+    def clear(self):
+        keys = self.keys()
+        IterableUserDict.clear(self)
+
+        for key in keys:
+            self.changed(self.DELETED, key, None)
+
+    def update(self, data=None, **kwargs):
+        if isinstance(data, (dict, UserDict)):
+            for key, value in data.items():
+                if key not in self:
+                    self.changed(self.CREATED, key, value)
+                elif self[key] != value:
+                    self.changed(self.MODIFIED, key, value)
+
+        for key, value in kwargs.iteritems():
+            if key not in self:
+                self.changed(self.CREATED, key, value)
+            elif self[key] != value:
+                self.changed(self.MODIFIED, key, value)
+
+        IterableUserDict.update(self, dict=data, **kwargs)
+
+    def log(self, change_type, key, value):
+        key = repr(key)
+        value = repr(value)
+
+        if change_type == self.MODIFIED:
+            self._log("set %s = %s" % (key, value))
+
+        elif change_type == self.CREATED:
+            self._log("created %s = %s" % (key, value))
+
+        elif change_type == self.DELETED:
+            self._log("deleted %s" % key)
+
+    def changed(self, change_type, key, value):
+        # reactor not running?  Store the change until we can log it
+        if self.reactor.running:
+            # if we have log messages queued up and the reactor is running
+            # then pop each change and log it
+            while self.log_queue:
+                self.log(*self.log_queue.popleft())
+
+            self.log(change_type, key, value)
+
+        else:
+            self.log_queue.append((change_type, key, value))
+
+
+class ConfigurationWithCallbacks(LoggingConfiguration):
+    """
+    Subclass of :class:`.LoggingDictionary` that provides the ability to
+    run a function when a value is changed.
+    """
+    callbacks = {}
+
+    @classmethod
+    def register_callback(cls, key, callback, append=False):
+        """
+        Register a function as a callback for ``key``.  When ``key``
+        is set the given ``callback`` will be run by :meth:`.changed`
+
+        :param string key:
+            the key which when changed in any way will execute
+            ``callback``
+
+        :param callable callback:
+            the function or method to register
+
+        :param boolean append:
+            by default attempting to register a callback which has
+            already been registered will do nothing, setting this
+            to ``True`` overrides this behavior.
+        """
+        assert callable(callback)
+        callbacks = cls.callbacks.setdefault(key, [])
+
+        if callback in callbacks and not append:
+            cls._log(
+                "%s is already a registered callback for %s" % (callback, key),
+                level=logging.WARNING)
+        else:
+            callbacks.append(callback)
+
+    @classmethod
+    def deregister_callback(cls, key, callback):
+        if key in cls.callbacks and callback in cls.callbacks[key]:
+            # remove all instances of the callback
+            while callback in cls.callbacks[key]:
+                 cls.callbacks[key].remove(callback)
+
+            # if callbacks no longer exist, remove the key
+            if not cls.callbacks[key]:
+                cls.callbacks.pop(key)
+        else:
+            cls._log(
+                "%s is not a registered callback for %s" % key,
+                level=logging.WARNING)
+
+    def changed(self, change_type, key, value):
+        LoggingConfiguration.changed(self, change_type, key, value)
+
+        if key in self.callbacks:
+            for callback in self.callbacks[key]:
+                callback(change_type, key, value, self.reactor.running)
