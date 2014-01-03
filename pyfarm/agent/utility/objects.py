@@ -84,31 +84,29 @@ class LoggingConfiguration(IterableUserDict):
 
         IterableUserDict.update(self, dict=data, **kwargs)
 
-    def log(self, change_type, key, value):
+    @classmethod
+    def log(cls, *args, **kwargs):
+        if not cls.reactor.running:
+            cls.log_queue.append((args, kwargs))
+        else:
+            while cls.log_queue:
+                args, kwargs = cls.log_queue.popleft()
+                cls._log(*args, **kwargs)
+
+            cls._log(*args, **kwargs)
+
+    def changed(self, change_type, key, value):
         key = repr(key)
         value = repr(value)
 
         if change_type == self.MODIFIED:
-            self._log("set %s = %s" % (key, value))
+            self.log("modified %s = %s" % (key, value))
 
         elif change_type == self.CREATED:
-            self._log("created %s = %s" % (key, value))
+            self.log("set %s = %s" % (key, value))
 
         elif change_type == self.DELETED:
-            self._log("deleted %s" % key)
-
-    def changed(self, change_type, key, value):
-        # reactor not running?  Store the change until we can log it
-        if self.reactor.running:
-            # if we have log messages queued up and the reactor is running
-            # then pop each change and log it
-            while self.log_queue:
-                self.log(*self.log_queue.popleft())
-
-            self.log(change_type, key, value)
-
-        else:
-            self.log_queue.append((change_type, key, value))
+            self.log("deleted %s" % key)
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
@@ -140,11 +138,13 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            cls._log(
+            cls.log(
                 "%s is already a registered callback for %s" % (callback, key),
                 level=logging.WARNING)
         else:
             callbacks.append(callback)
+            cls.log("registered callback %s for %s" % (callback, key),
+                    level=logging.DEBUG)
 
     @classmethod
     def deregister_callback(cls, key, callback):
@@ -157,8 +157,8 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
             if not cls.callbacks[key]:
                 cls.callbacks.pop(key)
         else:
-            cls._log(
-                "%s is not a registered callback for %s" % key,
+            cls.log(
+                "%s is not a registered callback for %s" % (callback, key),
                 level=logging.WARNING)
 
     def changed(self, change_type, key, value):
@@ -167,3 +167,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         if key in self.callbacks:
             for callback in self.callbacks[key]:
                 callback(change_type, key, value, self.reactor.running)
+                self.log(
+                    "key %s was %s, calling callback %s" % (
+                        repr(key), change_type, callback),
+                    level=logging.DEBUG)
