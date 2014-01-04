@@ -58,16 +58,7 @@ class TestLoggingConfiguration(TestCase):
         config = LoggingConfiguration()
         config.changed(LoggingConfiguration.CREATED, "a", True)
         self.assertEqual(
-            [(LoggingConfiguration.CREATED, "a", True)], list(config.log_queue))
-
-    def test_playback_queued_messages(self):
-        config = LoggingConfiguration()
-        config.changed(LoggingConfiguration.CREATED, "a", True)
-        self.running = True
-        self.assertEqual([], self.messages)
-        config.changed(LoggingConfiguration.CREATED, "b", False)
-        self.assertEqual(
-            ["created 'a' = True", "created 'b' = False"], self.messages)
+            [(("set 'a' = True",), {})], list(config.log_queue))
 
     def test_changed(self):
         self.running = True
