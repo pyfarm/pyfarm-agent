@@ -52,6 +52,7 @@ root.addHandler(ROOT_HANDLER)
 root.propagate = 0  # other handlers should not process our messages (for now)
 root.setLevel(DEFAULT_LEVEL)
 
+
 def getLogger(name):
     """
     Wrapper around the :func:`logging.getLogger` function which
