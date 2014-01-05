@@ -35,6 +35,8 @@ except ImportError:
     from pyfarm.core.backports import NullHandler
 
 DEFAULT_LEVEL = logging.DEBUG
+DEFAULT_LEVELS = {
+    "pyfarm.core.config": logging.WARNING}
 
 # setup the root logger for PyFarm
 NAME_SEP = 20
@@ -50,14 +52,14 @@ root.addHandler(ROOT_HANDLER)
 root.propagate = 0  # other handlers should not process our messages (for now)
 root.setLevel(DEFAULT_LEVEL)
 
-
 def getLogger(name):
     """
     Wrapper around the :func:`logging.getLogger` function which
     ensures the name is setup properly.
     """
-    logger = logging.getLogger(".".join([root.name, name]))
-    logger.setLevel(DEFAULT_LEVEL)
+    name = ".".join([root.name, name])
+    logger = logging.getLogger(name)
+    logger.setLevel(DEFAULT_LEVELS.get(name, DEFAULT_LEVEL))
     return logger
 
 
