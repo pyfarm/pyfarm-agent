@@ -145,18 +145,6 @@ class Options(usage.Options):  # pragma: no cover
          "The prefix for accessing the http api on the master, this does not"
          "include the server, scheme, port, etc"),
 
-        # statsd setup
-        ("statsd-port", "", 8125,
-         "Default port that statsd runs on.  By default this value is combined "
-         "with --master but could also be combined with the alternate "
-         "--statsd-server"),
-        ("http-api-server", "", None,
-         "Alternate server which is running the restfull HTTP server.  This "
-         "will replace the value provided by the --master flag."),
-        ("statsd-server", "", None,
-         "Alternate server which is running the statsd service.  This will "
-         "replace the value provided by the --master flag."),
-
         # information about this agent which we send to the master
         # before starting the main service code
         ("hostname", "", network.hostname(),
@@ -234,7 +222,6 @@ class Options(usage.Options):  # pragma: no cover
         "http-max-retries": convert_option_stoi,
         "http-retry-delay": convert_option_ston,
         "http-api-port": convert_option_stoi,
-        "statsd-port": convert_option_stoi,
         "projects": convert_option_projects,
         "contact-address": convert_option_contact_addr,
         "ram": convert_option_ston,
@@ -423,18 +410,6 @@ class ManagerServiceMaker(object):
                 "server": http_server,
                 "port": str(self.config["http-api-port"]),
                 "prefix": self.config["http-api-prefix"]}
-
-        # set or raise error about missing statstd server
-        statsd_server = \
-            self.config.get("statsd-server") or self.config.get("master")
-
-        if statsd_server is None:
-            raise usage.UsageError(
-                "--master or --statsd-server must be provided")
-        else:
-            check_address(statsd_server)
-            self.config["statsd"] = ":".join(
-                [statsd_server, str(self.config["statsd-port"])])
 
         service = ManagerService(self)
         service.addService(make_http_server(self.config))

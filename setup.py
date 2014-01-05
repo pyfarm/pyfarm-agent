@@ -26,7 +26,7 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core", "pyfarm.jobtypes", "psutil",
-    "netaddr", "twisted", "statsd", "PyOpenSSL",
+    "netaddr", "twisted", "PyOpenSSL",
     "ntplib", "requests", "txtemplate", "voluptuous"]
 
 if sys.version_info[0] == 2:
