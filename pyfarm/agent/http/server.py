@@ -35,6 +35,8 @@ from pyfarm.core.enums import AgentState
 from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.http.resource import Resource, Request
 from pyfarm.agent.http.assign import Assign
+from pyfarm.agent.http.processes import Processes
+from pyfarm.agent.http.shutdown import Shutdown
 
 
 class Site(_Site):
@@ -115,16 +117,19 @@ def make_http_server(config):
     """
     make an http server and attach the endpoints to the service can use them
     """
+    # TODO: DELETE /tasks/<jobid>/<task> endpoint
     root = Resource(config)
 
-    # TODO: DELETE /tasks/<jobid>/<task> endpoint
-    root.putChild(
-        "", Index(config))
+    # static endpoints
     root.putChild(
         "favicon.ico", StaticFiles(config["static-files"] + "/favicon.ico"))
     root.putChild(
         "static", StaticFiles(config["static-files"]))
-    root.putChild(
-        "assign", Assign(config))
+
+    # 'operational' endpoints which handle most of the external requests
+    root.putChild("", Index(config))
+    root.putChild("assign", Assign(config))
+    root.putChild("processes", Processes(config))
+    root.putChild("shutdown", Shutdown(config))
 
     return TCPServer(config["port"], Site(root, config))
