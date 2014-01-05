@@ -39,10 +39,8 @@ DEFAULT_LEVELS = {
     "pyfarm.core.config": logging.WARNING}
 
 # setup the root logger for PyFarm
-NAME_SEP = 20
 ROOT_FORMAT = logging.Formatter(
-    fmt="[%(asctime)s] %(name)"+str(NAME_SEP)+"s %(levelname)8s - %(message)s",
-    datefmt="%d/%b/%Y %H:%M:%S")
+    fmt="%(asctime)s %(levelname)-9s - %(name)s - %(message)s")
 ROOT_HANDLER = logging.StreamHandler(sys.stdout)
 ROOT_HANDLER.setFormatter(ROOT_FORMAT)
 
