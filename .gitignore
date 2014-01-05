@@ -1,4 +1,5 @@
 *sql*
+*.pid*
 *.db
 *.log*
 *.pyc
