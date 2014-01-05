@@ -36,7 +36,7 @@ if sys.version_info[0] == 2:
 #     install_requires += ["netifaces-py3"]
 
 if sys.version_info[0:2] == (2, 6):
-    install_requires += ["simplejson", "importlib", "ordereddict"]
+    install_requires += ["simplejson", "importlib", "ordereddict", "argparse"]
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
@@ -107,6 +107,9 @@ setup(
     package_data={
         "pyfarm.agent": get_package_data()},
     namespace_packages=["pyfarm"],
+    entry_points={
+        "console_scripts": [
+            "pyfarm-agent = pyfarm.agent.entrypoints:agent"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-core",
