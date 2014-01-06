@@ -15,13 +15,14 @@
 # limitations under the License.
 
 import os
-import sys
 import shutil
 import tempfile
 from functools import wraps
 from nose.plugins.skip import SkipTest
 
-if sys.version_info[0:2] < (2, 7):
+from pyfarm.core.enums import PY26
+
+if PY26:
     import unittest2 as unittest
 else:
     import unittest

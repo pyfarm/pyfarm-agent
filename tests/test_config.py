@@ -17,10 +17,11 @@
 from __future__ import with_statement
 
 import os
-import sys
 import uuid
 
-if sys.version_info[0:2] < (2, 7):
+from pyfarm.core.enums import PY26
+
+if PY26:
     from unittest2 import TestCase
 else:
     from unittest import TestCase
