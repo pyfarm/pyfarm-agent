@@ -123,6 +123,20 @@ Describes which address should be used to contact the agent
 import sys
 from warnings import warn
 
+# Python 2.5 is not supported across the board.  If
+# somehow someone made it to this point, stop here.
+PY_MAJOR, PY_MINOR = sys.version_info[0:2]
+PY_VERSION = (PY_MAJOR, PY_MINOR)
+if PY_VERSION <= (2, 5):
+    raise RuntimeError("Python 2.5 and below is not supported")
+
+# general Python version constants which are
+# used elsewhere
+PY3 = PY_MAJOR == 3
+PY2 = PY_MAJOR == 2
+PY26 = PY_VERSION == (2, 6)
+PY27 = PY_VERSION == (2, 7)
+
 try:
     from collections import namedtuple
 except ImportError:  # pragma: no cover
@@ -130,7 +144,7 @@ except ImportError:  # pragma: no cover
 
 NOTSET = object()
 
-if sys.version_info[0] >= 3:
+if PY3:
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
 else:
@@ -176,7 +190,7 @@ class Values(namedtuple("Values", ("int", "str"))):
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
-    if sys.version_info[0] >= 3:
+    if PY3:
         NUMERIC_TYPES = int
     else:
         NUMERIC_TYPES = (int, long)
