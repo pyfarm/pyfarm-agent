@@ -23,7 +23,10 @@ Entry points for the agent, mainly :cmd:`pyfarm-agent`
 """
 
 import os
+import sys
+import atexit
 import argparse
+from os.path import isdir, isfile, dirname, abspath
 from functools import partial
 
 try:
@@ -42,6 +45,12 @@ try:
     import json
 except ImportError:  # pragma: no cover
     import simplejson as json
+
+try:
+    os.fork
+    FORK = True
+except AttributeError:
+    FORK = False
 
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
@@ -97,56 +106,112 @@ class AgentEntryPoint(object):
             "--gid", type=partial(self._get_id, flag="uid", get_id=getgrgid),
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
-        process_group.add_argument(
-            "--share-environment", default=False, action="store_true",
-            help="If provided pass along the environment this was tool "
-                 "launched in to the agent process.  By default this is not "
-                 "done so any processes the agent runs will have a clean "
-                 "environment.")
+
+        logging_group = self.parser.add_argument_group("Logging Options")
+        logging_group.add_argument(
+            "--log", default=os.devnull,
+            help="If provided log all output from the agent to this path.  "
+                 "This will append to any existing log data.  [default: "
+                 "%(default)s]")
+        logging_group.add_argument(
+            "--logerr",
+            help="If provided then split any output from stderr into this file "
+                 "path, otherwise send it to the same file as --log.")
+
+        services_group = self.parser.add_argument_group("Service Configuration")
+        services_group.add_argument(
+            "--port", default=50000, type=self._get_port,
+            help="The port to run the agent on")
+        services_group.add_argument(
+            "--bind", default="127.0.0.1",
+            help="The address the agent will be reachable at.")
+
+    def __call__(self):
+        self.args = self.parser.parse_args()
+
+        # if --logerr was not set then we have to set it
+        # to --log's value here
+        if self.args.logerr is None:
+            self.args.logerr = self.args.log
+
+        # since the agent process could fork we must make
+        # sure the log file paths are fully specified
+        self.args.log = abspath(self.args.log)
+        self.args.logerr = abspath(self.args.logerr)
+        self.args.pidfile = abspath(self.args.pidfile)
+
+        if self.args.chroot is not None:
+            self.args.chroot = abspath(self.args.chroot)
+
+        self.args.target_func()
+
+    def _get_port(self, value):
+
+        # convert the incoming argument to a number or fail
+        try:
+            value = convert.ston(value)
+        except ValueError:
+            self.parser.error("failed to convert --port to a number")
+
+        # make sure the port is within a permissible range
+        highest_port = 65535
+        if self.args.uid == 0:
+            lowest_port = 1
+        else:
+            lowest_port = 49152
+
+        if lowest_port <= value <= highest_port:
+            self.parser.error(
+                "valid port range is %s-%s" % (lowest_port, highest_port))
+
+        return value
 
     def _get_id(self, value=None, flag=None, get_id=None):
         """retrieves the user or group id for a command line argument"""
         if OS == OperatingSystem.WINDOWS:
             return
 
+        # convert the incoming argument to a number or fail
         try:
             value = convert.ston(value)
         except ValueError:
             self.parser.error("failed to convert --%s to a number" % flag)
 
+        # ensure that the uid or gid actually exists
         try:
             get_id(value)
         except KeyError:
             self.parser.error("%s %s does not seem to exist" % value)
-        else:
-            return value
+
+        # before returning the value, be sure we're a user that actually
+        # has the power to change the effective user or group
+        if os.getuid() != 0:
+            self.parser.error("only root can set --%s" % flag)
+
+        return value
 
     def _check_chroot_directory(self, path):
-        if not os.path.isdir(path):
+        if not isdir(path):
             self.parser.error(
                 "cannot chroot into '%s', it does not exist" % path)
 
         return path
 
-    def __call__(self):
-        self.args = self.parser.parse_args()
-        self.args.target_func()
+    def _mkdirs(self, path):
+        if path and not isdir(path):
+            os.makedirs(path)
 
-    def load_pid_file(self, path):
+    def load_pid_file(self):
         # read all data from the pid file
-        if not os.path.isfile(self.args.pidfile):
-            logger.info("pid file does not exist")
+        if not isfile(self.args.pidfile):
+            logger.debug("pid file does not exist, nothing to do")
             return
 
         with open(self.args.pidfile, "r") as pidfile:
-            data = pidfile.read().strip()
-            logger.debug("pidfile data: %s" % repr(data))
-
-            try:
-                pid, address, port = data.split(",")
-            except ValueError:
-                logger.error("invalid format in pid file")
-                raise
+            pid = pidfile.read().strip()
+            if not pid:
+                self.remove_pid_file(stale=True)
+                return
 
         # convert the pid to a number
         try:
@@ -155,37 +220,149 @@ class AgentEntryPoint(object):
             logger.error("failed to convert pid to a number")
             raise
 
-        # convert the port to a number
-        try:
-            port = convert.ston(port)
-        except ValueError:
-            logger.error("failed to convert port to a number")
-            raise
-
         # remove stale pid file
         if not psutil.pid_exists(pid):
-            logger.debug("process %s does not exist" % pid)
-            logger.info("removing stale process id file")
-            os.remove(self.args.pidfile)
+            self.remove_pid_file(stale=True)
 
-        return pid, address, port
+        return pid
+
+    def remove_pid_file(self, stale=False):
+        if isfile(self.args.pidfile):
+            os.remove(self.args.pidfile)
+            stale = " " if not stale else " stale "
+            logger.debug("removed%spid file %s" % (stale, self.args.pidfile))
+        else:
+            logger.debug(
+                "attempted to remove non-existent "
+                "pid file: %s" % self.args.pidfile)
+
+    def write_pid_file(self, pid):
+        self._mkdirs(dirname(self.args.pidfile))
+
+        # hard error, we should have handled this already
+        assert not isfile(self.args.pidfile)
+
+        with open(self.args.pidfile, "w") as pidfile:
+            pidfile.write(str(pid))
+
+        logger.debug("wrote pid file: %s" % pidfile.name)
+        atexit.register(self.remove_pid_file, pidfile.name)
+
+    def start_daemon(self):
+        """
+        Runs the agent process via a double fork.  This basically a duplicate
+        of Marcechal's original code with some adjustments:
+
+            http://www.jejik.com/articles/2007/02/
+            a_simple_unix_linux_daemon_in_python/
+
+        Source files from his post are here:
+            http://www.jejik.com/files/examples/daemon.py
+            http://www.jejik.com/files/examples/daemon3x.py
+        """
+        # first fork
+        try:
+            pid = os.fork()
+            if pid > 0:
+                sys.exit(0)
+        except OSError as e:
+            logger.error(
+                "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
+            sys.exit(1)
+
+        # decouple from the parent environment
+        os.chdir(self.args.chroot or "/")
+        os.setsid()
+        os.umask(0)
+
+        # second fork
+        try:
+            pid = os.fork()
+            if pid > 0:
+                sys.exit(0)
+        except OSError as e:
+            logger.error(
+                "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
+            sys.exit(1)
+
+        # flush any pending data before we duplicate
+        # the file descriptors
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        # open up file descriptors for the new process
+        stdin = open(os.devnull, "r")
+        stdout = open(self.args.log, "a+")
+        stderr = open(self.args.logerr, "a+", 0)
+        os.dup2(stdin.fileno(), sys.stdin.fileno())
+        os.dup2(stdout.fileno(), sys.stdout.fileno())
+        os.dup2(stderr.fileno(), sys.stderr.fileno())
+
+        #
+        # new process begins
+        #
+
+        # if requested, set the user id of this process
+        if self.args.uid:
+            os.setuid(self.args.uid)
+
+        # if requested, set the group id of this process
+        if self.args.gid:
+            os.setgid(self.args.gid)
 
     def start(self):
+        # check for an existing pid file
+        pid = self.load_pid_file()
+        if pid is not None and os.getpid() != pid:
+            logger.error("agent already running (pid: %s)" % pid)
+            return
+
+        elif pid is not None and os.getpid() == pid:
+            self.remove_pid_file(self.args.pidfile)
+
         logger.info("starting agent")
-        # TODO: if daemon on unix, double fork
-        # TODO: if --no-daemon start ``application`` in this process
-        # TODO: if daemon on windows, warn then start same as --no-daemon
+
+        if not isfile(self.args.log):
+            self._mkdirs(dirname(self.args.log))
+
+        if self.args.logerr != self.args.log and not \
+                isfile(self.args.logerr):
+            self._mkdirs(dirname(self.args.logerr))
+
+        # so long as FORK is True and we were not
+        # told run in the foreground start the daemon so
+        # all code after this executes in another process
+        if not self.args.no_daemon and FORK:
+            logger.info("sending stdout to %s" % self.args.log)
+            logger.info("sending stderr to %s" % self.args.logerr)
+            self.start_daemon()
+
+        elif not self.args.no_daemon and not FORK:
+            logger.warning(
+                "this platform does not support forking, "
+                "starting in foreground")
+
+        # always write out some information about the process
+        pid = os.getpid()
+        self.write_pid_file(pid)
+
+        logger.info("pid: %s" % pid)
+        logger.info("uid: %s" % os.getuid())
+        logger.info("gid: %s" % os.getgid())
+
+        # TODO: pidfile should ac
+        i = 0
+        while True:
+            i += 1
+            import time
+            print i
+            time.sleep(1)
+
+        # NOTE: this code *might* be running inside a daemon
 
     def stop(self):
         logger.info("stopping agent")
-
-        # retrieve the parent process id, address, and port
-        try:
-            pid, address, port = self.load_pid_file(self.args.pidfile)
-        except (IOError, OSError, ValueError, TypeError):
-            return  # error comes from load_pid_file
-
-        base_url = "http://%s:%s" % (address, port)
+        base_url = "http://%s:%s" % (self.args.bind, self.args.port)
 
         # attempt to get the list of processes running
         processes_url = base_url + "/processes"
@@ -193,41 +370,53 @@ class AgentEntryPoint(object):
         try:
             request = requests.get(processes_url)
         except ConnectionError:
-            logger.error(
-                "failed to retrieve process list, agent may already be stopped")
-            return
-
-        # even if the request went through the status code
-        # should be OK
-        if request.status_code != OK:
-            logger.error(
-                "status code %s received when trying to "
-                "query processes" % request.reason)
-            return
-
-        logger.info("stopping process on agent")
-        processes_url_template = base_url + "/processes/%s?wait=1"
-        for data in request.json():
-            uuid = data[0]
-            logger.debug("stopping %s" % uuid)
-            process_url = processes_url_template % (address, port, uuid)
-            result = requests.delete(process_url)
-
-            if result.status_code != OK:
-                logger.error("failed to stop process %s" % uuid)
+            logger.warning(
+                "failed to retrieve running child processes via REST, agent "
+                "may already be stopped")
+        else:
+            # even if the request went through the status code
+            # should be OK
+            if request.status_code != OK:
+                logger.error(
+                    "status code %s received when trying to "
+                    "query processes" % request.reason)
                 return
 
-        logger.info("shutting down agent")
-        result = requests.post(
-            base_url + "/shutdown?wait=1",
-            data=json.dumps({"reason": "command line shutdown"}),
-            headers={"Content-Type": "application/json"})
+            logger.info("stopping process on agent")
+            processes_url_template = base_url + "/processes/%s?wait=1"
+            for data in request.json():
+                uuid = data[0]
+                logger.debug("stopping %s" % uuid)
+                process_url = processes_url_template % (self.args.bind, self.args.port, uuid)
+                result = requests.delete(process_url)
 
-        if result.status_code != OK:
-            logger.error("agent shutdown failed")
-            return
+                if result.status_code != OK:
+                    logger.error("failed to stop process %s" % uuid)
+                    return
 
-        logger.info("agent stopped")
+            logger.info("shutting down agent")
+            result = requests.post(
+                base_url + "/shutdown?wait=1",
+                data=json.dumps({"reason": "command line shutdown"}),
+                headers={"Content-Type": "application/json"})
+
+            if result.status_code != OK:
+                logger.error("agent shutdown failed")
+                return
+
+        # retrieve the parent process id, address, and port
+        try:
+            pid = self.load_pid_file()
+        except (IOError, OSError, ValueError, TypeError):
+            return  # error comes from load_pid_file
+
+        if pid is None or not psutil.pid_exists(pid):
+            logger.info("process is not running")
+        else:
+            logger.debug("killing process %s" % pid)
+            process = psutil.Process(pid)
+            process.terminate()
+            logger.info("agent stopped")
 
     def restart(self):
         logger.debug("restarting agent")
@@ -236,5 +425,12 @@ class AgentEntryPoint(object):
 
     def status(self):
         logger.info("checking status")
+        pid = self.load_pid_file()
+
+        if pid is None:
+            logger.info("agent is not running")
+        else:
+            logger.info("agent is running, pid %s" % pid)
+
 
 agent = AgentEntryPoint()
