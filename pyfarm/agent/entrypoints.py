@@ -87,7 +87,34 @@ class AgentEntryPoint(object):
         restart.set_defaults(target_name="restart", target_func=self.restart)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        process_group = self.parser.add_argument_group("Parent Process Control")
+        #
+        # global options
+        #
+
+        services_group = self.parser.add_argument_group("Service Configuration")
+        services_group.add_argument(
+            "--port", default=50000, type=self._get_port,
+            help="The port to run the agent on")
+        services_group.add_argument(
+            "--bind", default="127.0.0.1",
+            help="The address the agent will be reachable at.")
+
+        #
+        # start target options
+        #
+
+        logging_group = start.add_argument_group("Logging Options")
+        logging_group.add_argument(
+            "--log", default=os.devnull,
+            help="If provided log all output from the agent to this path.  "
+                 "This will append to any existing log data.  [default: "
+                 "%(default)s]")
+        logging_group.add_argument(
+            "--logerr",
+            help="If provided then split any output from stderr into this file "
+                 "path, otherwise send it to the same file as --log.")
+
+        process_group = start.add_argument_group("Process Control")
         process_group.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
             help="If provided then do not run the process in the background.")
@@ -107,27 +134,23 @@ class AgentEntryPoint(object):
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
 
-        logging_group = self.parser.add_argument_group("Logging Options")
-        logging_group.add_argument(
-            "--log", default=os.devnull,
-            help="If provided log all output from the agent to this path.  "
-                 "This will append to any existing log data.  [default: "
-                 "%(default)s]")
-        logging_group.add_argument(
-            "--logerr",
-            help="If provided then split any output from stderr into this file "
-                 "path, otherwise send it to the same file as --log.")
-
-        services_group = self.parser.add_argument_group("Service Configuration")
-        services_group.add_argument(
-            "--port", default=50000, type=self._get_port,
-            help="The port to run the agent on")
-        services_group.add_argument(
-            "--bind", default="127.0.0.1",
-            help="The address the agent will be reachable at.")
-
     def __call__(self):
         self.args = self.parser.parse_args()
+
+        # if we're on windows, produce some warnings about
+        # flags which are not supported
+        if OS == OperatingSystem.WINDOWS:
+            if self.args.uid:
+                logger.warning(
+                    "--uid is not currently supported on Windows")
+
+            if self.args.gid:
+                logger.warning(
+                    "--gid is not currently supported on Windows")
+
+            if self.args.no_daemon:
+                logger.warning(
+                    "--no-daemon is not currently supported on Windows")
 
         # if --logerr was not set then we have to set it
         # to --log's value here
@@ -248,7 +271,7 @@ class AgentEntryPoint(object):
         logger.debug("wrote pid file: %s" % pidfile.name)
         atexit.register(self.remove_pid_file, pidfile.name)
 
-    def start_daemon(self):
+    def start_daemon_posix(self):
         """
         Runs the agent process via a double fork.  This basically a duplicate
         of Marcechal's original code with some adjustments:
@@ -335,7 +358,7 @@ class AgentEntryPoint(object):
         if not self.args.no_daemon and FORK:
             logger.info("sending stdout to %s" % self.args.log)
             logger.info("sending stderr to %s" % self.args.logerr)
-            self.start_daemon()
+            self.start_daemon_posix()
 
         elif not self.args.no_daemon and not FORK:
             logger.warning(
@@ -350,7 +373,6 @@ class AgentEntryPoint(object):
         logger.info("uid: %s" % os.getuid())
         logger.info("gid: %s" % os.getgid())
 
-        # TODO: pidfile should ac
         i = 0
         while True:
             i += 1
