@@ -22,10 +22,10 @@ Entry Points
 Entry points for the agent, mainly :cmd:`pyfarm-agent`
 """
 
+import argparse
+import atexit
 import os
 import sys
-import atexit
-import argparse
 from os.path import isdir, isfile, dirname, abspath
 from functools import partial
 
@@ -52,13 +52,15 @@ try:
 except AttributeError:
     FORK = False
 
-from pyfarm.core.logger import getLogger
-from pyfarm.core.utility import convert
-from pyfarm.core.enums import OperatingSystem, OS
-
+import netaddr
 import psutil
 import requests
+from netaddr.core import AddrFormatError
 from requests.exceptions import ConnectionError
+
+from pyfarm.core.enums import OperatingSystem, OS
+from pyfarm.core.logger import getLogger
+from pyfarm.core.utility import convert
 
 logger = getLogger("agent")
 
@@ -87,17 +89,20 @@ class AgentEntryPoint(object):
         restart.set_defaults(target_name="restart", target_func=self.restart)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        #
-        # global options
-        #
-
-        services_group = self.parser.add_argument_group("Service Configuration")
-        services_group.add_argument(
-            "--port", default=50000, type=self._get_port,
-            help="The port to run the agent on")
-        services_group.add_argument(
-            "--bind", default="127.0.0.1",
-            help="The address the agent will be reachable at.")
+        global_options = self.parser.add_argument_group("Global Options")
+        global_options.add_argument(
+            "--ip", default=self._default_ip(), type=self._validate_ip,
+            help="The IPv4 address the agent is either currently running on "
+                 "or will be running on when `start` is called.  By default "
+                 "this should be the remotely reachable address which right "
+                 "now appears to be %(default)s")
+        global_options.add_argument(
+            "--pidfile", default="pyfarm-agent.pid",
+            help="The file to store the process id in, defaulting to "
+                 "%(default)s.  Any provided path will be fully resolved "
+                 "using os.path.abspath prior to running an operation such "
+                 "as `start`")
+        # TODO: implement log level control
 
         #
         # start target options
@@ -118,9 +123,6 @@ class AgentEntryPoint(object):
         process_group.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
             help="If provided then do not run the process in the background.")
-        process_group.add_argument(
-            "--pidfile", default="pyfarm-agent.pid",
-            help="The file to store the process id in (default: %(default)s)")
         process_group.add_argument(
             "--chroot", type=self._check_chroot_directory,
             help="The directory to chroot the agent do upon launch.  This is "
@@ -152,21 +154,37 @@ class AgentEntryPoint(object):
                 logger.warning(
                     "--no-daemon is not currently supported on Windows")
 
-        # if --logerr was not set then we have to set it
-        # to --log's value here
-        if self.args.logerr is None:
-            self.args.logerr = self.args.log
+        if self.args.target_name == "start":
+            # if --logerr was not set then we have to set it
+            # to --log's value here
+            if self.args.logerr is None:
+                self.args.logerr = self.args.log
 
-        # since the agent process could fork we must make
-        # sure the log file paths are fully specified
-        self.args.log = abspath(self.args.log)
-        self.args.logerr = abspath(self.args.logerr)
-        self.args.pidfile = abspath(self.args.pidfile)
+            # since the agent process could fork we must make
+            # sure the log file paths are fully specified
+            self.args.log = abspath(self.args.log)
+            self.args.logerr = abspath(self.args.logerr)
+            self.args.pidfile = abspath(self.args.pidfile)
 
-        if self.args.chroot is not None:
-            self.args.chroot = abspath(self.args.chroot)
+            if self.args.chroot is not None:
+                self.args.chroot = abspath(self.args.chroot)
 
         self.args.target_func()
+
+    def _default_ip(self):
+        try:
+            from pyfarm.core.sysinfo import network
+            return network.ip()
+        except ValueError:
+            logger.error("failed to determine ip address, using 127.0.0.1")
+            return "127.0.0.1"
+
+    def _validate_ip(self, value):
+        try:
+            netaddr.IPAddress(value)
+            return value
+        except (ValueError, AddrFormatError):
+            self.parser.error("%s is not a valid ip address")
 
     def _get_port(self, value):
 
