@@ -26,7 +26,11 @@ fit well into other modules or that serve more than one purpose.
 import logging
 from collections import deque
 from functools import partial
-from UserDict import IterableUserDict, UserDict
+
+try:
+    from UserDict import IterableUserDict, UserDict
+except ImportError:
+    from collections import IterableUserDict, UserDict
 
 from twisted.internet import reactor
 from twisted.python import log
