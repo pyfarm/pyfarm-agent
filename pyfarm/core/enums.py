@@ -441,3 +441,7 @@ def get_operating_system(platform=sys.platform):
 
 
 OS = get_operating_system()
+POSIX = OS in (OperatingSystem.LINUX, OperatingSystem.MAC)
+WINDOWS = OS == OperatingSystem.WINDOS
+LINUX = OS == OperatingSystem.LINUX
+MAC = OS == OperatingSystem.MAC
