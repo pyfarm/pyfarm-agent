@@ -26,8 +26,8 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core", "pyfarm.jobtypes", "psutil",
-    "netaddr", "twisted", "PyOpenSSL",
-    "ntplib", "requests", "txtemplate", "voluptuous"]
+    "netaddr", "twisted", "ntplib", "requests",
+    "txtemplate", "voluptuous", "PyOpenSSL"]
 
 if sys.version_info[0] == 2:
     install_requires += ["netifaces"]
@@ -43,6 +43,7 @@ if isfile("README.rst"):
         long_description = readme.read()
 else:
     long_description = ""
+
 
 def get_package_data():
     master_root = join("pyfarm", "agent")
@@ -89,14 +90,3 @@ setup(
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Topic :: System :: Distributed Computing"])
-
-
-# Make Twisted regenerate the dropin.cache, if possible.  This is necessary
-# because in a site-wide install, dropin.cache cannot be rewritten by
-# normal users.
-try:
-    from twisted.plugin import IPlugin, getPlugins
-except ImportError:
-    pass
-else:
-    list(getPlugins(IPlugin))
