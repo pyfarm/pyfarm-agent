@@ -46,7 +46,6 @@ from twisted.web.client import (
     HTTPConnectionPool as _HTTPConnectionPool, Agent, ProxyAgent, ResponseDone)
 from twisted.web.http_headers import Headers
 from twisted.internet.endpoints import TCP4ClientEndpoint
-from twisted.internet.ssl import ClientContextFactory as _ClientContextFactory
 
 
 class SimpleReceiver(protocol.Protocol):
@@ -108,12 +107,6 @@ class StringProducer(object):
         pass
 
 
-class ClientContextFactory(_ClientContextFactory):
-    """Context factory used for supporting SSL connections"""
-    def getContext(self, hostname=None, port=None):
-        return ClientContextFactory.getContext(self)
-
-
 class HTTPConnectionPool(_HTTPConnectionPool):
     """:class:`._HTTPConnectionPool` object without retries"""
     retryAutomatically = False  # this will be handled internally
@@ -149,7 +142,9 @@ class WebClient(object):
             # possible SSL interception, warn about this because
             # it may or may not break the request
             if parsed_proxy.scheme == "https":
-                log.msg("proxy scheme is https!", level=logging.WARNING)
+                log.msg(
+                    "proxy scheme is https, ssl interception may occur",
+                    level=logging.WARNING)
 
             try:
                 proxy_server, proxy_port = parsed_proxy.netloc.split(":")
