@@ -58,7 +58,7 @@ import requests
 from netaddr.core import AddrFormatError
 from requests.exceptions import ConnectionError
 
-from pyfarm.core.enums import OperatingSystem, OS
+from pyfarm.core.enums import WINDOWS, POSIX
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 
@@ -141,7 +141,7 @@ class AgentEntryPoint(object):
 
         # if we're on windows, produce some warnings about
         # flags which are not supported
-        if OS == OperatingSystem.WINDOWS:
+        if WINDOWS:
             if self.args.uid:
                 logger.warning(
                     "--uid is not currently supported on Windows")
@@ -209,7 +209,7 @@ class AgentEntryPoint(object):
 
     def _get_id(self, value=None, flag=None, get_id=None):
         """retrieves the user or group id for a command line argument"""
-        if OS == OperatingSystem.WINDOWS:
+        if WINDOWS:
             return
 
         # convert the incoming argument to a number or fail
@@ -243,14 +243,14 @@ class AgentEntryPoint(object):
             os.makedirs(path)
 
     def load_pid_file(self):
-        # read all data from the pid file
         if not isfile(self.args.pidfile):
-            logger.debug("pid file does not exist, nothing to do")
             return
 
+        # try to retrieve the pid
         with open(self.args.pidfile, "r") as pidfile:
             pid = pidfile.read().strip()
             if not pid:
+                logger.warning("%s did not contain a pid" % self.args.pidfile)
                 self.remove_pid_file(stale=True)
                 return
 
@@ -261,11 +261,40 @@ class AgentEntryPoint(object):
             logger.error("failed to convert pid to a number")
             raise
 
-        # remove stale pid file
-        if not psutil.pid_exists(pid):
-            self.remove_pid_file(stale=True)
+        # this shouldn't happen....but just in case
+        if pid == os.getpid():
+            logger.warning(
+                "%s contains the current process pid" % self.args.pidfile)
+            return pid
 
-        return pid
+        # if the process exists, try to verify that it's actually
+        # 'our' process
+        try:
+            process = psutil.Process(pid)
+
+        except psutil.NoSuchProcess:
+            self.remove_pid_file(stale=True)
+            return pid
+        else:
+            process_name = process.name.lower()
+            logger.debug("process name: %s" % process_name)
+
+            # we're probably using the entry point
+            if process_name == "pyfarm-agent":
+                return pid
+
+            # might have been run directly or Windows
+            # is messing with the name so we need
+            # to try a little harder
+            elif process_name.startswith("python"):
+                logger.warning("%s appears to be a normal Python process" % pid)
+                return pid
+
+            else:
+                logger.error(
+                    "Process name is neither python or pyfarm-agent, instead "
+                    "it was '%s'." % process_name)
+                return
 
     def remove_pid_file(self, stale=False):
         if isfile(self.args.pidfile):
@@ -339,10 +368,6 @@ class AgentEntryPoint(object):
         os.dup2(stdout.fileno(), sys.stdout.fileno())
         os.dup2(stderr.fileno(), sys.stderr.fileno())
 
-        #
-        # new process begins
-        #
-
         # if requested, set the user id of this process
         if self.args.uid:
             os.setuid(self.args.uid)
@@ -367,7 +392,7 @@ class AgentEntryPoint(object):
             self._mkdirs(dirname(self.args.log))
 
         if self.args.logerr != self.args.log and not \
-                isfile(self.args.logerr):
+            isfile(self.args.logerr):
             self._mkdirs(dirname(self.args.logerr))
 
         # so long as FORK is True and we were not
@@ -397,8 +422,6 @@ class AgentEntryPoint(object):
             import time
             print i
             time.sleep(1)
-
-        # NOTE: this code *might* be running inside a daemon
 
     def stop(self):
         logger.info("stopping agent")
