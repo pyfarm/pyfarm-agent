@@ -27,13 +27,7 @@ from setuptools import setup
 install_requires = [
     "pyfarm.core", "pyfarm.jobtypes", "psutil",
     "netaddr", "twisted", "ntplib", "requests",
-    "txtemplate", "voluptuous", "PyOpenSSL"]
-
-if sys.version_info[0] == 2:
-    install_requires += ["netifaces"]
-
-# if sys.version_info[0] >= 3:
-#     install_requires += ["netifaces-py3"]
+    "txtemplate", "voluptuous", "PyOpenSSL", "netifaces-merged"]
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["simplejson", "importlib", "ordereddict", "argparse"]
