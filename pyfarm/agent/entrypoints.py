@@ -83,16 +83,20 @@ class AgentEntryPoint(object):
             "start", help="starts the agent")
         stop = subparsers.add_parser(
             "stop", help="stops the agent")
-        restart = subparsers.add_parser(
-            "restart", help="restarts the agent")
         status = subparsers.add_parser(
             "status", help="query the 'running' state of the agent")
 
         # setup the target names and functions for the subparsers
         start.set_defaults(target_name="start", target_func=self.start)
         stop.set_defaults(target_name="stop", target_func=self.stop)
-        restart.set_defaults(target_name="restart", target_func=self.restart)
         status.set_defaults(target_name="status", target_func=self.status)
+
+
+        # TODO: argparser attributes need to copy from start/stop
+        # restart = subparsers.add_parser(
+        #     "restart", help="restarts the agent")
+        # restart.set_defaults(target_name="restart", target_func=self.restart)
+
 
         global_options = self.parser.add_argument_group("Global Options")
         global_options.add_argument(
@@ -189,16 +193,17 @@ class AgentEntryPoint(object):
         #
         # restart -- process control (mostly referencing the above)
         #
-        restart_process_group = restart.add_argument_group("Process Control")
-        restart_process_group.add_argument(
-            *force.option_strings, help=force.help,
-            default=force.default, action="store_true")
-        restart_process_group.add_argument(
-            *no_wait.option_strings, help=no_wait.help,
-            default=no_wait.default, action="store_true")
-        restart_process_group.add_argument(
-            *ignore_pid_mismatch.option_strings, help=ignore_pid_mismatch.help,
-            default=ignore_pid_mismatch.default, action="store_true")
+        # TODO: argparser attributes need to copy from start/stop
+        # restart_process_group = restart.add_argument_group("Process Control")
+        # restart_process_group.add_argument(
+        #     *force.option_strings, help=force.help,
+        #     default=force.default, action="store_true")
+        # restart_process_group.add_argument(
+        #     *no_wait.option_strings, help=no_wait.help,
+        #     default=no_wait.default, action="store_true")
+        # restart_process_group.add_argument(
+        #     *ignore_pid_mismatch.option_strings, help=ignore_pid_mismatch.help,
+        #     default=ignore_pid_mismatch.default, action="store_true")
 
     def __call__(self):
         self.args = self.parser.parse_args()
@@ -632,19 +637,20 @@ class AgentEntryPoint(object):
                 process.terminate()
                 self.remove_pid_file()
 
-    def restart(self):
-        logger.debug("restarting agent")
-        self.stop()
-        self.start()
+    # TODO: argparser attributes need to copy from start/stop
+    # def restart(self):
+    #     logger.debug("restarting agent")
+    #     self.stop()
+    #     self.start()
 
     def status(self):
         logger.info("checking status")
-        pid = self.load_pid_file()
-
-        if pid is None:
-            logger.info("agent is not running")
+        if any(self.get_pids()):
+            logger.error("agent appears to be running")
+            return True
         else:
-            logger.info("agent is running, pid %s" % pid)
+            return False
+
 
 
 commands = AgentEntryPoint()
