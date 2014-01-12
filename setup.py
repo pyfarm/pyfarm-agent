@@ -58,6 +58,7 @@ setup(
     version="0.7.0-dev0",
     packages=["pyfarm",
               "pyfarm.agent",
+              "pyfarm.agent.entrypoints",
               "pyfarm.agent.http",
               "pyfarm.agent.process",
               "pyfarm.agent.utility"],
@@ -66,7 +67,7 @@ setup(
     namespace_packages=["pyfarm"],
     entry_points={
         "console_scripts": [
-            "pyfarm-agent = pyfarm.agent.entrypoints:commands"]},
+            "pyfarm-agent = pyfarm.agent.entrypoints:agent"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-core",

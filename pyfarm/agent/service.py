@@ -33,7 +33,8 @@ import requests
 from zope.interface import implementer
 from twisted.python import log, usage
 from twisted.plugin import IPlugin
-from twisted.application.service import IServiceMaker, MultiService
+from twisted.application.service import (
+    Application, IServiceMaker, MultiService, IServiceCollection)
 
 try:
     import json
@@ -50,6 +51,7 @@ from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.utility.objects import LoggingConfiguration
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
+from pyfarm.agent.config import config
 
 # determine template location
 import pyfarm.agent
@@ -238,8 +240,7 @@ class ManagerService(MultiService):
     """the service object itself"""
     ntp_client = ntplib.NTPClient()
 
-    def __init__(self, service_maker):
-        self.service_maker = service_maker
+    def __init__(self):
         self.scheduled_tasks = ScheduledTaskManager()
         self.log = partial(log.msg, system=self.__class__.__name__)
         self.info = partial(self.log, level=logging.INFO)
@@ -248,22 +249,18 @@ class ManagerService(MultiService):
 
         # register any scheduled tasks
         self.scheduled_tasks.register(
-            memory_utilization, self.config["memory-check-interval"],
-            func_args=(self.config, ))
+            memory_utilization, config["memory-check-interval"],
+            func_args=(config, ))
 
         # finally, setup the base class
         MultiService.__init__(self)
 
-    @property
-    def config(self):
-        return self.service_maker.config
-
     def _startServiceCallback(self, response):
         """internal callback used to start the service itself"""
-        self.config["agent-id"] = response["id"]
-        self.config["agent-url"] = \
-            self.config["http-api"] + "/agents/%s" % response["id"]
-        self.log("agent id is %s, starting service" % self.config["agent-id"])
+        config["agent-id"] = response["id"]
+        config["agent-url"] = \
+            config["http-api"] + "/agents/%s" % response["id"]
+        self.log("agent id is %s, starting service" % config["agent-id"])
         self.scheduled_tasks.start()
 
     def _failureCallback(self, response):
@@ -276,7 +273,7 @@ class ManagerService(MultiService):
         def get_agent_data():
             ntp_client = ntplib.NTPClient()
             try:
-                pool_time = ntp_client.request(self.config["ntp-server"])
+                pool_time = ntp_client.request(config["ntp-server"])
                 time_offset = int(pool_time.tx_time - time.time())
 
             except Exception, e:
@@ -289,21 +286,21 @@ class ManagerService(MultiService):
                              level=logging.WARNING)
 
             data = {
-                "hostname": self.config["hostname"],
-                "ip": self.config["ip"],
-                "use_address": self.config["contact-address"],
-                "ram": self.config["ram"],
-                "cpus": self.config["cpus"],
-                "port": self.config["port"],
+                "hostname": config["hostname"],
+                "ip": config["ip"],
+                "use_address": config["contact-address"],
+                "ram": config["ram"],
+                "cpus": config["cpus"],
+                "port": config["port"],
                 "free_ram": memory.ram_free(),
                 "time_offset": time_offset,
                 "state": AgentState.ONLINE}
 
-            if self.config.get("remote-ip"):
-                data.update(remote_ip=self.config["remote-ip"])
+            if config.get("remote-ip"):
+                data.update(remote_ip=config["remote-ip"])
 
-            if self.config.get("projects"):
-               data.update(projects=self.config["projects"])
+            if config.get("projects"):
+               data.update(projects=config["projects"])
 
             return data
 
@@ -311,22 +308,22 @@ class ManagerService(MultiService):
         retry_post_agent = RetryDeferred(
             http_post, self._startServiceCallback, self._failureCallback,
             headers={"Content-Type": "application/json"},
-            max_retries=self.config["http-max-retries"],
+            max_retries=config["http-max-retries"],
             timeout=None,
-            retry_delay=self.config["http-retry-delay"])
+            retry_delay=config["http-retry-delay"])
 
         retry_post_agent(
-            self.config["http-api"] + "/agents",
+            config["http-api"] + "/agents",
             data=json.dumps(get_agent_data()))
 
-        self.config["manager"] = ProcessManager(self.config)
+        config["manager"] = ProcessManager(config)
 
         return retry_post_agent
 
     def stopService(self):
         self.scheduled_tasks.stop()
 
-        if "agent-id" not in self.config:
+        if "agent-id" not in config:
             self.info(
                 "agent id was never set, cannot update master of state change")
             return
@@ -341,10 +338,10 @@ class ManagerService(MultiService):
             # at this point will just cause the deferred object to disappear
             # before being fired.
             response = requests.post(
-                self.config["agent-url"],
+                config["agent-url"],
                 headers={"Content-Type": "application/json"},
                 data=json.dumps(
-                    {"id": self.config["agent-id"],
+                    {"id": config["agent-id"],
                      "state": AgentState.OFFLINE}))
 
         except requests.RequestException, e:
@@ -353,65 +350,15 @@ class ManagerService(MultiService):
         else:
             if response.ok:
                 self.info(
-                    "agent %s state is now OFFLINE" % self.config["agent-id"])
+                    "agent %s state is now OFFLINE" % config["agent-id"])
             else:
                 self.error("ERROR SETTING AGENT STATE TO OFFLINE")
                 self.error("      code: %s" % response.status_code)
                 self.error("      text: %s" % response.text)
 
 
-
-@implementer(IServiceMaker, IPlugin)
-class ManagerServiceMaker(object):
-    """
-    Main service which which serves runs PyFarm's agent which consists
-    of and HTTP REST api and process management/monitoring.
-    """
-    tapname = "pyfarm.agent"
-    description = __doc__
-    options = Options
-    config = LoggingConfiguration(logger_name="config_change")
-
-    def makeService(self, options):
-        # convert all incoming options to values we can use
-        for key, value in options.items():
-            if value is not None and key in options.optConverters:
-                value = options.optConverters[key](key, value)
-
-            # make sure that if the local ip address was not provided
-            # that we ask for it
-            if key == "ip" and value is None:
-                try:
-                    value = network.ip()
-                except ValueError:
-                    raise ValueError(
-                        "failed to determine local ip address, please specify "
-                        "it using the --ip flag")
-
-            self.config[key] = value
-
-        # set or raise error about missing http api server
-        http_server = \
-            self.config.get("http-api-server") or self.config.get("master")
-        if http_server is None:
-            raise usage.UsageError(
-                "--master or --http-api-server must be provided")
-        else:
-            # make sure the http scheme is set properly
-            if self.config["http-api-scheme"] not in ("http", "https"):
-                raise usage.UsageError(
-                    "valid schemes for --http-api-scheme are 'http' or 'https'")
-
-            check_address(http_server)
-
-        self.config["http-api"] = \
-            "%(scheme)s://%(server)s:%(port)s%(prefix)s" % {
-                "scheme": self.config["http-api-scheme"],
-                "server": http_server,
-                "port": str(self.config["http-api-port"]),
-                "prefix": self.config["http-api-prefix"]}
-
-        service = ManagerService(self)
-        service.addService(make_http_server(self.config))
-
-        return service
+def setup_application(reactor, uid, gid):
+    application = Application("pyfarm.agent", uid=uid, gid=gid)
+    manager = ManagerService()
+    # manager.setServiceParent(application)
+    return application
