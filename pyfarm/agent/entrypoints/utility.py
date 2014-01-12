@@ -139,7 +139,7 @@ def get_process(pidfile):
                 "Process name is neither python or "
                 "pyfarm-agent, instead it was '%s'." % process_name)
 
-        return None, None
+    return None, None
 
 
 def get_pids(pidfile, index_url):
@@ -250,4 +250,4 @@ def write_pid_file(path, pid):
         except OSError as e:
             logger.warning("failed to remove %s: %s" % (pidfile, e))
 
-    atexit.register(remove_pid_file, pidfile)
+    atexit.register(remove_pid_file, path)
