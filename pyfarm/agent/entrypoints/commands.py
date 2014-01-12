@@ -213,7 +213,7 @@ class AgentEntryPoint(object):
 
     def start(self):
         # make sure the agent is not already running
-        if any(get_pids(self.args.pidfile)):
+        if any(get_pids(self.args.pidfile, self.index_url)):
             logger.error("agent appears to be running")
             return
 
@@ -263,7 +263,7 @@ class AgentEntryPoint(object):
 
     def stop(self):
         logger.info("stopping agent")
-        file_pid, http_pid = self.get_pids()
+        file_pid, http_pid = get_pids(self.args.pidfile, self.index_url)
 
         # the pids, process object, and child jobs were not found
         # by any means
@@ -358,7 +358,7 @@ class AgentEntryPoint(object):
 
     def status(self):
         logger.info("checking status")
-        if any(get_pids(self.args.pidfile)):
+        if any(get_pids(self.args.pidfile, self.index_url)):
             logger.error("agent appears to be running")
             return True
         else:
