@@ -38,7 +38,7 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.enums import OS, NUMERIC_TYPES
+from pyfarm.core.enums import OS
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import network
