@@ -248,6 +248,7 @@ def write_pid_file(path, pid):
     def remove_pid_file(pidfile):
         try:
             os.remove(pidfile)
+            logger.debug("removed %s" % pidfile)
         except OSError as e:
             logger.warning("failed to remove %s: %s" % (pidfile, e))
 
