@@ -47,11 +47,13 @@ import requests
 from requests import ConnectionError
 
 from pyfarm.core.logger import getLogger
-from pyfarm.core.enums import OS, WINDOWS
-from pyfarm.core.sysinfo import user
-from pyfarm.agent.entrypoints.check import ip, port, uidgid, chroot
+from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress
+from pyfarm.core.sysinfo import user, network
+from pyfarm.agent.config import config
+from pyfarm.agent.entrypoints.check import (
+    ip, port, uidgid, chroot, enum, integer, number)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file)
+    get_pids, start_daemon_posix, write_pid_file, get_default_ip)
 
 
 logger = getLogger("agent")
@@ -61,9 +63,13 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
-        self.parser = argparse.ArgumentParser()
+        self.parser = argparse.ArgumentParser(
+            usage="%(prog)s [status|start|stop]",
+            epilog="%(prog)s is a command line client for working with a "
+                   "local agent.  You can use it to stop, start, and report "
+                   "the general status of a running agent process.")
 
-        # add subparsers
+        # main subparser for start/stop/status/etc
         subparsers = self.parser.add_subparsers(
             help="individual operations %(prog)s can run")
         start = subparsers.add_parser(
@@ -73,33 +79,50 @@ class AgentEntryPoint(object):
         status = subparsers.add_parser(
             "status", help="query the 'running' state of the agent")
 
-        # setup the target names and functions for the subparsers
+        # relate a name and function to each subparser
         start.set_defaults(target_name="start", target_func=self.start)
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        global_network = self.parser.add_argument_group("Network Service")
-        global_network.add_argument(
-            "--ip", default="127.0.0.1",
-            type=partial(ip, instance=self),
-            help="The IPv4 address the agent is either currently running on "
-                 "or will be running on when `start` is called.  By default "
-                 "this should be the remotely reachable address which right "
-                 "now appears to be %(default)s")
+        # command line flags which configure the agent's network service
+        global_network = self.parser.add_argument_group("Agent Network Service")
         global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
             help="The port number which the agent is either running on or "
-                 "will started on.")
+                 "will started on.  This port is also reported the master "
+                 "when an agent starts.")
         global_network.add_argument(
-            "--api-username", default="agent",
+            "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
                  "using REST.")
         global_network.add_argument(
-            "--api-password", default="agent",
+            "--agent-api-password", default="agent",
             help="The password required to access manipulate the agent "
                  "using REST.")
 
+        # command line flags for the connecting the master apis
+        global_apis = self.parser.add_argument_group("Master Resources")
+        global_apis.add_argument(
+            "--master",
+            help="This is a convenience flag which will allow you to set the "
+                 "hostname for the master.  By default this value will be "
+                 "substituted in --master-api and --master-redis")
+        global_apis.add_argument(
+            "--master-api", default="http://%(master)s/api/v1",
+            help="The location where the master's REST api is located.")
+
+        global_apis.add_argument(
+            "--master-api", default="http://%(master)s/api/v1",
+            help="The location where the master's REST api is located, "
+                 "defaulting to %(default)s")
+        global_apis.add_argument(
+            "--redis", default="%(master)s:6379/0",
+            help="The location where redis can be contacted, defaulting "
+                 "to %(default)s")
+
+        # global command line flags which apply to top level
+        # process control
         global_process = self.parser.add_argument_group("Process Control")
         global_process.add_argument(
             "--pidfile", default="pyfarm-agent.pid",
@@ -108,9 +131,7 @@ class AgentEntryPoint(object):
                  "using os.path.abspath prior to running an operation such "
                  "as `start`")
 
-        #
-        # start - logging options
-        #
+        # start logging options
         logging_group = start.add_argument_group("Logging Options")
         logging_group.add_argument(
             "--log", default="pyfarm-agent.log",
@@ -122,9 +143,31 @@ class AgentEntryPoint(object):
             help="If provided then split any output from stderr into this file "
                  "path, otherwise send it to the same file as --log.")
 
-        #
-        # start - process control
-        #
+        # network options for the agent when start is called
+        start_network = start.add_argument_group("Network Service")
+        start_network.add_argument(
+            "--ip", default=get_default_ip(), type=partial(ip, instance=self),
+            help="The IPv4 address which the agent will report to the "
+                 "master [default: %(default)s]")
+        start_network.add_argument(
+            "--ip-remote", type=partial(ip, instance=self),
+            help="The remote IPv4 address to report.  In situation where the "
+                 "agent is behind a firewall this value will typically be "
+                 "different.")
+        start_network.add_argument(
+            "--use-address", default=UseAgentAddress.REMOTE,
+            type=partial(
+                enum, instance=self, flag="use-address",
+                enum=UseAgentAddress),
+            help="The default way the master should contact the agent.  The "
+                 "default is '%(default)s' but it could be any "
+                 "of " + str(list(UseAgentAddress)))
+        start_network.add_argument(
+            "--hostname", default=network.hostname(),
+            help="The agent's hostname to send to the master "
+                 "[default: %(default)s]")
+
+        # options for controlling how the process is launched
         start_process_group = start.add_argument_group("Process Control")
         start_process_group.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
@@ -149,14 +192,21 @@ class AgentEntryPoint(object):
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
 
+        # various options for how the agent will interact with the
+        # master server
         start_http_group = start.add_argument_group("HTTP Configuration")
         start_http_group.add_argument(
-            "--http-max-retries", default="unlimited"
-        )
+            "--http-max-retries", default="unlimited",
+            type=partial(integer, instance=self),
+            help="The max number of times to retry a request to the master "
+                 "after it has failed.  [default: %(default)s]")
+        start_http_group.add_argument(
+            "--http-retry-delay", default=3,
+            type=partial(number, instance=self),
+            help="If a http request to the master has failed, wait this amount "
+                 "of time before trying again")
 
-        #
-        # stop -- process control
-        #
+        # options when stopping the agent
         stop_process_group = stop.add_argument_group("Process Control")
         stop_process_group.add_argument(
             "--force", default=False, action="store_true",
@@ -208,7 +258,15 @@ class AgentEntryPoint(object):
             if self.args.chroot is not None:
                 self.args.chroot = abspath(self.args.chroot)
 
-        self.index_url = "http://%s:%s/" % (self.args.ip, self.args.port)
+            # update configuration with values from the command line
+            config["http-max-retries"] = self.args.http_max_retries
+            config["http-retry-delay"] = self.args.http_retry_delay
+            config["ip"] = self.args.ip
+            config["port"] = self.args.port
+            config["hostname"] = self.args.hostname
+            config["use_address"] = self.args.use_address
+
+        self.index_url = "http://127.0.0.1:%s/" % self.args.port
         self.args.target_func()
 
     def start(self):
@@ -350,10 +408,9 @@ class AgentEntryPoint(object):
                     logger.warning(
                         "failed to remove %s" % self.args.pidfile)
 
-
         from twisted.internet import reactor
-        from pyfarm.agent.service import setup_application
-        application = setup_application(reactor, self.args.uid, self.args.gid)
+        from pyfarm.agent.service import agent
+        agent(self.args.uid, self.args.gid)
         reactor.run()
 
     def status(self):
@@ -363,3 +420,4 @@ class AgentEntryPoint(object):
             return True
         else:
             return False
+

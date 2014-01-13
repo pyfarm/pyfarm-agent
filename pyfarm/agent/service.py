@@ -121,15 +121,6 @@ convert_option_agent_state = partial(convert_option_enum, enum=AgentState)
 
 class Options(usage.Options):  # pragma: no cover
     optParameters = [
-        # local 'server' settings
-        ("port", "p", 50000,
-         "The port which the master should use to talk back to the agent."),
-
-        # agent -> master communications
-        ("master", "", None,
-         "The master server's hostname or address.  If no other options are "
-         "provided to describe the location of specific services then the "
-         "resource urls will be built off of this address."),
         ("http-auth-user", "", None,
          "the user to use for connecting to the master's REST api.  The "
          "default is communication without authentication."),
@@ -143,22 +134,7 @@ class Options(usage.Options):  # pragma: no cover
         ("http-api-scheme", "", "http",
          "The scheme to use to communicate over http.  Valid values are "
          "'http' or 'https'"),
-        ("http-api-prefix", "", "/api/v1",
-         "The prefix for accessing the http api on the master, this does not"
-         "include the server, scheme, port, etc"),
 
-        # information about this agent which we send to the master
-        # before starting the main service code
-        ("hostname", "", network.hostname(),
-         "The agent's hostname to send to the master"),
-        ("ip", "", None,
-         "The agent's local ip address to send to the master"),
-        ("remote-ip", "", "",
-         "The remote ip address to report, this may be different than"
-         "--ip"),
-        ("contact-address", "", UseAgentAddress.REMOTE,
-         "Which address the master should use when talking back to an agent.  "
-         "Valid options are %s" % list(UseAgentAddress)),
         ("ram", "", memory.TOTAL_RAM,
          "The total amount of ram installed on the agent which will be"
          "sent to the master"),
@@ -357,8 +333,76 @@ class ManagerService(MultiService):
                 self.error("      text: %s" % response.text)
 
 
-def setup_application(reactor, uid, gid):
+def get_agent_data():
+    """
+    Returns a dictionary of data containing information about the
+    agent.  This is the information that is also passed along to
+    the master.
+    """
+    ntp_client = ntplib.NTPClient()
+
+    try:
+        pool_time = ntp_client.request(config["ntp-server"])
+        time_offset = int(pool_time.tx_time - time.time())
+
+    except Exception, e:
+        time_offset = 0
+        log.msg(
+            "failed to determine network time: %s" % e,
+            level=logging.WARNING)
+    else:
+        if time_offset:
+            log.msg(
+                "agent time offset is %s" % time_offset,
+                level=logging.WARNING)
+
+    data = {
+        "hostname": config["hostname"],
+        "ip": config["ip"],
+        "use_address": config["contact-address"],
+        "ram": config["ram"],
+        "cpus": config["cpus"],
+        "port": config["port"],
+        "free_ram": memory.ram_free(),
+        "time_offset": time_offset,
+        "state": AgentState.ONLINE}
+
+    if config.get("remote-ip"):
+        data.update(remote_ip=config["remote-ip"])
+
+    if config.get("projects"):
+       data.update(projects=config["projects"])
+
+    return data
+
+
+def agent(uid, gid):
     application = Application("pyfarm.agent", uid=uid, gid=gid)
+
+    def initial_post_success(response):
+        """internal callback used to start the service itself"""
+        config["agent-id"] = response["id"]
+        config["agent-url"] = \
+            config["http-api"] + "/agents/%s" % response["id"]
+
+        print "agent id is %s, starting service" % config["agent-id"]
+        # self.log("agent id is %s, starting service" % config["agent-id"])
+        # self.scheduled_tasks.start()
+
+    def initial_post_failure(response):
+        log.err(response)
+        # TODO: try again or write out some info for debugging
+
+    retry_post_agent = RetryDeferred(
+        http_post, initial_post_success, initial_post_failure,
+        headers={"Content-Type": "application/json"},
+        max_retries=config["http-max-retries"],
+        timeout=None,
+        retry_delay=config["http-retry-delay"])
+
+    agent_data = get_agent_data()
+
     manager = ManagerService()
     # manager.setServiceParent(application)
     return application
+
