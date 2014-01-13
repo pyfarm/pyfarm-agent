@@ -23,19 +23,19 @@ Basic functions for converting command line arguments.
 
 
 from argparse import ArgumentParser
-from functools import wraps
+from functools import partial, wraps
 from os.path import isdir
 
 from netaddr import AddrFormatError, IPAddress
 
-from pyfarm.core.enums import OS
+from pyfarm.core.enums import OS, NUMERIC_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 
 logger = getLogger("agent")
 
 
-def assert_parent(func):
+def assert_instance(func):
     """
     ensures that the instance argument passed along to the validation
     function contains data we expect
@@ -50,7 +50,7 @@ def assert_parent(func):
     return run
 
 
-@assert_parent
+@assert_instance
 def ip(value, instance=None):
     """make sure the ip address provided is valid"""
     try:
@@ -61,7 +61,7 @@ def ip(value, instance=None):
         return value
 
 
-@assert_parent
+@assert_instance
 def port(value, instance=None):
     """convert and check to make sure the provided port is valid"""
     try:
@@ -78,7 +78,7 @@ def port(value, instance=None):
 
         return value
 
-@assert_parent
+@assert_instance
 def uidgid(value=None, flag=None,
            get_id=None, check_id=None, set_id=None, instance=None):
         """
@@ -139,7 +139,7 @@ def uidgid(value=None, flag=None,
         return value
 
 
-@assert_parent
+@assert_instance
 def chroot(path, instance=None):
     """check to make sure the chroot directory exists"""
     if not isdir(path):
@@ -147,3 +147,33 @@ def chroot(path, instance=None):
             "cannot chroot into %s, it does not exist" % path)
 
     return path
+
+
+@assert_instance
+def number(value, types=None, instance=None):
+    """convert the given value to a number"""
+    if isinstance(value, NUMERIC_TYPES) \
+            or value.lower() in ("inf", "infinite", "unlimited"):
+        return value
+
+    try:
+        return convert.ston(value, types=types or NUMERIC_TYPES)
+
+    except SyntaxError:
+        instance.parser.error("failed to convert %s to a number" % repr(value))
+
+
+@assert_instance
+def enum(value, instance=None, enum=None, flag=None):
+    """ensures that ``value`` is a valid entry in ``enum``"""
+    assert enum is not None
+    value = value.lower()
+
+    if value not in enum:
+        instance.parser.error(
+            "invalid enum value %s for --%s, valid values are %s" % (
+                value, flag, list(enum)))
+
+    return value
+
+integer = partial(number, types=int)
