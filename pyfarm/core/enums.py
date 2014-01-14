@@ -193,7 +193,6 @@ Describes which address should be used to contact the agent
 """
 
 import sys
-from warnings import warn
 
 # Python 2.5 is not supported across the board.  If
 # somehow someone made it to this point, stop here.
