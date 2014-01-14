@@ -22,7 +22,8 @@ assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 from os.path import isfile
 from setuptools import setup
 
-install_requires = []
+install_requires = ["psutil", "netifaces-merged", "netaddr"]
+
 if sys.version_info[0:2] == (2, 6):
     install_requires.append("simplejson")
 
