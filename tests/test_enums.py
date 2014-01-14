@@ -23,13 +23,13 @@ if PY26:
 else:
     from unittest import TestCase
 
-from pyfarm.core import enums
+from pyfarm.core.sysinfo.system import operating_system
 from pyfarm.core.enums import (
     OS, WorkState, AgentState, OperatingSystem, UseAgentAddress,
-    JobTypeLoadMode, get_operating_system, _WorkState, _AgentState,
+    JobTypeLoadMode, _WorkState, _AgentState,
     _OperatingSystem, _UseAgentAddress, _JobTypeLoadMode, DBUseAgentAddress,
     DBAgentState, DBOperatingSystem, DBWorkState, DBJobTypeLoadMode, Enum,
-    Values, cast_enum)
+    Values, cast_enum, LINUX, MAC, WINDOWS, POSIX)
 
 
 class TestEnums(TestCase):
@@ -273,18 +273,17 @@ class TestEnums(TestCase):
         self.assertEqual(
             DBJobTypeLoadMode.OPEN, 321)
 
-    def test_os_value(self):
-        self.assertEqual(get_operating_system(), OS)
-
-    def test_getOs(self):
-        self.assertEqual(
-            enums.get_operating_system("linux"), enums.OperatingSystem.LINUX)
-        self.assertEqual(
-            enums.get_operating_system("win"), enums.OperatingSystem.WINDOWS)
-        self.assertEqual(
-            enums.get_operating_system("darwin"), enums.OperatingSystem.MAC)
-        self.assertEqual(
-            enums.get_operating_system("FOO"), enums.OperatingSystem.OTHER)
+    def test_os(self):
+        self.assertEqual(operating_system("linux"), OperatingSystem.LINUX)
+        self.assertEqual(operating_system("win"), OperatingSystem.WINDOWS)
+        self.assertEqual(operating_system("darwin"), OperatingSystem.MAC)
+        self.assertEqual(operating_system("FOO"), OperatingSystem.OTHER)
+        self.assertEqual(OS, operating_system())
+        self.assertEqual(LINUX, OS == OperatingSystem.LINUX)
+        self.assertEqual(MAC, OS == OperatingSystem.WINDOWS)
+        self.assertEqual(WINDOWS, OS == OperatingSystem.MAC)
+        self.assertEqual(POSIX,
+                         OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
 
     def test_cast_enum(self):
         e = Enum("e", A=Values(-4242, "A"))

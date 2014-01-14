@@ -21,11 +21,12 @@ import psutil
 import tempfile
 import uuid
 import netifaces
+from os.path import isfile
 
 from utcore import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import OS, OperatingSystem
 from pyfarm.core.sysinfo import system, network, cpu, memory, user
+from pyfarm.core.enums import LINUX
 
 
 class BaseSystem(TestCase):
@@ -45,37 +46,26 @@ class BaseSystem(TestCase):
         t2 = time.time() - psutil.BOOT_TIME
         self.assertEqual(t2 - t1 < 5, True)
 
-    def test_classvars(self):
-        self.assertEqual(system.OS, OS)
-        self.assertEqual(system.IS_LINUX, OS == OperatingSystem.LINUX)
-        self.assertEqual(system.IS_WINDOWS, OS == OperatingSystem.WINDOWS)
-        self.assertEqual(system.IS_MAC, OS == OperatingSystem.MAC)
-        self.assertEqual(system.IS_OTHER, OS == OperatingSystem.OTHER)
-        self.assertEqual(system.IS_POSIX,
-                         OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
-
     def test_case_sensitive_filesystem(self):
         fd, path = tempfile.mkstemp()
-        if path.islower() or not path.isupper():
-            senstive = os.path.isfile(path) and not os.path.isfile(path.upper())
-        else:
-            senstive = os.path.isfile(path) and not os.path.isfile(path.lower())
-
-        self.assertEqual(system.CASE_SENSITIVE_FILESYSTEM, senstive)
+        self.assertEqual(
+            not all(map(isfile, [path, path.lower(), path.upper()])),
+            system.filesystem_is_case_sensitive())
         self.remove(path)
 
     def test_case_sensitive_environment(self):
-        envvar_lower = uuid.uuid4().hex
+        envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
         envvar_upper = envvar_lower.upper()
 
         # populate environment then compare the difference
         os.environ.update({envvar_lower: "0", envvar_upper: "1"})
         self.assertEqual(
-            system.CASE_SENSITIVE_ENVIRONMENT,
-            os.environ[envvar_lower] != os.environ[envvar_upper])
+            os.environ[envvar_lower] != os.environ[envvar_upper],
+            system.environment_is_case_sensitive())
 
-        os.environ.pop(envvar_lower)
-        os.environ.pop(envvar_upper)
+        # remove the envvars we just made
+        for envvar in (envvar_lower, envvar_upper):
+            os.environ.pop(envvar, None)
 
 
 class Network(TestCase):
@@ -160,7 +150,7 @@ class Processor(TestCase):
         self.assertEqual(psutil.cpu_times().idle <= cpu.idle_time(), True)
 
     def test_iowait(self):
-        if system.IS_LINUX:
+        if LINUX:
             self.assertEqual(cpu.iowait() <= psutil.cpu_times().iowait, True)
         else:
             self.assertEqual(cpu.iowait(), None)
