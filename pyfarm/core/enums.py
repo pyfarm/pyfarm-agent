@@ -118,6 +118,78 @@ Describes which address should be used to contact the agent
     REMOTE, use the address which we received the request from
     HOSTNAME, disregard both the local IP and the remote IP and use the hostname
     PASSIVE, agent cannot be contacted but will still request work and process jobs
+
+:const PY_MAJOR:
+    the major Python version
+
+:const PY_MINOR:
+    the minor Python version
+
+:const PY_VERSION:
+    a tuple containing the major and minor Python versions
+
+:const PY3:
+    True if running Python 3
+
+:const PY2:
+    True if running Python 2
+
+:const PY26:
+    True if running Python 2.6
+
+:const PY27:
+    True if running Python 2.7
+
+:const NOTSET:
+    Instance of the object class, mainly used when None is actually
+    a valid value
+
+:const STRING_TYPES:
+    a tuple of string types, provided for Python 3 backwards compatibility
+
+:const NUMERIC_TYPES:
+    a tuple of integer types, provided for Python 3 backwards compatibility
+
+:const OS:
+    the current os type, the value will map to one of the values in
+    :class:`.OperatingSystem`
+
+:const POSIX:
+    True if ``OS in (OperatingSystem.LINUX, OperatingSystem.MAC)``
+
+:const WINDOWS:
+    True if ``OS == OperatingSystem.WINDOWS``
+
+:const LINUX:
+    True if ``OS == OperatingSystem.LINUX``
+
+:const MAC:
+    True if ``OS == OperatingSystem.MAC``
+
+:const CASE_SENSITIVE_FILESYSTEM:
+    True if the file system is case sensitive
+
+:const CASE_SENSITIVE_ENVIRONMENT:
+    True if environment variables are case sensitive
+
+:const ARCHITECTURE:
+    the system architecture, containing either ``32`` or ``64`` as an integer
+
+:const ARCHITECTURE64:
+    the system architecture, True if ``ARCHITECTURE == 64``
+
+:const ARCHITECTURE32:
+    the system architecture, True if ``ARCHITECTURE == 32``
+
+:const INTERPRETER_ARCHITECTURE:
+    the interpreter architecture, containing either ``32`` or ``64`` as an
+    integer
+
+:const INTERPRETER_ARCHITECTURE32:
+    the interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 32``
+
+:const INTERPRETER_ARCHITECTURE64:
+    the interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 64``
 """
 
 import sys
@@ -141,6 +213,11 @@ try:
     from collections import namedtuple
 except ImportError:  # pragma: no cover
     from pyfarm.core.backports import namedtuple
+
+
+from pyfarm.core.sysinfo.system import (
+    filesystem_is_case_sensitive, environment_is_case_sensitive,
+    machine_architecture, interpreter_architecture, operating_system)
 
 NOTSET = object()
 
@@ -370,12 +447,15 @@ _JobTypeLoadMode = Enum(
     OPEN=Values(321, "open"),
     IMPORT=Values(322, "import"))
 
-# cast the enums defined above
+# string versions of the enums above
 WorkState = cast_enum(_WorkState, str)
 AgentState = cast_enum(_AgentState, str)
 OperatingSystem = cast_enum(_OperatingSystem, str)
 UseAgentAddress = cast_enum(_UseAgentAddress, str)
 JobTypeLoadMode = cast_enum(_JobTypeLoadMode, str)
+
+# integer versions of the enums above, mainly declared for
+# direct use within queries
 DBWorkState = cast_enum(_WorkState, int)
 DBAgentState = cast_enum(_AgentState, int)
 DBOperatingSystem = cast_enum(_OperatingSystem, int)
@@ -427,21 +507,19 @@ APIError = Enum(
         6, "an unexpected number of fields or columns were provided"))
 
 
-def get_operating_system(platform=sys.platform):
-    """returns the operating system for the given platform"""
-    if platform.startswith("linux"):
-        return OperatingSystem.LINUX
-    elif platform.startswith("win"):
-        return OperatingSystem.WINDOWS
-    elif platform.startswith("darwin"):
-        return OperatingSystem.MAC
-    else:
-        warn("unknown operating system: %s" % platform)
-        return OperatingSystem.OTHER
-
-
-OS = get_operating_system()
+# operating system information
+OS = operating_system()
 POSIX = OS in (OperatingSystem.LINUX, OperatingSystem.MAC)
 WINDOWS = OS == OperatingSystem.WINDOWS
 LINUX = OS == OperatingSystem.LINUX
 MAC = OS == OperatingSystem.MAC
+
+# system information
+CASE_SENSITIVE_FILESYSTEM = filesystem_is_case_sensitive()
+CASE_SENSITIVE_ENVIRONMENT = environment_is_case_sensitive()
+ARCHITECTURE = machine_architecture()
+ARCHITECTURE64 = ARCHITECTURE == 64
+ARCHITECTURE32 = ARCHITECTURE == 32
+INTERPRETER_ARCHITECTURE = interpreter_architecture()
+INTERPRETER_ARCHITECTURE32 = INTERPRETER_ARCHITECTURE == 32
+INTERPRETER_ARCHITECTURE64 = INTERPRETER_ARCHITECTURE == 64
