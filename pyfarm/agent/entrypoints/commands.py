@@ -87,6 +87,10 @@ class AgentEntryPoint(object):
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group("Agent Network Service")
         global_network.add_argument(
+            "--ip", default=get_default_ip(), type=partial(ip, instance=self),
+            help="The IPv4 address which the agent will report to the "
+                 "master [default: %(default)s]")
+        global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
             help="The port number which the agent is either running on or "
@@ -101,6 +105,10 @@ class AgentEntryPoint(object):
             help="The password required to access manipulate the agent "
                  "using REST.")
 
+        # defaults for a couple of the command line flags below
+        self.master_api_default = "http://%(master)s/api/v1"
+        self.redis_default = "redis://%(master)s:6379/0"
+
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group("Master Resources")
         global_apis.add_argument(
@@ -109,15 +117,10 @@ class AgentEntryPoint(object):
                  "hostname for the master.  By default this value will be "
                  "substituted in --master-api and --master-redis")
         global_apis.add_argument(
-            "--master-api", default="http://%(master)s/api/v1",
+            "--master-api", default=self.master_api_default,
             help="The location where the master's REST api is located.")
-
         global_apis.add_argument(
-            "--master-api", default="http://%(master)s/api/v1",
-            help="The location where the master's REST api is located, "
-                 "defaulting to %(default)s")
-        global_apis.add_argument(
-            "--redis", default="%(master)s:6379/0",
+            "--redis", default=self.redis_default,
             help="The location where redis can be contacted, defaulting "
                  "to %(default)s")
 
@@ -130,6 +133,28 @@ class AgentEntryPoint(object):
                  "%(default)s.  Any provided path will be fully resolved "
                  "using os.path.abspath prior to running an operation such "
                  "as `start`")
+        global_process.add_argument(
+            "-n", "--no-daemon", default=False, action="store_true",
+            help="If provided then do not run the process in the background.")
+        global_process.add_argument(
+            "--chroot",
+            type=partial(chroot, instance=self),
+            help="The directory to chroot the agent do upon launch.  This is "
+                 "an optional security measure and generally is not ")
+        global_process.add_argument(
+            "--uid",
+            type=partial(
+                uidgid, flag="uid",
+                get_id=getuid, check_id=getpwuid, set_id=setuid, instance=self),
+            help="The user id to run the agent as.  *This setting is "
+                 "ignored on Windows.*")
+        global_process.add_argument(
+            "--gid",
+            type=partial(
+                uidgid, flag="uid",
+                get_id=getgid, check_id=getgrgid, set_id=setgid, instance=self),
+            help="The group id to run the agent as.  *This setting is "
+                 "ignored on Windows.*")
 
         # start logging options
         logging_group = start.add_argument_group("Logging Options")
@@ -145,10 +170,6 @@ class AgentEntryPoint(object):
 
         # network options for the agent when start is called
         start_network = start.add_argument_group("Network Service")
-        start_network.add_argument(
-            "--ip", default=get_default_ip(), type=partial(ip, instance=self),
-            help="The IPv4 address which the agent will report to the "
-                 "master [default: %(default)s]")
         start_network.add_argument(
             "--ip-remote", type=partial(ip, instance=self),
             help="The remote IPv4 address to report.  In situation where the "
@@ -166,31 +187,6 @@ class AgentEntryPoint(object):
             "--hostname", default=network.hostname(),
             help="The agent's hostname to send to the master "
                  "[default: %(default)s]")
-
-        # options for controlling how the process is launched
-        start_process_group = start.add_argument_group("Process Control")
-        start_process_group.add_argument(
-            "-n", "--no-daemon", default=False, action="store_true",
-            help="If provided then do not run the process in the background.")
-        start_process_group.add_argument(
-            "--chroot",
-            type=partial(chroot, instance=self),
-            help="The directory to chroot the agent do upon launch.  This is "
-                 "an optional security measure and generally is not ")
-        start_process_group.add_argument(
-            "--uid",
-            type=partial(
-                uidgid, flag="uid",
-                get_id=getuid, check_id=getpwuid, set_id=setuid, instance=self),
-            help="The user id to run the agent as.  *This setting is "
-                 "ignored on Windows.*")
-        start_process_group.add_argument(
-            "--gid",
-            type=partial(
-                uidgid, flag="uid",
-                get_id=getgid, check_id=getgrgid, set_id=setgid, instance=self),
-            help="The group id to run the agent as.  *This setting is "
-                 "ignored on Windows.*")
 
         # various options for how the agent will interact with the
         # master server
@@ -232,7 +228,22 @@ class AgentEntryPoint(object):
     def __call__(self):
         self.args = self.parser.parse_args()
 
-                # if we're on windows, produce some warnings about
+        # --master must always be provided
+        if not self.args.master:
+            self.parser.error(
+                "--master must be provided (ex. "
+                "'pyfarm-agent --master=foobar start')")
+
+        # replace %(master)s in --master-api if --master-api was not set
+        if self.args.master_api == self.master_api_default:
+            self.args.master_api = self.args.master_api % {
+                "master": self.args.master}
+
+        # replace %(master)s in --redis if --redis was not set
+        if self.args.redis == self.redis_default:
+            self.args.redis = self.args.redis % {"master": self.args.master}
+
+        # if we're on windows, produce some warnings about
         # flags which are not supported
         if WINDOWS and self.args.uid:
             logger.warning("--uid is not currently supported on Windows")
@@ -266,12 +277,12 @@ class AgentEntryPoint(object):
             config["hostname"] = self.args.hostname
             config["use_address"] = self.args.use_address
 
-        self.index_url = "http://127.0.0.1:%s/" % self.args.port
+        self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
         self.args.target_func()
 
     def start(self):
         # make sure the agent is not already running
-        if any(get_pids(self.args.pidfile, self.index_url)):
+        if any(get_pids(self.args.pidfile, self.agent_api)):
             logger.error("agent appears to be running")
             return
 
@@ -321,7 +332,7 @@ class AgentEntryPoint(object):
 
     def stop(self):
         logger.info("stopping agent")
-        file_pid, http_pid = get_pids(self.args.pidfile, self.index_url)
+        file_pid, http_pid = get_pids(self.args.pidfile, self.agent_api)
 
         # the pids, process object, and child jobs were not found
         # by any means
@@ -352,7 +363,7 @@ class AgentEntryPoint(object):
         # since the http server did give us a pid we assume we can post
         # the shutdown request directly to it
         if http_pid:
-            url = self.index_url + "shutdown?wait=%s" % self.args.no_wait
+            url = self.agent_api + "shutdown?wait=%s" % self.args.no_wait
             logger.debug("POST %s" % url)
             logger.info("requesting agent shutdown over REST api")
 
@@ -415,7 +426,7 @@ class AgentEntryPoint(object):
 
     def status(self):
         logger.info("checking status")
-        if any(get_pids(self.args.pidfile, self.index_url)):
+        if any(get_pids(self.args.pidfile, self.agent_api)):
             logger.error("agent appears to be running")
             return True
         else:
