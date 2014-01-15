@@ -26,6 +26,8 @@ import psutil
 
 # TODO: add 'logical' option to get only the real core count
 # TODO: use new psutil function
+# TODO: add normalized keyword (since hyperthreading/etc is
+# not 100% the same as a real core)
 def total_cpus():
     """Returns the total number of cpus installed on the system."""
     return psutil.NUM_CPUS
