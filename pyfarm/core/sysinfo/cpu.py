@@ -20,21 +20,15 @@ CPU
 
 Contains information about the cpu and its relation to the operating
 system such as load, processing times, etc.
-
-:const NUM_CPUS:
-    Returns the total number of cpus installed.  This first
-    attempts to use :func:`multiprocessing.cpu_count` before
-    falling back onto `psutil.NUM_CPUS`
 """
 
 import psutil
 
-try:
-    from multiprocessing import cpu_count
-    NUM_CPUS = cpu_count()
-
-except (ImportError, NotImplementedError):  # pragma: no cover
-    NUM_CPUS = psutil.NUM_CPUS
+# TODO: add 'logical' option to get only the real core count
+# TODO: use new psutil function
+def total_cpus():
+    """Returns the total number of cpus installed on the system."""
+    return psutil.NUM_CPUS
 
 
 def load(self, iterval=1):

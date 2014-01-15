@@ -132,13 +132,7 @@ class Network(TestCase):
 
 class Processor(TestCase):
     def test_count(self):
-        try:
-            import multiprocessing
-            cpu_count = multiprocessing.cpu_count()
-        except (ImportError, NotImplementedError):
-            cpu_count = psutil.NUM_CPUS
-
-        self.assertEqual(cpu.NUM_CPUS, cpu_count)
+        self.assertEqual(psutil.NUM_CPUS, cpu.total_cpus())
 
     def test_usertime(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
