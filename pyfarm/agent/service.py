@@ -24,17 +24,13 @@ such as log reading, system information gathering, and management of processes.
 
 import time
 import logging
-import socket
 from functools import partial
 from os.path import join, abspath, dirname
 
 import ntplib
 import requests
-from zope.interface import implementer
 from twisted.python import log, usage
-from twisted.plugin import IPlugin
-from twisted.application.service import (
-    Application, IServiceMaker, MultiService, IServiceCollection)
+from twisted.application.service import MultiService
 
 try:
     import json
@@ -42,13 +38,11 @@ except ImportError:
     import simplejson as json
 
 
-from pyfarm.core.enums import UseAgentAddress, AgentState
+from pyfarm.core.enums import AgentState
 from pyfarm.core.utility import convert
-from pyfarm.core.sysinfo import network, memory, cpu
+from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post as http_post
-from pyfarm.agent.http.server import make_http_server
 from pyfarm.agent.utility.retry import RetryDeferred
-from pyfarm.agent.utility.objects import LoggingConfiguration
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
@@ -57,16 +51,6 @@ from pyfarm.agent.config import config
 import pyfarm.agent
 TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
 STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
-
-
-def check_address(value):
-    # is this a valid ip address?
-    try:
-        socket.inet_aton(value)
-        return value
-
-    except socket.error:
-        raise ValueError("%s is not a valid IPv4 address" % value)
 
 
 def convert_option_ston(key, value, types=None):
@@ -103,54 +87,14 @@ def convert_option_projects(_, value):
     return filter(bool, map(str.strip, value.split(",")))
 
 
-def convert_option_enum(key, value, enum=None):
-    assert enum is not None
-    value = value.lower()
-    valid_values = list(enum)
-
-    if value not in valid_values:
-        raise usage.UsageError(
-            "invalid value for --%s, valid values are %s" % (
-                key, valid_values))
-
-    return value
-
-convert_option_contact_addr = partial(convert_option_enum, enum=UseAgentAddress)
-convert_option_agent_state = partial(convert_option_enum, enum=AgentState)
-
-
 class Options(usage.Options):  # pragma: no cover
     optParameters = [
-        ("http-auth-user", "", None,
-         "the user to use for connecting to the master's REST api.  The "
-         "default is communication without authentication."),
-        ("http-auth-password", "", None,
-         "The password to use to connect to the master's REST api.  The "
-         "default is communication without authentication."),
-        ("http-api-port", "", 5000,
-         "Default port the restfull HTTP api runs on.  By default this value "
-         "is combined with --master but could also be combined with the "
-         "alternate --http-api-server"),
-        ("http-api-scheme", "", "http",
-         "The scheme to use to communicate over http.  Valid values are "
-         "'http' or 'https'"),
-
-        ("ram", "", memory.TOTAL_RAM,
-         "The total amount of ram installed on the agent which will be"
-         "sent to the master"),
-        ("cpus", "", cpu.NUM_CPUS,
-         "The number of cpus this agent has which will be sent to the master."),
-        ("state", "", AgentState.ONLINE,
-         "The current agent state.  Valid values are %s" % list(AgentState)),
-
         # http retries/detailed configuration
         ("http-max-retries", "", "unlimited",
          "The max number of times to retry a request back to the master"),
         ("http-retry-delay", "", 3,
          "If a http request back to the master has failed, wait this amount of "
          "time before trying again"),
-
-        # TODO: add *_allocation columns
 
         # local agent settings which control some resources
         # and restrictions
@@ -195,21 +139,16 @@ class Options(usage.Options):  # pragma: no cover
 
     # special variable used for inferring type in makeService
     optConverters = {
-        "port": convert_option_stoi,
         "memory-check-interval": convert_option_ston,
         "http-max-retries": convert_option_stoi,
         "http-retry-delay": convert_option_ston,
         "http-api-port": convert_option_stoi,
         "projects": convert_option_projects,
-        "contact-address": convert_option_contact_addr,
-        "ram": convert_option_ston,
-        "cpus": convert_option_stoi,
         "ntp-server-version": convert_option_stoi,
         "ram-report-delta": convert_option_stoi,
         "swap-report-delta": convert_option_stoi,
         "ram-record-delta": convert_option_stoi,
-        "swap-record-delta": convert_option_stoi,
-        "state": convert_option_agent_state}
+        "swap-record-delta": convert_option_stoi}
 
 
 class ManagerService(MultiService):
@@ -264,7 +203,7 @@ class ManagerService(MultiService):
             data = {
                 "hostname": config["hostname"],
                 "ip": config["ip"],
-                "use_address": config["contact-address"],
+                "use_address": config["use-address"],
                 "ram": config["ram"],
                 "cpus": config["cpus"],
                 "port": config["port"],
@@ -359,7 +298,7 @@ def get_agent_data():
     data = {
         "hostname": config["hostname"],
         "ip": config["ip"],
-        "use_address": config["contact-address"],
+        "use_address": config["use-address"],
         "ram": config["ram"],
         "cpus": config["cpus"],
         "port": config["port"],
@@ -376,9 +315,7 @@ def get_agent_data():
     return data
 
 
-def agent(uid, gid):
-    application = Application("pyfarm.agent", uid=uid, gid=gid)
-
+def agent():
     def initial_post_success(response):
         """internal callback used to start the service itself"""
         config["agent-id"] = response["id"]
@@ -393,6 +330,8 @@ def agent(uid, gid):
         log.err(response)
         # TODO: try again or write out some info for debugging
 
+    # post the agent's status to the master before
+    # we do anything else
     retry_post_agent = RetryDeferred(
         http_post, initial_post_success, initial_post_failure,
         headers={"Content-Type": "application/json"},
@@ -401,8 +340,4 @@ def agent(uid, gid):
         retry_delay=config["http-retry-delay"])
 
     agent_data = get_agent_data()
-
-    manager = ManagerService()
-    # manager.setServiceParent(application)
-    return application
 

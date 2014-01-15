@@ -47,8 +47,8 @@ import requests
 from requests import ConnectionError
 
 from pyfarm.core.logger import getLogger
-from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress
-from pyfarm.core.sysinfo import user, network
+from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
+from pyfarm.core.sysinfo import user, network, memory, cpu
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.check import (
     ip, port, uidgid, chroot, enum, integer, number)
@@ -85,7 +85,10 @@ class AgentEntryPoint(object):
         status.set_defaults(target_name="status", target_func=self.status)
 
         # command line flags which configure the agent's network service
-        global_network = self.parser.add_argument_group("Agent Network Service")
+        global_network = self.parser.add_argument_group(
+            "Agent Network Service",
+            description="Main flags which control the network services running "
+                        "on the agent.")
         global_network.add_argument(
             "--ip", default=get_default_ip(), type=partial(ip, instance=self),
             help="The IPv4 address which the agent will report to the "
@@ -93,24 +96,27 @@ class AgentEntryPoint(object):
         global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
-            help="The port number which the agent is either running on or "
+            help="The port number which the gent is either running on or "
                  "will started on.  This port is also reported the master "
-                 "when an agent starts.")
+                 "when an agent starts. [default: %(default)s]")
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
-                 "using REST.")
+                 "using REST. [default: %(default)s]")
         global_network.add_argument(
             "--agent-api-password", default="agent",
             help="The password required to access manipulate the agent "
-                 "using REST.")
+                 "using REST. [default: %(default)s]")
 
         # defaults for a couple of the command line flags below
         self.master_api_default = "http://%(master)s/api/v1"
         self.redis_default = "redis://%(master)s:6379/0"
 
         # command line flags for the connecting the master apis
-        global_apis = self.parser.add_argument_group("Master Resources")
+        global_apis = self.parser.add_argument_group(
+            "Network Resource",
+            description="Resources which the agent will be communicating "
+                        "with.")
         global_apis.add_argument(
             "--master",
             help="This is a convenience flag which will allow you to set the "
@@ -126,7 +132,13 @@ class AgentEntryPoint(object):
 
         # global command line flags which apply to top level
         # process control
-        global_process = self.parser.add_argument_group("Process Control")
+        global_process = self.parser.add_argument_group(
+            "Process Control",
+            description="These settings apply to the parent process of the "
+                        "agent and contribute to allowing the process to run "
+                        "as other users or remain isolated in an environment. "
+                        "They also assist in maintaining the 'running state' "
+                        "via a process id file.")
         global_process.add_argument(
             "--pidfile", default="pyfarm-agent.pid",
             help="The file to store the process id in, defaulting to "
@@ -156,8 +168,35 @@ class AgentEntryPoint(object):
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
 
+        # start hardware information
+        hardware_group = start.add_argument_group(
+            "General Configuration",
+            description="These flags configure parts of the agent related to "
+                        "hardware, state, and certain timing and scheduling "
+                        "attributes.")
+        hardware_group.add_argument(
+            "--state", default=AgentState.ONLINE,
+            help="The current agent state, valid values are "
+                 "" + str(list(AgentState)) + ". [default: %(default)s]")
+        hardware_group.add_argument(
+            "--cpus", default=cpu.total_cpus(),
+            help="The total amount of cpus installed on the "
+                 "system [default: %(default)s]")
+        hardware_group.add_argument(
+            "--ram", default=memory.total_ram(),
+            help="The total amount of ram installed on the system in "
+                 "megabytes.  [default: %(default)s]")
+        hardware_group.add_argument(
+            "--swap", default=memory.total_swap(),
+            help="The total amount of swap installed on the system in "
+                 "megabytes.  [default: %(default)s]")
+
+
         # start logging options
-        logging_group = start.add_argument_group("Logging Options")
+        logging_group = start.add_argument_group(
+            "Logging Options",
+            description="Settings which control logging of the agent's parent "
+                        "process and/or any subprocess it runs.")
         logging_group.add_argument(
             "--log", default="pyfarm-agent.log",
             help="If provided log all output from the agent to this path.  "
@@ -169,7 +208,10 @@ class AgentEntryPoint(object):
                  "path, otherwise send it to the same file as --log.")
 
         # network options for the agent when start is called
-        start_network = start.add_argument_group("Network Service")
+        start_network = start.add_argument_group(
+            "Network Service",
+            description="Controls how the agent is seen or interacted with "
+                        "by external services (such as the master).")
         start_network.add_argument(
             "--ip-remote", type=partial(ip, instance=self),
             help="The remote IPv4 address to report.  In situation where the "
@@ -190,7 +232,10 @@ class AgentEntryPoint(object):
 
         # various options for how the agent will interact with the
         # master server
-        start_http_group = start.add_argument_group("HTTP Configuration")
+        start_http_group = start.add_argument_group(
+            "HTTP Configuration",
+            description="Options for how the agent will interact with the "
+                        "master's REST api.")
         start_http_group.add_argument(
             "--http-max-retries", default="unlimited",
             type=partial(integer, instance=self),
@@ -202,8 +247,12 @@ class AgentEntryPoint(object):
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 
+        # start_ram_group = start.add_argument_group("Memory")
+
         # options when stopping the agent
-        stop_process_group = stop.add_argument_group("Process Control")
+        stop_process_group = stop.add_argument_group(
+            "Process Control",
+            description="Flags that control how the agent is shutdown")
         stop_process_group.add_argument(
             "--force", default=False, action="store_true",
             help="Ignore any previous errors not covered by other flags and "
@@ -270,12 +319,18 @@ class AgentEntryPoint(object):
                 self.args.chroot = abspath(self.args.chroot)
 
             # update configuration with values from the command line
-            config["http-max-retries"] = self.args.http_max_retries
-            config["http-retry-delay"] = self.args.http_retry_delay
-            config["ip"] = self.args.ip
-            config["port"] = self.args.port
-            config["hostname"] = self.args.hostname
-            config["use_address"] = self.args.use_address
+            config_flags = {
+                "http-max-retries": self.args.http_max_retries,
+                "http-retry-delay": self.args.http_retry_delay,
+                "ip": self.args.ip,
+                "port": self.args.port,
+                "hostname": self.args.hostname,
+                "use-address": self.args.use_address,
+                "ram": self.args.ram,
+                "swap": self.args.swap,
+                "cpus": self.args.cpus}
+
+            config.update(config_flags)
 
         self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
         self.args.target_func()
@@ -329,6 +384,9 @@ class AgentEntryPoint(object):
 
         if getgid is not NotImplemented:
             logger.info("gid: %s" % getgid())
+
+        from pyfarm.agent.service import agent
+        agent()
 
     def stop(self):
         logger.info("stopping agent")
