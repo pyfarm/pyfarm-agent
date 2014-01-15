@@ -25,7 +25,7 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "pyfarm.jobtypes", "psutil",
+    "pyfarm.core", "pyfarm.jobtypes",
     "netaddr", "twisted", "ntplib", "requests",
     "txtemplate", "voluptuous", "PyOpenSSL", "netifaces-merged"]
 
