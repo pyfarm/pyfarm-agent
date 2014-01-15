@@ -158,11 +158,11 @@ class Processor(TestCase):
 
 class Memory(TestCase):
     def test_totalram(self):
-        self.assertEqual(memory.TOTAL_RAM,
+        self.assertEqual(memory.total_ram(),
                          convert.bytetomb(psutil.TOTAL_PHYMEM))
 
     def test_totalswap(self):
-        self.assertEqual(memory.TOTAL_SWAP,
+        self.assertEqual(memory.total_swap(),
                          convert.bytetomb(psutil.swap_memory().total))
 
     def test_swapused(self):

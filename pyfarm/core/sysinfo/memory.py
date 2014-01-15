@@ -20,19 +20,10 @@ Memory
 
 Provides information about memory including swap usage, system memory usage,
 and general capacity information.
-
-:const TOTAL_RAM:
-    Total physical memory (ram) installed on the system
-
-:const TOTAL_SWAP:
-    Total virtual memory (swap) installed on the system
 """
 
 import psutil
 from pyfarm.core.utility import convert
-
-TOTAL_RAM = convert.bytetomb(psutil.TOTAL_PHYMEM)
-TOTAL_SWAP = convert.bytetomb(psutil.swap_memory().total)
 
 
 def swap_used():
@@ -53,3 +44,12 @@ def ram_used():
 def ram_free():
     """Amount of ram currently free"""
     return convert.bytetomb(psutil.virtual_memory().available)
+
+
+def total_ram():
+    """Total physical memory (ram) installed on the system"""
+    return convert.bytetomb(psutil.TOTAL_PHYMEM)
+
+def total_swap():
+    """Total virtual memory (swap) installed on the system"""
+    return convert.bytetomb(psutil.swap_memory().total)
