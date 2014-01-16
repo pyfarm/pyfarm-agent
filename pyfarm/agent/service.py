@@ -25,7 +25,6 @@ such as log reading, system information gathering, and management of processes.
 import time
 import logging
 from functools import partial
-from os.path import join, abspath, dirname
 
 import ntplib
 import requests
@@ -39,108 +38,12 @@ except ImportError:
 
 
 from pyfarm.core.enums import AgentState
-from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
-
-# determine template location
-import pyfarm.agent
-TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
-STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
-
-
-def convert_option_ston(key, value, types=None):
-    # special "infinite" value reserved for some flags
-    if (isinstance(value, basestring) and key == "http-max-retries"
-            and value.lower() in ("inf", "infinite", "unlimited")):
-        return float("inf")
-
-    try:
-        # NOTE: some values are not covered by tests
-        # because they are covered in a base module
-        try:  # pragma: no cover
-            if types is None:
-                value = convert.ston(value)
-            else:
-                value = convert.ston(value, types=types)
-
-        except SyntaxError, e:
-            raise ValueError(e)
-
-        if key == "ram":
-            value = int(value)
-
-    except ValueError:
-        raise usage.UsageError(
-            "--%s requires a number but got %s" % (key, repr(value)))
-
-    return value
-
-convert_option_stoi = partial(convert_option_ston, types=int)
-
-
-def convert_option_projects(_, value):
-    return filter(bool, map(str.strip, value.split(",")))
-
-
-class Options(usage.Options):  # pragma: no cover
-    optParameters = [
-
-        # local agent settings which control some resources
-        # and restrictions
-        ("memory-check-interval", "", 10,
-         "how often swap and ram resources should be checked and sent to the "
-         "master"),
-        ("ram-report-delta", "", 75,
-         "If the amount of ram in use changes by this amount in megabytes "
-         "the the change will be reported to the master"),
-        ("swap-report-delta", "", 25,
-         "If the amount of swap in use changes by this amount in megabytes "
-         "the change will be reported to the master"),
-        ("ram-record-delta", "", 25,
-         "If the amount of ram in use changes by this amount in megabytes "
-         "the the change will recorded to the local datastore"),
-        ("swap-record-delta", "", 10,
-         "If the amount of swap in use changes by this amount in megabytes "
-         "the change will recorded to the local datastore"),
-        ("projects", "", "",
-         "A comma separated list of projects this agent is allowed to do work "
-         "for.  Note however that this only updates the master at the time "
-         "the agent is run.  Once the agent has been launched all further "
-         "'membership' is present in the database and acted on by the queue.  "
-         "By default, an agent can execute work for any project."),
-        ("ntp-server", "", "pool.ntp.org",
-         "The default network time server this agent should query to "
-         "retrieve the real time.  This will be used to help determine the "
-         "agent's click skew (if any)."),
-        ("ntp-server-version", "", 2,
-         "The version of the NTP server in case it's running an older or "
-         "newer version.  The default value should generally be used."),
-        ("html-templates", "", TEMPLATE_ROOT,
-         "The default location where the local web service should serve "
-         "html templates from."),
-        ("static-files", "", STATIC_ROOT,
-        "The default location where the agent should find static files"
-        "for the local web service.")]
-
-    optFlags = [
-        ("pretty-json", "",
-         "If provided then all json output is human readable")]
-
-    # special variable used for inferring type in makeService
-    optConverters = {
-        "memory-check-interval": convert_option_ston,
-        "http-api-port": convert_option_stoi,
-        "projects": convert_option_projects,
-        "ntp-server-version": convert_option_stoi,
-        "ram-report-delta": convert_option_stoi,
-        "swap-report-delta": convert_option_stoi,
-        "ram-record-delta": convert_option_stoi,
-        "swap-record-delta": convert_option_stoi}
 
 
 class ManagerService(MultiService):

@@ -15,17 +15,17 @@
 # limitations under the License.
 
 """
-Main
-~~~~
+Commands
+========
 
-The main module which constructs the entrypoint for ``pyfarm-agent``
+The main module which constructs the entrypoint(s) for the agent.
 """
 
 import argparse
 import os
 import time
 from functools import partial
-from os.path import abspath, dirname, isfile
+from os.path import abspath, dirname, isfile, join
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -50,13 +50,18 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
 from pyfarm.core.sysinfo import user, network, memory, cpu
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.check import (
-    ip, port, uidgid, chroot, enum, integer, number)
+from pyfarm.agent.entrypoints.argtypes import (
+    ip, port, uidgid, direxists, enum, integer, number)
 from pyfarm.agent.entrypoints.utility import (
     get_pids, start_daemon_posix, write_pid_file, get_default_ip)
 
 
 logger = getLogger("agent")
+
+# determine template location
+import pyfarm.agent
+TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
+STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
 
 
 class AgentEntryPoint(object):
@@ -114,9 +119,8 @@ class AgentEntryPoint(object):
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
-            "Network Resource",
-            description="Resources which the agent will be communicating "
-                        "with.")
+            "Network Resources",
+            description="Resources which the agent will be communicating with.")
         global_apis.add_argument(
             "--master",
             help="This is a convenience flag which will allow you to set the "
@@ -151,7 +155,7 @@ class AgentEntryPoint(object):
             help="If provided then do not run the process in the background.")
         global_process.add_argument(
             "--chroot",
-            type=partial(chroot, instance=self),
+            type=partial(direxists, instance=self, flag="chroot"),
             help="The directory to chroot the agent do upon launch.  This is "
                  "an optional security measure and generally is not ")
         global_process.add_argument(
@@ -169,28 +173,84 @@ class AgentEntryPoint(object):
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
 
-        # start hardware information
-        hardware_group = start.add_argument_group(
+        # start general group
+        start_general_group = start.add_argument_group(
             "General Configuration",
             description="These flags configure parts of the agent related to "
                         "hardware, state, and certain timing and scheduling "
                         "attributes.")
-        hardware_group.add_argument(
+        start_general_group.add_argument(
+            "--projects", default=["any"], nargs="+",
+            help="The project or projects this agent is dedicated to.  By "
+                 "default the agent will service any project however specific "
+                 "projects may be specified.  For example if you wish this "
+                 "agent to service 'Foo Part I' and 'Foo Part II' only just "
+                 "specify it as `--projects \"Foo Part I\" \"Foo Part II\"`")
+        start_general_group.add_argument(
             "--state", default=AgentState.ONLINE,
+            type=partial(enum, instance=self, enum=AgentState, flag="state"),
             help="The current agent state, valid values are "
                  "" + str(list(AgentState)) + ". [default: %(default)s]")
-        hardware_group.add_argument(
-            "--cpus", default=cpu.total_cpus(),
+        start_general_group.add_argument(
+            "--ntp-server", default="pool.ntp.org",
+            help="The default network time server this agent should query to "
+                 "retrieve the real time.  This will be used to help determine "
+                 "the agent's clock skew if any.  Setting this value to '' "
+                 "will effectively disable this query. [default: %(default)s]")
+        start_general_group.add_argument(
+            "--ntp-server-version", default=2,
+            type=partial(integer, instance=self, flag="ntp-server-version"),
+            help="The version of the NTP server in case it's running an older"
+                 "or newer version. [default: %(default)s]")
+        start_general_group.add_argument(
+            "--no-pretty-json", default=True, action="store_false",
+            dest="pretty_json",
+            help="If provided do not dump human readable json via the agent's "
+                 "REST api")
+
+        # start hardware group
+        start_hardware_group = start.add_argument_group(
+            "Physical Hardware",
+            description="Command line flags which describe the hardware of "
+                        "the agent.")
+        start_hardware_group.add_argument(
+            "--cpus", default=int(cpu.total_cpus()),
+            type=partial(integer, instance=self, flag="cpus"),
             help="The total amount of cpus installed on the "
                  "system [default: %(default)s]")
-        hardware_group.add_argument(
-            "--ram", default=memory.total_ram(),
+        start_hardware_group.add_argument(
+            "--ram", default=int(memory.total_ram()),
+            type=partial(integer, instance=self, flag="ram"),
             help="The total amount of ram installed on the system in "
                  "megabytes.  [default: %(default)s]")
-        hardware_group.add_argument(
-            "--swap", default=memory.total_swap(),
+        start_hardware_group.add_argument(
+            "--swap", default=int(memory.total_swap()),
+            type=partial(integer, instance=self, flag="swap"),
             help="The total amount of swap installed on the system in "
                  "megabytes.  [default: %(default)s]")
+
+        # start interval controls
+        start_interval_group = start.add_argument_group(
+            "Interval Controls",
+            description="Controls which dictate when certain internal "
+                        "intervals should occur.")
+        start_interval_group.add_argument(
+            "--memory-check-interval", default=10,
+            type=partial(integer, instance=self, flag="memory-check-interval"),
+            help="How often swap and ram resources should be checked for "
+                 "changes. Ram and swap are also checked after certain events "
+                 "too such as when a job starts or errors out. [default: "
+                 "%(default)s]")
+        start_interval_group.add_argument(
+            "--ram-report-delta", default=100,
+            type=partial(integer, instance=self, flag="ram-report-delta"),
+            help="Only report a change in ram if the value has changed "
+                 "at least this many megabytes. [default: %(default)s]")
+        start_interval_group.add_argument(
+            "--swap-report-delta", default=100,
+            type=partial(integer, instance=self, flag="ram-report-delta"),
+            help="Only report a change in swap if the value has changed "
+                 "at least this many megabytes. [default: %(default)s]")
 
 
         # start logging options
@@ -212,7 +272,7 @@ class AgentEntryPoint(object):
         start_network = start.add_argument_group(
             "Network Service",
             description="Controls how the agent is seen or interacted with "
-                        "by external services (such as the master).")
+                        "by external services such as the master.")
         start_network.add_argument(
             "--ip-remote", type=partial(ip, instance=self),
             help="The remote IPv4 address to report.  In situation where the "
@@ -236,10 +296,21 @@ class AgentEntryPoint(object):
         start_http_group = start.add_argument_group(
             "HTTP Configuration",
             description="Options for how the agent will interact with the "
-                        "master's REST api.")
+                        "master's REST api and how it should run it's own "
+                        "REST api.")
+        start_http_group.add_argument(
+            "--html-templates", default=TEMPLATE_ROOT,
+            type=partial(direxists, instance=self, flag="html-templates"),
+            help="The default location where the agent's http server should "
+                 "find the html templates. [default: %(default)s]")
+        start_http_group.add_argument(
+            "--static-files", default=STATIC_ROOT,
+            type=partial(direxists, instance=self, flag="static-files"),
+            help="The default location where the agent's http server should "
+                 "find static files to serve. [default: %(default)s]")
         start_http_group.add_argument(
             "--http-max-retries", default="unlimited",
-            type=partial(integer, instance=self),
+            type=partial(integer, instance=self, allow_inf=True, min_=0),
             help="The max number of times to retry a request to the master "
                  "after it has failed.  [default: %(default)s]")
         start_http_group.add_argument(
@@ -315,26 +386,42 @@ class AgentEntryPoint(object):
             self.args.log = abspath(self.args.log)
             self.args.logerr = abspath(self.args.logerr)
             self.args.pidfile = abspath(self.args.pidfile)
+            self.args.html_templates = abspath(self.args.html_templates)
+            self.args.static_files = abspath(self.args.static_files)
 
             if self.args.chroot is not None:
                 self.args.chroot = abspath(self.args.chroot)
 
             # update configuration with values from the command line
             config_flags = {
-                "http-max-retries": self.args.http_max_retries,
-                "http-retry-delay": self.args.http_retry_delay,
+                "redis": self.args.redis,
+                "master-api": self.args.master_api,
+                "hostname": self.args.hostname,
                 "ip": self.args.ip,
                 "port": self.args.port,
-                "hostname": self.args.hostname,
                 "use-address": self.args.use_address,
+                "state": self.args.state,
                 "ram": self.args.ram,
                 "swap": self.args.swap,
-                "cpus": self.args.cpus}
+                "cpus": self.args.cpus,
+                "projects": list(set(self.args.projects)),
+                "http-max-retries": self.args.http_max_retries,
+                "http-retry-delay": self.args.http_retry_delay,
+                "memory-check-interval": self.args.memory_check_interval,
+                "ram-report-delta": self.args.ram_report_delta,
+                "swap-report-delta": self.args.swap_report_delta,
+                "static-files": self.args.static_files,
+                "html-templates": self.args.html_templates,
+                "ntp-server": self.args.ntp_server,
+                "ntp-server-version": self.args.ntp_server_version,
+                "pretty-json": self.args.pretty_json,
+                "api_endpoint_prefix": "/api/v1"}
 
             config.update(config_flags)
 
         self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
         self.args.target_func()
+
 
     def start(self):
         # make sure the agent is not already running
