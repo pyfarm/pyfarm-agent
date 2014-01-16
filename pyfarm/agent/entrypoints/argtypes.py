@@ -142,11 +142,11 @@ def uidgid(value=None, flag=None,
 
 
 @assert_instance
-def chroot(path, instance=None):
-    """check to make sure the chroot directory exists"""
+def direxists(path, instance=None, flag=None):
+    """checks to make sure the directory exists"""
     if not isdir(path):
         instance.parser.error(
-            "cannot chroot into %s, it does not exist" % path)
+            "--%s, directory does not exist: %s" % (flag, path))
 
     return path
 
