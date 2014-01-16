@@ -15,10 +15,11 @@
 # limitations under the License.
 
 """
-Converters
-~~~~~~~~~~
+Argument Types
+==============
 
-Basic functions for converting command line arguments.
+Provides functions which are used to parser and/or convert
+arguments from the argparse object.
 """
 
 
