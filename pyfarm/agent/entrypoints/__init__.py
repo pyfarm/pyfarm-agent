@@ -15,13 +15,6 @@
 # limitations under the License.
 
 
-"""
-Agent Entry Points
-------------------
-
-Module for producing command line tools
-"""
-
 from pyfarm.agent.entrypoints.commands import AgentEntryPoint
 
 agent = AgentEntryPoint()
