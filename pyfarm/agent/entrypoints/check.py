@@ -151,8 +151,8 @@ def chroot(path, instance=None):
 
 
 @assert_instance
-def number(value, types=None, instance=None, allow_inf=True,
-           min_=0, flag=None):
+def number(value, types=None, instance=None, allow_inf=False, min_=1,
+           flag=None):
     """convert the given value to a number"""
     if isinstance(value, NUMERIC_TYPES):
         return value
@@ -165,7 +165,7 @@ def number(value, types=None, instance=None, allow_inf=True,
 
     try:
         value = convert.ston(value, types=types or NUMERIC_TYPES)
-        if min_ is not None and not value > min_:
+        if min_ is not None and value < min_:
             instance.parser.error(
                 "--%s's value must be greater than %s" % (flag, min_))
 
