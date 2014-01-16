@@ -89,12 +89,6 @@ def convert_option_projects(_, value):
 
 class Options(usage.Options):  # pragma: no cover
     optParameters = [
-        # http retries/detailed configuration
-        ("http-max-retries", "", "unlimited",
-         "The max number of times to retry a request back to the master"),
-        ("http-retry-delay", "", 3,
-         "If a http request back to the master has failed, wait this amount of "
-         "time before trying again"),
 
         # local agent settings which control some resources
         # and restrictions
@@ -140,8 +134,6 @@ class Options(usage.Options):  # pragma: no cover
     # special variable used for inferring type in makeService
     optConverters = {
         "memory-check-interval": convert_option_ston,
-        "http-max-retries": convert_option_stoi,
-        "http-retry-delay": convert_option_ston,
         "http-api-port": convert_option_stoi,
         "projects": convert_option_projects,
         "ntp-server-version": convert_option_stoi,
