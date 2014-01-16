@@ -16,7 +16,7 @@
 
 """
 Utility
-~~~~~~~
+=======
 
 Small objects and functions which facilitate operations
 on the main entry point class.
@@ -118,7 +118,6 @@ def get_process(pidfile):
     else:
         process_name = process.name.lower()
         logger.debug("%s is named '%s'" % (pid, process_name))
-
 
         # the vast majority of the time, the process will be
         # ours in this case
