@@ -32,6 +32,7 @@ from pyfarm.core.enums import OS, NUMERIC_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 
+INFINITE = set(["inf", "infinite", "unlimited"])
 logger = getLogger("agent")
 
 
@@ -150,17 +151,31 @@ def chroot(path, instance=None):
 
 
 @assert_instance
-def number(value, types=None, instance=None):
+def number(value, types=None, instance=None, allow_inf=True,
+           min_=0, flag=None):
     """convert the given value to a number"""
-    if isinstance(value, NUMERIC_TYPES) \
-            or value.lower() in ("inf", "infinite", "unlimited"):
+    if isinstance(value, NUMERIC_TYPES):
         return value
 
-    try:
-        return convert.ston(value, types=types or NUMERIC_TYPES)
+    elif value.lower() in INFINITE and allow_inf:
+        return float("inf")
 
-    except SyntaxError:
-        instance.parser.error("failed to convert %s to a number" % repr(value))
+    elif value.lower() in INFINITE and not allow_inf:
+        instance.parser.error("--%s does not allow an infinite value" % flag)
+
+    try:
+        value = convert.ston(value, types=types or NUMERIC_TYPES)
+        if min_ is not None and not value > min_:
+            instance.parser.error(
+                "--%s's value must be greater than %s" % (flag, min_))
+
+    except SyntaxError:  # could not even parse the string as code
+        instance.parser.error(
+            "--%s failed to convert %s to a number" % (flag, repr(value)))
+
+    except ValueError:  # it's a number, but not the right type
+        instance.parser.error(
+            "--%s, %s is not an instance of %s" % (flag, repr(value), types))
 
 
 @assert_instance
