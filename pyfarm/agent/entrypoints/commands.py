@@ -124,11 +124,12 @@ class AgentEntryPoint(object):
                  "substituted in --master-api and --master-redis")
         global_apis.add_argument(
             "--master-api", default=self.master_api_default,
-            help="The location where the master's REST api is located.")
+            help="The location where the master's REST api is located. "
+                 "[default: %(default)s]")
         global_apis.add_argument(
             "--redis", default=self.redis_default,
-            help="The location where redis can be contacted, defaulting "
-                 "to %(default)s")
+            help="The location where redis can be contacted. [default: "
+                 "%(default)s]")
 
         # global command line flags which apply to top level
         # process control
