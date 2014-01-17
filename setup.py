@@ -24,9 +24,6 @@ from setuptools import setup
 
 install_requires = ["psutil==1.2.1", "netifaces-merged", "netaddr"]
 
-if sys.version_info[0:2] == (2, 6):
-    install_requires.append("simplejson")
-
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
         long_description = readme.read()
