@@ -30,7 +30,7 @@ install_requires = [
     "txtemplate", "voluptuous", "PyOpenSSL", "netifaces-merged"]
 
 if sys.version_info[0:2] == (2, 6):
-    install_requires += ["simplejson", "importlib", "ordereddict", "argparse"]
+    install_requires += ["importlib", "ordereddict", "argparse"]
 
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
