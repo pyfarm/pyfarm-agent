@@ -24,6 +24,7 @@ of PyFarm.
 
 from __future__ import division
 
+import json
 from decimal import Decimal, ROUND_HALF_DOWN
 from functools import partial
 from io import StringIO
@@ -42,11 +43,6 @@ try:
     from ast import literal_eval
 except ImportError:
     from pyfarm.core.backports import literal_eval
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
 
 from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, Values

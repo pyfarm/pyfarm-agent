@@ -7,7 +7,6 @@ python:
 
 install:
   - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
-  - if [[ $TRAVIS_PYTHON_VERSION == 2.6 ]]; then pip install unittest2 simplejson; fi
   - pip install nose coverage python-coveralls "psutil>=1.2.0"
   - pip install .
 

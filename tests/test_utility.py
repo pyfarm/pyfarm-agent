@@ -17,16 +17,12 @@
 from __future__ import with_statement
 
 import math
+from json import loads
 
 try:
     _range = xrange
 except NameError:
     _range = range
-
-try:
-    from json import loads
-except ImportError:
-    from simplejson import loads
 
 from utcore import TestCase
 from pyfarm.core.enums import Values
