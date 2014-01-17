@@ -25,17 +25,13 @@ component and respond to requests.
 
 import ast
 import importlib
+import json
 import logging
 import os
 import pkgutil
 import uuid
 from functools import partial
 from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
-
-try:
-    import json
-except ImportError:  # pragma: no cover
-    import simplejson as json
 
 from twisted.internet import reactor
 from twisted.internet.task import deferLater

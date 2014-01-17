@@ -22,16 +22,12 @@ The client library the manager uses to communicate with
 the master server.
 """
 
+import json
 import logging
 from httplib import NO_CONTENT, RESET_CONTENT
 from functools import partial
 from urllib import getproxies
 from urlparse import urlparse
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
 
 try:
     from collections import OrderedDict

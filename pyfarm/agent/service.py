@@ -22,6 +22,7 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import json
 import time
 import logging
 from functools import partial
@@ -30,12 +31,6 @@ import ntplib
 import requests
 from twisted.python import log, usage
 from twisted.application.service import MultiService
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
 
 from pyfarm.core.enums import AgentState
 from pyfarm.core.sysinfo import memory

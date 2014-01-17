@@ -22,14 +22,10 @@ Base resources which can be used to build top leve
 documents, pages, or other types of data for the web.
 """
 
+import json
 from functools import partial
 from httplib import responses, BAD_REQUEST, INTERNAL_SERVER_ERROR
 from os.path import isdir
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
 
 from twisted.web.server import Request as _Request, NOT_DONE_YET
 from twisted.python import log

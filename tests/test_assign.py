@@ -21,12 +21,8 @@ import tempfile
 import uuid
 from functools import partial
 from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
+from json import dumps, loads
 from StringIO import StringIO
-
-try:
-    from json import dumps, loads
-except ImportError:
-    from simplejson import dumps, loads
 
 from voluptuous import Schema, Invalid, MultipleInvalid
 

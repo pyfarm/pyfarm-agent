@@ -15,11 +15,7 @@
 # limitations under the License.
 
 import re
-
-try:
-    from json import dumps
-except ImportError:
-    from simplejson import dumps
+from json import dumps
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
