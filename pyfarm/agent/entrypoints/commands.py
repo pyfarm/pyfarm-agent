@@ -23,6 +23,7 @@ The main module which constructs the entrypoint(s) for the agent.
 
 import argparse
 import os
+import sys
 import time
 from functools import partial
 from os.path import abspath, dirname, isfile, join
@@ -422,7 +423,6 @@ class AgentEntryPoint(object):
         self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
         self.args.target_func()
 
-
     def start(self):
         # make sure the agent is not already running
         if any(get_pids(self.args.pidfile, self.agent_api)):
@@ -473,8 +473,13 @@ class AgentEntryPoint(object):
         if getgid is not NotImplemented:
             logger.info("gid: %s" % getgid())
 
+        from twisted.python import log
+        from twisted.internet import reactor
         from pyfarm.agent.service import agent
+
         agent()
+        log.startLogging(sys.stdout)
+        reactor.run()
 
     def stop(self):
         logger.info("stopping agent")
@@ -564,11 +569,6 @@ class AgentEntryPoint(object):
                 except OSError:
                     logger.warning(
                         "failed to remove %s" % self.args.pidfile)
-
-        from twisted.internet import reactor
-        from pyfarm.agent.service import agent
-        agent(self.args.uid, self.args.gid)
-        reactor.run()
 
     def status(self):
         logger.info("checking status")

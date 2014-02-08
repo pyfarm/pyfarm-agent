@@ -230,4 +230,10 @@ def agent():
         retry_delay=config["http-retry-delay"])
 
     agent_data = get_agent_data()
+    from pprint import pformat
+    print pformat(agent_data)
+    retry_post_agent(
+        config["master-api"] + "/agents",
+        data=json.dumps(agent_data))
+
 
