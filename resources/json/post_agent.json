@@ -1,0 +1,12 @@
+{
+    "cpus": 4,
+    "free_ram": 13164.38671875,
+    "hostname": "motoko.pyfarm.net",
+    "ip": "10.60.99.196",
+    "port": 50000,
+    "projects": ["any"],
+    "ram": 16000,
+    "state": "online",
+    "time_offset": 0,
+    "use_address": "remote"
+}
