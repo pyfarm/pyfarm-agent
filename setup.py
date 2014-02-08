@@ -25,7 +25,7 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core", "pyfarm.jobtypes",
+    "pyfarm.core",
     "netaddr", "twisted", "ntplib", "requests",
     "txtemplate", "voluptuous", "PyOpenSSL", "netifaces-merged"]
 
@@ -45,7 +45,7 @@ def get_package_data():
         join("pyfarm", "agent", "static"),
         join("pyfarm", "agent", "templates"))
 
-    output = [join("twisted", "plugins")]
+    output = []
     for top in packge_data_roots:
         for root, dirs, files in walk(top):
             for filename in files:
@@ -61,7 +61,9 @@ setup(
               "pyfarm.agent.entrypoints",
               "pyfarm.agent.http",
               "pyfarm.agent.process",
-              "pyfarm.agent.utility"],
+              "pyfarm.agent.utility",
+              "pyfarm.jobtypes",
+              "pyfarm.jobtypes.core"],
     package_data={
         "pyfarm.agent": get_package_data()},
     namespace_packages=["pyfarm"],
@@ -70,7 +72,7 @@ setup(
             "pyfarm-agent = pyfarm.agent.entrypoints:agent"]},
     include_package_data=True,
     install_requires=install_requires,
-    url="https://github.com/pyfarm/pyfarm-core",
+    url="https://github.com/pyfarm/pyfarm-agent",
     license="Apache v2.0",
     author="Oliver Palmer",
     author_email="development@pyfarm.net",
