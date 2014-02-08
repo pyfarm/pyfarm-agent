@@ -1,5 +1,5 @@
 [run]
-source = pyfarm.agent
+source = pyfarm
 
 [report]
 exclude_lines =
