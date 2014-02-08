@@ -25,10 +25,11 @@ from json import dumps, loads
 from StringIO import StringIO
 
 from voluptuous import Schema, Invalid, MultipleInvalid
-
-from utcore import TestCase, dummy_request
 from pyfarm.core.enums import JobTypeLoadMode
+
+from pyfarm.agent.testutil import TestCase, dummy_request
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
+
 
 dummy_post_request = partial(dummy_request, http_method="POST")
 

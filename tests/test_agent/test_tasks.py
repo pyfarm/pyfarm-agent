@@ -16,7 +16,7 @@
 
 from twisted.internet.task import Clock
 
-from utcore import TestCase
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.tasks import ScheduledTaskManager
 
 

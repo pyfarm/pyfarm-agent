@@ -17,9 +17,9 @@
 from functools import partial
 
 from twisted.python.usage import UsageError
-
-from utcore import TestCase
 from pyfarm.core.enums import UseAgentAddress, AgentState
+
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.service import (
     check_address, convert_option_ston, convert_option_projects,
     convert_option_contact_addr, convert_option_enum)

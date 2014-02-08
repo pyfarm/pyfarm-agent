@@ -16,7 +16,7 @@
 
 from twisted.internet import reactor
 
-from utcore import TestCase
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility.objects import (
     LoggingConfiguration, ConfigurationWithCallbacks)
 
