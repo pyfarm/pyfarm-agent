@@ -39,7 +39,7 @@ def skip_on_ci(func):
 try:
     from logging import NullHandler
 except ImportError:
-    from pyfarm.core.backports import NullHandler
+    from pyfarm.core.logger import NullHandler
 
 from pyfarm.core.logger import root as pyfarm_logger
 from pyfarm.core.enums import STRING_TYPES
