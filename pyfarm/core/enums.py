@@ -201,6 +201,10 @@ PY_VERSION = (PY_MAJOR, PY_MINOR)
 if PY_VERSION <= (2, 5):
     raise RuntimeError("Python 2.5 and below is not supported")
 
+from collections import namedtuple
+
+NOTSET = object()
+
 # general Python version constants which are
 # used elsewhere
 PY3 = PY_MAJOR == 3
@@ -208,24 +212,16 @@ PY2 = PY_MAJOR == 2
 PY26 = PY_VERSION == (2, 6)
 PY27 = PY_VERSION == (2, 7)
 
-try:
-    from collections import namedtuple
-except ImportError:  # pragma: no cover
-    from pyfarm.core.backports import namedtuple
-
-
 from pyfarm.core.sysinfo.system import (
     filesystem_is_case_sensitive, environment_is_case_sensitive,
     machine_architecture, interpreter_architecture, operating_system)
 
-NOTSET = object()
-
-if PY3:
-    STRING_TYPES = (str, )
-    NUMERIC_TYPES = (int, float, complex)
-else:
+try:
     STRING_TYPES = (str, unicode)
     NUMERIC_TYPES = (int, long, float, complex)
+except NameError:
+    STRING_TYPES = (str, )
+    NUMERIC_TYPES = (int, float, complex)
 
 
 def Enum(classname, **kwargs):

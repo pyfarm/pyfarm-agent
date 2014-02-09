@@ -28,6 +28,7 @@ import json
 from decimal import Decimal, ROUND_HALF_DOWN
 from functools import partial
 from io import StringIO
+from ast import literal_eval
 
 try:
     from UserDict import UserDict
@@ -38,11 +39,6 @@ try:
     _range = xrange
 except NameError:  # pragma: no cover
     _range = range
-
-try:
-    from ast import literal_eval
-except ImportError:
-    from pyfarm.core.backports import literal_eval
 
 from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, Values

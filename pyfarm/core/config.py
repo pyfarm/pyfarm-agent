@@ -36,11 +36,7 @@ in various forms.
 
 import os
 from functools import partial
-
-try:
-    from ast import literal_eval
-except ImportError:  # pragma: no cover
-    from pyfarm.core.backports import literal_eval
+from ast import literal_eval
 
 from pyfarm.core.logger import getLogger
 from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES, NOTSET
