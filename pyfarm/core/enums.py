@@ -479,29 +479,6 @@ DB_FAILED_WORK_STATES = set([
     DBWorkState.JOBTYPE_INVALID_CLASS,
     DBWorkState.NO_SUCH_COMMAND])
 
-APIErrorValue = Enum(
-    "APIErrorValue",
-    value=int, description=str,
-    instance=False, to_dict=lambda self: {
-        "value": self.value, "description": self.description})
-
-APIError = Enum(
-    "APIError",
-    JSON_DECODE_FAILED=APIErrorValue(
-        1, "failed to decode any json data from the request"),
-    UNEXPECTED_DATATYPE=APIErrorValue(
-        2, "the base data type decoded for the json class was not what was "
-           "expected"),
-    MISSING_FIELDS=APIErrorValue(
-        3, "one or more of the expected fields were missing in the request"),
-    UNEXPECTED_NULL=APIErrorValue(
-        4, "a null value was found in a field that requires a non-null value"),
-    DATABASE_ERROR=APIErrorValue(
-        5, "problem inserting or updating entry in database"),
-    EXTRA_FIELDS_ERROR=APIErrorValue(
-        6, "an unexpected number of fields or columns were provided"))
-
-
 # operating system information
 OS = operating_system()
 POSIX = OS in (OperatingSystem.LINUX, OperatingSystem.MAC)
