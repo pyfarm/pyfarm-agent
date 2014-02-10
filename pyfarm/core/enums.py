@@ -435,19 +435,11 @@ _UseAgentAddress = Enum(
     HOSTNAME=Values(312, "hostname"),
     PASSIVE=Values(313, "passive"))
 
-# NOTE: these values are directly tested test_enums.test_direct_agent_addr
-_JobTypeLoadMode = Enum(
-    "JobTypeLoadMode",
-    DOWNLOAD=Values(320, "download"),
-    OPEN=Values(321, "open"),
-    IMPORT=Values(322, "import"))
-
 # string versions of the enums above
 WorkState = cast_enum(_WorkState, str)
 AgentState = cast_enum(_AgentState, str)
 OperatingSystem = cast_enum(_OperatingSystem, str)
 UseAgentAddress = cast_enum(_UseAgentAddress, str)
-JobTypeLoadMode = cast_enum(_JobTypeLoadMode, str)
 
 # integer versions of the enums above, mainly declared for
 # direct use within queries
@@ -455,7 +447,6 @@ DBWorkState = cast_enum(_WorkState, int)
 DBAgentState = cast_enum(_AgentState, int)
 DBOperatingSystem = cast_enum(_OperatingSystem, int)
 DBUseAgentAddress = cast_enum(_UseAgentAddress, int)
-DBJobTypeLoadMode = cast_enum(_JobTypeLoadMode, int)
 
 RUNNING_WORK_STATES = set([
     WorkState.ALLOC,

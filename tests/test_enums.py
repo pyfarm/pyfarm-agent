@@ -26,9 +26,9 @@ else:
 from pyfarm.core.sysinfo.system import operating_system
 from pyfarm.core.enums import (
     OS, WorkState, AgentState, OperatingSystem, UseAgentAddress,
-    JobTypeLoadMode, _WorkState, _AgentState,
-    _OperatingSystem, _UseAgentAddress, _JobTypeLoadMode, DBUseAgentAddress,
-    DBAgentState, DBOperatingSystem, DBWorkState, DBJobTypeLoadMode, Enum,
+    _WorkState, _AgentState,
+    _OperatingSystem, _UseAgentAddress, DBUseAgentAddress,
+    DBAgentState, DBOperatingSystem, DBWorkState, Enum,
     Values, cast_enum, LINUX, MAC, WINDOWS, POSIX)
 
 
@@ -248,30 +248,6 @@ class TestEnums(TestCase):
             WorkState.BLOCKED, "blocked")
         self.assertEqual(
             DBWorkState.BLOCKED, 102)
-        self.assertEqual(
-            _JobTypeLoadMode.DOWNLOAD.int, 320)
-        self.assertEqual(
-            _JobTypeLoadMode.DOWNLOAD.str, "download")
-        self.assertEqual(
-            JobTypeLoadMode.DOWNLOAD, "download")
-        self.assertEqual(
-            DBJobTypeLoadMode.DOWNLOAD, 320)
-        self.assertEqual(
-            _JobTypeLoadMode.IMPORT.int, 322)
-        self.assertEqual(
-            _JobTypeLoadMode.IMPORT.str, "import")
-        self.assertEqual(
-            JobTypeLoadMode.IMPORT, "import")
-        self.assertEqual(
-            DBJobTypeLoadMode.IMPORT, 322)
-        self.assertEqual(
-            _JobTypeLoadMode.OPEN.int, 321)
-        self.assertEqual(
-            _JobTypeLoadMode.OPEN.str, "open")
-        self.assertEqual(
-            JobTypeLoadMode.OPEN, "open")
-        self.assertEqual(
-            DBJobTypeLoadMode.OPEN, 321)
 
     def test_os(self):
         self.assertEqual(operating_system("linux"), OperatingSystem.LINUX)
