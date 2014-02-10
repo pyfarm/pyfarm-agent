@@ -22,11 +22,8 @@ Root class for spawning and management of new processes.
 """
 
 from functools import partial
-from importlib import import_module
 
 from twisted.python import log
-
-from pyfarm.core.enums import WorkState, JobTypeLoadMode
 
 
 class ProcessManager(object):
@@ -38,17 +35,9 @@ class ProcessManager(object):
 
     def load_jobclass(self, load_type, load_from):
         # TODO: handle the other import_type cases after this is working
-        if load_type == JobTypeLoadMode.IMPORT:
-            # try to load the module, report if not
-            try:
-                module = import_module(load_from)
-            except Exception, e:
-                # TODO: POST to /tasks/<id> with WorkState.FAILED_IMPORT state
-                return None
-
         # TODO: check class exists as attribute (add new error to pyfarm.core)
         # TODO: ensure class is subclassing the jobtype base class (error if not)
-        return module
+        raise NotImplementedError
 
     def spawn(self, assignment):
         self.log(

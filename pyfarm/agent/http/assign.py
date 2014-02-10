@@ -41,7 +41,6 @@ from twisted.web.server import NOT_DONE_YET
 from voluptuous import (
     Error, Invalid, Schema, Required, Optional, Any, All, Range)
 
-from pyfarm.core.enums import JobTypeLoadMode
 from pyfarm.core.utility import read_env_bool
 from pyfarm.jobtypes.core.jobtype import JobType
 from pyfarm.agent.http.resource import Resource
@@ -154,40 +153,7 @@ class PostProcessedSchema(Schema):
         frame_data.setdefault("by", 1)
 
         if parse_jobtype:
-
-            # validate the jobtype
-            if data["jobtype"]["load_type"] == JobTypeLoadMode.IMPORT:
-                if ":" not in data["jobtype"]["load_from"]:
-                    raise Invalid(
-                        "`load_from` does not match the "
-                        "'import_name:ClassName' format")
-
-                import_name, classname = data["jobtype"]["load_from"].split(":")
-
-                # make sure that we can import the module
-                try:
-                    loader = pkgutil.get_loader(import_name)
-                except ImportError:  # pragma: no cover
-                    raise Invalid(
-                        "failed to import parent module in 'load_from'")
-
-                # parent module(s) work but we couldn't import something else
-                if loader is None:  # pragma: no cover
-                    raise Invalid(
-                        "no such jobtype module %s" %
-                        data["jobtype"]["load_from"])
-
-                # parse the module source code now so we can just return
-                # a response containing information about the problem
-                self.parse_module_source(loader.filename)
-
-                jobclass = self.import_jobclass(import_name, classname)
-                data["jobtype"]["jobtype"] = jobclass(data, config)
-
-            else:  # pragma: no cover
-                raise Invalid(
-                    "load_type %s is not implemented" %
-                    repr(data["jobtype"]["load_type"]))
+            raise NotImplementedError
 
         return data
 
@@ -216,10 +182,7 @@ class Assign(Resource):
         Required("job"): int,
         Required("task"): int,
         Required("jobtype"): {
-            # jobtype - the instanced job class
-            Required("load_type"): All(
-                STRING_TYPES, Any(*list(JobTypeLoadMode))),
-            Required("load_from"): STRING_TYPES,
+            # TODO: add sha1 and code column handling
             Required("cmd"): STRING_TYPES,
             Required("args"): STRING_TYPES},
         Required("frame"): {

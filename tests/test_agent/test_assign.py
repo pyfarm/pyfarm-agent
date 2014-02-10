@@ -20,13 +20,15 @@ import shutil
 import tempfile
 import uuid
 from functools import partial
-from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
+try:
+    from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
+except ImportError:
+    from http.client import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED
+
 from json import dumps, loads
 from StringIO import StringIO
 
 from voluptuous import Schema, Invalid, MultipleInvalid
-from pyfarm.core.enums import JobTypeLoadMode
-
 from pyfarm.agent.testutil import TestCase, dummy_request
 from pyfarm.agent.http.assign import PostProcessedSchema, Assign
 
@@ -39,7 +41,6 @@ class AssignTestBase(TestCase):
         return {
             "project": 0, "job": 0, "task": 0,
             "jobtype": {
-                "load_type": JobTypeLoadMode.IMPORT,
                 "load_from": "import_name:ClassName",
                 "cmd": "", "args": ""},
             "frame": {"start": 1}}
@@ -161,14 +162,12 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_basic_import(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module()
         assign = Assign.SCHEMA(test_data, {})
         self.assertIn("jobtype", assign["jobtype"])
 
     def test_syntax_error(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             syntax_error=True)
         self.assertRaisesRegexp(
@@ -177,7 +176,6 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_call_in_module(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             call_in_module=True)
         self.assertRaisesRegexp(
@@ -186,7 +184,6 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_exec_in_module(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             exec_in_module=True)
         self.assertRaisesRegexp(
@@ -195,7 +192,6 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_eval_in_module(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             eval_in_module=True)
         self.assertRaisesRegexp(
@@ -204,7 +200,6 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_missing_class(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             missing_class=True)
 
@@ -214,7 +209,6 @@ class TestJobTypeValidation(JobTypeValidationBase):
 
     def test_invalid_subclass(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module(
             subclass_base=False)
 
@@ -308,7 +302,6 @@ class TestResource(JobTypeValidationBase):
 
     def test_post_success(self):
         test_data = self.get_test_data()
-        test_data["jobtype"]["load_type"] = JobTypeLoadMode.IMPORT
         test_data["jobtype"]["load_from"] = self.generate_module()
 
         view = Assign({"html-templates": self.templates})
