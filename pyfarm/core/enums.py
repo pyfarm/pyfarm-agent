@@ -36,20 +36,6 @@ Describes an operating system type.
     MAC, operating system on agent is an Apple OS variant
 
 
-Job Type Load Mode
-------------------
-
-Determines how a custom job type will be loaded.
-
-.. csv-table::
-    :header: Attribute, Description
-    :widths: 10, 50
-
-    DOWNLOAD, download the jobtype file from a url
-    OPEN, open the jobtype file from a url
-    IMPORT, import the jobtype from the given string (ex. `foo.bar.ClassName`)
-
-
 Agent State
 -----------
 
@@ -85,24 +71,6 @@ to tasks as job statuses are built from task status values.
     DONE, work is finished (previous failures may be present)
     FAILED, work as failed and cannot be continued
     ALLOC, special internal state for a job or task entry is being built
-
-
-REST API Errors
----------------
-
-Various error which the REST api may throw.  Numerical values will remain
-constant however the error message may be rewritten.
-
-.. csv-table::
-    :header: Attribute, Integer Value, Description
-    :widths: 10, 5, 50
-
-    JSON_DECODE_FAILED, 0, failed to decode any json data from the request
-    UNEXPECTED_DATATYPE, 1, the base data type decoded for the json class was not what was expected
-    MISSING_FIELDS, 2, one or more of the expected fields were missing in the request
-    UNEXPECTED_NULL, 3, a null value was found in a field that requires a non-null value
-    DATABASE_ERROR, 4, problem inserting or updating entry in database
-    EXTRA_FIELDS_ERROR, 5, an unexpected number of fields or columns were provided
 
 
 Use Agent Address
