@@ -210,7 +210,7 @@ def agent():
         """internal callback used to start the service itself"""
         config["agent-id"] = response["id"]
         config["agent-url"] = \
-            config["http-api"] + "/agents/%s" % response["id"]
+            config["http-api"] + "/agents/%s/" % response["id"]
 
         print "agent id is %s, starting service" % config["agent-id"]
         # self.log("agent id is %s, starting service" % config["agent-id"])
@@ -230,10 +230,8 @@ def agent():
         retry_delay=config["http-retry-delay"])
 
     agent_data = get_agent_data()
-    from pprint import pformat
-    print pformat(agent_data)
     retry_post_agent(
-        config["master-api"] + "/agents",
+        config["master-api"] + "/agents/",
         data=json.dumps(agent_data))
 
 
