@@ -23,7 +23,6 @@ The main module which constructs the entrypoint(s) for the agent.
 
 import argparse
 import os
-import sys
 import time
 from functools import partial
 from os.path import abspath, dirname, isfile, join
@@ -50,6 +49,11 @@ from requests import ConnectionError
 from pyfarm.core.logger import getLogger
 from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
 from pyfarm.core.sysinfo import user, network, memory, cpu
+
+# start logging before doing anything else
+from pyfarm.agent.logger import getLogger, start_logging
+start_logging()
+
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number)
@@ -350,7 +354,6 @@ class AgentEntryPoint(object):
     def __call__(self):
         self.args = self.parser.parse_args()
 
-        # --master must always be provided
         if not self.args.master:
             self.parser.error(
                 "--master must be provided (ex. "
@@ -475,11 +478,15 @@ class AgentEntryPoint(object):
 
         from twisted.python import log
         from twisted.internet import reactor
+        from twisted.python.log import PythonLoggingObserver
+
         from pyfarm.agent.service import agent
 
-        agent()
-        log.startLogging(sys.stdout)
-        reactor.run()
+
+
+        # agent()
+
+        # reactor.run()
 
     def stop(self):
         logger.info("stopping agent")
