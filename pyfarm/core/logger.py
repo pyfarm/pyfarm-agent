@@ -28,49 +28,55 @@ message formatting.
 
 import sys
 import logging
+from logging import (
+    DEBUG, INFO, WARNING, ERROR, CRITICAL, getLogger as _getLogger,
+    captureWarnings)
+
+captureWarnings(True)
+
+# re-import protection, only want init() run once
+try:
+    colorama
+except NameError:
+    from colorama import init, Fore, Back, Style
+    init()
 
 try:
-    from logging import NullHandler
+    from logging.config import dictConfig
 except ImportError:
-    class NullHandler(logging.Handler):
-        """
-        This handler does nothing. It's intended to be used to avoid the
-        "No handlers could be found for logger XXX" one-off warning. This is
-        important for library code, which may contain code to log events. If
-        a user of the library does not configure logging, the one-off warning
-        might be produced; to avoid this, the library developer simply needs
-        to instantiate a NullHandler and add it to the top-level logger of the
-        library module or package.
+    from logutils.dictconfig import dictConfig
 
-        .. note::
-            this is a copy of Python 2.7's NullHandler for use in older
-            versions of Python
-        """
-        def handle(self, record):
-            pass
-
-        def emit(self, record):
-            pass
-
-        def createLock(self):
-            self.lock = None
+# grab the proper formatter
+from pyfarm.core.enums import PY26
+if not PY26:
+    from logging import Formatter
+else:
+    from logutils import Formatter
 
 
-DEFAULT_LEVEL = logging.DEBUG
-DEFAULT_LEVELS = {
-    "pyfarm.core.config": logging.WARNING}
+class ColorFormatter(Formatter):
+    def formatMessage(self, record):
+        message = super(ColorFormatter, self).formatMessage(record)
+        if record.levelno == DEBUG:
+            return message
+        elif record.levelno == INFO:
+            return Style.BRIGHT + message + Style.RESET_ALL
+        elif record.levelno == WARNING:
+            return Fore.YELLOW + message + Fore.RESET
+        elif record.levelno == ERROR:
+            return Fore.RED + message + Fore.RESET
+        elif record.levelno == CRITICAL:
+            return \
+                Fore.RED + Style.BRIGHT + message + Fore.RESET + Style.RESET_ALL
+        else:
+            return message
 
-# setup the root logger for PyFarm
-ROOT_FORMAT = logging.Formatter(
-    fmt="%(asctime)s %(levelname)-9s - %(name)s - %(message)s")
-ROOT_HANDLER = logging.StreamHandler(sys.stdout)
-ROOT_HANDLER.setFormatter(ROOT_FORMAT)
+HANDLER = logging.StreamHandler(sys.stdout)
+HANDLER.setFormatter(ColorFormatter())
 
-# create the root logger and apply the handler
-root = logging.getLogger("pyfarm")
-root.addHandler(ROOT_HANDLER)
-root.propagate = 0  # other handlers should not process our messages (for now)
-root.setLevel(DEFAULT_LEVEL)
+root = logging.getLogger()
+root.addHandler(HANDLER)
+root.setLevel(DEBUG)
 
 
 def getLogger(name):
@@ -78,21 +84,7 @@ def getLogger(name):
     Wrapper around the :func:`logging.getLogger` function which
     ensures the name is setup properly.
     """
-    name = ".".join([root.name, name])
-    logger = logging.getLogger(name)
-    logger.setLevel(DEFAULT_LEVELS.get(name, DEFAULT_LEVEL))
-    return logger
+    if not name.startswith("pyfarm."):
+        name = "pyfarm.%s" % name
 
-
-# this function is not covered by tests because running it turn a test
-# can have an adverse impact on other tests
-def disable_logging(disable):  # pragma: no cover
-    """enables or disables all of PyFarm's logging"""
-    if disable:
-        root.disabled = 1
-        del root.handlers[:]
-        root.addHandler(NullHandler())
-    else:
-        root.disabled = 0
-        root.addHandler(ROOT_HANDLER)
-        root.setLevel(DEFAULT_LEVEL)
+    return _getLogger(name)

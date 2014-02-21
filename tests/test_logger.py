@@ -14,21 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utcore import unittest
+from pyfarm.core.enums import PY26
+
+if PY26:
+    import unittest2 as unittest
+else:
+    import unittest
+
 from pyfarm.core.logger import (
-    ROOT_HANDLER, ROOT_FORMAT, DEFAULT_LEVEL, root, getLogger)
+    root, getLogger)
 
 
 class TestLogger(unittest.TestCase):
-    def test_root_setup(self):
-        self.assertEqual(root.propagate, 0)
-        self.assertEqual(root.level, DEFAULT_LEVEL)
-        self.assertIn(ROOT_HANDLER, root.handlers)
-        self.assertIs(ROOT_HANDLER.formatter, ROOT_FORMAT)
-
-    def test_get_logger(self):
+    # TODO: test root setup after dictConfig
+    def test_get_logger_name(self):
         logger = getLogger("foo")
-        self.assertEqual(logger.name, ".".join([root.name, "foo"]))
+        self.assertEqual(logger.name, "pyfarm.foo")
         self.assertFalse(logger.handlers)
-        self.assertEqual(logger.propagate, 1)
-        self.assertEqual(logger.level, DEFAULT_LEVEL)
