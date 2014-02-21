@@ -24,7 +24,7 @@ try:
 except NameError:
     _range = range
 
-from utcore import TestCase
+from pyfarm.core.testutil import TestCase
 from pyfarm.core.enums import Values
 from pyfarm.core.utility import float_range, convert, rounded, dumps
 

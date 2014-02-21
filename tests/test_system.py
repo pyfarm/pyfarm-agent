@@ -23,7 +23,7 @@ import uuid
 import netifaces
 from os.path import isfile
 
-from utcore import TestCase, skip_on_ci
+from pyfarm.core.testutil import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import system, network, cpu, memory, user
 from pyfarm.core.enums import LINUX
