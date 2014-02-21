@@ -21,8 +21,7 @@ if PY26:
 else:
     import unittest
 
-from pyfarm.core.logger import (
-    root, getLogger)
+from pyfarm.core.logger import getLogger
 
 
 class TestLogger(unittest.TestCase):
