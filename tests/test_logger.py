@@ -14,7 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utcore import unittest
+from pyfarm.core.enums import PY26
+
+if PY26:
+    import unittest2 as unittest
+else:
+    import unittest
+
 from pyfarm.core.logger import (
     ROOT_HANDLER, ROOT_FORMAT, DEFAULT_LEVEL, root, getLogger)
 

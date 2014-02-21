@@ -20,7 +20,7 @@ import os
 import uuid
 import tempfile
 
-from utcore import TestCase
+from pyfarm.core.testutil import TestCase
 
 from pyfarm.core import files
 
