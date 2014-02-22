@@ -42,6 +42,7 @@ from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
 
 ntplog = getLogger("agent.ntp")
+svclog = getLogger("agent.svc")
 
 
 class ManagerService(MultiService):
@@ -227,9 +228,11 @@ def agent():
         # self.log("agent id is %s, starting service" % config["agent-id"])
         # self.scheduled_tasks.start()
 
-    def initial_post_failure(response):
-        log.err(response)
-        # TODO: try again or write out some info for debugging
+    def initial_post_failure(error):
+        errors = map(str, [error.value for error in error.value])
+        svclog.error(
+            "errors(s) while posting agent data to %s: %s",
+            config["master-api"] + "/agents/", errors)
 
     # post the agent's status to the master before
     # we do anything else
