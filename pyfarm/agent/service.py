@@ -25,20 +25,23 @@ such as log reading, system information gathering, and management of processes.
 import json
 import time
 import logging
+from datetime import datetime
 from functools import partial
 
 import ntplib
 import requests
-from twisted.python import log, usage
 from twisted.application.service import MultiService
 
 from pyfarm.core.enums import AgentState
+from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post as http_post
 from pyfarm.agent.utility.retry import RetryDeferred
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
+
+ntplog = getLogger("agent.ntp")
 
 
 class ManagerService(MultiService):
@@ -170,20 +173,28 @@ def get_agent_data():
     """
     ntp_client = ntplib.NTPClient()
 
+    ntplog.debug(
+        "querying ntp server %r for current time", config["ntp-server"])
     try:
         pool_time = ntp_client.request(config["ntp-server"])
-        time_offset = int(pool_time.tx_time - time.time())
 
     except Exception, e:
         time_offset = 0
-        log.msg(
-            "failed to determine network time: %s" % e,
-            level=logging.WARNING)
+        ntplog.error("failed to determine network time: %s", e)
+
     else:
+        time_offset = int(pool_time.tx_time - time.time())
+
+        # format the offset for logging purposes
+        dtime = datetime.fromtimestamp(pool_time.tx_time)
+        ntplog.debug(
+            "network time: %s (local offset: %r)",
+            dtime.isoformat(), time_offset)
+
         if time_offset:
-            log.msg(
-                "agent time offset is %s" % time_offset,
-                level=logging.WARNING)
+            ntplog.warning(
+                "agent is %r second(s) off from ntp server at %r",
+                time_offset, config["ntp-server"])
 
     data = {
         "hostname": config["hostname"],
@@ -229,9 +240,8 @@ def agent():
         timeout=None,
         retry_delay=config["http-retry-delay"])
 
-    agent_data = get_agent_data()
     retry_post_agent(
         config["master-api"] + "/agents/",
-        data=json.dumps(agent_data))
+        data=get_agent_data())
 
 
