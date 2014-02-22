@@ -180,7 +180,7 @@ def get_agent_data():
 
     except Exception, e:
         time_offset = 0
-        ntplog.error("failed to determine network time: %s", e)
+        ntplog.warning("failed to determine network time: %s", e)
 
     else:
         time_offset = int(pool_time.tx_time - time.time())
