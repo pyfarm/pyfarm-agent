@@ -21,20 +21,12 @@ if PY26:
 else:
     import unittest
 
-from pyfarm.core.logger import (
-    ROOT_HANDLER, ROOT_FORMAT, DEFAULT_LEVEL, root, getLogger)
+from pyfarm.core.logger import getLogger
 
 
 class TestLogger(unittest.TestCase):
-    def test_root_setup(self):
-        self.assertEqual(root.propagate, 0)
-        self.assertEqual(root.level, DEFAULT_LEVEL)
-        self.assertIn(ROOT_HANDLER, root.handlers)
-        self.assertIs(ROOT_HANDLER.formatter, ROOT_FORMAT)
-
-    def test_get_logger(self):
+    # TODO: test root setup after dictConfig
+    def test_get_logger_name(self):
         logger = getLogger("foo")
-        self.assertEqual(logger.name, ".".join([root.name, "foo"]))
+        self.assertEqual(logger.name, "pf.foo")
         self.assertFalse(logger.handlers)
-        self.assertEqual(logger.propagate, 1)
-        self.assertEqual(logger.level, DEFAULT_LEVEL)
