@@ -36,20 +36,12 @@ def skip_on_ci(func):
         return func(*args, **kwargs)
     return wrapper
 
-try:
-    from logging import NullHandler
-except ImportError:
-    from pyfarm.core.logger import NullHandler
-
-from pyfarm.core.logger import root as pyfarm_logger
 from pyfarm.core.enums import STRING_TYPES
 
 
 class TestCase(unittest.TestCase):
     TEMPDIR_PREFIX = ""
-    BUILDBOT_UUID = os.environ.get("BUILDBOT_UUID")
     ORIGINAL_ENVIRONMENT = {}
-    LOGGING_HANDLERS = pyfarm_logger.handlers[:]
     temp_directories = set()
 
     @classmethod
@@ -85,8 +77,6 @@ class TestCase(unittest.TestCase):
         return tempdir
 
     def setUp(self):
-        del pyfarm_logger.handlers[:]
-        pyfarm_logger.addHandler(NullHandler())
         self.tempdir = self.mktempdir()
         os.environ.clear()
         os.environ.update(self.ORIGINAL_ENVIRONMENT)
@@ -97,4 +87,3 @@ class TestCase(unittest.TestCase):
             map(self.remove, self.temp_directories.copy())
         except AttributeError:
             pass
-        pyfarm_logger.handlers[:] = self.LOGGING_HANDLERS

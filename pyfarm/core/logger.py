@@ -20,30 +20,22 @@ Logger
 
 Contains the root logger for PyFarm as well as the default
 message formatting.
-
-:var root:
-    The root logger for PyFarm.  Most log messages will run up through this
-    logger instead of through their own handlers.
 """
 
+import os
 import sys
+import json
 import logging
-from logging import (
-    DEBUG, INFO, WARNING, ERROR, CRITICAL, getLogger as _getLogger)
+import warnings
 
-from pyfarm.core.enums import PY26
-
-try:
-    from logging import NullHandler
-except ImportError:
-    from logutils import NullHandler
-
-try:
-    from logging import captureWarnings
-
-# Python 2.6 backport of captureWarnings
-except ImportError:
-    import warnings
+# Import or construct the necessary objects depending on the Python version
+# and use sys.version_info directly to avoid possible circular import issues.
+if sys.version_info[0:2] >= (2, 7):
+    from logging import Formatter, NullHandler, captureWarnings
+    from logging.config import dictConfig
+else:
+    from logutils import Formatter, NullHandler
+    from logutils.dictconfig import dictConfig
     _warnings_showwarning = None
 
     def _showwarning(message, category, filename, lineno, file=None, line=None):
@@ -65,7 +57,7 @@ except ImportError:
         else:
             s = warnings.formatwarning(
                 message, category, filename, lineno, line)
-            logger = _getLogger("py.warnings")
+            logger = logging.getLogger("py.warnings")
             if not logger.handlers:
                 logger.addHandler(NullHandler())
             logger.warning("%s", s)
@@ -89,48 +81,112 @@ except ImportError:
                 warnings.showwarning = _warnings_showwarning
                 _warnings_showwarning = None
 
-
-captureWarnings(True)
-
-# re-import protection, only want init() run once
 try:
     colorama
 except NameError:
     from colorama import init, Fore, Back, Style
     init()
 
-try:
-    from logging.config import dictConfig
-except ImportError:
-    from logutils.dictconfig import dictConfig
-
-if not PY26:
-    from logging import Formatter
-else:
-    from logutils import Formatter
-
 
 class ColorFormatter(Formatter):
     """Adds colorized formatting to log messages using :mod:`colorama`"""
     FORMATS = {
-        INFO: (Style.BRIGHT, Style.RESET_ALL),
-        WARNING: (Fore.YELLOW, Fore.RESET),
-        ERROR: (Fore.RED, Fore.RESET),
-        CRITICAL: (Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)
+        logging.INFO: (Style.BRIGHT, Style.RESET_ALL),
+        logging.WARNING: (Fore.YELLOW, Fore.RESET),
+        logging.ERROR: (Fore.RED, Fore.RESET),
+        logging.CRITICAL: (
+            Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)
     }
 
     def formatMessage(self, record):
         head, tail = self.FORMATS.get(record.levelno, ("", ""))
         return head + super(ColorFormatter, self).formatMessage(record) + tail
 
-# TODO: use dictConfig() to set this up
-HANDLER = logging.StreamHandler(sys.stdout)
-HANDLER.setFormatter(ColorFormatter())
 
-# TODO: use dictConfig() to set this up
-root = logging.getLogger()
-root.addHandler(HANDLER)
-root.setLevel(DEBUG)
+class config(object):
+    """
+    Namespace class to store and setup the logging configuration.  You
+    typically don't have to run the classmethods here manually but you may
+    do so under other circumstances if you wish.
+    """
+    CONFIGURED = False
+    DEFAULT_CONFIGURATION = {
+        "version": 1,
+        "root": {
+            "level": "DEBUG",
+            "handlers": ["stdout"],
+        },
+        "handlers": {
+            "stdout": {
+                "class": "logging.StreamHandler",
+                "formatter": "colorized"
+            }
+        },
+        "formatters": {
+            "colorized": {
+                "()": "pyfarm.core.logger.ColorFormatter",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+                "format":
+                    "%(asctime)s %(levelname)-8s - %(name)-15s - %(message)s"
+            }
+        }
+    }
+
+    @classmethod
+    def get(cls):
+        """
+        Retrieves the logging configuration.  By default this searches
+        :envvar:`PYFARM_LOGGING_CONFIG` for either a json blob containing
+        the logging configuration or a path to a json blob on disk.  If
+        :envvar:`PYFARM_LOGGING_CONFIG` is not set then this function falls
+        back on :const:`pyfarm.core.logger.DEFAULT_CONFIGURATION`.
+        """
+        # nothing left to do if it's not in the environment
+        if "PYFARM_LOGGING_CONFIG" not in os.environ:
+            return cls.DEFAULT_CONFIGURATION.copy()
+
+        environment_config = os.environ["PYFARM_LOGGING_CONFIG"].strip()
+        if not environment_config:
+            raise ValueError("$PYFARM_LOGGING_CONFIG is empty")
+
+        try:
+            with open(environment_config, "r") as stream:
+                try:
+                    return json.load(stream)
+                except ValueError:
+                    raise ValueError(
+                        "failed to parse json data from %s" % stream.name)
+        except (OSError, IOError):
+            try:
+                return json.loads(environment_config)
+            except ValueError:
+                raise ValueError(
+                    "failed to parse json data from $PYFARM_LOGGING_CONFIG")
+
+    @classmethod
+    def setup(cls, capture_warnings=True, reconfigure=False):
+        """
+        Retrieves the logging configuration using :func:`get` and
+        then calls :meth:`.dictConfig` on the results.
+
+        :type capture_warnings: bool
+        :param capture_warnings:
+            If True then all emissions from :mod:`warnings` should instead
+            be logged
+
+        :type reconfigure: bool
+        :param reconfigure:
+            If True then rerun :func:`.dictConfig` even if we've already done
+            so.
+        """
+        if not reconfigure and cls.CONFIGURED:
+            return
+
+        dictConfig(cls.get())
+        if capture_warnings:
+            captureWarnings(True)
+
+        cls.CONFIGURED = True
 
 
 def getLogger(name):
@@ -138,7 +194,8 @@ def getLogger(name):
     Wrapper around the :func:`logging.getLogger` function which
     ensures the name is setup properly.
     """
-    if not name.startswith("pyfarm."):
-        name = "pyfarm.%s" % name
+    config.setup()
+    if not name.startswith("pf."):
+        name = "pf.%s" % name
 
-    return _getLogger(name)
+    return logging.getLogger(name)

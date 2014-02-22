@@ -28,5 +28,5 @@ class TestLogger(unittest.TestCase):
     # TODO: test root setup after dictConfig
     def test_get_logger_name(self):
         logger = getLogger("foo")
-        self.assertEqual(logger.name, "pyfarm.foo")
+        self.assertEqual(logger.name, "pf.foo")
         self.assertFalse(logger.handlers)
