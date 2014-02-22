@@ -476,17 +476,11 @@ class AgentEntryPoint(object):
         if getgid is not NotImplemented:
             logger.info("gid: %s" % getgid())
 
-        from twisted.python import log
         from twisted.internet import reactor
-        from twisted.python.log import PythonLoggingObserver
-
         from pyfarm.agent.service import agent
 
-
-
-        # agent()
-
-        # reactor.run()
+        agent()
+        reactor.run()
 
     def stop(self):
         logger.info("stopping agent")
