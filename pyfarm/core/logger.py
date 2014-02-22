@@ -27,14 +27,15 @@ import sys
 import json
 import logging
 import warnings
+from logging import Formatter
 
 # Import or construct the necessary objects depending on the Python version
 # and use sys.version_info directly to avoid possible circular import issues.
 if sys.version_info[0:2] >= (2, 7):
-    from logging import Formatter, NullHandler, captureWarnings
+    from logging import NullHandler, captureWarnings
     from logging.config import dictConfig
 else:
-    from logutils import Formatter, NullHandler
+    from logutils import NullHandler
     from logutils.dictconfig import dictConfig
     _warnings_showwarning = None
 
@@ -98,9 +99,9 @@ class ColorFormatter(Formatter):
             Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)
     }
 
-    def formatMessage(self, record):
+    def format(self, record):
         head, tail = self.FORMATS.get(record.levelno, ("", ""))
-        return head + super(ColorFormatter, self).formatMessage(record) + tail
+        return head + super(ColorFormatter, self).format(record) + tail
 
 
 class config(object):
