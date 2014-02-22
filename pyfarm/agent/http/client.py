@@ -25,7 +25,6 @@ the master server.
 import json
 import logging
 from httplib import NO_CONTENT, RESET_CONTENT
-from functools import partial
 from urllib import getproxies
 from urlparse import urlparse
 
@@ -42,6 +41,10 @@ from twisted.web.client import (
     HTTPConnectionPool as _HTTPConnectionPool, Agent, ProxyAgent, ResponseDone)
 from twisted.web.http_headers import Headers
 from twisted.internet.endpoints import TCP4ClientEndpoint
+
+from pyfarm.core.logger import getLogger
+
+logger = getLogger("agent.http")
 
 
 class SimpleReceiver(protocol.Protocol):
@@ -128,7 +131,6 @@ class WebClient(object):
     def __init__(self, base_uri=None, connect_timeout=10):
         self.base_uri = base_uri
         self.requests = OrderedDict()  # currently active requests
-        self.log = partial(log.msg, system=self.__class__.__name__)
 
         # setup the agent
         proxies = getproxies()
@@ -167,6 +169,7 @@ class WebClient(object):
         self.agent = self.construct_agent()
 
     def handle_response(self, response):
+        logger.warning("=== TODO === add better log message")
         if response.code in (NO_CONTENT, RESET_CONTENT):
             return defer.succeed("")
 
@@ -215,8 +218,10 @@ class WebClient(object):
 
         # if data was provided dump it to a string producer
         if data is not None:
-            body_producer = StringProducer(data_dumps(data))
+            dumped_data = data_dumps(data)
+            body_producer = StringProducer(dumped_data)
         else:
+            dumped_data = None
             body_producer = None
 
         # prepend the base uri if one was provided
@@ -236,17 +241,8 @@ class WebClient(object):
             headers = Headers()
 
         # TODO: store the request being made so we can retry/check status/etc
-        self.requests[(method, uri, headers, data, body_producer)] = None
+        self.requests[(method, uri, headers, dumped_data, body_producer)] = None
 
-        # TODO: add deferreds and remaining bits necessary for POST, see example
-        log_msg = "%s %s" % (method, uri)
-        if data is not None:
-            log_msg += " data: %s" % data
-
-        if headers is not None:
-            log_msg += " headers: %s" % headers
-
-        self.log(log_msg)
         deferred = self.agent.request(
             method, uri, headers=headers, bodyProducer=body_producer)
 
