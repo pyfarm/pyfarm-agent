@@ -23,12 +23,13 @@ Functions and classes used for retrying callable objects or
 deferreds.
 """
 
-import logging
-from functools import partial
 from datetime import datetime, timedelta
 
 from twisted.internet import defer, reactor
-from twisted.python import log
+
+from pyfarm.core.logger import getLogger
+
+logger = getLogger("agent.retry")
 
 
 class RetryDeferred(object):
@@ -88,7 +89,6 @@ class RetryDeferred(object):
         if headers is not None:
             assert isinstance(headers, dict), "`headers` must be a dictionary"
 
-        self.log = partial(log.msg, system=self.__class__.__name__)
         self.runs = 0
         self.called = False
         self.success = success
@@ -145,11 +145,12 @@ class RetryDeferred(object):
         the number of errors versus the max number of retries.
         """
         if self.exceeded_timeout():
-            self.log("%s has timed out" % self.func_repr)
+            logger.warning("%s has exceeded the timeout", self.func_repr)
             return False
 
         if self.exceeded_max_retries():
-            self.log("%s exceeded the max number of retries" % self.func_repr)
+            logger.warning(
+                "%s exceeded the max number of retries", self.func_repr)
             return False
 
         return True
@@ -195,17 +196,17 @@ class RetryDeferred(object):
             self.errors.append(error)
 
         if self.should_run():
-            self.log("%s attempt %s failed: %s" % (
-                self.func_repr, self.failures, error),
-                level=logging.WARNING)
+            logger.warning(
+                "%s attempt %s failed: %s",
+                self.func_repr, self.failures, error.value)
 
             # rerun the function
             self.run()
 
         else:
-            self.log("%s has failed after %s attempts" % (
-                self.func_repr, self.failures),
-                level=logging.ERROR)
+            logger.error(
+                "%s has failed after %s attempts",
+                self.func_repr, self.failures)
 
             # fire off errback to end the chain
             self.deferred.errback(self.errors)
