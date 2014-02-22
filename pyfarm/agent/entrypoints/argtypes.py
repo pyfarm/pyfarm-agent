@@ -169,6 +169,7 @@ def number(value, types=None, instance=None, allow_inf=False, min_=1,
         if min_ is not None and value < min_:
             instance.parser.error(
                 "--%s's value must be greater than %s" % (flag, min_))
+        return value
 
     except SyntaxError:  # could not even parse the string as code
         instance.parser.error(
