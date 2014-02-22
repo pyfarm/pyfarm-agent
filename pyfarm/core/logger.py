@@ -91,7 +91,7 @@ except NameError:
 class ColorFormatter(Formatter):
     """Adds colorized formatting to log messages using :mod:`colorama`"""
     FORMATS = {
-        logging.INFO: (Style.BRIGHT, Style.RESET_ALL),
+        logging.DEBUG: (Style.DIM, Style.RESET_ALL),
         logging.WARNING: (Fore.YELLOW, Fore.RESET),
         logging.ERROR: (Fore.RED, Fore.RESET),
         logging.CRITICAL: (
