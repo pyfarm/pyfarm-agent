@@ -22,12 +22,16 @@ Agent specific logging library that combines some of
 Twisted's and Python's logging facilities.
 """
 
-from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
+from logging import (
+    DEBUG, INFO, WARNING, ERROR, CRITICAL,
+    Logger as _Logger, getLogger as _getLoggerPython)
 
 from twisted.python.log import (
-    msg, textFromEventDict, PythonLoggingObserver as TwistedLogObserver)
+    PythonLoggingObserver as TwistedLogObserver, msg, textFromEventDict)
 
 from pyfarm.core.logger import getLogger as _getLogger
+
+twisted_logger = _getLoggerPython("twisted")
 
 
 class PythonLoggingObserver(TwistedLogObserver):
@@ -37,7 +41,9 @@ class PythonLoggingObserver(TwistedLogObserver):
     logger.
     """
     STARTED = False
-    loggers = {}
+    loggers = {
+        "-": _getLoggerPython("twisted")
+    }
 
     def __init__(self):
         pass
@@ -52,7 +58,6 @@ class PythonLoggingObserver(TwistedLogObserver):
 
     def emit(self, event):
         assert "system" in event
-        assert event["system"] in self.loggers, "missing logger instance"
 
         if "logLevel" in event:
             level = event["logLevel"]
@@ -60,6 +65,9 @@ class PythonLoggingObserver(TwistedLogObserver):
             level = ERROR
         else:
             level = INFO
+
+        if event["system"] not in self.loggers:
+            self.loggers[event["system"]] = _getLoggerPython(event["system"])
 
         self.loggers[event["system"]].log(level, textFromEventDict(event))
 
@@ -72,23 +80,28 @@ class Logger(object):
     Neither formatting nor level control should happen here, that should
     instead happen on the Python loggers themselves.
     """
-    def __init__(self, system):
+    def __init__(self, system, logger):
+        assert isinstance(logger, _Logger)
         self.system = system
+        self._logger = logger
+
+    def setLevel(self, level):
+        self._logger.setLevel(level)
 
     def debug(self, message, *args):
-        msg(message % args, system=self.system, level=DEBUG)
+        msg(message % args, system=self.system, logLevel=DEBUG)
 
     def info(self, message, *args):
-        msg(message % args, system=self.system, level=INFO)
+        msg(message % args, system=self.system, logLevel=INFO)
 
     def warning(self, message, *args):
-        msg(message % args, system=self.system, level=WARNING)
+        msg(message % args, system=self.system, logLevel=WARNING)
 
     def error(self, message, *args):
-        msg(message % args, system=self.system, level=ERROR)
+        msg(message % args, system=self.system, logLevel=ERROR)
 
     def critical(self, message, *args):
-        msg(message % args, system=self.system, level=CRITICAL)
+        msg(message % args, system=self.system, logLevel=CRITICAL)
 
 
 # module reload protection, we only want OBSERVER
@@ -123,4 +136,4 @@ def getLogger(name):
 
     logger = _getLogger(name)
     OBSERVER.loggers[logger.name] = logger
-    return Logger(logger.name)
+    return Logger(logger.name, logger)
