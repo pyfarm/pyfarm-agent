@@ -22,6 +22,8 @@ Agent specific logging library that combines some of
 Twisted's and Python's logging facilities.
 """
 
+import re
+
 from logging import (
     DEBUG, INFO, WARNING, ERROR, CRITICAL,
     Logger as _Logger, getLogger as _getLoggerPython)
@@ -41,12 +43,24 @@ class PythonLoggingObserver(TwistedLogObserver):
     logger.
     """
     STARTED = False
+
+    # logging system names that need to be remapped
+    # to something else before we pass it to Python's
+    # logger
+    systems = {
+        "Uninitialized": "twisted",
+        "-": "twisted"
+    }
+
+    # loggers that we know we will have to handle in emit()
     loggers = {
         "-": _getLoggerPython("twisted")
     }
 
-    def __init__(self):
-        pass
+
+    filters = {
+        "twisted":
+            set([re.compile("^(Starting|Stopping) factory .*$")])}
 
     def start(self):
         # only want to start once
@@ -57,8 +71,19 @@ class PythonLoggingObserver(TwistedLogObserver):
         self.STARTED = True
 
     def emit(self, event):
-        assert "system" in event
+        # Get the real system name
+        system = event["system"]
+        system = self.systems.get(system, system)
 
+        # Do we care about this message?
+        text = textFromEventDict(event)
+        filters = self.filters.get(system)
+        if filters:
+            for regex in filters:
+                if regex.search(text):
+                    return
+
+        # Determine what the real level should be
         if "logLevel" in event:
             level = event["logLevel"]
         elif event["isError"]:
@@ -66,10 +91,12 @@ class PythonLoggingObserver(TwistedLogObserver):
         else:
             level = INFO
 
-        if event["system"] not in self.loggers:
-            self.loggers[event["system"]] = _getLoggerPython(event["system"])
+        # Create a logger if necessary
+        if system not in self.loggers:
+            self.loggers[system] = _getLoggerPython(system)
 
-        self.loggers[event["system"]].log(level, textFromEventDict(event))
+        # Emit the message to the underlying logger
+        self.loggers[system].log(level, text)
 
 
 class Logger(object):
