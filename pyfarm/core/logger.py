@@ -111,21 +111,17 @@ else:
 
 
 class ColorFormatter(Formatter):
+    """Adds colorized formatting to log messages using :mod:`colorama`"""
+    FORMATS = {
+        INFO: (Style.BRIGHT, Style.RESET_ALL),
+        WARNING: (Fore.YELLOW, Fore.RESET),
+        ERROR: (Fore.RED, Fore.RESET),
+        CRITICAL: (Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)
+    }
+
     def formatMessage(self, record):
-        message = super(ColorFormatter, self).formatMessage(record)
-        if record.levelno == DEBUG:
-            return message
-        elif record.levelno == INFO:
-            return Style.BRIGHT + message + Style.RESET_ALL
-        elif record.levelno == WARNING:
-            return Fore.YELLOW + message + Fore.RESET
-        elif record.levelno == ERROR:
-            return Fore.RED + message + Fore.RESET
-        elif record.levelno == CRITICAL:
-            return \
-                Fore.RED + Style.BRIGHT + message + Fore.RESET + Style.RESET_ALL
-        else:
-            return message
+        head, tail = self.FORMATS.get(record.levelno, ("", ""))
+        return head + super(ColorFormatter, self).formatMessage(record) + tail
 
 # TODO: use dictConfig() to set this up
 HANDLER = logging.StreamHandler(sys.stdout)
