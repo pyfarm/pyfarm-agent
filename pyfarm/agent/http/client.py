@@ -23,88 +23,158 @@ the master server.
 """
 
 import json
-from httplib import BAD_REQUEST, OK, MULTIPLE_CHOICES
-
 from collections import namedtuple
-
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
+from functools import partial
 
 import treq
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, connectionDone
-from twisted.web.client import ResponseDone, ResponseFailed
+from twisted.python import log
+from twisted.web.client import ResponseDone
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 
-RequestData = namedtuple(
-    "RequestData",
+Request = namedtuple(
+    "Request",
     ["method", "uri", "headers", "data"])
 
 logger = getLogger("agent.http")
 
 
-class ResponseReceiver(Protocol):
-    """Simple class used to receive and process response objects"""
-    def __init__(self, deferred, response):
-        self.buffer = ""
-        self.deferred = deferred
+class Response(Protocol):
+    """
+    This class receives the incoming response body from a request
+    constructs some convenience methods and attributes around the data.
+
+    :param deferred:
+        The deferred object which contains the target callback
+        and errback.
+
+    :param response:
+        The initial response object which will be passed along
+        to the target deferred.
+
+    :param request:
+        Named tuple object containing the method name, uri, headers, and data.
+    """
+    def __init__(self, deferred, response, request):
+        # internal attributes
+        self._done = False
+        self._body = ""
+        self._deferred = deferred
+
+        # main public attributes
+        self.request = request
         self.response = response
 
+        # convenience attributes constructed
+        # from the public attributes
+        self.uri = self.request.uri
+        self.headers = self.request.headers
+        self.code = self.response.code
+
+        if "Content-Type" not in self.headers:
+            self.content_type = None
+        else:
+            content_types = self.headers["Content-Type"]
+            self.content_type = \
+                content_types[0] if len(content_types) == 1 else content_types
+
+    def data(self):
+        """
+        Returns the data currently contained in the buffer.
+
+        :raises RuntimeError:
+            Raised if this method id called before all data
+            has been received.
+        """
+        if not self._done:
+            raise RuntimeError("Response not yet received.")
+        return self._body
+
+    def json(self, loader=json.loads):
+        """
+        Returns the json data from the incoming request
+
+        :raises RuntimeError:
+            Raised if this method id called before all data
+            has been received.
+
+        :raises ValueError:
+            Raised if the content type for this request is not
+            application/json.
+        """
+        if not self._done:
+            raise RuntimeError("Response not yet received.")
+        elif self.content_type != "application/json":
+            raise ValueError("Not an application/json response.")
+        else:
+            return loader(self._body)
+
     def dataReceived(self, data):
-        self.buffer += data
+        """
+        Overrides :meth:`.Protocol.dataReceived` and appends data
+        to ``_body``.
+        """
+        self._body += data
 
     def connectionLost(self, reason=connectionDone):
-        # TODO: add statsd for response
-
-        # TODO: look at response for code
+        """
+        Overrides :meth:`.Protocol.connectionLost` and sets the ``_done``
+        when complete.  When called with :class:`.ResponseDone` for ``reason``
+        this method will call the callback on ``_deferred``
+        """
         if reason.type is ResponseDone:
-            self.deferred.callback(self.buffer)
+            self._done = True
+            logger.debug(
+                "%s %s (code: %s: body: %r)",
+                self.request.method, self.request.uri, self.code, self._body)
+            self._deferred.callback(self)
+        else:
+            self._deferred.errback(reason)
 
-        # if the headers specify json content, convert
-        # # it before returning the data
-        # content_types = \
-        #     [] or self.response.headers.getRawHeaders("Content-Type")
-        #
-        # for content_type in content_types:
-        #     if "application/json" in content_type:
-        #         self.buffer = json.loads(self.buffer)
-        #         break
-        #
-        # # there's a problem with the incoming response, the buffer
-        # # should contain the error so pass it to the errback
-        # if self.response.code >= BAD_REQUEST:
-        #     self.deferred.errback(reason)
-        #
-        # elif OK <= self.response.code < MULTIPLE_CHOICES:
-        #     self.deferred.callback(self.buffer)
-        #
-        # # nothing left to do, call the callback (success)
-        # elif reason.type is ResponseDone:
-        #     self.deferred.callback(self.buffer)
-        #
-        # # we're not done and we don't have a specific error code
-        # else:
-        #     self.deferred.errback(reason)
 
 def request(method, uri, **kwargs):
     """
     Wrapper around :func:`treq.request` with some added arguments
     and validation.
-    """
-    # pop off our arguments
-    data = kwargs.pop("data", NOTSET)
-    headers = kwargs.pop("headers", {})
-    response_success = kwargs.pop("response_success", None)
-    request_failure = kwargs.pop("request_failure", None)
 
+    :param str method:
+        The HTTP method to use when making the request.
+
+    :param str uri:
+        The URI this request will be made to.
+
+    :type data: str, list, tuple, set, dict
+    :keyword data:
+        The data to send along with some types of requests
+        such as ``POST`` or ``PUT``
+
+    :keyword dict headers:
+        The headers to send along with the request to
+        ``uri``.  Currently only single values per header
+        are supported.
+
+    :keyword function callback:
+        The function to deliver an instance of :class:`Response`
+        once we receive and unpack a response.
+
+    :keyword function errback:
+        The function to deliver an error message to.  By default
+        this will use :func:`.log.err`.
+    """
+    # check assumptions for arguments
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
     assert isinstance(uri, STRING_TYPES) and uri
-    assert callable(response_success)
-    assert request_failure is None or callable(request_failure)
+
+    data = kwargs.pop("data", NOTSET)
+    headers = kwargs.pop("headers", {})
+    callback = kwargs.pop("callback", None)
+    errback = kwargs.pop("errback", log.err)
+
+    # check assumptions for keywords
+    assert callable(callback) and callable(errback)
     assert data is NOTSET or \
            isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
 
@@ -121,34 +191,51 @@ def request(method, uri, **kwargs):
         # than one value for now
         assert len(headers[header]) == 1
 
-    # encode the data (if any)
-    if data is not NOTSET and headers["Content-Type"] == ["application/json"]:
-        data = json.dump(data)
+    def unpack_response(response):
+        deferred = Deferred()
+        deferred.addCallback(callback)
+
+        # Deliver the body onto an instance of the response
+        # object along with the original request.  Finally
+        # the request and response via an instance of `Response`
+        # to the outer scope's callback function.
+        response.deliverBody(
+            Response(
+                deferred, response,
+                Request(method=method, uri=uri, data=data, headers=headers)))
+
+        return deferred
+
+    # prepare to send the data
+    request_data = data  # so we don't modify the original data
+    if request_data is not NOTSET and \
+                    headers["Content-Type"] == ["application/json"]:
+        request_data = json.dumps(data)
 
     elif data is not NOTSET:
         raise NotImplementedError(
-            "don't know how to dump data for %s" % headers["Content-Type"])
+            "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    # prepare keyword arguments for treq
+    logmsg = "Queued request `%s %s`" % (method, uri)
+
+    # prepare keyword arguments
     kwargs.update(headers=headers)
-    if data is not NOTSET:
-        kwargs.update(data=data)
+    if request_data is not NOTSET:
+        kwargs.update(data=request_data)
+        logmsg += " data: %r" % data
 
-    def unpack_response(response):
-        request = RequestData(
-            method=method, uri=uri, headers=headers, data=data)
-        deferred = Deferred()
-        deferred.addCallback(response_success, request, response)
-        response.deliverBody(ResponseReceiver(deferred, response))
-        return deferred
+    # setup the request from treq
+    logger.debug(logmsg)
+    deferred = treq.request(method, uri, **kwargs)
+    deferred.addCallback(unpack_response)
+    deferred.addErrback(errback)
 
-    treq_deferred = treq.request(method, uri, **kwargs)
-    treq_deferred.addCallback(unpack_response)
-    if request_failure is not None:
-        treq_deferred.addErrback(request_failure)
-
-    return treq_deferred
+    return deferred
 
 
-def get(uri, **kwargs):
-    return request("GET", uri, **kwargs)
+head = partial(request, "GET")
+get = partial(request, "GET")
+post = partial(request, "POST")
+put = partial(request, "PUT")
+patch = partial(request, "PATCH")
+delete = partial(request, "DELETE")
