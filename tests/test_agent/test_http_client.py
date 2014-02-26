@@ -44,3 +44,34 @@ class TestPartials(TestCase):
         self.assertIs(delete.func, request)
         self.assertEqual(delete.args, ("DELETE", ))
 
+
+class TestRequestAssertions(TestCase):
+    def test_invalid_method(self):
+        self.assertRaises(AssertionError, lambda: request("", ""))
+
+    def test_invalid_uri_type(self):
+        self.assertRaises(AssertionError, lambda: request("GET", None))
+
+    def test_invalid_empty_uri(self):
+        self.assertRaises(AssertionError, lambda: request("GET", ""))
+
+    def test_invalid_callback_type(self):
+        self.assertRaises(AssertionError,
+                          lambda: request("GET", "/", callback=""))
+
+    def test_invalid_errback_type(self):
+        self.assertRaises(AssertionError,
+                          lambda: request("GET", "/", errback=""))
+
+    def test_invalid_header_value_length(self):
+        self.assertRaises(AssertionError,
+                          lambda: request(
+                              "GET", "/", callback=lambda: _,
+                              headers={"foo": ["a", "b"]}))
+
+    def test_invalid_header_value_type(self):
+        self.assertRaises(NotImplementedError,
+                          lambda: request(
+                              "GET", "/", callback=lambda: _,
+                              headers={"foo": None}))
+
