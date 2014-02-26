@@ -233,7 +233,7 @@ def request(method, uri, **kwargs):
     return deferred
 
 
-head = partial(request, "GET")
+head = partial(request, "HEAD")
 get = partial(request, "GET")
 post = partial(request, "POST")
 put = partial(request, "PUT")
