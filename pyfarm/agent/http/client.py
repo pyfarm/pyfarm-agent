@@ -163,6 +163,11 @@ def request(method, uri, **kwargs):
     :keyword function errback:
         The function to deliver an error message to.  By default
         this will use :func:`.log.err`.
+
+    :keyword class response_class:
+        The class to use to unpack the internal response.  This is mainly
+        used by the unittests but could be used elsewhere to add some
+        custom behavior to the unpack process for the incoming response.
     """
     # check assumptions for arguments
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
@@ -172,6 +177,7 @@ def request(method, uri, **kwargs):
     headers = kwargs.pop("headers", {})
     callback = kwargs.pop("callback", None)
     errback = kwargs.pop("errback", log.err)
+    response_class = kwargs.pop("response_class", Response)
 
     # check assumptions for keywords
     assert callable(callback) and callable(errback)
@@ -189,7 +195,12 @@ def request(method, uri, **kwargs):
 
         # for our purposes we should not expect headers with more
         # than one value for now
-        assert len(headers[header]) == 1
+        elif isinstance(value, (list, tuple, set)):
+            assert len(value) == 1
+
+        else:
+            raise NotImplementedError(
+                "cannot handle header values with type %s" % type(value))
 
     def unpack_response(response):
         deferred = Deferred()
@@ -200,7 +211,7 @@ def request(method, uri, **kwargs):
         # the request and response via an instance of `Response`
         # to the outer scope's callback function.
         response.deliverBody(
-            Response(
+            response_class(
                 deferred, response,
                 Request(method=method, uri=uri, data=data, headers=headers)))
 
