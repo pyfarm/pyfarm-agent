@@ -75,3 +75,4 @@ class TestRequestAssertions(TestCase):
                               "GET", "/", callback=lambda: _,
                               headers={"foo": None}))
 
+# TODO: add request testing, see treq: https://github.com/dreid/treq/tree/master/treq/test
