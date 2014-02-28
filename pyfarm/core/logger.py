@@ -31,7 +31,9 @@ from logging import Formatter
 
 # Import or construct the necessary objects depending on the Python version
 # and use sys.version_info directly to avoid possible circular import issues.
-if sys.version_info[0:2] >= (2, 7):
+PY_MAJOR, PY_MINOR = sys.version_info[0:2]
+PY26 = PY_MAJOR, PY_MINOR == (2, 6)
+if (PY_MAJOR, PY_MINOR) >= (2, 7):
     from logging import NullHandler, captureWarnings
     from logging.config import dictConfig
 else:
@@ -99,9 +101,17 @@ class ColorFormatter(Formatter):
             Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)
     }
 
-    def format(self, record):
-        head, tail = self.FORMATS.get(record.levelno, ("", ""))
-        return head + super(ColorFormatter, self).format(record) + tail
+    # Python 2.6 uses old style classes which means we can't use
+    # super().  So we construct the proper method at the class level
+    # so we can safe an if statement for each function call.
+    if not PY26:
+        def format(self, record):
+            head, tail = self.FORMATS.get(record.levelno, ("", ""))
+            return head + super(ColorFormatter, self).format(record) + tail
+    else:
+        def format(self, record):
+            head, tail = self.FORMATS.get(record.levelno, ("", ""))
+            return head + Formatter.format(self, record) + tail
 
 
 class config(object):
