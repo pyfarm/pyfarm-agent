@@ -20,7 +20,7 @@ from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
-    Response, request, head, get, post, put, patch, delete)
+    Request, Response, request, head, get, post, put, patch, delete)
 
 
 class TestPartials(TestCase):
@@ -117,11 +117,35 @@ class RequestTestCase(TestCase):
         if user_agent is None:
             user_agent = ["PyFarm (agent) 1.0"]
 
-        self.assertIn(code, responses)
+        # check some of the attribute we expect
+        # against data coming back from the server
+        try:
+            data = response.json()
+            self.assertEqual(data["headers"]["User-Agent"], user_agent[0])
+
+            # even if we're making a https request the underlying
+            # url might be http
+            self.assertIn(data["url"], set([
+                response.request.uri,
+                response.request.uri.replace("https", "http")]))
+        except ValueError:
+            pass
+
+        # check the types under the hod
         self.assertIsInstance(response, Response)
+        self.assertIsInstance(response.request, Request)
+        self.assertIsInstance(response.headers, dict)
+
+        # return code check
+        self.assertIn(code, responses)
         self.assertEqual(response.code, code)
+        self.assertEqual(response.code, response.response.code)
+
+        # ensure our request and response attributes match headers match
         self.assertEqual(response.headers["Content-Type"], content_type)
         self.assertEqual(response.headers["User-Agent"], user_agent)
+        self.assertEqual(response.content_type, content_type[0])
+        self.assertEqual(response.headers, response.request.headers)
 
 
 class TestGet(RequestTestCase):
@@ -133,5 +157,19 @@ class TestGet(RequestTestCase):
             self.assertEqual(data["args"]["foo"], "1")
 
         d = self.get("/get?foo=1", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_get_header(self):
+        def callback(response):
+            data = response.json()
+            self.assert_response(response, OK)
+            self.assertEqual(response.headers["X-Foo"], ["True"])
+            print data
+            self.assertIn("foo", data["args"])
+            self.assertEqual(data["args"]["foo"], "1")
+
+        d = self.get(
+            "/get?foo=1", callback=callback, headers={"X-Foo": str(True)})
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
