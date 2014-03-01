@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from httplib import OK
 
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
@@ -81,7 +81,7 @@ class TestRequestAssertions(TestCase):
 
 
 class RequestTestCase(TestCase):
-    BASE_URL = os.environ.get(
+    BASE_URL = read_env(
         "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
 
     @classmethod
@@ -108,7 +108,7 @@ class RequestTestCase(TestCase):
     def delete(cls, url, **kwargs):
         kwargs.setdefault("persistent", False)
         return delete(cls.get_url(url), **kwargs)
-    
+
 
 class TestGet(RequestTestCase):
     def test_basic_get(self):
