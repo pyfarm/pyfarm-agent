@@ -14,9 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from functools import partial
+from httplib import OK
+
+from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
     request, head, get, post, put, patch, delete)
+
+
+class RequestTestCase(TestCase):
+    BASE_URL = os.environ.get(
+        "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
+
+    _get = partial(get, persistent=False)
+    _post = partial(post, persistent=False)
+    _put = partial(put, persistent=False)
+    _delete = partial(put, persistent=False)
+
+    @classmethod
+    def _url(cls, url):
+        assert isinstance(url, STRING_TYPES)
+        return cls.BASE_URL + ("/%s" % url if not url.startswith("/") else url)
+
+    @classmethod
+    def get(cls, url, **kwargs):
+        return cls._get(cls._url(url), **kwargs)
 
 
 class TestPartials(TestCase):
@@ -74,5 +98,18 @@ class TestRequestAssertions(TestCase):
                           lambda: request(
                               "GET", "/", callback=lambda: _,
                               headers={"foo": None}))
+
+
+class TestGet(RequestTestCase):
+    def test_get(self):
+        def callback(response):
+            # TODO: test data in response
+            # response.json()
+            self.assertEqual(response.code, OK)
+            self.assertTrue(True)
+
+        d = self.get("/get", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
 
 # TODO: add request testing, see treq: https://github.com/dreid/treq/tree/master/treq/test
