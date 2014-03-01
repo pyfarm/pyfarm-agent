@@ -93,6 +93,18 @@ class TestCase(_TestCase):
                 self.fail('"%s" does not match "%s"' % (
                     expected_regexp.pattern, str(exception)))
 
+    try:
+        _TestCase.assertIsNone
+    except AttributeError:
+        def assertIsNone(self, item):
+            self.assertTrue(item is None)
+
+    try:
+        _TestCase.assertIsNotNone
+    except AttributeError:
+        def assertIsNotNone(self, item):
+            self.assertTrue(item is not None)
+
     def _render(self, resource, request):
         result = resource.render(request)
 
