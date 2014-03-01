@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from httplib import OK
+from httplib import responses, OK
 
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
-    request, head, get, post, put, patch, delete)
+    Response, request, head, get, post, put, patch, delete)
 
 
 class TestPartials(TestCase):
@@ -109,15 +109,29 @@ class RequestTestCase(TestCase):
         kwargs.setdefault("persistent", False)
         return delete(cls.get_url(url), **kwargs)
 
+    def assert_response(self, response, code,
+                        content_type=None, user_agent=None):
+        if content_type is None:
+            content_type = ["application/json"]
+
+        if user_agent is None:
+            user_agent = ["PyFarm (agent) 1.0"]
+
+        self.assertIn(code, responses)
+        self.assertIsInstance(response, Response)
+        self.assertEqual(response.code, code)
+        self.assertEqual(response.headers["Content-Type"], content_type)
+        self.assertEqual(response.headers["User-Agent"], user_agent)
+
 
 class TestGet(RequestTestCase):
-    def test_basic_get(self):
+    def test_get_data(self):
         def callback(response):
-            self.assertEqual(response.code, OK)
-            self.assertTrue(True)
+            data = response.json()
+            self.assert_response(response, OK)
+            self.assertIn("foo", data["args"])
+            self.assertEqual(data["args"]["foo"], "1")
 
-        d = self.get("/get", callback=callback)
+        d = self.get("/get?foo=1", callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
-
-# TODO: add request testing, see treq: https://github.com/dreid/treq/tree/master/treq/test
