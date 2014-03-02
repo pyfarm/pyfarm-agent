@@ -36,7 +36,7 @@ import psutil
 
 try:
     WindowsError
-except NameError:
+except NameError:  # pragma: no cover
     WindowsError = OSError
 
 
@@ -53,7 +53,7 @@ def filesystem_is_case_sensitive():  # pragma: no cover
     return case_sensitive
 
 
-def environment_is_case_sensitive():  # pragma: no cover
+def environment_is_case_sensitive():
     """returns True if the environment is case sensitive"""
     envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
     envvar_upper = envvar_lower.upper()
@@ -69,9 +69,8 @@ def environment_is_case_sensitive():  # pragma: no cover
     return case_sensitive
 
 
-def machine_architecture():
+def machine_architecture(arch=platform.machine().lower()):
     """returns the architecture of the host itself"""
-    arch = platform.machine().lower()
     if arch in ("amd64", "x86_64", "ia64") or "wow64" in arch:
         return 64
 
@@ -80,21 +79,24 @@ def machine_architecture():
 
     elif not arch:
         raise NotImplementedError(
-            "no result from `platform.machine` on this system")
+            "Cannot handle `arch` being unpopulated.")
 
     else:
         raise NotImplementedError(
-            "don't know how to handle a machine architecture %s" % repr(arch))
+            "Don't know how to handle a machine architecture %s" % repr(arch))
 
 
-def interpreter_architecture():
+# Don't collect coverage because it's using the internal Python
+# implementation which varies between platforms.
+def interpreter_architecture():  # pragma: no cover
     """returns the architecture of the interpreter itself (32 or 64)"""
     if hasattr(sys, "maxsize"):
         if sys.maxsize > 2**32:
             return 64
         else:
             return 32
-    else:  # Python < 2.6, not as accurate as the above
+    else:
+        # Python < 2.6, not as accurate as the above
         if platform.architecture()[0] == "64bits":
             return 64
         else:
@@ -104,13 +106,17 @@ def interpreter_architecture():
 def uptime():
     """
     Returns the amount of time the system has been running in
-    seconds
+    seconds.
     """
     return time.time() - psutil.BOOT_TIME
 
 
 def operating_system(plat=sys.platform):
-    """returns the operating system for the given platform"""
+    """
+    Returns the operating system for the given platform.  Please
+    note that while you can call this function directly you're more
+    likely better off using values in :mod:`pyfarm.core.enums` instead.
+    """
     if plat.startswith("linux"):
         return "linux"
     elif plat.startswith("win"):

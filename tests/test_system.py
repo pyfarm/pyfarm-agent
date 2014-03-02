@@ -67,6 +67,25 @@ class BaseSystem(TestCase):
         for envvar in (envvar_lower, envvar_upper):
             os.environ.pop(envvar, None)
 
+    def test_operation_system(self):
+        self.assertEqual(system.operating_system("linux"), "linux")
+        self.assertEqual(system.operating_system("windows"), "windows")
+        self.assertEqual(system.operating_system("darwin"), "mac")
+        self.assertEqual(system.operating_system("foobar"), "other")
+
+    def test_machine_architecture(self):
+        for arch in ("amd64", "x86_64", "ia64", "Syswow64"):
+            self.assertEqual(system.machine_architecture(arch), 64)
+
+        for arch in ("i386", "i686", "x86"):
+            self.assertEqual(system.machine_architecture(arch), 32)
+
+        with self.assertRaises(NotImplementedError):
+            system.machine_architecture("")
+
+        with self.assertRaises(NotImplementedError):
+            system.machine_architecture("foobar")
+
 
 class Network(TestCase):
     def test_packets_sent(self):
