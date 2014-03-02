@@ -1,5 +1,7 @@
 [run]
-source = *pyfarm*
+source =
+    pyfarm.agent
+    pyfarm.jobtypes
 
 [report]
 exclude_lines =
