@@ -26,7 +26,6 @@ from __future__ import division
 
 import json
 from functools import partial
-from io import StringIO
 from ast import literal_eval
 
 try:
@@ -56,13 +55,13 @@ class ImmutableDict(dict):
         self.__writable = True
         try:
             super(ImmutableDict, self).__init__(iterable or [], **kwargs)
-        except RuntimeError:
+        except RuntimeError:  # pragma: no cover
             raise
         finally:
             del self.__writable
 
     # Force Python 2.x to use generators for items/keys/values
-    if PY2:
+    if PY2:  # pragma: no cover
         items = dict.iteritems
         keys = dict.iterkeys
         values = dict.itervalues
