@@ -87,6 +87,7 @@ class RequestTestCase(TestCase):
         "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
 
     def setUp(self):
+        self.base_url = self.BASE_URL
         if self.SILENCE_LOGGER:
             self.logger_disabled = logger.disabled
             logger.disabled = 1
@@ -97,30 +98,25 @@ class RequestTestCase(TestCase):
             logger.disabled = self.logger_disabled
         TestCase.tearDown(self)
 
-    @classmethod
-    def get_url(cls, url):
+    def get_url(self, url):
         assert isinstance(url, STRING_TYPES)
-        return cls.BASE_URL + ("/%s" % url if not url.startswith("/") else url)
+        return self.base_url + ("/%s" % url if not url.startswith("/") else url)
 
-    @classmethod
-    def get(cls, url, **kwargs):
+    def get(self, url, **kwargs):
         kwargs.setdefault("persistent", False)
-        return get(cls.get_url(url), **kwargs)
+        return get(self.get_url(url), **kwargs)
 
-    @classmethod
-    def post(cls, url, **kwargs):
+    def post(self, url, **kwargs):
         kwargs.setdefault("persistent", False)
-        return post(cls.get_url(url), **kwargs)
+        return post(self.get_url(url), **kwargs)
 
-    @classmethod
-    def put(cls, url, **kwargs):
+    def put(self, url, **kwargs):
         kwargs.setdefault("persistent", False)
-        return put(cls.get_url(url), **kwargs)
+        return put(self.get_url(url), **kwargs)
 
-    @classmethod
-    def delete(cls, url, **kwargs):
+    def delete(self, url, **kwargs):
         kwargs.setdefault("persistent", False)
-        return delete(cls.get_url(url), **kwargs)
+        return delete(self.get_url(url), **kwargs)
 
     def assert_response(self, response, code,
                         content_type=None, user_agent=None):
@@ -159,6 +155,18 @@ class RequestTestCase(TestCase):
         self.assertEqual(response.headers["User-Agent"], user_agent)
         self.assertEqual(response.content_type, content_type[0])
         self.assertEqual(response.headers, response.request.headers)
+
+
+class TestClientErrors(RequestTestCase):
+    def test_unsupported_scheme(self):
+        self.base_url = "foo"
+
+        def callback(response):
+            self.assert_response(response, OK)
+
+        d = self.get("/get", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
 
 
 class TestGet(RequestTestCase):
