@@ -271,10 +271,28 @@ class TestEnums(TestCase):
         self.assertEqual(i.A, -4242)
         self.assertEqual(i._map, {"A": -4242, -4242: "A"})
 
+        with self.assertRaises(TypeError):
+            cast_enum(e, None)
+
 
 class TestEnumValueClass(TestCase):
     def setUp(self):
         Values.check_uniqueness = False
+
+    def test_to_dict(self):
+        foobar = Enum("foobar", A=1, to_dict=lambda: None, instance=False)
+        self.assertTrue(hasattr(foobar, "to_dict"))
+
+    def test_hash(self):
+        v = Values(int=1, str="foo")
+        self.assertEqual(hash(v), hash(v.str))
+
+    def test_input_types(self):
+        with self.assertRaises(TypeError):
+            Values(int="foo", str="foo")
+
+        with self.assertRaises(TypeError):
+            Values(int=1, str=1)
 
     def test_unique_values(self):
         Values(1, "A")
@@ -294,17 +312,33 @@ class TestEnumValueClass(TestCase):
 
     def test_greater(self):
         self.assertGreater(2, Values(1, "A"))
+        self.assertGreater(Values(2, "A"), Values(1, "A"))
+
+        with self.assertRaises(NotImplementedError):
+            self.assertGreater("", Values(1, "A"))
 
     def test_greater_equal(self):
         self.assertGreaterEqual(1, Values(1, "1"))
         self.assertGreaterEqual(2, Values(1, "A"))
+        self.assertGreaterEqual(Values(2, "A"), Values(1, "A"))
+
+        with self.assertRaises(NotImplementedError):
+            self.assertGreaterEqual("", Values(1, "1"))
 
     def test_less(self):
         self.assertLess(0, Values(1, "A"))
+        self.assertLess(Values(0, "A"), Values(1, "A"))
+
+        with self.assertRaises(NotImplementedError):
+            self.assertLess("", Values(1, "A"))
 
     def test_less_equal(self):
         self.assertLessEqual(0, Values(1, "A"))
         self.assertLessEqual(1, Values(1, "A"))
+        self.assertLessEqual(Values(1, "A"), Values(1, "A"))
+
+        with self.assertRaises(NotImplementedError):
+            self.assertLessEqual("", Values(1, "A"))
 
     def test_contains(self):
         self.assertIn(1, Values(1, "A"))

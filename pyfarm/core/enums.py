@@ -166,7 +166,7 @@ import sys
 # somehow someone made it to this point, stop here.
 PY_MAJOR, PY_MINOR = sys.version_info[0:2]
 PY_VERSION = (PY_MAJOR, PY_MINOR)
-if PY_VERSION <= (2, 5):
+if PY_VERSION <= (2, 5):  # pragma: no cover
     raise RuntimeError("Python 2.5 and below is not supported")
 
 from collections import namedtuple
@@ -184,10 +184,10 @@ from pyfarm.core.sysinfo.system import (
     filesystem_is_case_sensitive, environment_is_case_sensitive,
     machine_architecture, interpreter_architecture, operating_system)
 
-try:
+try:  # pragma: no cover
     STRING_TYPES = (str, unicode)
     NUMERIC_TYPES = (int, long, float, complex)
-except NameError:
+except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
 
@@ -230,10 +230,12 @@ class Values(namedtuple("Values", ("int", "str"))):
     class is instanced it will ensure that the input values
     are of the correct type and unique.
     """
-    if PY3:
-        NUMERIC_TYPES = int
-    else:
+    # Numerical types which are specific to the enums
+    # only.
+    try:
         NUMERIC_TYPES = (int, long)
+    except NameError:  # pragma: no cover
+        NUMERIC_TYPES = (int, )
         
     check_uniqueness = True
     _integers = set()
@@ -261,7 +263,7 @@ class Values(namedtuple("Values", ("int", "str"))):
     def __str__(self):
         return self.str
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return "%s(%s, %s)" % (
             self.__class__.__name__, self.int, repr(self.str))
 
@@ -272,7 +274,7 @@ class Values(namedtuple("Values", ("int", "str"))):
             return item == self.int
         elif isinstance(item, Values):
             return item.str == self.str and item.int == self.int
-        else:
+        else:  # pragma: no cover
             return False
 
     def __eq__(self, other):
@@ -284,7 +286,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         elif isinstance(other, Values):
             return other.int < self.int
         else:
-            return False
+            raise NotImplementedError("Cannot compare against %s" % type(other))
 
     def __ge__(self, other):
         if isinstance(other, self.NUMERIC_TYPES):
@@ -292,7 +294,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         elif isinstance(other, Values):
             return other.int <= self.int
         else:
-            return False
+            raise NotImplementedError("Cannot compare against %s" % type(other))
 
     def __lt__(self, other):
         if isinstance(other, self.NUMERIC_TYPES):
@@ -300,7 +302,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         elif isinstance(other, Values):
             return other.int > self.int
         else:
-            return False
+            raise NotImplementedError("Cannot compare against %s" % type(other))
 
     def __le__(self, other):
         if isinstance(other, self.NUMERIC_TYPES):
@@ -308,7 +310,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         elif isinstance(other, Values):
             return other.int >= self.int
         else:
-            return False
+            raise NotImplementedError("Cannot compare against %s" % type(other))
 
 
 def cast_enum(enum, enum_type):
@@ -343,9 +345,11 @@ def cast_enum(enum, enum_type):
         elif enum_type is str:
             enum_data[key] = value.str
         else:
-            raise ValueError("valid values for `enum_type` are int or str")
+            raise TypeError("Valid values for `enum_type` are int or str")
 
-    class MappedEnum(namedtuple(enum.__class__.__name__, enum_data.keys())):
+    class MappedEnum(
+        namedtuple(
+            enum.__class__.__name__, enum_data.keys())):  # pragma: no cover
         _map = reverse_map
         _enum = enum
 
