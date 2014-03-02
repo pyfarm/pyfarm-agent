@@ -74,13 +74,13 @@ class TestRequestAssertions(TestCase):
     def test_invalid_header_value_length(self):
         self.assertRaises(AssertionError,
                           lambda: request(
-                              "GET", "/", callback=lambda: _,
+                              "GET", "/", callback=lambda: None,
                               headers={"foo": ["a", "b"]}))
 
     def test_invalid_header_value_type(self):
         self.assertRaises(NotImplementedError,
                           lambda: request(
-                              "GET", "/", callback=lambda: _,
+                              "GET", "/", callback=lambda: None,
                               headers={"foo": None}))
 
 
