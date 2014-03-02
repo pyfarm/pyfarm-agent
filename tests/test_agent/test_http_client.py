@@ -16,11 +16,11 @@
 
 from httplib import responses, OK
 
-from pyfarm.core.config import read_env
+from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
-    Request, Response, request, head, get, post, put, patch, delete)
+    Request, Response, request, head, get, post, put, patch, delete, logger)
 
 
 class TestPartials(TestCase):
@@ -81,8 +81,21 @@ class TestRequestAssertions(TestCase):
 
 
 class RequestTestCase(TestCase):
+    SILENCE_LOGGER = read_env_bool(
+        "PYFARM_AGENT_TEST_SILENCE_HTTP_LOGGER", True)
     BASE_URL = read_env(
         "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
+
+    def setUp(self):
+        if self.SILENCE_LOGGER:
+            self.logger_disabled = logger.disabled
+            logger.disabled = 1
+        TestCase.setUp(self)
+
+    def tearDown(self):
+        if self.SILENCE_LOGGER:
+            logger.disabled = self.logger_disabled
+        TestCase.tearDown(self)
 
     @classmethod
     def get_url(cls, url):
@@ -149,27 +162,31 @@ class RequestTestCase(TestCase):
 
 
 class TestGet(RequestTestCase):
-    def test_get_data(self):
+    def test_get(self):
         def callback(response):
-            data = response.json()
             self.assert_response(response, OK)
-            self.assertIn("foo", data["args"])
-            self.assertEqual(data["args"]["foo"], "1")
 
-        d = self.get("/get?foo=1", callback=callback)
+        d = self.get("/get", callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
-    def test_get_header(self):
+    def test_header(self):
         def callback(response):
             data = response.json()
             self.assert_response(response, OK)
-            self.assertEqual(response.headers["X-Foo"], ["True"])
-            print data
-            self.assertIn("foo", data["args"])
-            self.assertEqual(data["args"]["foo"], "1")
+            self.assertEqual(response.headers["X-Foo"], ["bar"])
+            self.assertEqual(data["headers"]["X-Foo"], "bar")
 
-        d = self.get(
-            "/get?foo=1", callback=callback, headers={"X-Foo": str(True)})
+        d = self.get("/get", callback=callback, headers={"X-Foo": "bar"})
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_argument(self):
+        def callback(response):
+            data = response.json()
+            self.assert_response(response, OK)
+            self.assertEqual(data["args"], {"foo": "bar"})
+
+        d = self.get("/get?foo=bar", callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
