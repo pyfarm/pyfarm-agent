@@ -14,19 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+from collections import namedtuple
 from httplib import responses, OK
 
 from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
+from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web.error import SchemeNotSupported
-from twisted.web.client import Response as TWResponse, Headers
+from twisted.web.client import Response as TWResponse, Headers, ResponseDone
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
     Request, Response, request, head, get, post, put, patch, delete, logger)
+
+# fake object we use for triggering Response.connectionLost
+responseDone = namedtuple("reason", ["type"])(type=ResponseDone)
 
 
 class TestPartials(TestCase):
@@ -296,3 +302,203 @@ class TestMethods(RequestTestCase):
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
+
+class TestResponse(RequestTestCase):
+    def setUp(self):
+        RequestTestCase.setUp(self)
+        self.callbacks = set()
+
+    def test_instance_type(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        self.assertIsInstance(r, Protocol)
+
+    def test_attributes(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        self.assertIs(r._deferred, deferred)
+        self.assertIs(r.request, request)
+        self.assertIs(r.response, twisted_response)
+        self.assertEqual(r.method, request.method)
+        self.assertEqual(r.url, request.url)
+        self.assertEqual(r.code, twisted_response.code)
+        self.assertEqual(r.content_type, "application/json")
+
+    def test_headers(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+        r = Response(deferred, twisted_response, request)
+        self.assertEqual(r.headers, {"Content-Type": "application/json"})
+        self.assertEqual(r.request.headers,
+                         {"Content-Type": "application/json"})
+
+    def test_data_received(self):
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+
+        r = Response(deferred, twisted_response, request)
+        self.assertEqual(r._body, "")
+        data = os.urandom(6).encode("hex")
+        r.dataReceived(data)
+        self.assertEqual(r._body, data)
+
+    def test_response_done(self):
+        deferred = Deferred()
+        deferred.addCallback(lambda _: self.callbacks.add("success"))
+        deferred.addErrback(lambda _: self.callbacks.add("failure"))
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        r.connectionLost(responseDone)
+        self.assertEqual(self.callbacks, set(["success"]))
+        self.assertTrue(r._done)
+        return deferred
+
+    def test_connection_done(self):
+        deferred = Deferred()
+        deferred.addCallback(lambda _: self.callbacks.add("success"))
+        deferred.addErrback(lambda _: self.callbacks.add("failure"))
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        r.connectionLost(connectionDone)
+        self.assertEqual(self.callbacks, set(["failure"]))
+        self.assertFalse(r._done)
+        return deferred
+
+    def test_data_early(self):
+        deferred = Deferred()
+        deferred.addCallback(lambda _: self.callbacks.add("success"))
+        deferred.addErrback(lambda _: self.callbacks.add("failure"))
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        self.assertRaises(RuntimeError, lambda: r.data())
+
+    def test_data(self):
+        deferred = Deferred()
+        deferred.addCallback(lambda _: self.callbacks.add("success"))
+        deferred.addErrback(lambda _: self.callbacks.add("failure"))
+
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        data1 = os.urandom(6).encode("hex")
+        data2 = os.urandom(6).encode("hex")
+        data = data1 + data2
+        r = Response(deferred, twisted_response, request)
+        r.dataReceived(data1)
+        r.dataReceived(data2)
+        r.connectionLost(responseDone)
+        self.assertEqual(self.callbacks, set(["success"]))
+        self.assertTrue(r._done)
+        self.assertEqual(r.data(), data)
+        return deferred
+
+    def test_json_early(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        self.assertRaises(RuntimeError, lambda: r.json())
+
+    def test_json_wrong_content_type(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["text/html"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "text/html"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        r._done = True
+        self.assertRaisesRegexp(
+            ValueError, "Not an application/json response\.", lambda: r.json())
+
+    def test_json_decoding_error(self):
+        deferred = Deferred()
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        r = Response(deferred, twisted_response, request)
+        r._done = True
+        self.assertRaisesRegexp(
+            ValueError, "No JSON object could be decoded", lambda: r.json())
+
+    def test_json(self):
+        deferred = Deferred()
+        deferred.addCallback(lambda _: self.callbacks.add("success"))
+        deferred.addErrback(lambda _: self.callbacks.add("failure"))
+
+        twisted_headers = Headers({"Content-Type": ["application/json"]})
+        twisted_response = TWResponse(
+            ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
+        request = Request(
+            method="GET", url="/",
+            headers={"Content-Type": "application/json"}, data=None)
+
+        data = {
+            os.urandom(6).encode("hex"): os.urandom(6).encode("hex"),
+            os.urandom(6).encode("hex"): os.urandom(6).encode("hex")
+        }
+
+        r = Response(deferred, twisted_response, request)
+        map(r.dataReceived, json.dumps(data))
+        r.connectionLost(responseDone)
+        self.assertEqual(self.callbacks, set(["success"]))
+        self.assertTrue(r._done)
+        self.assertEqual(r.json(), data)
+        return deferred
