@@ -74,6 +74,7 @@ class Response(Protocol):
 
         # convenience attributes constructed
         # from the public attributes
+        self.method = self.request.method
         self.url = self.request.url
         self.code = self.response.code
         self.content_type = None
