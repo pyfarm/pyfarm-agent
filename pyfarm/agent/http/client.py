@@ -30,7 +30,7 @@ import treq
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.python import log
-from twisted.web.client import ResponseDone
+from twisted.web.client import Response as _Response, GzipDecoder, ResponseDone
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
@@ -59,6 +59,10 @@ class Response(Protocol):
         Named tuple object containing the method name, uri, headers, and data.
     """
     def __init__(self, deferred, response, request):
+        assert isinstance(deferred, Deferred)
+        assert isinstance(response, (_Response, GzipDecoder))
+        assert isinstance(request, Request)
+
         # internal attributes
         self._done = False
         self._body = ""
