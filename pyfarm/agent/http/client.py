@@ -37,7 +37,7 @@ from pyfarm.core.logger import getLogger
 
 Request = namedtuple(
     "Request",
-    ["method", "uri", "headers", "data"])
+    ["method", "url", "headers", "data"])
 
 logger = getLogger("agent.http")
 
@@ -56,7 +56,7 @@ class Response(Protocol):
         to the target deferred.
 
     :param request:
-        Named tuple object containing the method name, uri, headers, and data.
+        Named tuple object containing the method name, url, headers, and data.
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
@@ -74,7 +74,7 @@ class Response(Protocol):
 
         # convenience attributes constructed
         # from the public attributes
-        self.uri = self.request.uri
+        self.url = self.request.url
         self.code = self.response.code
         self.content_type = None
 
@@ -137,13 +137,13 @@ class Response(Protocol):
             self._done = True
             logger.debug(
                 "%s %s (code: %s: body: %r)",
-                self.request.method, self.request.uri, self.code, self._body)
+                self.request.method, self.request.url, self.code, self._body)
             self._deferred.callback(self)
         else:
             self._deferred.errback(reason)
 
 
-def request(method, uri, **kwargs):
+def request(method, url, **kwargs):
     """
     Wrapper around :func:`treq.request` with some added arguments
     and validation.
@@ -151,8 +151,8 @@ def request(method, uri, **kwargs):
     :param str method:
         The HTTP method to use when making the request.
 
-    :param str uri:
-        The URI this request will be made to.
+    :param str url:
+        The url this request will be made to.
 
     :type data: str, list, tuple, set, dict
     :keyword data:
@@ -161,7 +161,7 @@ def request(method, uri, **kwargs):
 
     :keyword dict headers:
         The headers to send along with the request to
-        ``uri``.  Currently only single values per header
+        ``url``.  Currently only single values per header
         are supported.
 
     :keyword function callback:
@@ -179,7 +179,7 @@ def request(method, uri, **kwargs):
     """
     # check assumptions for arguments
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
-    assert isinstance(uri, STRING_TYPES) and uri
+    assert isinstance(url, STRING_TYPES) and url
 
     data = kwargs.pop("data", NOTSET)
     headers = kwargs.pop("headers", {})
@@ -221,7 +221,7 @@ def request(method, uri, **kwargs):
         response.deliverBody(
             response_class(
                 deferred, response,
-                Request(method=method, uri=uri, data=data, headers=headers)))
+                Request(method=method, url=url, data=data, headers=headers)))
 
         return deferred
 
@@ -235,7 +235,7 @@ def request(method, uri, **kwargs):
         raise NotImplementedError(
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    logmsg = "Queued request `%s %s`" % (method, uri)
+    logmsg = "Queued request `%s %s`" % (method, url)
 
     # prepare keyword arguments
     kwargs.update(headers=headers)
@@ -245,7 +245,7 @@ def request(method, uri, **kwargs):
 
     # setup the request from treq
     logger.debug(logmsg)
-    deferred = treq.request(method, uri, **kwargs)
+    deferred = treq.request(method, url, **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
 

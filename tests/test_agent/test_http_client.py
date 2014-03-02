@@ -17,8 +17,10 @@
 import os
 from httplib import responses, OK
 
-from twisted.web.error import SchemeNotSupported
+from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
+from twisted.web.error import SchemeNotSupported
+from twisted.web.client import Response as TWResponse, Headers
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import STRING_TYPES
@@ -57,10 +59,10 @@ class TestRequestAssertions(TestCase):
     def test_invalid_method(self):
         self.assertRaises(AssertionError, lambda: request("", ""))
 
-    def test_invalid_uri_type(self):
+    def test_invalid_url_type(self):
         self.assertRaises(AssertionError, lambda: request("GET", None))
 
-    def test_invalid_empty_uri(self):
+    def test_invalid_empty_url(self):
         self.assertRaises(AssertionError, lambda: request("GET", ""))
 
     def test_invalid_callback_type(self):
@@ -143,8 +145,8 @@ class RequestTestCase(TestCase):
             # url might be http
             if "url" in data:
                 self.assertIn(data["url"], (
-                    response.request.uri,
-                    response.request.uri.replace("https", "http")))
+                    response.request.url,
+                    response.request.url.replace("https", "http")))
         except ValueError:
             pass
 
