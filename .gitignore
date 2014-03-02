@@ -16,3 +16,4 @@ dist
 MANIFEST
 _trial_temp
 *.orig
+htmlcov
