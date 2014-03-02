@@ -21,11 +21,13 @@ import psutil
 import tempfile
 import uuid
 import netifaces
+import logging
 from os.path import isfile
 
 from pyfarm.core.testutil import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import system, network, cpu, memory, user
+from pyfarm.core.sysinfo.network import logger
 from pyfarm.core.enums import LINUX
 
 
@@ -126,6 +128,32 @@ class Network(TestCase):
                 break
         else:
             self.fail("failed to get hostname")
+
+    def test_hostname_localhost(self):
+        self.assertEqual(
+            network.hostname(name="localhost", fqdn="foo"), "foo")
+
+    def test_fqdn_localhost(self):
+        self.assertEqual(
+            network.hostname(name="foo", fqdn="localhost"), "localhost")
+
+    def test_fqdn_and_hostname_match(self):
+        self.assertEqual(
+            network.hostname(name="foo", fqdn="foo"), "foo.")
+
+    def test_mac_warn_appends_local(self):
+        class Filter(logging.Filter):
+            emitted = False
+
+            def filter(self, record):
+                if "OS X appended '.local'" in record.msg:
+                    Filter.emitted = True
+
+        logging_filter = Filter()
+        logger.addFilter(logging_filter)
+        network.hostname(name="foo", fqdn="foo.local", is_mac=True)
+        logger.removeFilter(logging_filter)
+        self.assertTrue(Filter.emitted)
 
     def test_addresses(self):
         self.assertEqual(len(list(network.addresses())) >= 1, True)

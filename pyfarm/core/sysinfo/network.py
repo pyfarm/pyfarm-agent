@@ -147,35 +147,39 @@ def outgoing_error_count():
     return iocounter().errout
 
 
-def hostname():
+def hostname(name=None, fqdn=None, is_mac=MAC):
     """
     Returns the the best guess hostname of this machine by comparing the
     hostname, fqdn, and reverse lookup of the ip address.
     """
     hostname_is_local = False
-    hostname = socket.gethostname()
-    fqdn = socket.getfqdn()
+    if name is None:
+        name = socket.gethostname()
+
+    if fqdn is None:
+        fqdn = socket.getfqdn()
 
     # we might get the proper fqdn if we finish the hostname
-    if fqdn == hostname:
-        fqdn = socket.getfqdn(hostname + ".")
+    if fqdn == name:
+        fqdn = socket.getfqdn(name + ".")
 
-    if hostname.startswith("localhost"):
-        logger.warning("hostname resolved to or contains 'locahost'")
+    if name.startswith("localhost"):
+        logger.warning("Hostname resolved to or contains 'locahost'")
         hostname_is_local = True
 
     if fqdn.startswith("localhost"):
-        logger.warning("fqdn resolved to or contains 'locahost'")
+        logger.warning(
+            "Fully qualified host name resolved to or contains 'locahost'")
 
-    if MAC and fqdn.endswith(".local"):
+    if is_mac and fqdn.endswith(".local"):
         logger.warning(
             "OS X appended '.local' to hostname, this may cause unexpected "
             "problems with DNS on the network")
 
-    if hostname_is_local or fqdn != hostname:
+    if hostname_is_local or fqdn != name:
         return fqdn
-    else:
-        return hostname
+
+    return name  # pragma: no cover
 
 
 def addresses():
@@ -192,14 +196,14 @@ def addresses():
                     ip = netaddr.IPAddress(addr)
                 except ValueError:  # pragma: no cover
                     logger.error(
-                        "could not convert %s to a valid IP object" % addr)
+                        "Could not convert %s to a valid IP object" % addr)
                 else:
                     if ip in IP_PRIVATE:
                         yield addr
                         addresses.append(addr)
 
-    if not addresses:
-        logger.error("no addresses could be found")
+    if not addresses:  # pragma: no cover
+        logger.error("No addresses could be found")
 
 
 def interfaces():
@@ -210,15 +214,15 @@ def interfaces():
         # only add network interfaces which have IPv4
         addresses = netifaces.ifaddresses(name)
 
-        if socket.AF_INET not in addresses:
+        if socket.AF_INET not in addresses:  # pragma: no cover
             continue
 
         if any(addr.get("addr") for addr in addresses[socket.AF_INET]):
             yield name
             results.append(name)
 
-    if not results:
-        logger.warning("failed to find any interfaces")
+    if not results:  # pragma: no cover
+        logger.warning("Failed to find any interfaces")
 
 
 def interface(addr=None):
@@ -237,7 +241,7 @@ def interface(addr=None):
                 return interface.split(":")[0]
 
     raise ValueError(  # pragma: no cover
-        "could not determine network interface for `%s`" % addr)
+        "Could not determine network interface for `%s`" % addr)
 
 
 def ip(as_object=False):
@@ -281,20 +285,19 @@ def ip(as_object=False):
     # now that we have an address, check it against some of
     # our address groups but don't raise exceptions since that
     # should be handled/fail in higher level code
-
-    if ip in IP_SPECIAL_USE:
+    if ip in IP_SPECIAL_USE:  # pragma: no cover
         logger.warning("ip() discovered a special use address")
 
-    if ip in IP_LOOPBACK:
+    if ip in IP_LOOPBACK:  # pragma: no cover
         logger.warning("ip() discoverd a loopback address")
 
-    if ip in IP_LINK_LOCAL:
+    if ip in IP_LINK_LOCAL:  # pragma: no cover
         logger.error("ip() discovered a link local address")
 
-    if ip in IP_MULTICAST:
+    if ip in IP_MULTICAST:  # pragma: no cover
         logger.error("ip() discovered a multicast address")
 
-    if ip in IP_BROADCAST:
+    if ip in IP_BROADCAST:  # pragma: no cover
         logger.error("ip() discovered a broadcast address")
 
     return str(ip) if not as_object else ip
