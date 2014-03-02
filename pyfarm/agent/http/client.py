@@ -34,10 +34,11 @@ from twisted.web.client import Response as _Response, GzipDecoder, ResponseDone
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
+from pyfarm.core.utility import ImmutableDict
 
-Request = namedtuple(
-    "Request",
-    ["method", "url", "headers", "data"])
+RequestArgs = namedtuple(
+    "RequestArgs",
+    ["method", "url", "kwargs"])
 
 logger = getLogger("agent.http")
 
@@ -47,21 +48,22 @@ class Response(Protocol):
     This class receives the incoming response body from a request
     constructs some convenience methods and attributes around the data.
 
-    :param deferred:
+    :param Deferred deferred:
         The deferred object which contains the target callback
         and errback.
 
+    :type response: :class:`twisted.web.client.Response` or :class:`twisted.web.client.GzipDecoder`
     :param response:
         The initial response object which will be passed along
         to the target deferred.
 
-    :param request:
+    :param RequestArgs request:
         Named tuple object containing the method name, url, headers, and data.
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
         assert isinstance(response, (_Response, GzipDecoder))
-        assert isinstance(request, Request)
+        assert isinstance(request, RequestArgs)
 
         # internal attributes
         self._done = False
@@ -182,6 +184,8 @@ def request(method, url, **kwargs):
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
     assert isinstance(url, STRING_TYPES) and url
 
+    original_request = RequestArgs(method=method, url=url,
+                                   kwargs=ImmutableDict(kwargs.copy()))
     data = kwargs.pop("data", NOTSET)
     headers = kwargs.pop("headers", {})
     callback = kwargs.pop("callback", None)
@@ -220,9 +224,7 @@ def request(method, url, **kwargs):
         # the request and response via an instance of `Response`
         # to the outer scope's callback function.
         response.deliverBody(
-            response_class(
-                deferred, response,
-                Request(method=method, url=url, data=data, headers=headers)))
+            response_class(deferred, response, original_request))
 
         return deferred
 
