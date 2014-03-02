@@ -283,7 +283,6 @@ class TestMethods(RequestTestCase):
 
     def test_delete(self):
         def callback(response):
-            print response.json()
             self.assert_response(response, OK)
 
         d = self.delete("/delete", callback=callback)
