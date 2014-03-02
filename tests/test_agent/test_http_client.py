@@ -221,7 +221,7 @@ class TestClientFunctions(RequestTestCase):
         return d
 
 
-class TestGet(RequestTestCase):
+class TestMethods(RequestTestCase):
     def test_get(self):
         def callback(response):
             self.assert_response(response, OK)
@@ -230,18 +230,39 @@ class TestGet(RequestTestCase):
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
-    def test_header(self):
-        def callback(response):
-            data = response.json()
-            self.assert_response(response, OK)
-            self.assertEqual(response.headers["X-Foo"], ["bar"])
-            self.assertEqual(data["headers"]["X-Foo"], "bar")
+    def test_response_header(self):
+        key = os.urandom(6).encode("hex")
+        value = os.urandom(6).encode("hex")
 
-        d = self.get("/get", callback=callback, headers={"X-Foo": "bar"})
+        def callback(response):
+            self.assertEqual(
+                response.response.headers.getRawHeaders(key), [value])
+
+        d = self.get(
+            "/response-headers?%s=%s" % (key, value), callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
-    def test_argument(self):
+    def test_request_header(self):
+        key = "X-" + os.urandom(6).encode("hex")
+        value = os.urandom(6).encode("hex")
+
+        def callback(response):
+            data = response.json()
+            self.assert_response(response, OK)
+            self.assertEqual(response.headers[key], [value])
+
+            # case insensitive comparison
+            for k, v in data["headers"].items():
+                if k.lower() == key.lower():
+                    self.assertEqual(v, value)
+                    break
+
+        d = self.get("/get", callback=callback, headers={key: value})
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_url_argument(self):
         def callback(response):
             data = response.json()
             self.assert_response(response, OK)
@@ -250,3 +271,22 @@ class TestGet(RequestTestCase):
         d = self.get("/get?foo=bar", callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
+
+    def test_post(self):
+        def callback(response):
+            self.assertEqual(response.json()["json"], {"foo": "bar"})
+            self.assert_response(response, OK)
+
+        d = self.post("/post", callback=callback, data={"foo": "bar"})
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_delete(self):
+        def callback(response):
+            print response.json()
+            self.assert_response(response, OK)
+
+        d = self.delete("/delete", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
