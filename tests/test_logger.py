@@ -92,7 +92,7 @@ class TestLogger(unittest.TestCase):
                     "Failed to parse json data from \$PYFARM_LOGGING_CONFIG"):
                 self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
         else:
-            with self.assertRaisesRegex(ValueError):
+            with self.assertRaises(ValueError):
                 self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
 
 
