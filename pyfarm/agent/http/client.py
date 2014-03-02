@@ -23,267 +23,239 @@ the master server.
 """
 
 import json
-import logging
-from httplib import NO_CONTENT, RESET_CONTENT
-from urllib import getproxies
-from urlparse import urlparse
+from collections import namedtuple
+from functools import partial
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
-
-from zope.interface import implements
+import treq
+from twisted.internet.defer import Deferred
+from twisted.internet.protocol import Protocol, connectionDone
 from twisted.python import log
-from twisted.internet import reactor, defer, protocol
-from twisted.web.iweb import IBodyProducer
-from twisted.web.client import (
-    HTTPConnectionPool as _HTTPConnectionPool, Agent, ProxyAgent, ResponseDone)
-from twisted.web.http_headers import Headers
-from twisted.internet.endpoints import TCP4ClientEndpoint
+from twisted.web.client import Response as _Response, GzipDecoder, ResponseDone
 
+from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
+
+Request = namedtuple(
+    "Request",
+    ["method", "url", "headers", "data"])
 
 logger = getLogger("agent.http")
 
 
-class SimpleReceiver(protocol.Protocol):
-    """Simple class used to receive and process response objects"""
-    def __init__(self, deferred, response):
-        self.buffer = ""
-        self.deferred = deferred
+class Response(Protocol):
+    """
+    This class receives the incoming response body from a request
+    constructs some convenience methods and attributes around the data.
+
+    :param deferred:
+        The deferred object which contains the target callback
+        and errback.
+
+    :param response:
+        The initial response object which will be passed along
+        to the target deferred.
+
+    :param request:
+        Named tuple object containing the method name, url, headers, and data.
+    """
+    def __init__(self, deferred, response, request):
+        assert isinstance(deferred, Deferred)
+        assert isinstance(response, (_Response, GzipDecoder))
+        assert isinstance(request, Request)
+
+        # internal attributes
+        self._done = False
+        self._body = ""
+        self._deferred = deferred
+
+        # main public attributes
+        self.request = request
         self.response = response
 
+        # convenience attributes constructed
+        # from the public attributes
+        self.method = self.request.method
+        self.url = self.request.url
+        self.code = self.response.code
+        self.content_type = None
+
+        # consume the response headers
+        self.headers = {}
+        for header_key, header_value in response.headers.getAllRawHeaders():
+            if len(header_value) == 1:
+                header_value = header_value[0]
+            self.headers[header_key] = header_value
+
+        # determine the content type
+        if "Content-Type" in self.headers:
+            self.content_type = self.headers["Content-Type"]
+
+    def data(self):
+        """
+        Returns the data currently contained in the buffer.
+
+        :raises RuntimeError:
+            Raised if this method id called before all data
+            has been received.
+        """
+        if not self._done:
+            raise RuntimeError("Response not yet received.")
+        return self._body
+
+    def json(self, loader=json.loads):
+        """
+        Returns the json data from the incoming request
+
+        :raises RuntimeError:
+            Raised if this method id called before all data
+            has been received.
+
+        :raises ValueError:
+            Raised if the content type for this request is not
+            application/json.
+        """
+        if not self._done:
+            raise RuntimeError("Response not yet received.")
+        elif self.content_type != "application/json":
+            raise ValueError("Not an application/json response.")
+        else:
+            return loader(self._body)
+
     def dataReceived(self, data):
-        self.buffer += data
-
-    def connectionLost(self, reason):
-        # TODO: add statsd for response
-
-        # if the headers specify json content, convert
-        # it before returning the data
-        content_types = [] or self.response.headers.getRawHeaders(
-            "Content-Type")
-
-        for content_type in content_types:
-            if "application/json" in content_type:
-                self.buffer = json.loads(self.buffer)
-                break
-
-        # there's a problem with the incoming response, the buffer
-        # should contain the error so pass it to the errback
-        if self.response.code >= 400:
-            self.deferred.errback(reason)
-
-        # nothing left to do, call the callback (success)
-        elif reason.type is ResponseDone:
-            self.deferred.callback(self.buffer)
-
-        # we're not done and we don't have a specific error code
-        else:
-            self.deferred.errback(reason)
-
-
-class StringProducer(object):
-    """
-    Implementation of :class:`.IBodyProducer` which
-    is used to produce data to send to the server
-    """
-    implements(IBodyProducer)
-
-    def __init__(self, body):
-        self.body = body
-        self.length = len(body)
-
-    def startProducing(self, consumer):
-        consumer.write(self.body)
-        return defer.succeed(None)
-
-    def pauseProducing(self):
-        pass
-
-    def stopProducing(self):
-        pass
-
-
-class HTTPConnectionPool(_HTTPConnectionPool):
-    """:class:`._HTTPConnectionPool` object without retries"""
-    retryAutomatically = False  # this will be handled internally
-    maxPersistentPerHost = 1  # more than one could cause problems at scale
-
-
-class WebClient(object):
-    """
-    Basic HTTP web client which should handle SSL, proxies, and normal
-    requests.
-
-    :param string base_uri:
-        the base uri will be prepended to all requests
-
-    :param int connect_timeout:
-        how longer we should wait on the initial connection to timeout
-
-        .. note::
-            this value only applies to non-proxied connections.
-    """
-    SUPPORTED_METHODS = set(("GET", "POST", "DELETE", "PUT"))
-
-    def __init__(self, base_uri=None, connect_timeout=10):
-        self.base_uri = base_uri
-        self.requests = OrderedDict()  # currently active requests
-
-        # setup the agent
-        proxies = getproxies()
-        if proxies:
-            parsed_proxy = urlparse(proxies.get("http") or proxies.get("https"))
-
-            # possible SSL interception, warn about this because
-            # it may or may not break the request
-            if parsed_proxy.scheme == "https":
-                log.msg(
-                    "proxy scheme is https, ssl interception may occur",
-                    level=logging.WARNING)
-
-            try:
-                proxy_server, proxy_port = parsed_proxy.netloc.split(":")
-                proxy_port = int(proxy_port)
-
-            except ValueError:
-                raise ValueError(
-                    "failed to parse server and and port from proxy settings")
-
-            self.construct_agent = lambda: ProxyAgent(
-                TCP4ClientEndpoint(reactor, proxy_server, proxy_port),
-                reactor=reactor,
-                pool=HTTPConnectionPool(reactor))
-
-        # non-proxy agent
-        else:
-            self.construct_agent = lambda: Agent(
-                reactor,
-                connectTimeout=connect_timeout,
-                pool=HTTPConnectionPool(reactor))
-
-        # Instance the agent from the lambda function.  This will allow
-        # us to 'reconstruct' an agent later on if needed (such as for retries)
-        self.agent = self.construct_agent()
-
-    def handle_response(self, response):
-        logger.warning("=== TODO === add better log message")
-        if response.code in (NO_CONTENT, RESET_CONTENT):
-            return defer.succeed("")
-
-        # pull down our body object
-        d = defer.Deferred()
-        response.deliverBody(SimpleReceiver(d, response))
-        return d
-
-    def request(self, method, uri, data=None, headers=None,
-                data_dumps=json.dumps):
         """
-        Base method which constructs data to pass along to the ``request``
-        method of either the :class:`.ProxyAgent` or :class:`.Agent` class
-
-        :param string method:
-            The HTTP method to call.
-
-        :param string uri:
-            Where ``method`` should be performed.  If a ``base_uri`` was
-            provided in :meth:`.__init__` then it will be prepended to
-            this value
-
-        :type data: string or list or tuple or dict
-        :param data:
-            the data to POST or PUT to ``uri``
-
-        :param dict headers:
-            The headers to send along with the request
-
-        :param data_dumps:
-            the function to use to dump ``data``
-
-        :exception AssertionError:
-            Raised if there's some issue with input data.  This can
-            occur if either the ``method`` provided is unsupported or
-            if the data provided for a value, such as ``headers`` is of
-            the wrong type.  TypeError will not be raised here because
-            :meth:`.request` is an internal method which usually is not
-            called outside of :class:`WebClient`
-
-        :return:
-            returns an instance of :class:`.defer.Deferred`
+        Overrides :meth:`.Protocol.dataReceived` and appends data
+        to ``_body``.
         """
-        assert method in self.SUPPORTED_METHODS, \
-            "unsupported method %s" % repr(method)
+        self._body += data
 
-        # if data was provided dump it to a string producer
-        if data is not None:
-            dumped_data = data_dumps(data)
-            body_producer = StringProducer(dumped_data)
+    def connectionLost(self, reason=connectionDone):
+        """
+        Overrides :meth:`.Protocol.connectionLost` and sets the ``_done``
+        when complete.  When called with :class:`.ResponseDone` for ``reason``
+        this method will call the callback on ``_deferred``
+        """
+        if reason.type is ResponseDone:
+            self._done = True
+            logger.debug(
+                "%s %s (code: %s: body: %r)",
+                self.request.method, self.request.url, self.code, self._body)
+            self._deferred.callback(self)
         else:
-            dumped_data = None
-            body_producer = None
+            self._deferred.errback(reason)
 
-        # prepend the base uri if one was provided
-        if self.base_uri is not None:
-            uri = self.base_uri + uri
 
-        # create headers
-        if headers is not None:
-            assert isinstance(headers, dict), "expected dictionary for headers"
+def request(method, url, **kwargs):
+    """
+    Wrapper around :func:`treq.request` with some added arguments
+    and validation.
 
-            output_headers = Headers()
-            for key, value in headers.iteritems():
-                output_headers.addRawHeader(key, value)
+    :param str method:
+        The HTTP method to use when making the request.
 
-            headers = output_headers
+    :param str url:
+        The url this request will be made to.
+
+    :type data: str, list, tuple, set, dict
+    :keyword data:
+        The data to send along with some types of requests
+        such as ``POST`` or ``PUT``
+
+    :keyword dict headers:
+        The headers to send along with the request to
+        ``url``.  Currently only single values per header
+        are supported.
+
+    :keyword function callback:
+        The function to deliver an instance of :class:`Response`
+        once we receive and unpack a response.
+
+    :keyword function errback:
+        The function to deliver an error message to.  By default
+        this will use :func:`.log.err`.
+
+    :keyword class response_class:
+        The class to use to unpack the internal response.  This is mainly
+        used by the unittests but could be used elsewhere to add some
+        custom behavior to the unpack process for the incoming response.
+    """
+    # check assumptions for arguments
+    assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
+    assert isinstance(url, STRING_TYPES) and url
+
+    data = kwargs.pop("data", NOTSET)
+    headers = kwargs.pop("headers", {})
+    callback = kwargs.pop("callback", None)
+    errback = kwargs.pop("errback", log.err)
+    response_class = kwargs.pop("response_class", Response)
+
+    # check assumptions for keywords
+    assert callable(callback) and callable(errback)
+    assert data is NOTSET or \
+           isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
+
+    # add our default headers
+    headers.setdefault("Content-Type", ["application/json"])
+    headers.setdefault("User-Agent", ["PyFarm (agent) 1.0"])
+
+    # ensure all values in the headers are lists (needed by Twisted)
+    for header, value in headers.items():
+        if isinstance(value, STRING_TYPES):
+            headers[header] = [value]
+
+        # for our purposes we should not expect headers with more
+        # than one value for now
+        elif isinstance(value, (list, tuple, set)):
+            assert len(value) == 1
+
         else:
-            headers = Headers()
+            raise NotImplementedError(
+                "cannot handle header values with type %s" % type(value))
 
-        # TODO: store the request being made so we can retry/check status/etc
-        self.requests[(method, uri, headers, dumped_data, body_producer)] = None
+    def unpack_response(response):
+        deferred = Deferred()
+        deferred.addCallback(callback)
 
-        deferred = self.agent.request(
-            method, uri, headers=headers, bodyProducer=body_producer)
-
-        # add in our response handler which will help
-        # to fire the proper callback/errback
-        deferred.addCallback(self.handle_response)
+        # Deliver the body onto an instance of the response
+        # object along with the original request.  Finally
+        # the request and response via an instance of `Response`
+        # to the outer scope's callback function.
+        response.deliverBody(
+            response_class(
+                deferred, response,
+                Request(method=method, url=url, data=data, headers=headers)))
 
         return deferred
 
-    # TODO: documentation
-    def post(self, uri, data=None, headers=None):
-        return self.request("POST", uri, data=data, headers=headers)
+    # prepare to send the data
+    request_data = data  # so we don't modify the original data
+    if request_data is not NOTSET and \
+                    headers["Content-Type"] == ["application/json"]:
+        request_data = json.dumps(data)
 
-    # TODO: documentation
-    def get(self, uri, headers=None):
-        return self.request("GET", uri, headers=headers)
+    elif data is not NOTSET:
+        raise NotImplementedError(
+            "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    # TODO: documentation
-    def put(self, uri, data=None, headers=None):
-        return self.request("PUT", uri, data=data, headers=headers)
+    logmsg = "Queued request `%s %s`" % (method, url)
 
-    # TODO: documentation
-    def delete(self, uri, headers=None):
-        return self.request("DELETE", uri, headers=headers)
+    # prepare keyword arguments
+    kwargs.update(headers=headers)
+    if request_data is not NOTSET:
+        kwargs.update(data=request_data)
+        logmsg += " data: %r" % data
 
+    # setup the request from treq
+    logger.debug(logmsg)
+    deferred = treq.request(method, url, **kwargs)
+    deferred.addCallback(unpack_response)
+    deferred.addErrback(errback)
 
-# TODO: documentation
-def post(uri, data=None, headers=None):
-    return WebClient().post(uri, data=data, headers=headers)
-
-
-# TODO: documentation
-def get(uri, headers=None):
-    return WebClient().get(uri, headers=headers)
-
-
-# TODO: documentation
-def put(uri, data=None, headers=None):
-    return WebClient().put(uri, data=data, headers=headers)
+    return deferred
 
 
-# TODO: documentation
-def delete(uri, headers=None):
-    return WebClient().delete(uri, headers=headers)
+head = partial(request, "HEAD")
+get = partial(request, "GET")
+post = partial(request, "POST")
+put = partial(request, "PUT")
+patch = partial(request, "PATCH")
+delete = partial(request, "DELETE")

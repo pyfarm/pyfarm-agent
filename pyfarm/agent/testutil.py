@@ -22,6 +22,18 @@ from twisted.internet.defer import succeed
 from twisted.web.test.test_web import DummyRequest as _DummyRequest
 from twisted.trial.unittest import TestCase as _TestCase
 
+from pyfarm.core.enums import PY26, STRING_TYPES
+
+if PY26:
+    def safe_repr(obj, short=False):
+        try:
+            result = repr(obj)
+        except Exception:
+            result = object.__repr__(obj)
+        if not short or len(result) < 80:
+            return result
+        return result[:80] + ' [truncated]...'
+
 
 def dummy_request(path="", data=None, http_method="GET", headers=None,
                   session=None, json_dumps=True):
@@ -70,28 +82,60 @@ def dummy_request(path="", data=None, http_method="GET", headers=None,
 
 
 class TestCase(_TestCase):
-    try:
-        _TestCase.assertRaisesRegexp
-    except AttributeError:
+    # back ports of some of Python 2.7's unittest features
+    if PY26:
         def assertRaisesRegexp(
-                self, expected_exception, expected_regexp, callable_obj,
-                *args, **kwds):
+                self, expected_exception, expected_regexp, callable_obj=None,
+                *args, **kwargs):
 
             exception = None
             try:
-                callable_obj(*args, **kwds)
+                callable_obj(*args, **kwargs)
             except expected_exception, ex:
                 exception = ex
 
             if exception is None:
                 self.fail("%s not raised" % str(expected_exception.__name__))
 
-            if isinstance(expected_regexp, basestring):
+            if isinstance(expected_regexp, STRING_TYPES):
                 expected_regexp = re.compile(expected_regexp)
 
             if not expected_regexp.search(str(exception)):
                 self.fail('"%s" does not match "%s"' % (
                     expected_regexp.pattern, str(exception)))
+
+        def assertIsNone(self, obj, msg=None):
+            if obj is not None:
+                standardMsg = '%s is not None' % (safe_repr(obj),)
+                self.fail(self._formatMessage(msg, standardMsg))
+
+        def assertIsNotNone(self, obj, msg=None):
+            if obj is None:
+                standardMsg = 'unexpectedly None'
+                self.fail(self._formatMessage(msg, standardMsg))
+
+        def assertIsInstance(self, obj, cls, msg=None):
+            if not isinstance(obj, cls):
+                standardMsg = '%s is not an instance of %r' % (
+                    safe_repr(obj), cls)
+                self.fail(self._formatMessage(msg, standardMsg))
+
+        def assertNotIsInstance(self, obj, cls, msg=None):
+            if isinstance(obj, cls):
+                standardMsg = '%s is an instance of %r' % (safe_repr(obj), cls)
+                self.fail(self._formatMessage(msg, standardMsg))
+
+        def assertIn(self, containee, container, msg=None):
+            if containee not in container:
+                raise self.failureException(msg or "%r not in %r"
+                                            % (containee, container))
+            return containee
+
+        def assertNotIn(self, containee, container, msg=None):
+            if containee in container:
+                raise self.failureException(msg or "%r in %r"
+                                            % (containee, container))
+            return containee
 
     def _render(self, resource, request):
         result = resource.render(request)

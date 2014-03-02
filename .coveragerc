@@ -1,5 +1,6 @@
 [run]
-source = pyfarm
+source =
+    pyfarm.agent
 
 [report]
 exclude_lines =
@@ -9,3 +10,4 @@ exclude_lines =
     raise NotImplementedError
     if __name__ == .__main__.:
 omit =
+    *pyfarm*__init__*
