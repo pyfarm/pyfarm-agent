@@ -14,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from httplib import responses, OK
+
+from twisted.web.error import SchemeNotSupported
+from twisted.internet.error import DNSLookupError
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import STRING_TYPES
@@ -159,14 +163,20 @@ class RequestTestCase(TestCase):
 
 class TestClientErrors(RequestTestCase):
     def test_unsupported_scheme(self):
-        self.base_url = "foo"
+        self.base_url = ""
+        return self.get(
+            "/get",
+            callback=lambda _: None,
+            errback=lambda failure:
+                self.assertIs(failure.type, SchemeNotSupported))
 
-        def callback(response):
-            self.assert_response(response, OK)
-
-        d = self.get("/get", callback=callback)
-        d.addBoth(lambda r: self.assertIsNone(r))
-        return d
+    def test_unknown_hostname(self):
+        self.base_url = "http://" + os.urandom(32).encode("hex")
+        return self.get(
+            "/",
+            callback=lambda _: None,
+            errback=lambda failure:
+                self.assertIs(failure.type, DNSLookupError))
 
 
 class TestGet(RequestTestCase):
