@@ -18,7 +18,7 @@ import os
 import json
 import tempfile
 
-from pyfarm.core.enums import PY26
+from pyfarm.core.enums import PY26, PY3
 
 if PY26:
     import unittest2 as unittest
@@ -26,7 +26,6 @@ else:
     import unittest
 
 from pyfarm.core.logger import getLogger, config
-from pyfarm.core.utility import dumps
 
 
 class TestLogger(unittest.TestCase):
@@ -69,9 +68,14 @@ class TestLogger(unittest.TestCase):
             stream.write('{"foo" "bar"}')
 
         os.environ["PYFARM_LOGGING_CONFIG"] = path
-        with self.assertRaisesRegex(
-                ValueError, "Failed to parse json data from %s" % path):
-            self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
+
+        if PY3:
+            with self.assertRaisesRegex(
+                    ValueError, "Failed to parse json data from %s" % path):
+                self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
+        else:
+            with self.assertRaises(ValueError):
+                self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
         self.remove(path)
 
     def test_config_in_environment(self):
@@ -82,9 +86,14 @@ class TestLogger(unittest.TestCase):
     def test_corrupt_config_in_environment(self):
         os.environ["PYFARM_LOGGING_CONFIG"] = '{"foo" "bar"}'
 
-        with self.assertRaisesRegex(
-                ValueError,
-                "Failed to parse json data from \$PYFARM_LOGGING_CONFIG"):
-            self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
+        if PY3:
+            with self.assertRaisesRegex(
+                    ValueError,
+                    "Failed to parse json data from \$PYFARM_LOGGING_CONFIG"):
+                self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
+        else:
+            with self.assertRaisesRegex(ValueError):
+                self.assertEqual(config.get(), config.DEFAULT_CONFIGURATION)
+
 
 
