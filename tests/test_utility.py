@@ -42,6 +42,9 @@ class Convert(TestCase):
         with self.assertRaises(ValueError):
             convert.ston("foo")
 
+        with self.assertRaises(ValueError):
+            convert.ston("[]")
+
 
 class JSONDumper(TestCase):
     def setUp(self):
@@ -66,6 +69,11 @@ class TestImmutableDict(TestCase):
     def test_parent_class(self):
         i = ImmutableDict()
         self.assertIsInstance(i, dict)
+
+    def test_cant_call_init_again(self):
+        i = ImmutableDict({"foo": True})
+        with self.assertRaises(RuntimeError):
+            i.__init__()
 
     def test_immutable(self):
         i = ImmutableDict({"true": True})

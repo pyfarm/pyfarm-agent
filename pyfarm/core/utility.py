@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
 
 try:
     _range = xrange
-except NameError:
+except NameError:  # pragma: no cover
     _range = range
 
 from pyfarm.core.config import read_env_bool
@@ -50,6 +50,9 @@ class ImmutableDict(dict):
     run the contents of the instance can no longer be modified
     """
     def __init__(self, iterable=None, **kwargs):
+        if self:
+            raise RuntimeError("__init__ already run.")
+
         self.__writable = True
         try:
             super(ImmutableDict, self).__init__(iterable or [], **kwargs)
@@ -64,8 +67,9 @@ class ImmutableDict(dict):
         keys = dict.iterkeys
         values = dict.itervalues
 
-    # Decorator to check
-    def write_required(method):
+    # Decorator to check if we're allowed to write
+    # data to the class
+    def write_required(method):  # pragma: no cover
         def wrapper(*args, **kwargs):
             if not hasattr(args[0], "__writable"):
                 raise RuntimeError("Cannot modify a read-only dictionary.")
@@ -162,49 +166,3 @@ class convert(object):
             raise ValueError("`value` did not convert to a number")
 
         return value
-
-
-def dictformat(data, indent="    ", columns=4):
-    """
-    basic dictionary formatter similar to :func:`pprint.pformat` but
-    with a few extra options
-
-    :param str indent:
-        the indentation which will prefix each line
-
-    :param int columns:
-        how many keys should be displayed on a single line
-    """
-    assert isinstance(data, (UserDict, dict))
-    assert isinstance(columns, int) and columns >= 1
-
-    # UserDict objects need to use the base data
-    if isinstance(data, UserDict):
-        data = data.data.copy()
-    else:
-        data = data.copy()
-
-    output = StringIO()
-
-    while data:
-        last_line = False
-        values = []
-
-        # pull as many keys as requested out of the
-        # dictionary
-        for _ in _range(columns):
-            try:
-                key, value = data.popitem()
-            except KeyError:
-                last_line = True
-                break
-            else:
-                values.append(": ".join([repr(key), repr(value)]))
-
-        value = indent + ", ".join(values)
-        if not last_line:
-            value += ","
-
-        print >> output, value
-
-    return indent + "{" + output.getvalue().strip() + "}"
