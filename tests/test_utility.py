@@ -20,7 +20,7 @@ from json import loads
 
 from pyfarm.core.testutil import TestCase
 from pyfarm.core.enums import Values
-from pyfarm.core.utility import convert, dumps
+from pyfarm.core.utility import convert, dumps, ImmutableDict
 
 
 class Convert(TestCase):
@@ -51,3 +51,37 @@ class JSONDumper(TestCase):
         self.assertEqual(
             loads(dumps({"data": Values(1, "A")})),
             loads(dumps({"data": "A"})))
+
+
+class TestImmutableDict(TestCase):
+    def test_no_decorator(self):
+        self.assertFalse(hasattr(ImmutableDict, "write_required"))
+
+    def test_iterators(self):
+        i = ImmutableDict()
+        self.assertNotIsInstance(i.items(), (list, tuple))
+        self.assertNotIsInstance(i.keys(), (list, tuple))
+        self.assertNotIsInstance(i.values(), (list, tuple))
+
+    def test_parent_class(self):
+        i = ImmutableDict()
+        self.assertIsInstance(i, dict)
+
+    def test_immutable(self):
+        i = ImmutableDict({"true": True})
+        with self.assertRaises(RuntimeError):
+            i.clear()
+
+        with self.assertRaises(RuntimeError):
+            i.pop("true")
+
+        with self.assertRaises(RuntimeError):
+            i.popitem()
+
+        with self.assertRaises(RuntimeError):
+            i.setdefault("false", False)
+
+        with self.assertRaises(RuntimeError):
+            i.update(one=1)
+
+        self.assertEqual(i, {"true": True})

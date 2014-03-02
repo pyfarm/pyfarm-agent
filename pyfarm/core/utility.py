@@ -25,7 +25,6 @@ of PyFarm.
 from __future__ import division
 
 import json
-from decimal import Decimal, ROUND_HALF_DOWN
 from functools import partial
 from io import StringIO
 from ast import literal_eval
@@ -37,11 +36,56 @@ except ImportError:  # pragma: no cover
 
 try:
     _range = xrange
-except NameError:  # pragma: no cover
+except NameError:
     _range = range
 
 from pyfarm.core.config import read_env_bool
-from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, Values
+from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, PY2, Values
+
+
+class ImmutableDict(dict):
+    """
+    A basic immutable dictionary that's built on top of Python's
+    standard :class:`dict` class.  Once :meth:`__init__` has been
+    run the contents of the instance can no longer be modified
+    """
+    def __init__(self, iterable=None, **kwargs):
+        self.__writable = True
+        try:
+            super(ImmutableDict, self).__init__(iterable or [], **kwargs)
+        except RuntimeError:
+            raise
+        finally:
+            del self.__writable
+
+    # Force Python 2.x to use generators for items/keys/values
+    if PY2:
+        items = dict.iteritems
+        keys = dict.iterkeys
+        values = dict.itervalues
+
+    # Decorator to check
+    def write_required(method):
+        def wrapper(*args, **kwargs):
+            if not hasattr(args[0], "__writable"):
+                raise RuntimeError("Cannot modify a read-only dictionary.")
+            return method(*args, **kwargs)
+        return wrapper
+
+    # Wrap the 'writable' methods using the decorator so
+    # we can raise exceptions if someone tries to modify
+    # the instance after __init__ is run.
+    __setitem__ = write_required(dict.__setitem__)
+    __delitem__ = write_required(dict.__delitem__)
+    clear = write_required(dict.clear)
+    pop = write_required(dict.pop)
+    popitem = write_required(dict.popitem)
+    setdefault = write_required(dict.setdefault)
+    update = write_required(dict.update)
+
+    # Once we've applied the decorator, we don't
+    # need it anymore.
+    del write_required
 
 
 class PyFarmJSONEncoder(json.JSONEncoder):
@@ -58,12 +102,10 @@ class PyFarmJSONEncoder(json.JSONEncoder):
 
         return super(PyFarmJSONEncoder, self).encode(o)
 
-
 dumps = partial(
     json.dumps,
     indent=4 if read_env_bool("PYFARM_PRETTY_JSON", False) else None,
     cls=PyFarmJSONEncoder)
-
 
 
 class convert(object):
@@ -150,7 +192,7 @@ def dictformat(data, indent="    ", columns=4):
 
         # pull as many keys as requested out of the
         # dictionary
-        for i in xrange(columns):
+        for _ in _range(columns):
             try:
                 key, value = data.popitem()
             except KeyError:
