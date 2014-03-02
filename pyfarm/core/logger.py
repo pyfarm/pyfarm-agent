@@ -36,7 +36,7 @@ PY26 = PY_MAJOR, PY_MINOR == (2, 6)
 if (PY_MAJOR, PY_MINOR) >= (2, 7):
     from logging import NullHandler, captureWarnings
     from logging.config import dictConfig
-else:
+else:  # pragma: no cover
     from logutils import NullHandler
     from logutils.dictconfig import dictConfig
     _warnings_showwarning = None
@@ -104,11 +104,11 @@ class ColorFormatter(Formatter):
     # Python 2.6 uses old style classes which means we can't use
     # super().  So we construct the proper method at the class level
     # so we can safe an if statement for each function call.
-    if not PY26:
+    if not PY26:  # pragma: no cover
         def format(self, record):
             head, tail = self.FORMATS.get(record.levelno, ("", ""))
             return head + super(ColorFormatter, self).format(record) + tail
-    else:
+    else:  # pragma: no cover
         def format(self, record):
             head, tail = self.FORMATS.get(record.levelno, ("", ""))
             return head + Formatter.format(self, record) + tail
@@ -166,13 +166,13 @@ class config(object):
                     return json.load(stream)
                 except ValueError:
                     raise ValueError(
-                        "failed to parse json data from %s" % stream.name)
+                        "Failed to parse json data from %s" % stream.name)
         except (OSError, IOError):
             try:
                 return json.loads(environment_config)
             except ValueError:
                 raise ValueError(
-                    "failed to parse json data from $PYFARM_LOGGING_CONFIG")
+                    "Failed to parse json data from $PYFARM_LOGGING_CONFIG")
 
     @classmethod
     def setup(cls, capture_warnings=True, reconfigure=False):
