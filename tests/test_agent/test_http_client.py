@@ -127,7 +127,7 @@ class RequestTestCase(TestCase):
     def assert_response(self, response, code,
                         content_type=None, user_agent=None):
         if content_type is None:
-            content_type = ["application/json"]
+            content_type = "application/json"
 
         if user_agent is None:
             user_agent = ["PyFarm (agent) 1.0"]
@@ -160,9 +160,8 @@ class RequestTestCase(TestCase):
 
         # ensure our request and response attributes match headers match
         self.assertEqual(response.headers["Content-Type"], content_type)
-        self.assertEqual(response.headers["User-Agent"], user_agent)
-        self.assertEqual(response.content_type, content_type[0])
-        self.assertEqual(response.headers, response.request.headers)
+        self.assertEqual(response.request.headers["User-Agent"], user_agent)
+        self.assertEqual(response.content_type, content_type)
 
 
 class TestClientErrors(RequestTestCase):
@@ -202,7 +201,7 @@ class TestClientFunctions(RequestTestCase):
 
     def test_redirect(self):
         def callback(response):
-            self.assert_response(response, OK)
+            self.assert_response(response, OK, content_type="text/html")
             self.assertIn("<title>Example Domain</title>", response.data())
 
         d = self.get(
@@ -250,7 +249,7 @@ class TestMethods(RequestTestCase):
         def callback(response):
             data = response.json()
             self.assert_response(response, OK)
-            self.assertEqual(response.headers[key], [value])
+            self.assertEqual(response.request.headers[key], [value])
 
             # case insensitive comparison
             for k, v in data["headers"].items():

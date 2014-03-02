@@ -71,15 +71,19 @@ class Response(Protocol):
         # convenience attributes constructed
         # from the public attributes
         self.uri = self.request.uri
-        self.headers = self.request.headers
         self.code = self.response.code
+        self.content_type = None
 
-        if "Content-Type" not in self.headers:
-            self.content_type = None
-        else:
-            content_types = self.headers["Content-Type"]
-            self.content_type = \
-                content_types[0] if len(content_types) == 1 else content_types
+        # consume the response headers
+        self.headers = {}
+        for header_key, header_value in response.headers.getAllRawHeaders():
+            if len(header_value) == 1:
+                header_value = header_value[0]
+            self.headers[header_key] = header_value
+
+        # determine the content type
+        if "Content-Type" in self.headers:
+            self.content_type = self.headers["Content-Type"]
 
     def data(self):
         """
