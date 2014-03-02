@@ -262,21 +262,27 @@ class TestMethods(RequestTestCase):
         return d
 
     def test_url_argument(self):
+        key = "X-" + os.urandom(6).encode("hex")
+        value = os.urandom(6).encode("hex")
+
         def callback(response):
             data = response.json()
             self.assert_response(response, OK)
-            self.assertEqual(data["args"], {"foo": "bar"})
+            self.assertEqual(data["args"], {key: value})
 
-        d = self.get("/get?foo=bar", callback=callback)
+        d = self.get("/get?%s=%s" % (key, value), callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
     def test_post(self):
+        key = os.urandom(6).encode("hex")
+        value = os.urandom(6).encode("hex")
+
         def callback(response):
-            self.assertEqual(response.json()["json"], {"foo": "bar"})
+            self.assertEqual(response.json()["json"], {key: value})
             self.assert_response(response, OK)
 
-        d = self.post("/post", callback=callback, data={"foo": "bar"})
+        d = self.post("/post", callback=callback, data={key: value})
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
