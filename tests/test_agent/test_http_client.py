@@ -89,6 +89,8 @@ class RequestTestCase(TestCase):
         "PYFARM_AGENT_TEST_SILENCE_HTTP_LOGGER", True)
     BASE_URL = read_env(
         "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
+    REDIRECT_TARGET = read_env(
+        "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
 
     def setUp(self):
         self.base_url = self.BASE_URL
@@ -134,13 +136,15 @@ class RequestTestCase(TestCase):
         # against data coming back from the server
         try:
             data = response.json()
-            self.assertEqual(data["headers"]["User-Agent"], user_agent[0])
+            if "headers" in data:
+                self.assertEqual(data["headers"]["User-Agent"], user_agent[0])
 
             # even if we're making a https request the underlying
             # url might be http
-            self.assertIn(data["url"], set([
-                response.request.uri,
-                response.request.uri.replace("https", "http")]))
+            if "url" in data:
+                self.assertIn(data["url"], (
+                    response.request.uri,
+                    response.request.uri.replace("https", "http")))
         except ValueError:
             pass
 
@@ -177,6 +181,44 @@ class TestClientErrors(RequestTestCase):
             callback=lambda _: None,
             errback=lambda failure:
                 self.assertIs(failure.type, DNSLookupError))
+
+
+class TestClientFunctions(RequestTestCase):
+    def test_auth(self):
+        username = os.urandom(6).encode("hex")
+        password = os.urandom(6).encode("hex")
+
+        def callback(response):
+            self.assert_response(response, OK)
+            self.assertEqual(
+                response.json(),
+                {"authenticated": True, "user": username})
+
+        d = self.get(
+            "/basic-auth/%s/%s" % (username, password),
+            callback=callback, auth=(username, password),)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_redirect(self):
+        def callback(response):
+            self.assert_response(response, OK)
+            self.assertIn("<title>Example Domain</title>", response.data())
+
+        d = self.get(
+            "/redirect-to?url=%s" % self.REDIRECT_TARGET,
+            callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
+    def test_gzipped(self):
+        def callback(response):
+            self.assert_response(response, OK)
+            self.assertTrue(response.json()["gzipped"])
+
+        d = self.get("/gzip", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
 
 
 class TestGet(RequestTestCase):
