@@ -164,12 +164,12 @@ def hostname(name=None, fqdn=None, is_mac=MAC):
         fqdn = socket.getfqdn(name + ".")
 
     if name.startswith("localhost"):
-        logger.warning("Hostname resolved to or contains 'locahost'")
+        logger.warning("Hostname resolved to or contains 'localhost'")
         hostname_is_local = True
 
     if fqdn.startswith("localhost"):
         logger.warning(
-            "Fully qualified host name resolved to or contains 'locahost'")
+            "Fully qualified host name resolved to or contains 'localhost'")
 
     if is_mac and fqdn.endswith(".local"):
         logger.warning(
