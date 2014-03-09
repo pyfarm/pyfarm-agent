@@ -14,19 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import warnings
 
 from pyfarm.core.enums import PY26
 
 if PY26:
-    from unittest2 import TestCase
+    from unittest2 import TestCase, skipUnless
 else:
-    from unittest import TestCase
+    from unittest import TestCase, skipUnless
 
 from pyfarm.core.sysinfo.system import operating_system
 from pyfarm.core.enums import (
     OS, WorkState, AgentState, OperatingSystem, UseAgentAddress,
-    _WorkState, _AgentState,
+    _WorkState, _AgentState, STRING_TYPES, NUMERIC_TYPES,
+    PY2, PY3, PY27, PY_MAJOR, PY_MINOR, PY_VERSION,
     _OperatingSystem, _UseAgentAddress, DBUseAgentAddress,
     DBAgentState, DBOperatingSystem, DBWorkState, Enum,
     Values, cast_enum, LINUX, MAC, WINDOWS, POSIX)
@@ -35,6 +37,7 @@ from pyfarm.core.enums import (
 class TestEnums(TestCase):
     def setUp(self):
         warnings.simplefilter("ignore", UserWarning)
+        Values.check_uniqueness = True
 
     def tearDown(self):
         warnings.simplefilter("always", UserWarning)
@@ -249,6 +252,18 @@ class TestEnums(TestCase):
         self.assertEqual(
             DBWorkState.BLOCKED, 102)
 
+    @skipUnless(sys.platform.startswith("win"), "Not windows")
+    def test_windows(self):
+        self.assertTrue(WINDOWS)
+
+    @skipUnless(sys.platform.startswith("darwin"), "Not Mac")
+    def test_mac(self):
+        self.assertTrue(MAC)
+
+    @skipUnless(sys.platform.startswith("linux"), "Not Linux")
+    def test_linux(self):
+        self.assertTrue(LINUX)
+
     def test_os(self):
         self.assertEqual(operating_system("linux"), OperatingSystem.LINUX)
         self.assertEqual(operating_system("win"), OperatingSystem.WINDOWS)
@@ -256,12 +271,13 @@ class TestEnums(TestCase):
         self.assertEqual(operating_system("FOO"), OperatingSystem.OTHER)
         self.assertEqual(OS, operating_system())
         self.assertEqual(LINUX, OS == OperatingSystem.LINUX)
-        self.assertEqual(MAC, OS == OperatingSystem.WINDOWS)
-        self.assertEqual(WINDOWS, OS == OperatingSystem.MAC)
+        self.assertEqual(MAC, OS == OperatingSystem.MAC)
+        self.assertEqual(WINDOWS, OS == OperatingSystem.WINDOWS)
         self.assertEqual(POSIX,
                          OS in (OperatingSystem.LINUX, OperatingSystem.MAC))
 
     def test_cast_enum(self):
+        Values.check_uniqueness = False
         e = Enum("e", A=Values(-4242, "A"))
         self.assertEqual(e.A.int, -4242)
         self.assertEqual(e.A.str, "A")
@@ -273,6 +289,51 @@ class TestEnums(TestCase):
 
         with self.assertRaises(TypeError):
             cast_enum(e, None)
+
+
+class TestPythonVersion(TestCase):
+    @skipUnless(sys.version_info[0:2] == (2, 6), "Not Python 2.6")
+    def test_py26(self):
+        self.assertTrue(PY26)
+
+    @skipUnless(sys.version_info[0:2] == (2, 7), "Not Python 2.7")
+    def test_py27(self):
+        self.assertTrue(PY27)
+
+    @skipUnless(sys.version_info[0] == 2, "Not Python 2")
+    def test_py2(self):
+        self.assertTrue(PY2)
+
+    @skipUnless(sys.version_info[0] == 3, "Not Python 3")
+    def test_py3(self):
+        self.assertTrue(PY3)
+
+    def test_py_version(self):
+        self.assertEqual(sys.version_info[0:2], PY_VERSION)
+
+    def test_py_major(self):
+        self.assertEqual(sys.version_info[0], PY_MAJOR)
+
+    def test_py_minor(self):
+        self.assertEqual(sys.version_info[1], PY_MINOR)
+
+
+class TestPythonTypes(TestCase):
+    @skipUnless(sys.version_info[0] == 2, "Not Python 2")
+    def test_string_types_py2(self):
+        self.assertEqual(STRING_TYPES, (str, unicode))
+
+    @skipUnless(sys.version_info[0] == 2, "Not Python 2")
+    def test_numeric_types_py2(self):
+        self.assertEqual(NUMERIC_TYPES, (int, long, float, complex))
+
+    @skipUnless(sys.version_info[0] == 3, "Not Python 3")
+    def test_string_types_py3(self):
+        self.assertEqual(STRING_TYPES, (str, ))
+
+    @skipUnless(sys.version_info[0] == 3, "Not Python 3")
+    def test_numeric_types_py3(self):
+        self.assertEqual(NUMERIC_TYPES, (int, float, complex))
 
 
 class TestEnumValueClass(TestCase):
