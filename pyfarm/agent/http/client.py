@@ -27,16 +27,29 @@ from collections import namedtuple
 from functools import partial
 
 import treq
+try:
+    from treq.response import _Response as TQResponse
+except ImportError:
+    TQResponse = NotImplemented
+
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.python import log
-from twisted.web.client import Response as _Response, GzipDecoder, ResponseDone
+from twisted.web.client import (
+    Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 
 logger = getLogger("agent.http")
+
+# response classes which are allowed to the `response` argument
+# to Response.__init__
+if TQResponse is not NotImplemented:
+    RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
+else:
+    RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
 
 
 class Request(namedtuple("Request", ("method", "url", "kwargs"))):
@@ -85,7 +98,7 @@ class Response(Protocol):
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
-        assert isinstance(response, (_Response, GzipDecoder)), type(response)
+        assert isinstance(response, RESPONSE_CLASSES)
         assert isinstance(request, Request)
 
         # internal attributes
