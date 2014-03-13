@@ -29,7 +29,7 @@ from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.client import (
-    RequestArgs, Response, request, head, get, post, put, patch, delete, logger)
+    Request, Response, request, head, get, post, put, patch, delete, logger)
 
 # fake object we use for triggering Response.connectionLost
 responseDone = namedtuple("reason", ["type"])(type=ResponseDone)
@@ -158,7 +158,7 @@ class RequestTestCase(TestCase):
 
         # check the types under the hod
         self.assertIsInstance(response, Response)
-        self.assertIsInstance(response.request, RequestArgs)
+        self.assertIsInstance(response.request, Request)
         self.assertIsInstance(response.headers, dict)
 
         # return code check
@@ -315,7 +315,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -329,7 +329,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -349,7 +349,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -360,7 +360,7 @@ class TestResponse(RequestTestCase):
                          {"Content-Type": "application/json"})
 
     def test_data_received(self):
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -383,7 +383,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -402,7 +402,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -421,7 +421,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -438,7 +438,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -460,7 +460,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -474,7 +474,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["text/html"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -490,7 +490,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {
@@ -508,7 +508,7 @@ class TestResponse(RequestTestCase):
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
-        request = RequestArgs(
+        request = Request(
             method="GET", url="/",
             kwargs={
                 "headers": {

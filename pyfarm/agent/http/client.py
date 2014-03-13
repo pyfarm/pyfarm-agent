@@ -36,11 +36,35 @@ from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 
-RequestArgs = namedtuple(
-    "RequestArgs",
-    ["method", "url", "kwargs"])
-
 logger = getLogger("agent.http")
+
+
+class Request(namedtuple("Request", ("method", "url", "kwargs"))):
+    """
+    Contains all the information used to perform a request such as the
+    ``method``, ``url``, and original keyword arguments (``kwargs``).  These
+    values contain the basic information necessary in order to :meth:`retry`
+    a request.
+    """
+    def retry(self, **kwargs):
+        """
+        When called this will rerun the original request with all
+        of the original arguments to :func:`request`
+
+        :param kwargs:
+            Additional keyword arguments which should override the original
+            keyword argument(s).
+        """
+        # first take the original keyword arguments
+        # and provide overrides
+        request_kwargs = self.kwargs.copy()
+        request_kwargs.update(kwargs)
+
+        # retry the request
+        logger.debug(
+            "retrying request(%r, %r, **%r",
+            self.method, self.url, request_kwargs)
+        return request(self.method, self.url, **request_kwargs)
 
 
 class Response(Protocol):
@@ -52,18 +76,17 @@ class Response(Protocol):
         The deferred object which contains the target callback
         and errback.
 
-    :type response: :class:`twisted.web.client.Response` or :class:`twisted.web.client.GzipDecoder`
     :param response:
         The initial response object which will be passed along
         to the target deferred.
 
-    :param RequestArgs request:
+    :param Request request:
         Named tuple object containing the method name, url, headers, and data.
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
         assert isinstance(response, (_Response, GzipDecoder))
-        assert isinstance(request, RequestArgs)
+        assert isinstance(request, Request)
 
         # internal attributes
         self._done = False
@@ -184,8 +207,8 @@ def request(method, url, **kwargs):
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
     assert isinstance(url, STRING_TYPES) and url
 
-    original_request = RequestArgs(method=method, url=url,
-                                   kwargs=ImmutableDict(kwargs.copy()))
+    original_request = Request(
+        method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
     data = kwargs.pop("data", NOTSET)
     headers = kwargs.pop("headers", {})
     callback = kwargs.pop("callback", None)
