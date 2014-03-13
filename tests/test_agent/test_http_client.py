@@ -229,6 +229,28 @@ class TestClientFunctions(RequestTestCase):
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
+    def test_retry(self):
+        self.retried = False
+
+        def callback(response):
+            self.assert_response(response, OK)
+
+            if not self.retried:
+                retry = response.request.retry()
+                self.assertIsInstance(retry, Deferred)
+                self.retried = True
+                return retry
+            else:
+                self.assertEqual(response.request.url, self.get_url("/get"))
+                self.assertEqual(response.request.method, "GET")
+
+        # special cleanup step to test self.retried
+        self.addCleanup(lambda: self.assertTrue(self.retried, "not retried"))
+
+        d = self.get("/get", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
 
 class TestMethods(RequestTestCase):
     def test_get(self):
