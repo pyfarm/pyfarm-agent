@@ -29,7 +29,7 @@ from functools import partial
 import treq
 try:
     from treq.response import _Response as TQResponse
-except ImportError:
+except ImportError:  # pragma: no cover
     TQResponse = NotImplemented
 
 from twisted.internet.defer import Deferred
@@ -48,7 +48,7 @@ logger = getLogger("agent.http")
 # to Response.__init__
 if TQResponse is not NotImplemented:
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
-else:
+else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
 
 
