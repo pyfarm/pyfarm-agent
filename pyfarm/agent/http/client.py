@@ -85,7 +85,7 @@ class Response(Protocol):
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
-        assert isinstance(response, (_Response, GzipDecoder))
+        assert isinstance(response, (_Response, GzipDecoder)), type(response)
         assert isinstance(request, Request)
 
         # internal attributes
