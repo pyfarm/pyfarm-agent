@@ -168,7 +168,9 @@ class RequestTestCase(TestCase):
 
         # ensure our request and response attributes match headers match
         self.assertEqual(response.headers["Content-Type"], content_type)
-        self.assertEqual(response.request.headers["User-Agent"], user_agent)
+        if "headers" in response.request.kwargs:
+            self.assertEqual(
+                response.request.kwargs["headers"]["User-Agent"], user_agent)
         self.assertEqual(response.content_type, content_type)
 
 
@@ -227,6 +229,28 @@ class TestClientFunctions(RequestTestCase):
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
 
+    def test_retry(self):
+        self.retried = False
+
+        def callback(response):
+            self.assert_response(response, OK)
+
+            if not self.retried:
+                retry = response.request.retry()
+                self.assertIsInstance(retry, Deferred)
+                self.retried = True
+                return retry
+            else:
+                self.assertEqual(response.request.url, self.get_url("/get"))
+                self.assertEqual(response.request.method, "GET")
+
+        # special cleanup step to test self.retried
+        self.addCleanup(lambda: self.assertTrue(self.retried, "not retried"))
+
+        d = self.get("/get", callback=callback)
+        d.addBoth(lambda r: self.assertIsNone(r))
+        return d
+
 
 class TestMethods(RequestTestCase):
     def test_get(self):
@@ -257,7 +281,7 @@ class TestMethods(RequestTestCase):
         def callback(response):
             data = response.json()
             self.assert_response(response, OK)
-            self.assertEqual(response.request.headers[key], [value])
+            self.assertEqual(response.request.kwargs["headers"][key], [value])
 
             # case insensitive comparison
             for k, v in data["headers"].items():
@@ -315,7 +339,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         self.assertIsInstance(r, Protocol)
@@ -327,7 +353,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         self.assertIs(r._deferred, deferred)
@@ -345,16 +373,20 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
         r = Response(deferred, twisted_response, request)
         self.assertEqual(r.headers, {"Content-Type": "application/json"})
-        self.assertEqual(r.request.headers,
+        self.assertEqual(r.request.kwargs["headers"],
                          {"Content-Type": "application/json"})
 
     def test_data_received(self):
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
         deferred = Deferred()
         twisted_headers = Headers({"Content-Type": ["application/json"]})
         twisted_response = TWResponse(
@@ -375,7 +407,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         r.connectionLost(responseDone)
@@ -392,7 +426,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         r.connectionLost(connectionDone)
@@ -409,7 +445,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         self.assertRaises(RuntimeError, lambda: r.data())
@@ -424,8 +462,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
-
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
         data1 = os.urandom(6).encode("hex")
         data2 = os.urandom(6).encode("hex")
         data = data1 + data2
@@ -445,7 +484,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         self.assertRaises(RuntimeError, lambda: r.json())
@@ -457,7 +498,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "text/html"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "text/html"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
         r._done = True
@@ -471,8 +514,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
-
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
         r = Response(deferred, twisted_response, request)
         r._done = True
         self.assertRaisesRegexp(
@@ -488,7 +532,9 @@ class TestResponse(RequestTestCase):
             ("HTTP", 1, 1), 200, "OK", twisted_headers, None)
         request = Request(
             method="GET", url="/",
-            headers={"Content-Type": "application/json"}, data=None)
+            kwargs={
+                "headers": {
+                    "Content-Type": "application/json"}, "data": None})
 
         data = {
             os.urandom(6).encode("hex"): os.urandom(6).encode("hex"),

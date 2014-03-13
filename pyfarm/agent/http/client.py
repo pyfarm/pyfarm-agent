@@ -27,19 +27,57 @@ from collections import namedtuple
 from functools import partial
 
 import treq
+try:
+    from treq.response import _Response as TQResponse
+except ImportError:  # pragma: no cover
+    TQResponse = NotImplemented
+
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.python import log
-from twisted.web.client import Response as _Response, GzipDecoder, ResponseDone
+from twisted.web.client import (
+    Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
-
-Request = namedtuple(
-    "Request",
-    ["method", "url", "headers", "data"])
+from pyfarm.core.utility import ImmutableDict
 
 logger = getLogger("agent.http")
+
+# response classes which are allowed to the `response` argument
+# to Response.__init__
+if TQResponse is not NotImplemented:
+    RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
+else:  # pragma: no cover
+    RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
+
+
+class Request(namedtuple("Request", ("method", "url", "kwargs"))):
+    """
+    Contains all the information used to perform a request such as the
+    ``method``, ``url``, and original keyword arguments (``kwargs``).  These
+    values contain the basic information necessary in order to :meth:`retry`
+    a request.
+    """
+    def retry(self, **kwargs):
+        """
+        When called this will rerun the original request with all
+        of the original arguments to :func:`request`
+
+        :param kwargs:
+            Additional keyword arguments which should override the original
+            keyword argument(s).
+        """
+        # first take the original keyword arguments
+        # and provide overrides
+        request_kwargs = self.kwargs.copy()
+        request_kwargs.update(kwargs)
+
+        # retry the request
+        logger.debug(
+            "retrying request(%r, %r, **%r",
+            self.method, self.url, request_kwargs)
+        return request(self.method, self.url, **request_kwargs)
 
 
 class Response(Protocol):
@@ -47,7 +85,7 @@ class Response(Protocol):
     This class receives the incoming response body from a request
     constructs some convenience methods and attributes around the data.
 
-    :param deferred:
+    :param Deferred deferred:
         The deferred object which contains the target callback
         and errback.
 
@@ -55,12 +93,12 @@ class Response(Protocol):
         The initial response object which will be passed along
         to the target deferred.
 
-    :param request:
+    :param Request request:
         Named tuple object containing the method name, url, headers, and data.
     """
     def __init__(self, deferred, response, request):
         assert isinstance(deferred, Deferred)
-        assert isinstance(response, (_Response, GzipDecoder))
+        assert isinstance(response, RESPONSE_CLASSES)
         assert isinstance(request, Request)
 
         # internal attributes
@@ -182,6 +220,8 @@ def request(method, url, **kwargs):
     assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
     assert isinstance(url, STRING_TYPES) and url
 
+    original_request = Request(
+        method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
     data = kwargs.pop("data", NOTSET)
     headers = kwargs.pop("headers", {})
     callback = kwargs.pop("callback", None)
@@ -220,9 +260,7 @@ def request(method, url, **kwargs):
         # the request and response via an instance of `Response`
         # to the outer scope's callback function.
         response.deliverBody(
-            response_class(
-                deferred, response,
-                Request(method=method, url=url, data=data, headers=headers)))
+            response_class(deferred, response, original_request))
 
         return deferred
 
