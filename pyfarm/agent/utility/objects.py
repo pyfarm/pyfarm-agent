@@ -27,7 +27,7 @@ import logging
 
 try:
     from UserDict import IterableUserDict, UserDict
-except ImportError:
+except ImportError:  # pragma: no cover
     from collections import IterableUserDict, UserDict
 
 from pyfarm.core.enums import NOTSET
@@ -73,13 +73,13 @@ class LoggingConfiguration(IterableUserDict):
             for key, value in data.items():
                 if key not in self:
                     self.changed(self.CREATED, key, value)
-                elif self[key] != value:
+                elif self[key] != value:  # pragma: no cover
                     self.changed(self.MODIFIED, key, value)
 
         for key, value in kwargs.iteritems():
             if key not in self:
                 self.changed(self.CREATED, key, value)
-            elif self[key] != value:
+            elif self[key] != value:  # pragma: no cover
                 self.changed(self.MODIFIED, key, value)
 
         IterableUserDict.update(self, dict=data, **kwargs)
