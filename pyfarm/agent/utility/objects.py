@@ -30,8 +30,6 @@ try:
 except ImportError:
     from collections import IterableUserDict, UserDict
 
-from twisted.internet import reactor
-
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.logger import getLogger
 
@@ -45,7 +43,6 @@ class LoggingConfiguration(IterableUserDict):
     MODIFIED = "modified"
     CREATED = "created"
     DELETED = "deleted"
-    reactor = reactor
     log = getLogger("agent.config")
 
     def __setitem__(self, key, value):
@@ -87,7 +84,7 @@ class LoggingConfiguration(IterableUserDict):
 
         IterableUserDict.update(self, dict=data, **kwargs)
 
-    def changed(self, change_type, key, value):
+    def changed(self, change_type, key, value=NOTSET):
         assert value is not NOTSET if change_type != self.DELETED else True
 
         if change_type == self.MODIFIED:
@@ -98,6 +95,10 @@ class LoggingConfiguration(IterableUserDict):
 
         elif change_type == self.DELETED:
             self.log.warning("deleted %r", key)
+
+        else:
+            raise NotImplementedError(
+                "Don't know how to handle change_type %r" % change_type)
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
