@@ -24,8 +24,6 @@ fit well into other modules or that serve more than one purpose.
 """
 
 import logging
-from collections import deque
-from functools import partial
 
 try:
     from UserDict import IterableUserDict, UserDict
@@ -33,7 +31,9 @@ except ImportError:
     from collections import IterableUserDict, UserDict
 
 from twisted.internet import reactor
-from twisted.python import log
+
+from pyfarm.core.enums import NOTSET
+from pyfarm.core.logger import getLogger
 
 
 class LoggingConfiguration(IterableUserDict):
@@ -45,9 +45,8 @@ class LoggingConfiguration(IterableUserDict):
     MODIFIED = "modified"
     CREATED = "created"
     DELETED = "deleted"
-    log_queue = deque()
     reactor = reactor
-    _log = partial(log.msg, system="config", level=logging.INFO)
+    log = getLogger("agent.config")
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -59,18 +58,18 @@ class LoggingConfiguration(IterableUserDict):
 
     def __delitem__(self, key):
         IterableUserDict.__delitem__(self, key)
-        self.changed(self.DELETED, key, None)
+        self.changed(self.DELETED, key)
 
     def pop(self, key, *args):
         IterableUserDict.pop(self, key, *args)
-        self.changed(self.DELETED, key, None)
+        self.changed(self.DELETED, key)
 
     def clear(self):
         keys = self.keys()
         IterableUserDict.clear(self)
 
         for key in keys:
-            self.changed(self.DELETED, key, None)
+            self.changed(self.DELETED, key)
 
     def update(self, data=None, **kwargs):
         if isinstance(data, (dict, UserDict)):
@@ -88,29 +87,17 @@ class LoggingConfiguration(IterableUserDict):
 
         IterableUserDict.update(self, dict=data, **kwargs)
 
-    @classmethod
-    def log(cls, *args, **kwargs):
-        if not cls.reactor.running:
-            cls.log_queue.append((args, kwargs))
-        else:
-            while cls.log_queue:
-                args, kwargs = cls.log_queue.popleft()
-                cls._log(*args, **kwargs)
-
-            cls._log(*args, **kwargs)
-
     def changed(self, change_type, key, value):
-        key = repr(key)
-        value = repr(value)
+        assert value is not NOTSET if change_type != self.DELETED else True
 
         if change_type == self.MODIFIED:
-            self.log("modified %s = %s" % (key, value))
+            self.log.info("modified %r = %r", key, value)
 
         elif change_type == self.CREATED:
-            self.log("set %s = %s" % (key, value))
+            self.log.info("set %r = %r", key, value)
 
         elif change_type == self.DELETED:
-            self.log("deleted %s" % key)
+            self.log.warning("deleted %r", key)
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
@@ -165,7 +152,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
                 "%s is not a registered callback for %s" % (callback, key),
                 level=logging.WARNING)
 
-    def changed(self, change_type, key, value):
+    def changed(self, change_type, key, value=NOTSET):
         LoggingConfiguration.changed(self, change_type, key, value)
 
         if key in self.callbacks:
