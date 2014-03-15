@@ -130,13 +130,11 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            cls.log(
-                "%s is already a registered callback for %s" % (callback, key),
-                level=logging.WARNING)
+            cls.log.warning(
+                "%r is already a registered callback for %r", callback, key)
         else:
             callbacks.append(callback)
-            cls.log("registered callback %s for %s" % (callback, key),
-                    level=logging.DEBUG)
+            cls.log.debug("Registered callback %r for %r", callback, key)
 
     @classmethod
     def deregister_callback(cls, key, callback):
@@ -149,9 +147,8 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
             if not cls.callbacks[key]:
                 cls.callbacks.pop(key)
         else:
-            cls.log(
-                "%s is not a registered callback for %s" % (callback, key),
-                level=logging.WARNING)
+            cls.log.warning(
+                "%r is not a registered callback for %r", callback, key)
 
     def changed(self, change_type, key, value=NOTSET):
         LoggingConfiguration.changed(self, change_type, key, value)
@@ -159,7 +156,6 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         if key in self.callbacks:
             for callback in self.callbacks[key]:
                 callback(change_type, key, value, self.reactor.running)
-                self.log(
-                    "key %s was %s, calling callback %s" % (
-                        repr(key), change_type, callback),
-                    level=logging.DEBUG)
+                self.log.debug(
+                    "Key %r was %r, calling callback %s",
+                    key, change_type, callback)
