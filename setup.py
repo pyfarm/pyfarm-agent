@@ -61,7 +61,6 @@ setup(
               "pyfarm.agent.entrypoints",
               "pyfarm.agent.http",
               "pyfarm.agent.process",
-              "pyfarm.agent.utility",
               "pyfarm.jobtypes",
               "pyfarm.jobtypes.core"],
     package_data={
