@@ -205,7 +205,8 @@ class Agent(object):
 
             if failure.type is ConnectionRefusedError:
                 svclog.warning(
-                    "Connection refused to %s, retrying in %s seconds", url, delay)
+                    "Connection refused to %s, retrying in %s seconds",
+                    url, delay)
                 reactor.callLater(delay, do_post)
             else:
                 svclog.critical("Unhandled exception, stopping reactor")
