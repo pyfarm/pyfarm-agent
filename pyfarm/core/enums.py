@@ -119,10 +119,19 @@ Describes which address should be used to contact the agent
     A tuple of integer types, provided for Python 3 backwards compatibility
 
 :const BOOLEAN_TRUE:
-    A set containing strings, integers and a boolean representing ``True``.
+    A set containing strings and other objects representing ``True`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.bool`
 
 :const BOOLEAN_FALSE:
-    A set containing strings, integers and a boolean representing ``False``.
+    A set containing strings and other objects representing ``False`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.bool`
+
+:const NONE:
+    A set containing strings and other objects which represent ``None`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.none`
 
 :const OS:
     The current os type, the value will map to one of the values in
@@ -199,6 +208,7 @@ except NameError:  # pragma: no cover
 
 BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes", True, 1])
 BOOLEAN_FALSE = set(["0", "f", "n", "false", "no", False, 0])
+NONE = set(["none", "null", "", None, 0])
 
 
 def Enum(classname, **kwargs):
