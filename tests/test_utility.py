@@ -19,7 +19,7 @@ from __future__ import with_statement
 from json import loads
 
 from pyfarm.core.testutil import TestCase
-from pyfarm.core.enums import Values, BOOLEAN_TRUE, BOOLEAN_FALSE
+from pyfarm.core.enums import Values, BOOLEAN_TRUE, BOOLEAN_FALSE, NONE
 from pyfarm.core.utility import convert, dumps, ImmutableDict
 
 
@@ -53,9 +53,17 @@ class Convert(TestCase):
         for false_value in BOOLEAN_FALSE:
             self.assertFalse(convert.bool(false_value))
 
-    def test_convert_error(self):
+    def test_convert_bool_error(self):
         with self.assertRaises(ValueError):
             convert.bool("")
+
+    def test_convert_none(self):
+        for none_value in NONE:
+            self.assertIsNone(convert.none(none_value))
+
+    def test_convert_none_error(self):
+        with self.assertRaises(ValueError):
+            convert.none("foo")
 
 
 class JSONDumper(TestCase):
