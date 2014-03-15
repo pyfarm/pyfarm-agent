@@ -171,7 +171,8 @@ class convert(object):
         and :const:`pyfarm.core.enums.BOOLEAN_FALSE`.
 
         :param value:
-            The value to attempt to convert to a boolean
+            The value to attempt to convert to a boolean.  If this value is a
+            string it will be run through ``.lower()`` first.
 
         :raises ValueError:
             Raised if we can't convert ``value`` to a true boolean object
@@ -184,4 +185,5 @@ class convert(object):
         elif value in BOOLEAN_FALSE:
             return False
         else:
-            raise ValueError("Cannot convert `value` to either True or False")
+            raise ValueError(
+                "Cannot convert %r to either True or False" % value)
