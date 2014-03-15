@@ -25,18 +25,21 @@ such as log reading, system information gathering, and management of processes.
 import json
 import time
 import logging
+from random import random
 from datetime import datetime
 from functools import partial
 
 import ntplib
 import requests
+from twisted.internet import reactor
 from twisted.application.service import MultiService
+from twisted.internet.error import ConnectionRefusedError
+from twisted.python import log
 
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
-from pyfarm.agent.http.client import post as http_post
-from pyfarm.agent.utility.retry import RetryDeferred
+from pyfarm.agent.http.client import post
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
 from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
@@ -66,6 +69,7 @@ class ManagerService(MultiService):
 
     def _startServiceCallback(self, response):
         """internal callback used to start the service itself"""
+        config["manager"] = ProcessManager(config)
         config["agent-id"] = response["id"]
         config["agent-url"] = \
             config["http-api"] + "/agents/%s" % response["id"]
@@ -75,59 +79,6 @@ class ManagerService(MultiService):
     def _failureCallback(self, response):
         """internal callback which is run when the service fails to start"""
         self.exception(response)
-
-    def startService(self):
-        self.info("informing master of agent startup")
-
-        def get_agent_data():
-            ntp_client = ntplib.NTPClient()
-            try:
-                pool_time = ntp_client.request(config["ntp-server"])
-                time_offset = int(pool_time.tx_time - time.time())
-
-            except Exception, e:
-                time_offset = 0
-                self.log("failed to determine network time: %s" % e,
-                         level=logging.WARNING)
-            else:
-                if time_offset:
-                    self.log("agent time offset is %s" % time_offset,
-                             level=logging.WARNING)
-
-            data = {
-                "hostname": config["hostname"],
-                "ip": config["ip"],
-                "use_address": config["use-address"],
-                "ram": config["ram"],
-                "cpus": config["cpus"],
-                "port": config["port"],
-                "free_ram": memory.ram_free(),
-                "time_offset": time_offset,
-                "state": AgentState.ONLINE}
-
-            if config.get("remote-ip"):
-                data.update(remote_ip=config["remote-ip"])
-
-            if config.get("projects"):
-               data.update(projects=config["projects"])
-
-            return data
-
-        # prepare a retry request to POST to the master
-        retry_post_agent = RetryDeferred(
-            http_post, self._startServiceCallback, self._failureCallback,
-            headers={"Content-Type": "application/json"},
-            max_retries=config["http-max-retries"],
-            timeout=None,
-            retry_delay=config["http-retry-delay"])
-
-        retry_post_agent(
-            config["http-api"] + "/agents",
-            data=json.dumps(get_agent_data()))
-
-        config["manager"] = ProcessManager(config)
-
-        return retry_post_agent
 
     def stopService(self):
         self.scheduled_tasks.stop()
@@ -166,85 +117,103 @@ class ManagerService(MultiService):
                 self.error("      text: %s" % response.text)
 
 
-def get_agent_data():
-    """
-    Returns a dictionary of data containing information about the
-    agent.  This is the information that is also passed along to
-    the master.
-    """
+class Agent(object):
+    scheduled_tasks = ScheduledTaskManager()
     ntp_client = ntplib.NTPClient()
 
-    ntplog.debug(
-        "querying ntp server %r for current time", config["ntp-server"])
-    try:
-        pool_time = ntp_client.request(config["ntp-server"])
+    def __init__(self):
+        self.first_post_attempts = 1
 
-    except Exception, e:
-        time_offset = 0
-        ntplog.warning("failed to determine network time: %s", e)
+    @classmethod
+    def http_retry_delay(cls):
+        # TODO: provide command line flags for jitter
+        delay = config["http-retry-delay"]
+        delay += random()
+        return delay
 
-    else:
-        time_offset = int(pool_time.tx_time - time.time())
-
-        # format the offset for logging purposes
-        dtime = datetime.fromtimestamp(pool_time.tx_time)
+    @classmethod
+    def get_system_data(cls):
+        """
+        Returns a dictionary of data containing information about the
+        agent.  This is the information that is also passed along to
+        the master.
+        """
         ntplog.debug(
-            "network time: %s (local offset: %r)",
-            dtime.isoformat(), time_offset)
+            "querying ntp server %r for current time", config["ntp-server"])
+        try:
+            pool_time = cls.ntp_client.request(config["ntp-server"])
 
-        if time_offset:
-            ntplog.warning(
-                "agent is %r second(s) off from ntp server at %r",
-                time_offset, config["ntp-server"])
+        except Exception, e:
+            time_offset_int = 0
+            ntplog.warning("failed to determine network time: %s", e)
 
-    data = {
-        "hostname": config["hostname"],
-        "ip": config["ip"],
-        "use_address": config["use-address"],
-        "ram": config["ram"],
-        "cpus": config["cpus"],
-        "port": config["port"],
-        "free_ram": memory.ram_free(),
-        "time_offset": time_offset,
-        "state": AgentState.ONLINE}
+        else:
+            time_offset_int = int(pool_time.tx_time - time.time())
 
-    if config.get("remote-ip"):
-        data.update(remote_ip=config["remote-ip"])
+            # format the offset for logging purposes
+            utcoffset = datetime.utcfromtimestamp(pool_time.tx_time)
+            iso_timestamp = utcoffset.isoformat()
+            ntplog.debug(
+                "network time: %s (local offset: %r)",
+                iso_timestamp, time_offset_int)
 
-    if config.get("projects"):
-       data.update(projects=config["projects"])
+            if time_offset_int:
+                ntplog.warning(
+                    "agent is %r second(s) off from ntp server at %r",
+                    time_offset_int, config["ntp-server"])
 
-    return data
+        data = {
+            "hostname": config["hostname"],
+            "ip": config["ip"],
+            "use_address": config["use-address"],
+            "ram": config["ram"],
+            "cpus": config["cpus"],
+            "port": config["port"],
+            "free_ram": memory.ram_free(),
+            "time_offset": time_offset_int,
+            "state": AgentState.ONLINE}
 
+        if config.get("remote-ip"):
+            data.update(remote_ip=config["remote-ip"])
 
-def agent():
-    def initial_post_success(response):
-        """internal callback used to start the service itself"""
-        config["agent-id"] = response["id"]
-        config["agent-url"] = \
-            config["http-api"] + "/agents/%s/" % response["id"]
+        if config.get("projects"):
+           data.update(projects=config["projects"])
 
-        print "agent id is %s, starting service" % config["agent-id"]
-        # self.log("agent id is %s, starting service" % config["agent-id"])
-        # self.scheduled_tasks.start()
+        return data
 
-    def initial_post_failure(error):
-        errors = map(str, [error.value for error in error.value])
-        svclog.error(
-            "errors(s) while posting agent data to %s: %s",
-            config["master-api"] + "/agents/", errors)
+    def run(self):
+        system_data = self.get_system_data()
+        url = config["master-api"] + "/agents/"
 
-    # post the agent's status to the master before
-    # we do anything else
-    retry_post_agent = RetryDeferred(
-        http_post, initial_post_success, initial_post_failure,
-        headers={"Content-Type": "application/json"},
-        max_retries=config["http-max-retries"],
-        timeout=None,
-        retry_delay=config["http-retry-delay"])
+        def callback(response):
+            print response
 
-    retry_post_agent(
-        config["master-api"] + "/agents/",
-        data=get_agent_data())
+        def errback(failure):
+            # TODO: max number of first post attempts may not be the same
+            # as --http-max-retries
+            if self.first_post_attempts > config["http-max-retries"]:
+                svclog.critical(
+                    "Reached maximum number of attempts to announce "
+                    "the agent's presence to %r", url)
+                reactor.stop()
 
+            self.first_post_attempts += 1
+            delay = self.http_retry_delay()
+            do_post = lambda: post(
+                config["master-api"] + "/agents/",
+                data=system_data, callback=callback, errback=errback)
+
+            if failure.type is ConnectionRefusedError:
+                svclog.warning(
+                    "Connection refused to %s, retrying in %s seconds", url, delay)
+                reactor.callLater(delay, do_post)
+            else:
+                svclog.critical("Unhandled exception, stopping reactor")
+                svclog.exception(failure)
+                reactor.stop()
+
+        # fire off the first POST
+        post(
+            config["master-api"] + "/agents/",
+            data=system_data, callback=callback, errback=errback)
 

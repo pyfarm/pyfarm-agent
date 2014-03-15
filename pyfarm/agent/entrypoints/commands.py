@@ -477,9 +477,11 @@ class AgentEntryPoint(object):
             logger.info("gid: %s" % getgid())
 
         from twisted.internet import reactor
-        from pyfarm.agent.service import agent
+        from pyfarm.agent.service import Agent
 
-        agent()
+        service = Agent()
+        service.run()
+
         reactor.run()
 
     def stop(self):
