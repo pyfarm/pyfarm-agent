@@ -23,7 +23,7 @@ from pyfarm.core.enums import Values, BOOLEAN_TRUE, BOOLEAN_FALSE, NONE
 from pyfarm.core.utility import convert, dumps, ImmutableDict
 
 
-class Convert(TestCase):
+class ConvertSize(TestCase):
     def test_convert_bytetomb(self):
         self.assertEqual(convert.bytetomb(10485760), 10.0)
         self.assertEqual(convert.bytetomb(11010048), 10.5)
@@ -32,10 +32,13 @@ class Convert(TestCase):
         self.assertEqual(convert.mbtogb(2048), 2.0)
         self.assertEqual(convert.mbtogb(4608), 4.5)
 
+
+class ConvertString(TestCase):
     def test_convert_ston(self):
         self.assertEqual(convert.ston(42), 42)
         self.assertEqual(convert.ston("42"), 42)
 
+    def test_convert_ston_error(self):
         with self.assertRaises(TypeError):
             convert.ston(None)
 
@@ -45,6 +48,8 @@ class Convert(TestCase):
         with self.assertRaises(ValueError):
             convert.ston("[]")
 
+
+class ConvertBool(TestCase):
     def test_convert_true(self):
         for true_value in BOOLEAN_TRUE:
             self.assertTrue(convert.bool(true_value))
@@ -57,6 +62,8 @@ class Convert(TestCase):
         with self.assertRaises(ValueError):
             convert.bool("")
 
+
+class ConvertNone(TestCase):
     def test_convert_none(self):
         for none_value in NONE:
             self.assertIsNone(convert.none(none_value))
@@ -64,6 +71,31 @@ class Convert(TestCase):
     def test_convert_none_error(self):
         with self.assertRaises(ValueError):
             convert.none("foo")
+
+
+class ConvertList(TestCase):
+    def test_convert_list_bad_input_types(self):
+        with self.assertRaises(TypeError):
+            convert.list(None)
+
+        with self.assertRaises(TypeError):
+            convert.list("", sep=None)
+
+    def test_convert_list(self):
+        self.assertEqual(convert.list("  a,b , c"), ["a", "b", "c"])
+
+    def test_convert_list_no_strip(self):
+        self.assertEqual(
+            convert.list("  a,b , c", strip=False),
+            ["  a", "b ", " c"])
+
+    def test_convert_list_filter_empty(self):
+        self.assertEqual(
+            convert.list("  a,b , c,,", strip=False),
+            ["  a", "b ", " c"])
+
+    def test_convert_alt_sep(self):
+        self.assertEqual(convert.list("a:b", sep=":"), ["a", "b"])
 
 
 class JSONDumper(TestCase):

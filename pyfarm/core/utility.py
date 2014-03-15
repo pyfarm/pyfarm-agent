@@ -245,9 +245,9 @@ class convert(object):
             raise TypeError("Expected a string for `value` and/or `sep`")
 
         # split the string
-        split = value.split(sep)
+        value = value.split(sep)
         if strip:
-            value = map(str.strip, split)
+            value = map(str.strip, value)
 
         # filter out empty values
         if filter_empty:
