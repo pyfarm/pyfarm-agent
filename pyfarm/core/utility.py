@@ -35,7 +35,8 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import (
-    NUMERIC_TYPES, STRING_TYPES, PY2, BOOLEAN_TRUE, BOOLEAN_FALSE, NONE, Values)
+    NUMERIC_TYPES, STRING_TYPES, PY2, PY3,
+    BOOLEAN_TRUE, BOOLEAN_FALSE, NONE, Values)
 
 
 class ImmutableDict(dict):
@@ -108,7 +109,15 @@ dumps = partial(
 
 
 class convert(object):
-    """Namespace containing various static methods for conversion"""
+    """
+    Namespace containing various static methods for converting data.
+
+    Some staticmethods are named the same as builtin types. The name
+    indicates the expected result but the staticmethod may not behave the
+    same as the equivalently named Python object.  Read the documentation
+    for each staticmethod to learn the differences, expected input and
+    output.
+    """
     @staticmethod
     def bytetomb(value):
         """
@@ -211,3 +220,41 @@ class convert(object):
         else:
             raise ValueError(
                 "Cannot convert %r to None" % value)
+
+    @staticmethod
+    def list(value, sep=",", strip=True, filter_empty=True):
+        """
+        Converts ``value`` into a list object by splitting on ``sep``.
+
+        :param str value:
+            The string we should convert into a list
+
+        :param str sep:
+            The string that we should split ``value`` by.
+
+        :param bool strip:
+            If ``True``, strip extra whitespace from the results so
+            ``'foo, bar'`` becomes ``['foo', 'bar']``
+
+        :param bool filter_empty:
+            If ``True``, any result that evaluates to ``False`` will be
+            removed so ``'foo,,'`` would become ``['foo']``
+        """
+        if not isinstance(value, STRING_TYPES) \
+                or not isinstance(sep, STRING_TYPES):
+            raise TypeError("Expected a string for `value` and/or `sep`")
+
+        # split the string
+        split = value.split(sep)
+        if strip:
+            value = map(str.strip, split)
+
+        # filter out empty values
+        if filter_empty:
+            value = filter(bool, value)
+
+        # if we're in Python 3, we may be working with an iterable
+        if not isinstance(value, list):
+            value = list(value)
+
+        return value
