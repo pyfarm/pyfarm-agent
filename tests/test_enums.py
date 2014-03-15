@@ -31,7 +31,7 @@ from pyfarm.core.enums import (
     PY2, PY3, PY27, PY_MAJOR, PY_MINOR, PY_VERSION,
     _OperatingSystem, _UseAgentAddress, DBUseAgentAddress,
     DBAgentState, DBOperatingSystem, DBWorkState, Enum,
-    Values, cast_enum, LINUX, MAC, WINDOWS, POSIX)
+    Values, cast_enum, LINUX, MAC, WINDOWS, POSIX, BOOLEAN_TRUE, BOOLEAN_FALSE)
 
 
 class TestEnums(TestCase):
@@ -334,6 +334,16 @@ class TestPythonTypes(TestCase):
     @skipUnless(sys.version_info[0] == 3, "Not Python 3")
     def test_numeric_types_py3(self):
         self.assertEqual(NUMERIC_TYPES, (int, float, complex))
+
+
+class TestBooleanTypes(TestCase):
+    def test_true(self):
+        self.assertEqual(
+            BOOLEAN_TRUE, set(["1", "t", "y", "true", "yes", True, 1]))
+
+    def test_false(self):
+        self.assertEqual(
+            BOOLEAN_FALSE, set(["0", "f", "n", "false", "no", False, 0]))
 
 
 class TestEnumValueClass(TestCase):

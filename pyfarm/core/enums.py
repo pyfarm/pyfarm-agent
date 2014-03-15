@@ -191,6 +191,9 @@ except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
 
+BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes", True, 1])
+BOOLEAN_FALSE = set(["0", "f", "n", "false", "no", False, 0])
+
 
 def Enum(classname, **kwargs):
     """
