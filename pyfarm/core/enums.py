@@ -113,13 +113,28 @@ Describes which address should be used to contact the agent
     a valid value
 
 :const STRING_TYPES:
-    a tuple of string types, provided for Python 3 backwards compatibility
+    A tuple of string types, provided for Python 3 backwards compatibility
 
 :const NUMERIC_TYPES:
-    a tuple of integer types, provided for Python 3 backwards compatibility
+    A tuple of integer types, provided for Python 3 backwards compatibility
+
+:const BOOLEAN_TRUE:
+    A set containing strings and other objects representing ``True`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.bool`
+
+:const BOOLEAN_FALSE:
+    A set containing strings and other objects representing ``False`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.bool`
+
+:const NONE:
+    A set containing strings and other objects which represent ``None`` under
+    some conditions.  Generally used by
+    :func:`pyfarm.core.utility.convert.none`
 
 :const OS:
-    the current os type, the value will map to one of the values in
+    The current os type, the value will map to one of the values in
     :class:`.OperatingSystem`
 
 :const POSIX:
@@ -141,23 +156,23 @@ Describes which address should be used to contact the agent
     True if environment variables are case sensitive
 
 :const ARCHITECTURE:
-    the system architecture, containing either ``32`` or ``64`` as an integer
+    The system architecture, containing either ``32`` or ``64`` as an integer
 
 :const ARCHITECTURE64:
-    the system architecture, True if ``ARCHITECTURE == 64``
+    The system architecture, True if ``ARCHITECTURE == 64``
 
 :const ARCHITECTURE32:
-    the system architecture, True if ``ARCHITECTURE == 32``
+    The system architecture, True if ``ARCHITECTURE == 32``
 
 :const INTERPRETER_ARCHITECTURE:
-    the interpreter architecture, containing either ``32`` or ``64`` as an
+    The interpreter architecture, containing either ``32`` or ``64`` as an
     integer
 
 :const INTERPRETER_ARCHITECTURE32:
-    the interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 32``
+    The interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 32``
 
 :const INTERPRETER_ARCHITECTURE64:
-    the interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 64``
+    The interpreter architecture, True if ``INTERPRETER_ARCHITECTURE == 64``
 """
 
 import sys
@@ -190,6 +205,12 @@ try:  # pragma: no cover
 except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
+
+# constants used by pyfarm.core.utility.convert by provided
+# here so they could be reused elsewhere
+BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes", True, 1])
+BOOLEAN_FALSE = set(["0", "f", "n", "false", "no", False, 0])
+NONE = set(["none", "null", "", None, 0])
 
 
 def Enum(classname, **kwargs):

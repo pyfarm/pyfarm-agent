@@ -33,13 +33,10 @@ try:
 except ImportError:  # pragma: no cover
     from collections import UserDict
 
-try:
-    _range = xrange
-except NameError:  # pragma: no cover
-    _range = range
-
 from pyfarm.core.config import read_env_bool
-from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, PY2, Values
+from pyfarm.core.enums import (
+    NUMERIC_TYPES, STRING_TYPES, PY2, PY3,
+    BOOLEAN_TRUE, BOOLEAN_FALSE, NONE, Values)
 
 
 class ImmutableDict(dict):
@@ -112,8 +109,15 @@ dumps = partial(
 
 
 class convert(object):
-    """Namespace containing various static methods for conversion"""
+    """
+    Namespace containing various static methods for converting data.
 
+    Some staticmethods are named the same as builtin types. The name
+    indicates the expected result but the staticmethod may not behave the
+    same as the equivalently named Python object.  Read the documentation
+    for each staticmethod to learn the differences, expected input and
+    output.
+    """
     @staticmethod
     def bytetomb(value):
         """
@@ -137,18 +141,18 @@ class convert(object):
     @staticmethod
     def ston(value, types=NUMERIC_TYPES):
         """
-        converts a string to an integer or fails with a useful error
+        Converts a string to an integer or fails with a useful error
         message
 
-        :attr string value:
-            the value to convert to an integer
+        :param string value:
+            The value to convert to an integer
 
-        :exception ValueError:
-            raised if ``value`` could not be converted using
+        :raises ValueError:
+            Raised if ``value`` could not be converted using
             :func:`.literval_eval`
 
-        :exception TypeError:
-            raised if ``value`` was not converted to a float, integer, or long
+        :raises TypeError:
+            Raised if ``value`` was not converted to a float, integer, or long
         """
         # already a number
         if isinstance(value, types):
@@ -163,5 +167,94 @@ class convert(object):
         # ensure we got a number out of literal_eval
         if not isinstance(value, types):
             raise ValueError("`value` did not convert to a number")
+
+        return value
+
+    @staticmethod
+    def bool(value):
+        """
+        Converts ``value`` into a boolean object.  This function mainly exits
+        so human-readable booleans such as 'yes' or 'y' can be handled in
+        a single location.  Internally it does *not* use :func:`bool` and
+        instead checks ``value`` against :const:`pyfarm.core.enums.BOOLEAN_TRUE`
+        and :const:`pyfarm.core.enums.BOOLEAN_FALSE`.
+
+        :param value:
+            The value to attempt to convert to a boolean.  If this value is a
+            string it will be run through ``.lower().strip()`` first.
+
+        :raises ValueError:
+            Raised if we can't convert ``value`` to a true boolean object
+        """
+        if isinstance(value, STRING_TYPES):
+            value = value.lower().strip()
+
+        if value in BOOLEAN_TRUE:
+            return True
+        elif value in BOOLEAN_FALSE:
+            return False
+        else:
+            raise ValueError(
+                "Cannot convert %r to either True or False" % value)
+
+    @staticmethod
+    def none(value):
+        """
+        Converts ``value`` into ``None``.  This function mainly exits
+        so human-readable values such as 'None' or 'null' can be handled in
+        a single location.  Internally this checks ``value``
+        against :const:`pyfarm.core.enums.NONE`
+
+        :param value:
+            The value to attempt to convert to ``None``.  If this value is a
+            string it will be run through ``.lower().strip()`` first.
+
+        :raises ValueError:
+            Raised if we can't convert ``value`` to ``None``
+        """
+        if isinstance(value, STRING_TYPES):
+            value = value.lower().strip()
+
+        if value in NONE:
+            return None
+        else:
+            raise ValueError(
+                "Cannot convert %r to None" % value)
+
+    @staticmethod
+    def list(value, sep=",", strip=True, filter_empty=True):
+        """
+        Converts ``value`` into a list object by splitting on ``sep``.
+
+        :param str value:
+            The string we should convert into a list
+
+        :param str sep:
+            The string that we should split ``value`` by.
+
+        :param bool strip:
+            If ``True``, strip extra whitespace from the results so
+            ``'foo, bar'`` becomes ``['foo', 'bar']``
+
+        :param bool filter_empty:
+            If ``True``, any result that evaluates to ``False`` will be
+            removed so ``'foo,,'`` would become ``['foo']``
+        """
+        if not isinstance(value, STRING_TYPES) \
+                or not isinstance(sep, STRING_TYPES):
+            raise TypeError("Expected a string for `value` and/or `sep`")
+
+        # split the string
+        value = value.split(sep)
+        if strip:
+            value = map(str.strip, value)
+
+        # filter out empty values
+        if filter_empty:
+            value = filter(bool, value)
+
+        # if we're in Python 3, we may be working with an iterable
+        if not isinstance(value, list):
+            value = list(value)
 
         return value
