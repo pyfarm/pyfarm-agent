@@ -172,7 +172,7 @@ class convert(object):
 
         :param value:
             The value to attempt to convert to a boolean.  If this value is a
-            string it will be run through ``.lower()`` first.
+            string it will be run through ``.lower().strip()`` first.
 
         :raises ValueError:
             Raised if we can't convert ``value`` to a true boolean object
@@ -198,7 +198,7 @@ class convert(object):
 
         :param value:
             The value to attempt to convert to ``None``.  If this value is a
-            string it will be run through ``.lower()`` first.
+            string it will be run through ``.lower().strip()`` first.
 
         :raises ValueError:
             Raised if we can't convert ``value`` to ``None``
