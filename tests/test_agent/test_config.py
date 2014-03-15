@@ -17,9 +17,8 @@
 from os import urandom
 
 from pyfarm.core.enums import NOTSET
+from pyfarm.agent.config import LoggingConfiguration, ConfigurationWithCallbacks
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility.objects import (
-    LoggingConfiguration, ConfigurationWithCallbacks)
 
 
 class ChangedLoggingConfiguration(LoggingConfiguration):
