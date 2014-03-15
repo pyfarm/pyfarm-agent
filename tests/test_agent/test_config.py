@@ -18,7 +18,8 @@ from os import urandom
 
 from pyfarm.core.enums import NOTSET
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility.objects import LoggingConfiguration
+from pyfarm.agent.utility.objects import (
+    LoggingConfiguration, ConfigurationWithCallbacks)
 
 
 class ChangedLoggingConfiguration(LoggingConfiguration):
@@ -132,3 +133,60 @@ class TestConfigurationExceptions(TestCase):
             NotImplementedError,
             lambda: config.changed("FOOBAR", "", ""))
 
+
+class TestCallbackConfiguration(TestCase):
+    def setUp(self):
+        ConfigurationWithCallbacks.callbacks.clear()
+
+    def test_assert_callable(self):
+        config = ConfigurationWithCallbacks()
+        self.assertRaises(
+            AssertionError, lambda: config.register_callback("", None))
+
+    def test_add_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+
+    def test_add_callback_append(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+        config.register_callback("foo", callback, append=True)
+        self.assertEqual([callback, callback], config.callbacks["foo"])
+
+    def test_deregister_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config.deregister_callback("foo", callback)
+        self.assertNotIn("foo", config.callbacks)
+
+    def test_deregister_multiple_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config.register_callback("foo", callback, append=True)
+        config.deregister_callback("foo", callback)
+        self.assertNotIn("foo", config.callbacks)
+
+    def test_callback_on_change(self):
+        results = []
+
+        def callback(change_type, key, value):
+            results.append((change_type, key, value))
+
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config["foo"] = False
+        del config["foo"]
+
+        self.assertEqual(results, [
+            (LoggingConfiguration.CREATED, "foo", True),
+            (LoggingConfiguration.MODIFIED, "foo", False),
+            (LoggingConfiguration.DELETED, "foo", NOTSET)])
