@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from twisted.internet import reactor
+from os import urandom
 
+from pyfarm.core.enums import NOTSET
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility.objects import LoggingConfiguration
+from pyfarm.agent.utility.objects import (
+    LoggingConfiguration, ConfigurationWithCallbacks)
 
 
 class ChangedLoggingConfiguration(LoggingConfiguration):
@@ -27,7 +29,7 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         self.deleted = []
         LoggingConfiguration.__init__(self, *args, **kwargs)
 
-    def changed(self, change_type, key, value):
+    def changed(self, change_type, key, value=NOTSET):
         if change_type == self.CREATED:
             self.created.append(key)
         elif change_type == self.MODIFIED:
@@ -35,56 +37,156 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         elif change_type == self.DELETED:
             self.deleted.append(key)
 
+        LoggingConfiguration.changed(self, change_type, key, value=value)
+
 
 class TestLoggingConfiguration(TestCase):
-    def setUp(self):
-        super(TestLoggingConfiguration, self).setUp()
-        self.running = False
-        self.messages = []
+    def get_data(self):
+        return {
+            urandom(16).encode("hex"): urandom(16).encode("hex"),
+            urandom(16).encode("hex"): urandom(16).encode("hex")}
 
-        def capture_logs(_, message):
-            self.messages.append(message)
+    def test_created(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        self.assertEqual(set(config.created), set(data))
 
-        LoggingConfiguration.reactor = self
-        LoggingConfiguration.log_queue.clear()
-        LoggingConfiguration._log = capture_logs
-
-    def tearDown(self):
-        super(TestLoggingConfiguration, self).tearDown()
-        LoggingConfiguration.reactor = reactor
-
-    def test_queues_messages(self):
-        config = LoggingConfiguration()
-        config.changed(LoggingConfiguration.CREATED, "a", True)
-        self.assertEqual(
-            [(("set 'a' = True",), {})], list(config.log_queue))
-
-    def test_changed(self):
-        self.running = True
-
+    def test_setitem(self):
+        data = self.get_data()
         config = ChangedLoggingConfiguration()
 
-        # test created
-        config["a"] = True
-        config.update(b=True)
-        config.update({"c": True})
-        config.setdefault("d", True)
-        self.assertEqual(config.created, ["a", "b", "c", "d"])
-        self.assertEqual(config.modified, [])
-        self.assertEqual(config.deleted, [])
+        for k,v in data.items():
+            config[k] = v
 
-        # test modified
-        config["a"] = False
-        config.update(b=False)
-        config.update({"c": False})
-        config.setdefault("d", False)
-        self.assertEqual(config.created, ["a", "b", "c", "d"])
-        self.assertEqual(config.modified, ["a", "b", "c"])
-        self.assertEqual(config.deleted, [])
+        self.assertEqual(dict(config), data)
+        self.assertEqual(set(config.created), set(data))
 
-        # test deleted
-        del config["a"]
-        config.pop("b")
-        self.assertEqual(config.created, ["a", "b", "c", "d"])
-        self.assertEqual(config.modified, ["a", "b", "c"])
-        self.assertEqual(config.deleted, ["a", "b"])
+        for key in data:
+            config[key] = None
+
+        self.assertEqual(set(config.modified), set(data))
+
+    def test_delitem(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        keys = []
+        for i in config.keys():
+            del config[i]
+            keys.append(i)
+
+        self.assertEqual(set(config.deleted), set(keys))
+
+    def test_pop(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        for key in config.keys():
+            config.pop(key)
+
+        self.assertEqual(dict(config), {})
+        self.assertEqual(set(config.deleted), set(data))
+
+    def test_clear(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        config.clear()
+        self.assertEqual(dict(config), {})
+        self.assertEqual(set(config.deleted), set(data))
+
+    def test_update_dict(self):
+        data = self.get_data()
+        update_data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        config.update(update_data)
+        all_data = dict(data.items() + update_data.items())
+        self.assertEqual(dict(config), all_data)
+        self.assertEqual(set(config.created), set(all_data))
+        for key in all_data.keys():
+            config[key] = None
+        self.assertEqual(set(config.modified), set(all_data.keys()))
+
+    def test_update_kwargs(self):
+        data = self.get_data()
+        update_data = self.get_data()
+        config = ChangedLoggingConfiguration(data)
+        config.update(**update_data)
+        all_data = dict(data.items() + update_data.items())
+        self.assertEqual(dict(config), all_data)
+        self.assertEqual(set(config.created), set(all_data))
+        for key in all_data.keys():
+            config[key] = None
+        self.assertEqual(set(config.modified), set(all_data.keys()))
+
+
+class TestConfigurationExceptions(TestCase):
+    def test_change_type_assert_missing_value(self):
+        config = LoggingConfiguration()
+        self.assertRaises(
+            AssertionError,
+            lambda: config.changed(LoggingConfiguration.MODIFIED, ""))
+        self.assertRaises(
+            AssertionError,
+            lambda: config.changed(LoggingConfiguration.CREATED, ""))
+
+    def test_change_unknown_change_type(self):
+        config = LoggingConfiguration()
+        self.assertRaises(
+            NotImplementedError,
+            lambda: config.changed("FOOBAR", "", ""))
+
+
+class TestCallbackConfiguration(TestCase):
+    def setUp(self):
+        ConfigurationWithCallbacks.callbacks.clear()
+
+    def test_assert_callable(self):
+        config = ConfigurationWithCallbacks()
+        self.assertRaises(
+            AssertionError, lambda: config.register_callback("", None))
+
+    def test_add_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+
+    def test_add_callback_append(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        self.assertEqual([callback], config.callbacks["foo"])
+        config.register_callback("foo", callback, append=True)
+        self.assertEqual([callback, callback], config.callbacks["foo"])
+
+    def test_deregister_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config.deregister_callback("foo", callback)
+        self.assertNotIn("foo", config.callbacks)
+
+    def test_deregister_multiple_callback(self):
+        callback = lambda: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config.register_callback("foo", callback, append=True)
+        config.deregister_callback("foo", callback)
+        self.assertNotIn("foo", config.callbacks)
+
+    def test_callback_on_change(self):
+        results = []
+
+        def callback(change_type, key, value):
+            results.append((change_type, key, value))
+
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config["foo"] = False
+        del config["foo"]
+
+        self.assertEqual(results, [
+            (LoggingConfiguration.CREATED, "foo", True),
+            (LoggingConfiguration.MODIFIED, "foo", False),
+            (LoggingConfiguration.DELETED, "foo", NOTSET)])

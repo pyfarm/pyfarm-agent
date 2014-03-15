@@ -23,17 +23,13 @@ General objects within the utility package that don't
 fit well into other modules or that serve more than one purpose.
 """
 
-import logging
-from collections import deque
-from functools import partial
-
 try:
     from UserDict import IterableUserDict, UserDict
-except ImportError:
+except ImportError:  # pragma: no cover
     from collections import IterableUserDict, UserDict
 
-from twisted.internet import reactor
-from twisted.python import log
+from pyfarm.core.enums import NOTSET
+from pyfarm.core.logger import getLogger
 
 
 class LoggingConfiguration(IterableUserDict):
@@ -45,9 +41,7 @@ class LoggingConfiguration(IterableUserDict):
     MODIFIED = "modified"
     CREATED = "created"
     DELETED = "deleted"
-    log_queue = deque()
-    reactor = reactor
-    _log = partial(log.msg, system="config", level=logging.INFO)
+    log = getLogger("agent.config")
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -59,58 +53,50 @@ class LoggingConfiguration(IterableUserDict):
 
     def __delitem__(self, key):
         IterableUserDict.__delitem__(self, key)
-        self.changed(self.DELETED, key, None)
+        self.changed(self.DELETED, key)
 
     def pop(self, key, *args):
         IterableUserDict.pop(self, key, *args)
-        self.changed(self.DELETED, key, None)
+        self.changed(self.DELETED, key)
 
     def clear(self):
         keys = self.keys()
         IterableUserDict.clear(self)
 
         for key in keys:
-            self.changed(self.DELETED, key, None)
+            self.changed(self.DELETED, key)
 
     def update(self, data=None, **kwargs):
         if isinstance(data, (dict, UserDict)):
             for key, value in data.items():
                 if key not in self:
                     self.changed(self.CREATED, key, value)
-                elif self[key] != value:
+                elif self[key] != value:  # pragma: no cover
                     self.changed(self.MODIFIED, key, value)
 
         for key, value in kwargs.iteritems():
             if key not in self:
                 self.changed(self.CREATED, key, value)
-            elif self[key] != value:
+            elif self[key] != value:  # pragma: no cover
                 self.changed(self.MODIFIED, key, value)
 
         IterableUserDict.update(self, dict=data, **kwargs)
 
-    @classmethod
-    def log(cls, *args, **kwargs):
-        if not cls.reactor.running:
-            cls.log_queue.append((args, kwargs))
-        else:
-            while cls.log_queue:
-                args, kwargs = cls.log_queue.popleft()
-                cls._log(*args, **kwargs)
-
-            cls._log(*args, **kwargs)
-
-    def changed(self, change_type, key, value):
-        key = repr(key)
-        value = repr(value)
+    def changed(self, change_type, key, value=NOTSET):
+        assert value is not NOTSET if change_type != self.DELETED else True
 
         if change_type == self.MODIFIED:
-            self.log("modified %s = %s" % (key, value))
+            self.log.info("modified %r = %r", key, value)
 
         elif change_type == self.CREATED:
-            self.log("set %s = %s" % (key, value))
+            self.log.info("set %r = %r", key, value)
 
         elif change_type == self.DELETED:
-            self.log("deleted %s" % key)
+            self.log.warning("deleted %r", key)
+
+        else:
+            raise NotImplementedError(
+                "Don't know how to handle change_type %r" % change_type)
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
@@ -142,13 +128,12 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            cls.log(
-                "%s is already a registered callback for %s" % (callback, key),
-                level=logging.WARNING)
-        else:
-            callbacks.append(callback)
-            cls.log("registered callback %s for %s" % (callback, key),
-                    level=logging.DEBUG)
+            cls.log.warning(
+                "%r is already a registered callback for %r", callback, key)
+            return
+
+        callbacks.append(callback)
+        cls.log.debug("Registered callback %r for %r", callback, key)
 
     @classmethod
     def deregister_callback(cls, key, callback):
@@ -160,18 +145,16 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
             # if callbacks no longer exist, remove the key
             if not cls.callbacks[key]:
                 cls.callbacks.pop(key)
-        else:
-            cls.log(
-                "%s is not a registered callback for %s" % (callback, key),
-                level=logging.WARNING)
+        else:  # pragma: no cover
+            cls.log.warning(
+                "%r is not a registered callback for %r", callback, key)
 
-    def changed(self, change_type, key, value):
+    def changed(self, change_type, key, value=NOTSET):
         LoggingConfiguration.changed(self, change_type, key, value)
 
         if key in self.callbacks:
             for callback in self.callbacks[key]:
-                callback(change_type, key, value, self.reactor.running)
-                self.log(
-                    "key %s was %s, calling callback %s" % (
-                        repr(key), change_type, callback),
-                    level=logging.DEBUG)
+                callback(change_type, key, value)
+                self.log.debug(
+                    "Key %r was %r, calling callback %s",
+                    key, change_type, callback)
