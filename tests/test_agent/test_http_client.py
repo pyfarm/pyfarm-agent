@@ -93,24 +93,13 @@ class TestRequestAssertions(TestCase):
 
 
 class RequestTestCase(TestCase):
-    SILENCE_LOGGER = read_env_bool(
-        "PYFARM_AGENT_TEST_SILENCE_HTTP_LOGGER", True)
+    HTTP_SCHEME = read_env(
+        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
     BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "https://httpbin.org")
+        "PYFARM_AGENT_TEST_URL", "%(scheme)s://httpbin.org")
     REDIRECT_TARGET = read_env(
         "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
-
-    def setUp(self):
-        self.base_url = self.BASE_URL
-        if self.SILENCE_LOGGER:
-            self.logger_disabled = logger.disabled
-            logger.disabled = 1
-        TestCase.setUp(self)
-
-    def tearDown(self):
-        if self.SILENCE_LOGGER:
-            logger.disabled = self.logger_disabled
-        TestCase.tearDown(self)
+    base_url = BASE_URL % {"scheme": HTTP_SCHEME}
 
     def get_url(self, url):
         assert isinstance(url, STRING_TYPES)
@@ -184,7 +173,7 @@ class TestClientErrors(RequestTestCase):
                 self.assertIs(failure.type, SchemeNotSupported))
 
     def test_unknown_hostname(self):
-        self.base_url = "http://" + os.urandom(32).encode("hex")
+        self.base_url = self.HTTP_SCHEME + "://" + os.urandom(32).encode("hex")
         return self.get(
             "/",
             callback=lambda _: None,

@@ -3,6 +3,10 @@ python:
   - 2.6
   - 2.7
 
+env:
+  - PYFARM_AGENT_TEST_HTTP_SCHEME=http
+  - PYFARM_AGENT_TEST_HTTP_SCHEME=https
+
 install:
   - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
   - pip install coverage python-coveralls
