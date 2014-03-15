@@ -23,8 +23,6 @@ General objects within the utility package that don't
 fit well into other modules or that serve more than one purpose.
 """
 
-import logging
-
 try:
     from UserDict import IterableUserDict, UserDict
 except ImportError:  # pragma: no cover
@@ -132,9 +130,10 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         if callback in callbacks and not append:
             cls.log.warning(
                 "%r is already a registered callback for %r", callback, key)
-        else:
-            callbacks.append(callback)
-            cls.log.debug("Registered callback %r for %r", callback, key)
+            return
+
+        callbacks.append(callback)
+        cls.log.debug("Registered callback %r for %r", callback, key)
 
     @classmethod
     def deregister_callback(cls, key, callback):
@@ -146,7 +145,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
             # if callbacks no longer exist, remove the key
             if not cls.callbacks[key]:
                 cls.callbacks.pop(key)
-        else:
+        else:  # pragma: no cover
             cls.log.warning(
                 "%r is not a registered callback for %r", callback, key)
 
@@ -155,7 +154,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
 
         if key in self.callbacks:
             for callback in self.callbacks[key]:
-                callback(change_type, key, value, self.reactor.running)
+                callback(change_type, key, value)
                 self.log.debug(
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)
