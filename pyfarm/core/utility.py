@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import (
-    NUMERIC_TYPES, STRING_TYPES, PY2, BOOLEAN_TRUE, BOOLEAN_FALSE, Values)
+    NUMERIC_TYPES, STRING_TYPES, PY2, BOOLEAN_TRUE, BOOLEAN_FALSE, NONE, Values)
 
 
 class ImmutableDict(dict):
@@ -178,7 +178,7 @@ class convert(object):
             Raised if we can't convert ``value`` to a true boolean object
         """
         if isinstance(value, STRING_TYPES):
-            value = value.lower()
+            value = value.lower().strip()
 
         if value in BOOLEAN_TRUE:
             return True
@@ -187,3 +187,27 @@ class convert(object):
         else:
             raise ValueError(
                 "Cannot convert %r to either True or False" % value)
+
+    @staticmethod
+    def none(value):
+        """
+        Converts ``value`` into ``None``.  This function mainly exits
+        so human-readable values such as 'None' or 'null' can be handled in
+        a single location.  Internally this checks ``value``
+        against :const:`pyfarm.core.enums.NONE`
+
+        :param value:
+            The value to attempt to convert to ``None``.  If this value is a
+            string it will be run through ``.lower()`` first.
+
+        :raises ValueError:
+            Raised if we can't convert ``value`` to ``None``
+        """
+        if isinstance(value, STRING_TYPES):
+            value = value.lower().strip()
+
+        if value in NONE:
+            return None
+        else:
+            raise ValueError(
+                "Cannot convert %r to None" % value)

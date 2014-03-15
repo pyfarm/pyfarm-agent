@@ -206,6 +206,8 @@ except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
 
+# constants used by pyfarm.core.utility.convert by provided
+# here so they could be reused elsewhere
 BOOLEAN_TRUE = set(["1", "t", "y", "true", "yes", True, 1])
 BOOLEAN_FALSE = set(["0", "f", "n", "false", "no", False, 0])
 NONE = set(["none", "null", "", None, 0])
