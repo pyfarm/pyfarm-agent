@@ -33,13 +33,9 @@ try:
 except ImportError:  # pragma: no cover
     from collections import UserDict
 
-try:
-    _range = xrange
-except NameError:  # pragma: no cover
-    _range = range
-
 from pyfarm.core.config import read_env_bool
-from pyfarm.core.enums import NUMERIC_TYPES, STRING_TYPES, PY2, Values
+from pyfarm.core.enums import (
+    NUMERIC_TYPES, STRING_TYPES, PY2, BOOLEAN_TRUE, BOOLEAN_FALSE, Values)
 
 
 class ImmutableDict(dict):
@@ -113,7 +109,6 @@ dumps = partial(
 
 class convert(object):
     """Namespace containing various static methods for conversion"""
-
     @staticmethod
     def bytetomb(value):
         """
@@ -137,18 +132,18 @@ class convert(object):
     @staticmethod
     def ston(value, types=NUMERIC_TYPES):
         """
-        converts a string to an integer or fails with a useful error
+        Converts a string to an integer or fails with a useful error
         message
 
-        :attr string value:
-            the value to convert to an integer
+        :param string value:
+            The value to convert to an integer
 
-        :exception ValueError:
-            raised if ``value`` could not be converted using
+        :raises ValueError:
+            Raised if ``value`` could not be converted using
             :func:`.literval_eval`
 
-        :exception TypeError:
-            raised if ``value`` was not converted to a float, integer, or long
+        :raises TypeError:
+            Raised if ``value`` was not converted to a float, integer, or long
         """
         # already a number
         if isinstance(value, types):
@@ -165,3 +160,24 @@ class convert(object):
             raise ValueError("`value` did not convert to a number")
 
         return value
+
+    @staticmethod
+    def bool(value):
+        """
+        Converts ``value`` into a boolean object.
+
+        :param value:
+            The value to attempt to convert to a boolean
+
+        :raises ValueError:
+            Raised if we can't convert ``value`` to a true boolean object
+        """
+        if isinstance(value, STRING_TYPES):
+            value = value.lower()
+
+        if value in BOOLEAN_TRUE:
+            return True
+        elif value in BOOLEAN_FALSE:
+            return False
+        else:
+            raise ValueError("Cannot convert `value` to either True or False")
