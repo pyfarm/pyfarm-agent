@@ -164,7 +164,11 @@ class convert(object):
     @staticmethod
     def bool(value):
         """
-        Converts ``value`` into a boolean object.
+        Converts ``value`` into a boolean object.  This function mainly exits
+        so human-readable booleans such as 'yes' or 'y' can be handled in
+        a single location.  Internally it does *not* use :func:`bool` and
+        instead checks ``value`` against :const:`pyfarm.core.enums.BOOLEAN_TRUE`
+        and :const:`pyfarm.core.enums.BOOLEAN_FALSE`.
 
         :param value:
             The value to attempt to convert to a boolean
