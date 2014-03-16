@@ -123,7 +123,7 @@ class StandardOutputStreamHandler(logging.StreamHandler):
     """
     if PY26:
         def __init__(self, stream=sys.stdout):
-            logging.StreamHandler.__init__(self, stream=stream)
+            logging.StreamHandler.__init__(self, stream)
     else:
         def __init__(self, stream=sys.stdout):
             super(StandardOutputStreamHandler, self).__init__(stream=stream)
