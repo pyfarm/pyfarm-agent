@@ -30,7 +30,6 @@ import time
 import tempfile
 import uuid
 from os.path import isfile
-from warnings import warn
 
 import psutil
 
@@ -38,6 +37,10 @@ try:
     WindowsError
 except NameError:  # pragma: no cover
     WindowsError = OSError
+
+from pyfarm.core.logger import getLogger
+
+logger = getLogger("core.system")
 
 
 def filesystem_is_case_sensitive():  # pragma: no cover
@@ -124,5 +127,5 @@ def operating_system(plat=sys.platform):
     elif plat.startswith("darwin"):
         return "mac"
     else:
-        warn("unknown operating system: %s" % plat)
+        logger.warning("unknown operating system: %r", plat)
         return "other"
