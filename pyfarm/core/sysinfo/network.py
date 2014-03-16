@@ -72,7 +72,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import MAC
 
-logger = getLogger("network_info")
+logger = getLogger("core.network")
 
 IP_SPECIAL_USE = netaddr.IPNetwork("0.0.0.0/8")
 IP_LINK_LOCAL = netaddr.IPNetwork("169.254.0.0/16")
