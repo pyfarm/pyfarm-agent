@@ -121,8 +121,12 @@ class StandardOutputStreamHandler(logging.StreamHandler):
     provided so it can be serialized as a string into a logging configuration
     dictionary using json.
     """
-    def __init__(self, stream=sys.stdout):
-        super(StandardOutputStreamHandler, self).__init__(stream=stream)
+    if PY26:
+        def __init__(self, stream=sys.stdout):
+            logging.StreamHandler.__init__(self, stream=stream)
+    else:
+        def __init__(self, stream=sys.stdout):
+            super(StandardOutputStreamHandler, self).__init__(stream=stream)
 
 
 class config(object):
