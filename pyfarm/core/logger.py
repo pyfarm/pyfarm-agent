@@ -114,6 +114,17 @@ class ColorFormatter(Formatter):
             return head + Formatter.format(self, record) + tail
 
 
+class StandardOutputStreamHandler(logging.StreamHandler):
+    """
+    This is exactly the same as :class:`logging.StreamHandler` the
+    only exception is we use ``sys.stdout`` by default.  This class is
+    provided so it can be serialized as a string into a logging configuration
+    dictionary using json.
+    """
+    def __init__(self, stream=sys.stdout):
+        super(StandardOutputStreamHandler, self).__init__(stream=stream)
+
+
 class config(object):
     """
     Namespace class to store and setup the logging configuration.  You
@@ -129,8 +140,7 @@ class config(object):
         },
         "handlers": {
             "stdout": {
-                "class": "logging.StreamHandler",
-                "stream": sys.stdout,
+                "class": "pyfarm.core.logger.StandardOutputStreamHandler",
                 "formatter": "colorized"
             }
         },
