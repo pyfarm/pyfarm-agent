@@ -130,6 +130,7 @@ class config(object):
         "handlers": {
             "stdout": {
                 "class": "logging.StreamHandler",
+                "stream": sys.stdout,
                 "formatter": "colorized"
             }
         },
