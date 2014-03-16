@@ -229,6 +229,7 @@ def request(method, url, **kwargs):
     response_class = kwargs.pop("response_class", Response)
 
     # check assumptions for keywords
+    assert callback is not None, "callback not provided"
     assert callable(callback) and callable(errback)
     assert data is NOTSET or \
            isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
