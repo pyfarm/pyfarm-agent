@@ -25,6 +25,7 @@ the master server.
 import json
 from collections import namedtuple
 from functools import partial
+from httplib import responses
 from urllib import quote
 from UserDict import UserDict
 
@@ -40,6 +41,7 @@ from twisted.python import log
 from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
@@ -52,6 +54,8 @@ if TQResponse is not NotImplemented:
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
 else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
+
+USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
 
 
 def build_url(url, params=None, quoted=False):
@@ -115,10 +119,11 @@ class Request(namedtuple("Request", ("method", "url", "kwargs"))):
         request_kwargs = self.kwargs.copy()
         request_kwargs.update(kwargs)
 
-        # retry the request
+        # log and retry the request
+        debug_kwargs = request_kwargs.copy()
+        url = build_url(self.url, debug_kwargs.pop("params", None))
         logger.debug(
-            "retrying request(%r, %r, **%r",
-            self.method, self.url, request_kwargs)
+            "Retrying %s %s, kwargs: %r", self.method, url, debug_kwargs)
         return request(self.method, self.url, **request_kwargs)
 
 
@@ -216,9 +221,11 @@ class Response(Protocol):
         """
         if reason.type is ResponseDone:
             self._done = True
+            url = build_url(self.request.url, self.request.kwargs.get("params"))
+            code_text = responses.get(self.code, "UNKNOWN")
             logger.debug(
-                "%s %s (code: %s: body: %r)",
-                self.request.method, self.request.url, self.code, self._body)
+                "%s %s %s %s, body: %s",
+                self.request.method, url, self.code, code_text,  self._body)
             self._deferred.callback(self)
         else:
             self._deferred.errback(reason)
@@ -278,7 +285,7 @@ def request(method, url, **kwargs):
 
     # add our default headers
     headers.setdefault("Content-Type", ["application/json"])
-    headers.setdefault("User-Agent", ["PyFarm (agent) 1.0"])
+    headers.setdefault("User-Agent", [USERAGENT])
 
     # ensure all values in the headers are lists (needed by Twisted)
     for header, value in headers.items():
@@ -317,16 +324,15 @@ def request(method, url, **kwargs):
         raise NotImplementedError(
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    logmsg = "Queued request `%s %s`" % (method, url)
-
     # prepare keyword arguments
     kwargs.update(headers=headers)
     if request_data is not NOTSET:
         kwargs.update(data=request_data)
-        logmsg += " data: %r" % data
 
-    # setup the request from treq
-    logger.debug(logmsg)
+    debug_kwargs = kwargs.copy()
+    debug_url = build_url(url, debug_kwargs.pop("params", None))
+    logger.debug(
+        "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
     deferred = treq.request(method, url, **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
