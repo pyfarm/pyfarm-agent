@@ -25,6 +25,8 @@ the master server.
 import json
 from collections import namedtuple
 from functools import partial
+from urllib import quote
+from UserDict import UserDict
 
 import treq
 try:
@@ -50,6 +52,46 @@ if TQResponse is not NotImplemented:
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
 else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
+
+
+def build_url(url, params=None, quoted=False):
+    """
+    Builds the full url when provided the base ``url`` and some
+    url parameters:
+
+    >>> build_url("/foobar", {"first": "foo", "second": "bar"})
+    '/foobar?first=foo&second=bar'
+    >>> build_url("/foobar")
+    '/foobar'
+    >>> build_url("/foobar", {"first": "foo", "second": "bar"}, quoted=True)
+    '/foobar%3Ffirst%3Dfoo%26second%3Dbar'
+
+    :param str url:
+        The url to build off of.
+
+    :param dict params:
+        A dictionary of parameters that should be added on to ``url``.  If
+        this value is not provided ``url`` will be returned by itself.
+        Arguments to a url are unordered by default however they will be
+        sorted alphabetically so the results are repeatable from call to call.
+
+    :param bool quoted:
+        If True then run the result through :func:`.quote`.  By default
+        this keyword is set to False because :func:`.build_url` is typically
+        used for debugging.
+    """
+    assert isinstance(url, STRING_TYPES)
+
+    # append url arguments
+    if isinstance(params, (dict, ImmutableDict, UserDict)) and params:
+        url += "?" + "&".join([
+            "%s=%s" % (key, value)for key, value in sorted(params.items())])
+
+    # properly quote the url if requested
+    if quoted:
+        url = quote(url)
+
+    return url
 
 
 class Request(namedtuple("Request", ("method", "url", "kwargs"))):
