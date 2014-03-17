@@ -46,7 +46,6 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.logger import getLogger
 from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
 from pyfarm.core.sysinfo import user, network, memory, cpu
 
