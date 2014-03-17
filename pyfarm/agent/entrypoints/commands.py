@@ -119,7 +119,6 @@ class AgentEntryPoint(object):
 
         # defaults for a couple of the command line flags below
         self.master_api_default = "http://%(master)s/api/v1"
-        self.redis_default = "redis://%(master)s:6379/0"
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
@@ -129,15 +128,11 @@ class AgentEntryPoint(object):
             "--master",
             help="This is a convenience flag which will allow you to set the "
                  "hostname for the master.  By default this value will be "
-                 "substituted in --master-api and --master-redis")
+                 "substituted in --master-api")
         global_apis.add_argument(
             "--master-api", default=self.master_api_default,
             help="The location where the master's REST api is located. "
                  "[default: %(default)s]")
-        global_apis.add_argument(
-            "--redis", default=self.redis_default,
-            help="The location where redis can be contacted. [default: "
-                 "%(default)s]")
 
         # global command line flags which apply to top level
         # process control
@@ -195,6 +190,13 @@ class AgentEntryPoint(object):
             type=partial(enum, instance=self, enum=AgentState, flag="state"),
             help="The current agent state, valid values are "
                  "" + str(list(AgentState)) + ". [default: %(default)s]")
+        start_general_group.add_argument(
+            "--time-offset",
+            type=partial(integer, instance=self, flag="time-offset", min_=0),
+            help="If provided then don't talk to the NTP server at all to "
+                 "calculate the time offset.  If you know for a fact that this "
+                 "host's time is always up to date then setting this to 0 is "
+                 "probably a safe bet.")
         start_general_group.add_argument(
             "--ntp-server", default="pool.ntp.org",
             help="The default network time server this agent should query to "
@@ -363,10 +365,6 @@ class AgentEntryPoint(object):
             self.args.master_api = self.args.master_api % {
                 "master": self.args.master}
 
-        # replace %(master)s in --redis if --redis was not set
-        if self.args.redis == self.redis_default:
-            self.args.redis = self.args.redis % {"master": self.args.master}
-
         # if we're on windows, produce some warnings about
         # flags which are not supported
         if WINDOWS and self.args.uid:
@@ -397,7 +395,6 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
-                "redis": self.args.redis,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
                 "ip": self.args.ip,
@@ -417,6 +414,7 @@ class AgentEntryPoint(object):
                 "html-templates": self.args.html_templates,
                 "ntp-server": self.args.ntp_server,
                 "ntp-server-version": self.args.ntp_server_version,
+                "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
                 "api_endpoint_prefix": "/api/v1"}
 
