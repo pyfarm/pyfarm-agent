@@ -179,7 +179,7 @@ class AgentEntryPoint(object):
                         "hardware, state, and certain timing and scheduling "
                         "attributes.")
         start_general_group.add_argument(
-            "--projects", default=["any"], nargs="+",
+            "--projects", default=[], nargs="+",
             help="The project or projects this agent is dedicated to.  By "
                  "default the agent will service any project however specific "
                  "projects may be specified.  For example if you wish this "
