@@ -181,10 +181,10 @@ class Agent(object):
             "hostname": config["hostname"],
             "ip": config["ip"],
             "use_address": config["use-address"],
-            "ram": config["ram"],
+            "ram": int(config["ram"]),
             "cpus": config["cpus"],
             "port": config["port"],
-            "free_ram": memory.ram_free(),
+            "free_ram": int(memory.ram_free()),
             "time_offset": cls.TIME_OFFSET or 0,
             "state": AgentState.ONLINE}
 
