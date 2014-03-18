@@ -281,8 +281,8 @@ class Agent(object):
         elif config >= BAD_REQUEST:
             svclog.warning(
                 "Something was either wrong with our request or the "
-                "server cannot handle it at this time: %r.  Retrying in "
-                "%s seconds", response.data(), delay)
+                "server cannot handle it at this time: %s.  Retrying in "
+                "%s seconds.", response.data(), delay)
             reactor.callLater(delay, lambda: response.request.retry())
 
         # Retry anyway otherwise we could end up with the agent doing
@@ -290,7 +290,8 @@ class Agent(object):
         else:
             svclog.error(
                 "Unhandled case while attempting to find registered "
-                "agent.  Retrying in %s seconds", delay)
+                "agent: %s (code: %s).  Retrying in %s seconds.",
+                response.data(), response.code, delay)
             reactor.callLater(delay, lambda: response.request.retry())
 
     def errback_search_for_agent(self, failure):
@@ -299,13 +300,14 @@ class Agent(object):
 
         if failure.type is ConnectionRefusedError:
             svclog.warning(
-                "Connection refused to %s, retrying in %s seconds",
-                agents_api, delay)
+                "Connection refused to %s: %s. Retrying in %s seconds.",
+                agents_api, failure, delay)
 
         else:
             # TODO: need a better way of making these errors visible
             svclog.critical(
-                "Unhandled exception, retrying in %s seconds", delay)
+                "Unhandled exception: %s.  Retrying in %s seconds.",
+                failure, delay)
             svclog.exception(failure)
 
         reactor.callLater(delay, self.search_for_agent(run=False))
