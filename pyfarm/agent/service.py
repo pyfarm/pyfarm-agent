@@ -220,16 +220,16 @@ class Agent(object):
             svclog.info("Registering this agent with the master")
             return post(
                 self.agents_api(),
-                callback=self.callback_create_agent,
-                errback=self.errback_create_agent,
+                callback=self.callback_agent_created,
+                errback=self.errback_agent_created,
                 data=self.system_data())
 
         return create() if run else create
 
-    def callback_create_agent(self, response):
+    def callback_agent_created(self, response):
         print "===============", response
 
-    def errback_create_agent(self, failure):
+    def errback_agent_created(self, failure):
         delay = self.http_retry_delay()
         svclog.warning(
             "There was a problem creating the agent: %s.  Retrying "
@@ -241,42 +241,43 @@ class Agent(object):
 
         if response.code == OK:
             system_data = self.system_data()
-            svclog.debug(
-                "This agent may already be registered with the master")
+            agents_found = response.json()
 
-            # see if one of the agents found is in fact us
-            agents = response.json()
-            similiar_agents = []
-            if isinstance(agents, list):
-                for agent in agents:
-                    match_ip = \
-                        agent["ip"] == system_data["ip"]
-                    match_hostname = \
-                        agent["hostname"] == system_data["hostname"]
-                    match_port = agent["port"] == config["port"]
+            if agents_found:
+                svclog.debug(
+                    "This agent may already be registered with the master")
 
-                    # this agent matches exactly, setup the configuration
-                    if match_ip and match_hostname and match_port:
-                        svclog.info(
-                            "This agent is registered with the master, its "
-                            "id is %r.", agent["id"])
-                        config["agent-id"] = agent["id"]
-                        break
+                # see if one of the agents found is in fact us
+                similiar_agents = []
+                if isinstance(agents_found, list):
+                    for agent in agents_found:
+                        match_ip = \
+                            agent["ip"] == system_data["ip"]
+                        match_hostname = \
+                            agent["hostname"] == system_data["hostname"]
+                        match_port = agent["port"] == config["port"]
 
-                    # close but it's the wrong port
-                    elif match_ip and match_hostname:
-                        similiar_agents.append(agent)
+                        # this agent matches exactly, setup the configuration
+                        if match_ip and match_hostname and match_port:
+                            svclog.info(
+                                "This agent is registered with the master, its "
+                                "id is %r.", agent["id"])
+                            config["agent-id"] = agent["id"]
+                            break
 
-                else:
-                    if similiar_agents:
-                        svclog.info(
-                            "There are similar agents registered with the "
-                            "master but this agent is not.")
+                        # close but it's the wrong port
+                        elif match_ip and match_hostname:
+                            similiar_agents.append(agent)
 
-        elif response.code == NOT_FOUND:
-            svclog.debug(
-                "This agent is not currently registered with the master.")
-            self.create_agent()
+                    else:
+                        if similiar_agents:
+                            svclog.info(
+                                "There are similar agents registered with the "
+                                "master but this agent is not.")
+            else:
+                svclog.debug(
+                    "This agent is not currently registered with the master.")
+                self.create_agent()
 
         elif config >= BAD_REQUEST:
             svclog.warning(
