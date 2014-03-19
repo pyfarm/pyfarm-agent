@@ -225,7 +225,7 @@ class Response(Protocol):
             code_text = responses.get(self.code, "UNKNOWN")
             logger.debug(
                 "%s %s %s %s, body: %s",
-                self.request.method, url, self.code, code_text,  self._body)
+                self.code, code_text, self.request.method, url, self._body)
             self._deferred.callback(self)
         else:
             self._deferred.errback(reason)
