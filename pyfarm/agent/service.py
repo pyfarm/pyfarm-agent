@@ -22,16 +22,14 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
-import json
 import time
-from random import random
 from datetime import datetime
-from httplib import NOT_FOUND, BAD_REQUEST, OK
+from random import random
+from httplib import BAD_REQUEST, OK
 
 import ntplib
-import requests
 from twisted.internet import reactor
-from twisted.application.service import MultiService
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -39,84 +37,22 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post, get
 from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
-from pyfarm.agent.process.manager import ProcessManager
 from pyfarm.agent.config import config
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
 
 
-class ManagerService(MultiService):
-    """the service object itself"""
-    ntp_client = ntplib.NTPClient()
-
-    def __init__(self):
-        self.scheduled_tasks = ScheduledTaskManager()
-        # register any scheduled tasks
-        self.scheduled_tasks.register(
-            memory_utilization, config["memory-check-interval"],
-            func_args=(config, ))
-
-        # finally, setup the base class
-        MultiService.__init__(self)
-
-    def _startServiceCallback(self, response):
-        """internal callback used to start the service itself"""
-        config["manager"] = ProcessManager(config)
-        config["agent-id"] = response["id"]
-        config["agent-url"] = \
-            config["http-api"] + "/agents/%s" % response["id"]
-        self.log("agent id is %s, starting service" % config["agent-id"])
-        self.scheduled_tasks.start()
-
-    def _failureCallback(self, response):
-        """internal callback which is run when the service fails to start"""
-        self.exception(response)
-
-    def stopService(self):
-        self.scheduled_tasks.stop()
-
-        if "agent-id" not in config:
-            self.info(
-                "agent id was never set, cannot update master of state change")
-            return
-
-        self.info("informing master of agent shutdown")
-
-        try:
-            # Send the final update synchronously because the
-            # reactor is shutting down.  Sending out this update using
-            # the normal methods could very be missed as the reactor is
-            # cleaning up.  Attempting to send the request any other way
-            # at this point will just cause the deferred object to disappear
-            # before being fired.
-            response = requests.post(
-                config["agent-url"],
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(
-                    {"id": config["agent-id"],
-                     "state": AgentState.OFFLINE}))
-
-        except requests.RequestException, e:
-            self.exception(e)
-
-        else:
-            if response.ok:
-                self.info(
-                    "agent %s state is now OFFLINE" % config["agent-id"])
-            else:
-                self.error("ERROR SETTING AGENT STATE TO OFFLINE")
-                self.error("      code: %s" % response.status_code)
-                self.error("      text: %s" % response.text)
-
-
 class Agent(object):
     TIME_OFFSET = config["time-offset"]
-    scheduled_tasks = ScheduledTaskManager()
     ntp_client = ntplib.NTPClient()
+    scheduled_tasks = ScheduledTaskManager()
+    scheduled_tasks.register(
+        memory_utilization, config["memory-check-interval"],
+        func_args=(config, ))
 
     def __init__(self):
-        self.first_post_attempts = 1
+        self.first_time_agent_id_set = False
 
     @classmethod
     def agents_api(cls):
@@ -228,6 +164,7 @@ class Agent(object):
 
     def callback_agent_created(self, response):
         print "===============", response
+        # TODO: handle response to agent creation
 
     def errback_agent_created(self, failure):
         delay = self.http_retry_delay()
@@ -274,6 +211,7 @@ class Agent(object):
                             svclog.info(
                                 "There are similar agents registered with the "
                                 "master but this agent is not.")
+                            self.create_agent()
             else:
                 svclog.debug(
                     "This agent is not currently registered with the master.")
@@ -319,3 +257,62 @@ class Agent(object):
         and performs the other steps necessary to get things running.
         """
         self.search_for_agent()
+        # TODO: add callbacks for config changes for values which need to
+        # be updated in the DB too
+        config.register_callback("agent-id", self.register_shutdown_event)
+
+    def register_shutdown_event(self, change_type, key, value):
+        if change_type == config.CREATED and not self.first_time_agent_id_set:
+            self.first_time_agent_id_set = True
+            reactor.addSystemEventTrigger("before", "shutdown", self.shutdown)
+            svclog.debug(
+                "`%s` was %s, adding system event trigger for shutdown",
+                key, change_type)
+            self.scheduled_tasks.start()
+
+    def shutdown(self):
+        svclog.info("Agent is shutting down")
+
+        # TODO: This is here because because you could potentially block
+        # forever while the reactor is trying to shutdown.  It would be better
+        # to find a way to catch the behavior causing the loop but if not
+        # we should probably have a timeout in some specific cases
+        # reactor.callLater(xxx, reactor.crash)
+
+        results_trigger = Deferred()
+
+        def success_callback(successful):
+            if successful:
+                svclog.info("The agent has shutdown successfully")
+            else:
+                svclog.warning("The agent has not shutdown successfully")
+
+        results_trigger.addCallback(success_callback)
+
+        def callback_post_offline(response):
+            # there's only one response that should be considered valid
+            if response.code != OK:
+                delay = random() + random()
+                svclog.warning(
+                    "State update failed: %s.  Retrying in %s seconds",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
+
+            else:
+                # Trigger the final deferred object so the reactor can exit
+                results_trigger.callback(True)
+
+        def errback_post_offline(failure):
+            # TODO: warning then retry on failure
+            raise NotImplementedError
+
+        post_update = post(self.agent_api(),
+             data={"state": AgentState.OFFLINE},
+             callback=callback_post_offline,
+             errback=errback_post_offline)
+
+        # Wait on all deferred objects to run their callbacks.  The workflow
+        # here is for `post_update` to do the work it needs to perform which
+        # will then call the callback on `results_trigger` which should
+        # allow the reactor to exit cleanly.
+        return DeferredList([post_update, results_trigger])
