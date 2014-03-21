@@ -48,7 +48,6 @@ class Agent(object):
 
     def __init__(self):
         self.before_shutdown = None
-        self.ntp_client = NTPClient()
         self.scheduled_tasks = ScheduledTaskManager()
 
     @classmethod
@@ -89,8 +88,9 @@ class Agent(object):
             ntplog.info(
                 "Querying ntp server %r for current time", config["ntp-server"])
 
+            ntp_client = NTPClient()
             try:
-                pool_time = cls.ntp_client.request(config["ntp-server"])
+                pool_time = ntp_client.request(config["ntp-server"])
 
             except Exception as e:
                 ntplog.warning("Failed to determine network time: %s", e)
