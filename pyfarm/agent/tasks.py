@@ -29,8 +29,9 @@ from functools import partial
 from twisted.python import log
 from twisted.internet.task import LoopingCall
 
+from pyfarm.core.logger import getLogger
 
-memlog = partial(log.msg, system="task.memory_utilization")
+logger = getLogger("agent.tasks")
 
 
 class ScheduledTaskManager(object):
@@ -41,7 +42,6 @@ class ScheduledTaskManager(object):
 
     def __init__(self):
         self.tasks = {}
-        self.log = partial(log.msg, system=self.__class__.__name__)
 
     def register(self, function, interval, start=False, clock=None,
                  func_args=None, func_kwargs=None):
@@ -84,7 +84,7 @@ class ScheduledTaskManager(object):
                 looping_call.clock = clock
 
             self.tasks[function] = (looping_call, interval)
-            self.log("registering %s")
+            logger.info("Registering task %r", function)
 
             if start:
                 looping_call.start(interval)
@@ -96,11 +96,10 @@ class ScheduledTaskManager(object):
         start all :class:`.LoopingCall` instances stored from
         :meth:`.register`
         """
-        self.log("starting tasks")
+        logger.info("Starting scheduled tasks")
 
         for function, (looping_call, interval) in self.tasks.iteritems():
             if not looping_call.running:
-                self.log("...starting %s" % function.__name__)
                 looping_call.start(interval, now=now)
 
     def stop(self):
@@ -108,11 +107,8 @@ class ScheduledTaskManager(object):
         stop all :class:`.LoopingCall` instances stored from
         :meth:`.register`
         """
-        self.log("stopping tasks")
+        logger.info("Stopping scheduled tasks")
 
         for function, (looping_call, interval) in self.tasks.iteritems():
             if looping_call.running:
-                self.log("...stopping %s" % function.__name__)
                 looping_call.stop()
-            else:
-                self.log("...%s is already stopped" % function.__name__)
