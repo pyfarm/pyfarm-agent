@@ -27,7 +27,7 @@ from datetime import datetime
 from random import random
 from httplib import BAD_REQUEST, OK
 
-import ntplib
+from ntplib import NTPClient
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
@@ -36,7 +36,7 @@ from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post, get
-from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
+from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.config import config
 
 ntplog = getLogger("agent.ntp")
@@ -45,14 +45,11 @@ svclog = getLogger("agent.svc")
 
 class Agent(object):
     TIME_OFFSET = config["time-offset"]
-    ntp_client = ntplib.NTPClient()
-    scheduled_tasks = ScheduledTaskManager()
-    scheduled_tasks.register(
-        memory_utilization, config["memory-check-interval"],
-        func_args=(config, ))
 
     def __init__(self):
-        self.first_time_agent_id_set = False
+        self.before_shutdown = None
+        self.ntp_client = NTPClient()
+        self.scheduled_tasks = ScheduledTaskManager()
 
     @classmethod
     def agents_api(cls):
@@ -259,12 +256,21 @@ class Agent(object):
         self.search_for_agent()
         # TODO: add callbacks for config changes for values which need to
         # be updated in the DB too
-        config.register_callback("agent-id", self.register_shutdown_event)
+        config.register_callback(
+            "agent-id", self.callback_agent_id_set)
 
-    def register_shutdown_event(self, change_type, key, value):
-        if change_type == config.CREATED and not self.first_time_agent_id_set:
-            self.first_time_agent_id_set = True
-            reactor.addSystemEventTrigger("before", "shutdown", self.shutdown)
+    def callback_agent_id_set(self, change_type, key, value):
+        """
+        When `agent-id` is created we need to:
+
+            * Register a shutdown event so that when the agent is told to
+              shutdown it will notify the master of a state change.
+            * Star the scheduled task manager
+        """
+        if key == "agent-id" and change_type == config.CREATED \
+                and self.before_shutdown is None:
+            self.before_shutdown = reactor.addSystemEventTrigger(
+                "before", "shutdown", self.shutdown)
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
