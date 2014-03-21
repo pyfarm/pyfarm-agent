@@ -25,7 +25,9 @@ such as log reading, system information gathering, and management of processes.
 import time
 from datetime import datetime
 from random import random
-from httplib import BAD_REQUEST, OK
+from httplib import (
+    responses, BAD_REQUEST, OK, CREATED, NOT_FOUND,
+    INTERNAL_SERVER_ERROR, SERVICE_UNAVAILABLE)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -44,16 +46,17 @@ svclog = getLogger("agent.svc")
 
 
 class Agent(object):
+    """
+    Main class associated with getting getting the internals
+    of the internals of the agent's operations up and running including
+    adding or updating itself with the master, starting the periodic
+    task manager, and handling shutdown conditions.
+    """
     TIME_OFFSET = config["time-offset"]
 
     def __init__(self):
-        self.before_shutdown = None
+        self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
-
-    @classmethod
-    def agents_api(cls):
-        """Return the top level API url for all agents"""
-        return config["master-api"] + "/agents/"
 
     @classmethod
     def agent_api(cls):
@@ -62,17 +65,26 @@ class Agent(object):
         been set
         """
         try:
-            return cls.agents_api() + str(config["agent-id"])
+            return "%(master-api)s/agents/%(agent-id)s" % config
         except KeyError:
             svclog.error(
                 "The `agent-id` configuration value has not been set yet")
             return None
 
     @classmethod
-    def http_retry_delay(cls):
+    def http_retry_delay(cls, uniform=False, get_delay=random):
+        """
+        Returns a floating point value that can be used to delay
+        an http request.  The main purpose of this is to ensure that not all
+        requests are run with the same interval between then.  This helps to
+        ensure that if the same request, such as agents coming online, is being
+        run on multiple systems they should be staggered a little more than
+        they would be without the non-uniform delay.
+        """
         # TODO: provide command line flags for jitter
         delay = config["http-retry-delay"]
-        delay += random()
+        if not uniform:
+            delay += get_delay()
         return delay
 
     @classmethod
@@ -119,7 +131,7 @@ class Agent(object):
             "port": config["port"],
             "free_ram": int(memory.ram_free()),
             "time_offset": cls.TIME_OFFSET or 0,
-            "state": AgentState.ONLINE}
+            "state": config["state"]}
 
         if config.get("remote-ip"):
             data.update(remote_ip=config["remote-ip"])
@@ -129,7 +141,103 @@ class Agent(object):
 
         return data
 
-    def search_for_agent(self, run=True):
+    def run(self):
+        """
+        Internal code which starts the agent, registers it with the master,
+        and performs the other steps necessary to get things running.
+        """
+        # TODO: start the internal http server here
+        self.start_search_for_agent()
+        # TODO: add callbacks for config changes for values which need to
+        # be updated in the DB too
+        config.register_callback(
+            "agent-id", self.callback_agent_id_set)
+
+    def shutdown_tasks(self):
+        """
+        This method is called before the reactor shuts and stops
+        any running tasks.
+        """
+        svclog.info("Stopping tasks")
+        # TODO: stop tasks
+
+    def shutdown_post_agent_state(self):
+        """
+        This method is called before the reactor shuts down and lets the
+        master know that the agent's state is now ``offline``
+        """
+        svclog.info("Agent is shutting down")
+
+        # This deferred is fired when we've either been successful
+        # or failed to letting the master know we're shutting
+        # down.  It is the last object to fire so if you have to do
+        # other things, like stop the process, that should happen before
+        # the callback for this one is run.
+        results_trigger = Deferred()
+
+        def success_callback(successful):
+            if successful:
+                svclog.info(
+                    "Agent %r has shutdown successfully", config["agent-id"])
+            elif successful is None:
+                svclog.warning(
+                    "Agent %r may not have shutdown successfully.",
+                    config["agent-id"])
+            else:
+                svclog.error(
+                    "Agent %r has not shutdown successfully",
+                    config["agent-id"])
+
+        results_trigger.addCallback(success_callback)
+
+        def callback_post_offline(response):
+            # there's only one response that should be considered valid
+            if response.code == NOT_FOUND:
+                svclog.warning(
+                    "Agent %r no longer exists, cannot update state",
+                    config["agent-id"])
+                results_trigger.callback(None)
+
+            elif response.code >= INTERNAL_SERVER_ERROR:
+                delay = random() + random()
+                svclog.warning(
+                    "State update failed due to server error: %s.  "
+                    "Retrying in %s seconds",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
+
+            elif response.code == OK:
+                # Trigger the final deferred object so the reactor can exit
+                results_trigger.callback(True)
+
+            else:
+                delay = random() + random()
+                svclog.warning(
+                    "State update failed due to unhandled error: %s.  "
+                    "Retrying in %s seconds",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
+
+        def errback_post_offline(failure):
+            # TODO: warning then retry on failure
+            raise NotImplementedError
+
+        # Post our current state to the master.  We're only posting ram_free
+        # and state here because all other fields would be updated the next
+        # time the agent starts up.  ram_free would be too but having it
+        # here is beneficial in cases where the agent terminated abnormally.
+        data = {"state": AgentState.OFFLINE, "free_ram": int(memory.ram_free())}
+        post_update = post(self.agent_api(), data=data,
+                           callback=callback_post_offline,
+                           errback=errback_post_offline)
+
+        # Wait on all deferred objects to run their callbacks.  The workflow
+        # here is for `post_update` to do the work it needs to perform which
+        # will then call the callback on `results_trigger` which should
+        # allow the reactor to exit cleanly.
+        return DeferredList([post_update, results_trigger])
+
+    def start_search_for_agent(self, run=True):
         """
         Produces a callable object which will initiate the process
         necessary to search for this agent.  This is a method on the class
@@ -138,7 +246,7 @@ class Agent(object):
         def search():
             system_data = self.system_data()
             return get(
-                self.agents_api(),
+                "%(master-api)s/agents/" % config,
                 callback=self.callback_search_for_agent,
                 errback=self.errback_search_for_agent,
                 params={
@@ -152,7 +260,7 @@ class Agent(object):
         def create():
             svclog.info("Registering this agent with the master")
             return post(
-                self.agents_api(),
+                "%(master-api)s/agents/" % config,
                 callback=self.callback_agent_created,
                 errback=self.errback_agent_created,
                 data=self.system_data())
@@ -160,17 +268,79 @@ class Agent(object):
         return create() if run else create
 
     def callback_agent_created(self, response):
-        print "===============", response
-        # TODO: handle response to agent creation
+        """
+        Callback run when we're able to create the agent on the master.  This
+        method will retry the original request of the
+        """
+        if response.code == CREATED:
+            data = response.json()
+            config["agent-id"] = data["id"]
+            svclog.info("Agent is now online (created on master)")
+        else:
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "We expected to receive an CREATED response code but instead"
+                "we got %s. Retrying in %s seconds.",
+                responses[response.code], delay)
+            reactor.callLater(delay, self.create_agent(run=False))
 
     def errback_agent_created(self, failure):
+        """
+        Error handler run whenever an error is raised while trying
+        to create the agent on the master.  The failed request will be
+        retried.
+        """
         delay = self.http_retry_delay()
         svclog.warning(
             "There was a problem creating the agent: %s.  Retrying "
-            "in %r seconds", failure, delay)
+            "in %r seconds.", failure, delay)
         reactor.callLater(delay, self.create_agent(run=False))
 
+    def post_to_existing_agent(self, run=True):
+        """
+        Either executes the code necessary to post system data to
+        an existing agent or returns a callable to do so.
+        """
+        def run_post():
+            return post(self.agent_api(),
+                data=self.system_data(),
+                callback=self.callback_post_existing_agent,
+                errback=self.errback_post_existing_agent)
+        return run_post() if run else run_post
+
+    def callback_post_existing_agent(self, response):
+        """
+        Called when we got a response back while trying to post updated
+        information to an existing agent.  This should happen as a result
+        of other callbacks being run at startup.
+        """
+        # print config.keys()
+        if response.code == OK:
+            svclog.info("Agent is now online (updated on master)")
+        else:
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "We expected to receive an OK response code but instead"
+                "we got %s.  Retrying in %s.", responses[response.code], delay)
+            reactor.callLater(delay, self.post_to_existing_agent(run=False))
+
+    def errback_post_existing_agent(self, failure):
+        """
+        Error handler which is called if we fail to post an update
+        to an existing agent for some reason.
+        """
+        delay = self.http_retry_delay()
+        svclog.warning(
+            "There was error updating an existing agent: %s.  Retrying "
+            "in %r seconds", failure, delay)
+        reactor.callLater(delay, self.post_to_existing_agent(run=False))
+
     def callback_search_for_agent(self, response):
+        """
+        Callback that gets called whenever we search for the agent.  This
+        search occurs at startup and after this callback finishes we
+        we'll either post updates to an existing agent or
+        """
         delay = self.http_retry_delay()
 
         if response.code == OK:
@@ -181,8 +351,9 @@ class Agent(object):
                 svclog.debug(
                     "This agent may already be registered with the master")
 
-                # see if one of the agents found is in fact us
-                similiar_agents = []
+                # see if there's an agent which is the exact same as
+                # this agent
+                similar_agents = []
                 if isinstance(agents_found, list):
                     for agent in agents_found:
                         match_ip = \
@@ -197,14 +368,18 @@ class Agent(object):
                                 "This agent is registered with the master, its "
                                 "id is %r.", agent["id"])
                             config["agent-id"] = agent["id"]
+
+                            # now that we've found the agent,
+                            # post out date to the master
+                            self.post_to_existing_agent()
                             break
 
                         # close but it's the wrong port
                         elif match_ip and match_hostname:
-                            similiar_agents.append(agent)
+                            similar_agents.append(agent)
 
                     else:
-                        if similiar_agents:
+                        if similar_agents:
                             svclog.info(
                                 "There are similar agents registered with the "
                                 "master but this agent is not.")
@@ -231,10 +406,13 @@ class Agent(object):
             reactor.callLater(delay, lambda: response.request.retry())
 
     def errback_search_for_agent(self, failure):
+        """
+        Callback that gets called when we fail to search for the agent
+        due to an exception (not a response code).
+        """
         delay = self.http_retry_delay()
-        agents_api = self.agents_api()
-
         if failure.type is ConnectionRefusedError:
+            agents_api = "%(master-api)s/agents/" % config
             svclog.warning(
                 "Connection refused to %s: %s. Retrying in %s seconds.",
                 agents_api, failure, delay)
@@ -246,18 +424,7 @@ class Agent(object):
                 failure, delay)
             svclog.exception(failure)
 
-        reactor.callLater(delay, self.search_for_agent(run=False))
-
-    def run(self):
-        """
-        Internal code which starts the agent, registers it with the master,
-        and performs the other steps necessary to get things running.
-        """
-        self.search_for_agent()
-        # TODO: add callbacks for config changes for values which need to
-        # be updated in the DB too
-        config.register_callback(
-            "agent-id", self.callback_agent_id_set)
+        reactor.callLater(delay, self.start_search_for_agent(run=False))
 
     def callback_agent_id_set(self, change_type, key, value):
         """
@@ -268,57 +435,13 @@ class Agent(object):
             * Star the scheduled task manager
         """
         if key == "agent-id" and change_type == config.CREATED \
-                and self.before_shutdown is None:
-            self.before_shutdown = reactor.addSystemEventTrigger(
-                "before", "shutdown", self.shutdown)
+                and self.shutdown_registered is None:
+            self.shutdown_registered = True
+            reactor.addSystemEventTrigger(
+                "before", "shutdown", self.shutdown_tasks)
+            reactor.addSystemEventTrigger(
+                "before", "shutdown", self.shutdown_post_agent_state)
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
             self.scheduled_tasks.start()
-
-    def shutdown(self):
-        svclog.info("Agent is shutting down")
-
-        # TODO: This is here because because you could potentially block
-        # forever while the reactor is trying to shutdown.  It would be better
-        # to find a way to catch the behavior causing the loop but if not
-        # we should probably have a timeout in some specific cases
-        # reactor.callLater(xxx, reactor.crash)
-
-        results_trigger = Deferred()
-
-        def success_callback(successful):
-            if successful:
-                svclog.info("The agent has shutdown successfully")
-            else:
-                svclog.warning("The agent has not shutdown successfully")
-
-        results_trigger.addCallback(success_callback)
-
-        def callback_post_offline(response):
-            # there's only one response that should be considered valid
-            if response.code != OK:
-                delay = random() + random()
-                svclog.warning(
-                    "State update failed: %s.  Retrying in %s seconds",
-                    response.data(), delay)
-                reactor.callLater(delay, response.request.retry)
-
-            else:
-                # Trigger the final deferred object so the reactor can exit
-                results_trigger.callback(True)
-
-        def errback_post_offline(failure):
-            # TODO: warning then retry on failure
-            raise NotImplementedError
-
-        post_update = post(self.agent_api(),
-             data={"state": AgentState.OFFLINE},
-             callback=callback_post_offline,
-             errback=errback_post_offline)
-
-        # Wait on all deferred objects to run their callbacks.  The workflow
-        # here is for `post_update` to do the work it needs to perform which
-        # will then call the callback on `results_trigger` which should
-        # allow the reactor to exit cleanly.
-        return DeferredList([post_update, results_trigger])
