@@ -26,8 +26,7 @@ import time
 from datetime import datetime
 from random import random
 from httplib import (
-    responses, BAD_REQUEST, OK, CREATED, NOT_FOUND,
-    INTERNAL_SERVER_ERROR, SERVICE_UNAVAILABLE)
+    responses, BAD_REQUEST, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -148,8 +147,6 @@ class Agent(object):
         """
         # TODO: start the internal http server here
         self.start_search_for_agent()
-        # TODO: add callbacks for config changes for values which need to
-        # be updated in the DB too
         config.register_callback(
             "agent-id", self.callback_agent_id_set)
 
@@ -159,6 +156,7 @@ class Agent(object):
         any running tasks.
         """
         svclog.info("Stopping tasks")
+        self.scheduled_tasks.stop()
         # TODO: stop tasks
 
     def shutdown_post_agent_state(self):
@@ -175,6 +173,18 @@ class Agent(object):
         # the callback for this one is run.
         results_trigger = Deferred()
 
+        def post_update(run=True):
+            def perform():
+                return post(
+                    self.agent_api(),
+                    data={
+                        "state": AgentState.OFFLINE,
+                        "free_ram": int(memory.ram_free())},
+                    callback=callback_post_offline,
+                    errback=errback_post_offline)
+
+            return perform() if run else perform
+
         def success_callback(successful):
             if successful:
                 svclog.info(
@@ -187,8 +197,6 @@ class Agent(object):
                 svclog.error(
                     "Agent %r has not shutdown successfully",
                     config["agent-id"])
-
-        results_trigger.addCallback(success_callback)
 
         def callback_post_offline(response):
             # there's only one response that should be considered valid
@@ -219,23 +227,26 @@ class Agent(object):
                 reactor.callLater(delay, response.request.retry)
 
         def errback_post_offline(failure):
-            # TODO: warning then retry on failure
-            raise NotImplementedError
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "State update failed due to unhandled error: %s.  "
+                "Retrying in %s seconds",
+                failure, delay)
+            reactor.callLater(delay, post_update(run=False))
+
+        results_trigger.addCallback(success_callback)
 
         # Post our current state to the master.  We're only posting ram_free
         # and state here because all other fields would be updated the next
         # time the agent starts up.  ram_free would be too but having it
         # here is beneficial in cases where the agent terminated abnormally.
-        data = {"state": AgentState.OFFLINE, "free_ram": int(memory.ram_free())}
-        post_update = post(self.agent_api(), data=data,
-                           callback=callback_post_offline,
-                           errback=errback_post_offline)
+        post_update_deferred = post_update()
 
         # Wait on all deferred objects to run their callbacks.  The workflow
         # here is for `post_update` to do the work it needs to perform which
         # will then call the callback on `results_trigger` which should
         # allow the reactor to exit cleanly.
-        return DeferredList([post_update, results_trigger])
+        return DeferredList([post_update_deferred, results_trigger])
 
     def start_search_for_agent(self, run=True):
         """
@@ -435,7 +446,7 @@ class Agent(object):
             * Star the scheduled task manager
         """
         if key == "agent-id" and change_type == config.CREATED \
-                and self.shutdown_registered is None:
+                and not self.shutdown_registered:
             self.shutdown_registered = True
             reactor.addSystemEventTrigger(
                 "before", "shutdown", self.shutdown_tasks)
