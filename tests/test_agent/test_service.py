@@ -19,6 +19,7 @@ import json
 from random import randint, choice
 from httplib import OK
 
+from twisted.internet import reactor
 from twisted.internet.defer import DeferredList, Deferred
 
 from pyfarm.core.config import read_env_bool, read_env
@@ -155,15 +156,24 @@ class TestRunAgent(AgentTestBase):
         def error(failure):
             raise failure
 
+        def get_resulting_agent_data(run=True):
+            def get_data():
+                get(
+                    agent.agent_api(),
+                    callback=test_resulting_agent_data, errback=error)
+            return get_data() if run else get_data
+
         def test_resulting_agent_data(result):
-            finished.callback(None)
-            self.assertEqual(result.code, OK)
-            db_data = result.json()
-            agent_data = json.loads(json.dumps(agent.system_data()))
-            self.assertEqual(db_data["id"], config["agent-id"])
-            self.assertEqual(db_data["hostname"], agent_data["hostname"])
-            self.assertEqual(db_data["cpus"], agent_data["cpus"])
-            self.assertEqual(db_data["time_offset"], config["time-offset"])
+            if result.code != OK:
+                reactor.callLater(.1, get_resulting_agent_data(run=False))
+            else:
+                finished.callback(None)
+                db_data = result.json()
+                agent_data = json.loads(json.dumps(agent.system_data()))
+                self.assertEqual(db_data["id"], config["agent-id"])
+                self.assertEqual(db_data["hostname"], agent_data["hostname"])
+                self.assertEqual(db_data["cpus"], agent_data["cpus"])
+                self.assertEqual(db_data["time_offset"], config["time-offset"])
 
         # The method used to start the agent has started a second
         # time.  The results should be nearly identical minus
@@ -175,9 +185,7 @@ class TestRunAgent(AgentTestBase):
                 agent.agent_api(),
                 "%s/agents/%s" % (config["master-api"], self.agent_id))
 
-            return get(
-                agent.agent_api(),
-                callback=test_resulting_agent_data, errback=error)
+            reactor.callLater(.5, get_resulting_agent_data(run=False))
 
         # the agent has been started
         def start_search_for_agent_finished(result):

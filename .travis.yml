@@ -12,8 +12,8 @@ env:
     - PYFARM_AGENT_TEST_HTTP_SCHEME=https  # test with https to ensure there's not any obvious problems handling ssl
 
   matrix:
-    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///:memory:" PYFARM_CONFIG="debug"
-    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///:memory:" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
+    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///tmp/pyfarm.sqlite" PYFARM_CONFIG="debug"
+    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///tmp/pyfarm.sqlite" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
 
