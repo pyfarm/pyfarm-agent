@@ -51,8 +51,6 @@ class Agent(object):
     adding or updating itself with the master, starting the periodic
     task manager, and handling shutdown conditions.
     """
-    TIME_OFFSET = config["time-offset"]
-
     def __init__(self):
         self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
@@ -86,8 +84,7 @@ class Agent(object):
             delay += get_delay()
         return delay
 
-    @classmethod
-    def system_data(cls, requery_timeoffset=False):
+    def system_data(self, requery_timeoffset=False):
         """
         Returns a dictionary of data containing information about the
         agent.  This is the information that is also passed along to
@@ -95,7 +92,7 @@ class Agent(object):
         """
         # query the time offset and then cache it since
         # this is typically a blocking operation
-        if requery_timeoffset or cls.TIME_OFFSET is None:
+        if requery_timeoffset or config["time-offset"] is None:
             ntplog.info(
                 "Querying ntp server %r for current time", config["ntp-server"])
 
@@ -107,19 +104,19 @@ class Agent(object):
                 ntplog.warning("Failed to determine network time: %s", e)
 
             else:
-                cls.TIME_OFFSET = int(pool_time.tx_time - time.time())
+                config["time-offset"] = int(pool_time.tx_time - time.time())
 
                 # format the offset for logging purposes
                 utcoffset = datetime.utcfromtimestamp(pool_time.tx_time)
                 iso_timestamp = utcoffset.isoformat()
                 ntplog.debug(
                     "network time: %s (local offset: %r)",
-                    iso_timestamp, cls.TIME_OFFSET)
+                    iso_timestamp, config["time-offset"])
 
-                if cls.TIME_OFFSET:
+                if config["time-offset"] != 0:
                     ntplog.warning(
                         "Agent is %r second(s) off from ntp server at %r",
-                        cls.TIME_OFFSET, config["ntp-server"])
+                        config["time-offset"], config["ntp-server"])
 
         data = {
             "hostname": config["hostname"],
@@ -129,13 +126,13 @@ class Agent(object):
             "cpus": config["cpus"],
             "port": config["port"],
             "free_ram": int(memory.ram_free()),
-            "time_offset": cls.TIME_OFFSET or 0,
+            "time_offset": config["time-offset"] or 0,
             "state": config["state"]}
 
-        if config.get("remote-ip"):
+        if "remote-ip" in config:
             data.update(remote_ip=config["remote-ip"])
 
-        if config.get("projects"):
+        if "projects" in config:
            data.update(projects=config["projects"])
 
         return data
