@@ -23,6 +23,9 @@ from twisted.web.test.test_web import DummyRequest as _DummyRequest
 from twisted.trial.unittest import TestCase as _TestCase
 
 from pyfarm.core.enums import PY26, STRING_TYPES
+from pyfarm.agent.config import config
+
+ORIGINAL_CONFIGURATION = config.copy()
 
 if PY26:
     def safe_repr(obj, short=False):
@@ -153,3 +156,9 @@ class TestCase(_TestCase):
                 return request.notifyFinish()
         else:
             raise ValueError("Unexpected return value: %r" % (result,))
+
+    def tearDown(self):
+        super(TestCase, self).tearDown()
+        config.callbacks.clear()
+        config.clear()
+        config.update(ORIGINAL_CONFIGURATION)
