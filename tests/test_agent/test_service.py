@@ -21,6 +21,7 @@ from httplib import OK
 
 from twisted.internet.defer import DeferredList, Deferred
 
+from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import AgentState, UseAgentAddress
 from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.testutil import TestCase
@@ -103,6 +104,9 @@ class TestAgentBasicMethods(AgentTestBase):
 
 class TestRunAgent(AgentTestBase):
     def setUp(self):
+        if not read_env_bool("PYFARM_AGENT_TEST_STARTUP", True):
+            self.skipTest("startup tests disabled")
+
         super(TestRunAgent, self).setUp()
         self.agent_id = None
 
