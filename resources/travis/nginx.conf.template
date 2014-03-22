@@ -1,0 +1,43 @@
+user www-data;
+worker_processes 4;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    include /etc/nginx/mime.types;
+    include /etc/nginx/conf.d/*.conf;
+    default_type application/octet-stream;
+    access_log /tmp/nginx_access.log;
+    error_log /tmp/nginx_error.log;
+
+    upstream backend {
+        server unix:/tmp/uwsgi.sock weight=10 max_fails=10 fail_timeout=3s;
+        server unix:/tmp/uwsgi.sock weight=10 max_fails=10 fail_timeout=3s;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        location /admin/static/ {
+            alias /home/travis/virtualenv/pythonPYTHON_VERSION/lib/pythonPYTHON_VERSION/site-packages/flask_admin/static/;
+        }
+
+        location /static/ {
+            alias /home/travis/virtualenv/pythonPYTHON_VERSION/lib/pythonPYTHON_VERSION/site-packages/pyfarm/master/static/;
+        }
+
+        location / {
+            include uwsgi_params;
+            uwsgi_pass backend;
+        }
+    }
+}

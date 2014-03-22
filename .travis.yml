@@ -3,15 +3,50 @@ python:
   - 2.6
   - 2.7
 
+cache:
+  cache: apt
+
 env:
-  - PYFARM_AGENT_TEST_HTTP_SCHEME=http
-  - PYFARM_AGENT_TEST_HTTP_SCHEME=https
+  global:
+    - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
+    - PYFARM_AGENT_TEST_HTTP_SCHEME=https  # test with https to ensure there's not any obvious problems handling ssl
+
+  matrix:
+    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///:memory:" PYFARM_CONFIG="debug"
+    - TDB_TYPE=sqlite PYFARM_DATABASE_URI="sqlite:///:memory:" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
+    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
+    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
+
+before_install:
+  - sudo apt-get -y install nginx
+
+  # prepare pip with the proper configuration file
+  - mkdir -p ~/.pip
+  - curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
+
+  # download/install configuration files and configure the user
+  - curl https://raw.github.com/pyfarm/pyfarm-agent/$TRAVIS_BRANCH/resources/travis/uwsgi.ini -o /tmp/uwsgi.ini
+  - if [[ $TDB_TYPE == "postgres" ]]; then sudo curl https://raw.github.com/pyfarm/pyfarm-agent/$TRAVIS_BRANCH/resources/travis/postgres.conf -o /etc/postgresql/9.1/postgres.conf; fi
+  - if [[ $TDB_TYPE == "postgres" ]]; then sudo cp -fv /etc/postgresql/9.1/postgres.conf /etc/postgresql/9.2/postgres.conf; fi
+  - if [[ $TDB_TYPE == "postgres" ]]; then sudo cp -fv /etc/postgresql/9.1/postgres.conf /etc/postgresql/9.3/postgres.conf; fi
+  - if [[ $TDB_TYPE == "postgres" ]]; then sudo service postgresql restart; fi
+
+  # web server (nginx) setup
+  - curl https://raw.github.com/pyfarm/pyfarm-agent/$TRAVIS_BRANCH/resources/travis/nginx.conf.template -o /tmp/nginx.conf.template
+  - sed -e s/PYTHON_VERSION/$TRAVIS_PYTHON_VERSION/g /tmp/nginx.conf.template > /tmp/nginx.conf
+  - sudo mv /tmp/nginx.conf /etc/nginx/nginx.conf
+  - sudo adduser travis www-data
+  - sudo service nginx restart
 
 install:
-  - mkdir $HOME/.pip/ && curl https://raw.github.com/pyfarm/pyfarm/master/misc/travis_pip.conf -o $HOME/.pip/pip.conf
-  - pip install coverage python-coveralls
-  - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg # TODO: remove dev install
+  - if [[ $TDB_DRIVER != "" ]]; then pip install $TDB_DRIVER; fi
+  - pip install uwsgi coverage python-coveralls
+  - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
+  - pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
   - pip install .
+  - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
+  - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
+  - uwsgi /tmp/uwsgi.ini
 
 script:
   - pip freeze
@@ -21,3 +56,9 @@ script:
 
 after_success:
   - coveralls
+
+after_failure:
+  - sudo cat /tmp/uwsgi.log
+  - sudo cat /tmp/nginx_error.log
+  - sudo cat /tmp/nginx_access.log
+  - sudo cat /etc/nginx/nginx.conf;

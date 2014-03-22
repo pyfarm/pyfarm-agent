@@ -20,7 +20,7 @@ from json import dumps
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
 from twisted.web.test.test_web import DummyRequest as _DummyRequest
-from twisted.trial.unittest import TestCase as _TestCase
+from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.enums import PY26, STRING_TYPES
 from pyfarm.agent.config import logger as config_logger
@@ -86,6 +86,12 @@ def dummy_request(path="", data=None, http_method="GET", headers=None,
 
 
 class TestCase(_TestCase):
+    # Global timeout for all test cases.  If an individual test takes
+    # longer than this amount of time to execute it will be stopped.  This
+    # value should always be set to a value that's *much* longer than the
+    # expected duration of the longest test case.
+    timeout = 15
+
     # back ports of some of Python 2.7's unittest features
     if PY26:
         def assertRaisesRegexp(
@@ -140,6 +146,9 @@ class TestCase(_TestCase):
                 raise self.failureException(msg or "%r in %r"
                                             % (containee, container))
             return containee
+
+        def skipTest(self, reason):
+            raise SkipTest(reason)
 
     def _render(self, resource, request):
         result = resource.render(request)
