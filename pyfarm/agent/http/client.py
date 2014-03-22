@@ -45,6 +45,7 @@ from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
+from pyfarm.agent.config import config
 
 logger = getLogger("agent.http")
 
@@ -325,7 +326,9 @@ def request(method, url, **kwargs):
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
     # prepare keyword arguments
-    kwargs.update(headers=headers)
+    kwargs.update(
+        headers=headers,
+        persistent=config.get("persistent-http-connections", False))
     if request_data is not NOTSET:
         kwargs.update(data=request_data)
 
