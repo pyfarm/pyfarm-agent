@@ -38,6 +38,7 @@ except ImportError:  # pragma: no cover
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.logger import getLogger
 
+logger= getLogger("agent.config")
 
 class LoggingConfiguration(IterableUserDict):
     """
@@ -48,7 +49,6 @@ class LoggingConfiguration(IterableUserDict):
     MODIFIED = "modified"
     CREATED = "created"
     DELETED = "deleted"
-    log = getLogger("agent.config")
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -93,17 +93,18 @@ class LoggingConfiguration(IterableUserDict):
         assert value is not NOTSET if change_type != self.DELETED else True
 
         if change_type == self.MODIFIED:
-            self.log.info("modified %r = %r", key, value)
+            logger.info("modified %r = %r", key, value)
 
         elif change_type == self.CREATED:
-            self.log.info("set %r = %r", key, value)
+            logger.info("set %r = %r", key, value)
 
         elif change_type == self.DELETED:
-            self.log.warning("deleted %r", key)
+            logger.warning("deleted %r", key)
 
         else:
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
+
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
     """
@@ -134,12 +135,12 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            cls.log.warning(
+            logger.warning(
                 "%r is already a registered callback for %r", callback, key)
             return
 
         callbacks.append(callback)
-        cls.log.debug("Registered callback %r for %r", callback, key)
+        logger.debug("Registered callback %r for %r", callback, key)
 
     @classmethod
     def deregister_callback(cls, key, callback):
@@ -152,7 +153,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
             if not cls.callbacks[key]:
                 cls.callbacks.pop(key)
         else:  # pragma: no cover
-            cls.log.warning(
+            logger.warning(
                 "%r is not a registered callback for %r", callback, key)
 
     def changed(self, change_type, key, value=NOTSET):
@@ -161,7 +162,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         if key in self.callbacks:
             for callback in self.callbacks[key]:
                 callback(change_type, key, value)
-                self.log.debug(
+                logger.debug(
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)
 
