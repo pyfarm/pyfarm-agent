@@ -22,8 +22,8 @@ from twisted.internet.defer import succeed
 from twisted.web.test.test_web import DummyRequest as _DummyRequest
 from twisted.trial.unittest import TestCase as _TestCase
 
-from pyfarm.agent.config import logger as config_logger
 from pyfarm.core.enums import PY26, STRING_TYPES
+from pyfarm.agent.config import logger as config_logger
 from pyfarm.agent.config import config
 
 ORIGINAL_CONFIGURATION = config.copy()
