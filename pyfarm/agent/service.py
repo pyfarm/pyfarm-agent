@@ -55,6 +55,12 @@ class Agent(object):
         self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
 
+        # Some 'success' callbacks that get hit whenever
+        # certain events happen.  We don't use these much
+        # internally but they are/can be used externally when
+        # a method returns a DeferredList
+        self.agent_created = Deferred()
+
     @classmethod
     def agent_api(cls):
         """
@@ -261,7 +267,10 @@ class Agent(object):
                     "hostname": system_data["hostname"],
                     "ip": system_data["ip"]})
 
-        return search() if run else search
+        if run:
+            return DeferredList([search(), self.agent_created])
+        else:
+            return search
 
     def create_agent(self, run=True):
         """Creates a new agent on the master"""
@@ -284,6 +293,7 @@ class Agent(object):
             data = response.json()
             config["agent-id"] = data["id"]
             svclog.info("Agent is now online (created on master)")
+            self.agent_created.callback("created")
         else:
             delay = self.http_retry_delay()
             svclog.warning(
@@ -322,9 +332,9 @@ class Agent(object):
         information to an existing agent.  This should happen as a result
         of other callbacks being run at startup.
         """
-        # print config.keys()
         if response.code == OK:
             svclog.info("Agent is now online (updated on master)")
+            self.agent_created.callback("updated")
         else:
             delay = self.http_retry_delay()
             svclog.warning(
