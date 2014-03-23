@@ -24,6 +24,7 @@ such as log reading, system information gathering, and management of processes.
 
 import time
 from datetime import datetime
+from functools import partial
 from random import random
 from httplib import (
     responses, BAD_REQUEST, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
@@ -143,17 +144,19 @@ class Agent(object):
 
         return data
 
-    def run(self):
+    def run(self, shutdown_events=True):
         """
         Internal code which starts the agent, registers it with the master,
         and performs the other steps necessary to get things running.
         """
-        # TODO: start the internal http server here
-        self.start_search_for_agent()
         config.register_callback(
-            "agent-id", self.callback_agent_id_set)
+            "agent-id",
+            partial(
+                self.callback_agent_id_set, shutdown_events=shutdown_events))
+        # TODO: start the internal http server here
+        return self.start_search_for_agent()
 
-    def shutdown_tasks(self):
+    def shutdown_task_manager(self):
         """
         This method is called before the reactor shuts and stops
         any running tasks.
@@ -162,7 +165,7 @@ class Agent(object):
         self.scheduled_tasks.stop()
         # TODO: stop tasks
 
-    def shutdown_post_agent_state(self):
+    def shutdown_post_update(self):
         """
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``
@@ -444,7 +447,8 @@ class Agent(object):
 
         reactor.callLater(delay, self.start_search_for_agent(run=False))
 
-    def callback_agent_id_set(self, change_type, key, value):
+    def callback_agent_id_set(
+            self, change_type, key, value, shutdown_events=True):
         """
         When `agent-id` is created we need to:
 
@@ -454,11 +458,13 @@ class Agent(object):
         """
         if key == "agent-id" and change_type == config.CREATED \
                 and not self.shutdown_registered:
-            self.shutdown_registered = True
-            reactor.addSystemEventTrigger(
-                "before", "shutdown", self.shutdown_tasks)
-            reactor.addSystemEventTrigger(
-                "before", "shutdown", self.shutdown_post_agent_state)
+            if shutdown_events:
+                reactor.addSystemEventTrigger(
+                    "before", "shutdown", self.shutdown_task_manager)
+                reactor.addSystemEventTrigger(
+                    "before", "shutdown", self.shutdown_post_update)
+                self.shutdown_registered = True
+
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
