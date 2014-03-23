@@ -115,7 +115,7 @@ class TestRunAgent(TestCase):
             else:
                 reactor.callLater(.1, get_resulting_agent_data(run=False))
 
-        deferred = self.agent.run(shutdown_events=False)
+        deferred = self.agent.run(shutdown_events=False, http_server=False)
         deferred.addCallbacks(
             start_search_for_agent_finished, finished.errback)
         return finished
@@ -186,7 +186,7 @@ class TestRunAgent(TestCase):
                 second_start_search_for_agent_finished, finished.errback)
             return deferred
 
-        deferred = self.agent.run(shutdown_events=False)
+        deferred = self.agent.run(shutdown_events=False, http_server=False)
         deferred.addCallbacks(
             start_search_for_agent_finished, finished.errback)
 
