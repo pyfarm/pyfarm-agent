@@ -24,19 +24,15 @@ a service that the  :class:`pyfarm.agent.manager.service.ManagerServiceMaker`
 class can consume on start.
 """
 
+from datetime import timedelta
 from httplib import FORBIDDEN
+from os.path import exists
 
-from twisted.web.server import Site as _Site, NOT_DONE_YET
+from twisted.web.server import Site as _Site
 from twisted.web.static import File
 from twisted.web.error import Error
-from twisted.application.internet import TCPServer
 
-from pyfarm.core.enums import AgentState
-from pyfarm.core.sysinfo import memory, cpu
-from pyfarm.agent.http.resource import Resource, Request
-from pyfarm.agent.http.assign import Assign
-from pyfarm.agent.http.processes import Processes
-from pyfarm.agent.http.shutdown import Shutdown
+from pyfarm.agent.http.resource import Request
 
 
 class Site(_Site):
@@ -47,89 +43,38 @@ class Site(_Site):
     requestFactory = Request
     displayTracebacks = False
 
-    def __init__(self, resource, config, logPath=None, timeout=60*60*12):
+    def __init__(self, resource, logPath=None, timeout=60*60*12):
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)
-        self.config = config
 
 
-class StaticFiles(File):
+class StaticPath(File):
     """
     More secure version of :class:`.File` that does not list
     directories.  In addition this will also sending along a
     response header asking clients to cache to data.
     """
-    EXPIRES = 2630000
+    EXPIRES = timedelta(days=10).total_seconds()
+    ALLOW_DIRECTORY_LISTING = False
 
-    def directoryListing(self):
-        """override which ensures directories cannot be listed"""
-        raise Error(FORBIDDEN, "directory listing is not allowed")
+    def __init__(
+            self, path, defaultType="text/html", ignoredExts=(),
+            registry=None, allowExt=0):
+
+        if not exists(path):
+            raise OSError("%s does not exist" % path)
+
+        File.__init__(self, path, defaultType=defaultType,
+                      ignoredExts=ignoredExts, registry=registry,
+                      allowExt=allowExt)
 
     def render(self, request):
         """overrides :meth:`.File.render` and sets the expires header"""
         request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
         return File.render(self, request)
 
+    def directoryListing(self):
+        """override which ensures directories cannot be listed"""
+        if not self.ALLOW_DIRECTORY_LISTING:
+            raise Error(FORBIDDEN, "directory listing is not allowed")
+        return File.directoryListing(self)
 
-class Index(Resource):
-    """serves request for the root, '/', target"""
-    TEMPLATE = "pyfarm/index.html"
-
-    def get(self, request):
-        # write out the results from the template back
-        # to the original request
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(200)
-            request.finish()
-
-        # convert the state integer to a string
-        for key, value in AgentState._asdict().iteritems():
-            if self.config["state"] == value:
-                state = key.title()
-                break
-        else:
-            raise KeyError("failed to find state")
-
-        # data which will appear in the table
-        table_data = [
-            ("master", self.config["http-api"]),
-            ("state", state),
-            ("hostname", self.config["hostname"]),
-            ("Agent ID", self.config.get("agent-id", "UNASSIGNED")),
-            ("ip", self.config["ip"]),
-            ("port", self.config["port"]),
-            ("Reported CPUs", self.config["cpus"]),
-            ("Reported RAM", self.config["ram"]),
-            ("Total CPUs", cpu.NUM_CPUS),
-            ("Total RAM", int(memory.TOTAL_RAM)),
-            ("Free RAM", int(memory.ram_free())),
-            ("Total Swap", int(memory.TOTAL_SWAP)),
-            ("Free Swap", int(memory.swap_free()))]
-
-        # schedule a deferred so the reactor can get control back
-        deferred = self.template.render(table_data=table_data)
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
-
-
-def make_http_server(config):
-    """
-    make an http server and attach the endpoints to the service can use them
-    """
-    # TODO: DELETE /tasks/<jobid>/<task> endpoint
-    root = Resource(config)
-
-    # static endpoints
-    root.putChild(
-        "favicon.ico", StaticFiles(config["static-files"] + "/favicon.ico"))
-    root.putChild(
-        "static", StaticFiles(config["static-files"]))
-
-    # 'operational' endpoints which handle most of the external requests
-    root.putChild("", Index(config))
-    root.putChild("assign", Assign(config))
-    root.putChild("processes", Processes(config))
-    root.putChild("shutdown", Shutdown(config))
-
-    return TCPServer(config["port"], Site(root, config))
