@@ -19,10 +19,10 @@ http {
     error_log /tmp/nginx_error.log;
 
     upstream backend {
-        server 127.0.0.1:5001;
-        server 127.0.0.1:5002;
-        server 127.0.0.1:5003;
-        server 127.0.0.1:5004;
+        server 127.0.0.1:50001;
+        server 127.0.0.1:50002;
+        server 127.0.0.1:50003;
+        server 127.0.0.1:50004;
     }
 
     server {
