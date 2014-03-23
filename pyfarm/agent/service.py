@@ -25,9 +25,10 @@ such as log reading, system information gathering, and management of processes.
 import time
 from datetime import datetime
 from functools import partial
-from random import random
 from httplib import (
     responses, BAD_REQUEST, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+from os.path import join
+from random import random
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -38,6 +39,9 @@ from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post, get
+from pyfarm.agent.http.index import Index
+from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.server import Site, StaticPath
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.config import config
 
@@ -53,6 +57,10 @@ class Agent(object):
     task manager, and handling shutdown conditions.
     """
     def __init__(self):
+        # so parts of this instance are accessible elsewhere
+        assert "agent" not in config
+        config["agent"] = self
+        self.http = None
         self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
 
@@ -144,16 +152,54 @@ class Agent(object):
 
         return data
 
-    def run(self, shutdown_events=True):
+    def build_http_resource(self):
+        svclog.debug("Building HTTP Service")
+        resource = Resource()
+
+        # static endpoints to redirect resources
+        # to the right objects
+        resource.putChild(
+            "favicon.ico",
+            StaticPath(join(config["static-files"], "favicon.ico"),
+                       defaultType="image/x-icon"))
+        resource.putChild(
+            "static",
+            StaticPath(config["static-files"]))
+
+        # external endpoints
+        resource.putChild("", Index())
+
+        # TODO: renable these once they are working again
+        # resource.putChild("assign", Assign(config))
+        # resource.putChild("processes", Processes(config))
+        # resource.putChild("shutdown", Shutdown(config))
+        return resource
+
+    def run(self, shutdown_events=True, http_server=True):
         """
         Internal code which starts the agent, registers it with the master,
         and performs the other steps necessary to get things running.
+
+        :param bool shutdown_events:
+            If True register all shutdown events so certain actions, such as
+            information the master we're going offline, can take place.
+
+        :param bool http_server:
+            If True then construct and serve the externally facing http
+            server.
         """
+        # setup the internal http server so external entities can
+        # interact with the service.
+        if http_server:
+            http_resource = self.build_http_resource()
+            self.http = Site(http_resource)
+            reactor.listenTCP(config["port"], self.http)
+
+        # get ready to 'publish' the agent
         config.register_callback(
             "agent-id",
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
-        # TODO: start the internal http server here
         return self.start_search_for_agent()
 
     def shutdown_task_manager(self):
