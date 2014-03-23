@@ -17,4 +17,5 @@
 
 from pyfarm.agent.entrypoints.commands import AgentEntryPoint
 
+# the entrypoint used in setup.py
 agent = AgentEntryPoint()
