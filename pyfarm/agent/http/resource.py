@@ -32,8 +32,9 @@ from twisted.python import log
 from twisted.python.compat import nativeString, intToBytes
 from twisted.web.error import Error, UnsupportedMethod
 from twisted.web.resource import Resource as _Resource
+from txtemplate import Jinja2TemplateLoader
 
-import txtemplate
+from pyfarm.agent.config import config
 
 
 class Request(_Request):
@@ -59,46 +60,40 @@ class Resource(_Resource):
     basic subclass of :class:`._Resource` for passing requests to
     specific methods
     """
-    CONTENT_TYPE = None
-    CONTENT_TYPE_SETS_RESPONSE_HEADER = True
+    # set by child classes
     TEMPLATE = NotImplemented
-    templates = None
+    CONTENT_TYPE = NotImplemented
+    SET_RESPONSE_CONTENT_TYPE = False
 
-    def __init__(self, config):
+    # setup in __init__ because we don't want to
+    # pull the config values until we instance the class
+    template_loader = None
+
+    def __init__(self):
         _Resource.__init__(self)
-        self.config = config
 
-        # create the template loader at the class level so all
-        # children can share it
-        if Resource.templates is None:
-            if "html-templates" not in self.config:
-                raise KeyError("`html-templates` not present in config")
+        if Resource.template_loader is None:
+            Resource.template_loader = Jinja2TemplateLoader(
+                config["html-templates"],
+                auto_reload=config.get("html-templates-reload", False))
 
-            elif not isdir(self.config["html-templates"]):
-                raise OSError(
-                    "`html-templates` %s does not exist"
-                    % self.config["html-templates"])
+        # Template is only required for subclasses.  This class can serve
+        # http requests but when we build the http server that's not how
+        # we end up using it.
+        if self.__class__ is not Resource and self.TEMPLATE is NotImplemented:
+            raise NotImplementedError("You must set `TEMPLATE` first")
 
-            else:
-                Resource.templates = txtemplate.Jinja2TemplateLoader(
-                    self.config["html-templates"])
-
-        # CONTENT_TYPE if provided should normally be a set object
-        # so misordered headers won't cause problems.  Of course
-        # if we need ordered headers, __init__ can be replaced.
-        if self.CONTENT_TYPE is not None and not \
-                isinstance(self.CONTENT_TYPE, set):
-            raise TypeError("expected a set object for `CONTENT_TYPE")
+        for path in self.template_loader.paths:
+            if not isdir(path):
+                raise OSError("%s does not exist" % path)
 
     @property
     def template(self):
         """
-        loads the template provided by ``TEMPLATE`` using the loader object
+        Loads the template provided but the partial path in ``TEMPLATE`` on
+        the class.
         """
-        if self.TEMPLATE is NotImplemented:
-            raise NotImplementedError("you must set `TEMPLATE` first")
-
-        return self.templates.load(self.TEMPLATE)
+        return self.template_loader.load(self.TEMPLATE)
 
     def render(self, request):
         """
@@ -116,7 +111,7 @@ class Resource(_Resource):
 
         # CONTENT_TYPE was specified so the incoming request should
         # both specify the header and it should match our expected content type
-        if self.CONTENT_TYPE is not None:
+        if self.CONTENT_TYPE is not NotImplemented:
             if not request.requestHeaders.hasHeader("content-type"):
                 raise Error(BAD_REQUEST, "missing content-type header")
             else:
@@ -128,7 +123,7 @@ class Resource(_Resource):
                     raise Error(
                         BAD_REQUEST, "invalid headers for this resource")
 
-            if self.CONTENT_TYPE_SETS_RESPONSE_HEADER:
+            if self.SET_RESPONSE_CONTENT_TYPE:
                 request.responseHeaders.setRawHeaders(
                     "content-type", list(self.CONTENT_TYPE))
 
@@ -153,7 +148,7 @@ class JSONResource(Resource):
     def __init__(self, config=None):
         Resource.__init__(self, config=config)
 
-        if self.config.get("pretty-json", False):
+        if config.get("pretty-json", False):
             self.dumps = partial(json.dumps, indent=4)
         else:
             self.dumps = json.dumps
