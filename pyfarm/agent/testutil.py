@@ -22,10 +22,11 @@ from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
-from pyfarm.agent.config import config
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
 from pyfarm.core.sysinfo import memory, cpu
+from pyfarm.agent.entrypoints.commands import TEMPLATE_ROOT, STATIC_ROOT
+from pyfarm.agent.config import config
 from pyfarm.agent.config import logger as config_logger
 
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -145,5 +146,8 @@ class TestCase(_TestCase):
             "free-ram": int(memory.ram_free()),
             "time-offset": randint(-50, 50),
             "state": choice(AgentState),
-            "ntp-server": "pool.ntp.org"})
+            "ntp-server": "pool.ntp.org",
+            "html-templates": TEMPLATE_ROOT,
+            "html-templates-reload": True,
+            "static-files": STATIC_ROOT})
         config_logger.disabled = 0
