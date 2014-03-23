@@ -60,12 +60,14 @@ from pyfarm.agent.entrypoints.utility import (
     get_pids, start_daemon_posix, write_pid_file, get_default_ip)
 
 
-logger = getLogger("agent")
+logger = getLogger("agent.cmd")
 
-# determine template location
+# determine template and static file location
 import pyfarm.agent
-TEMPLATE_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "templates"))
-STATIC_ROOT = abspath(join(dirname(pyfarm.agent.__file__), "static"))
+TEMPLATE_ROOT = abspath(
+    join(dirname(pyfarm.agent.__file__), "http", "templates"))
+STATIC_ROOT = abspath(
+    join(dirname(pyfarm.agent.__file__), "http", "static"))
 
 
 class AgentEntryPoint(object):
@@ -310,6 +312,13 @@ class AgentEntryPoint(object):
             help="The default location where the agent's http server should "
                  "find the html templates. [default: %(default)s]")
         start_http_group.add_argument(
+            "--html-templates-reload", default=False,
+            action="store_true",
+            help="If provided then force Jinja2, the html template system, "
+                 "to check the file system for changes with every request. "
+                 "This flag should not be used in production but is useful "
+                 "for development and debugging purposes.")
+        start_http_group.add_argument(
             "--static-files", default=STATIC_ROOT,
             type=partial(direxists, instance=self, flag="static-files"),
             help="The default location where the agent's http server should "
@@ -412,6 +421,7 @@ class AgentEntryPoint(object):
                 "swap-report-delta": self.args.swap_report_delta,
                 "static-files": self.args.static_files,
                 "html-templates": self.args.html_templates,
+                "html-templates-reload": self.args.html_templates_reload,
                 "ntp-server": self.args.ntp_server,
                 "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
