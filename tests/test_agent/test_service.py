@@ -21,6 +21,7 @@ from httplib import OK, CREATED
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 
+from pyfarm.core.enums import AgentState
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.client import get
@@ -189,4 +190,43 @@ class TestRunAgent(TestCase):
         deferred.addCallbacks(
             start_search_for_agent_finished, finished.errback)
 
+        return finished
+
+    def test_shutdown(self):
+        finished = Deferred()
+
+        def get_resulting_agent_data(run=True):
+            def get_data():
+                get(
+                    self.agent.agent_api(),
+                    callback=test_resulting_agent_data,
+                    errback=finished.errback)
+            return get_data() if run else get_data
+
+        def test_resulting_agent_data(result):
+            if result.code != OK:
+                reactor.callLater(.1, get_resulting_agent_data(run=False))
+            else:
+                db_data = result.json()
+                self.assertEqual(db_data["state"], AgentState.OFFLINE)
+                agent_data = json.loads(json.dumps(self.agent.system_data()))
+                self.assertEqual(db_data["id"], config["agent-id"])
+                self.assertEqual(db_data["hostname"], agent_data["hostname"])
+                self.assertEqual(db_data["cpus"], agent_data["cpus"])
+                self.assertEqual(db_data["time_offset"], config["time-offset"])
+                finished.callback(None)
+
+        def start_test(_):
+            try:
+                # in the tests above we turn off shutdown event
+                # registration by default
+                self.assertFalse(self.agent.shutdown_registered)
+                deferred = self.agent.shutdown_post_update()
+                deferred.addCallback(get_resulting_agent_data)
+
+            except Exception as e:
+                finished.errback(e)
+
+        deferred = self.test_agent_created()
+        deferred.addCallbacks(start_test, finished.errback)
         return finished
