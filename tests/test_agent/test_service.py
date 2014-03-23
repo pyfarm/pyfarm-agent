@@ -19,7 +19,7 @@ import json
 from httplib import OK
 
 from twisted.internet import reactor
-from twisted.internet.defer import DeferredList, Deferred
+from twisted.internet.defer import Deferred
 
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
@@ -74,23 +74,21 @@ class TestRunAgent(TestCase):
         agent = Agent()
         finished = Deferred()
 
-        def error(failure):
-            raise failure
-
         def get_resulting_agent_data(run=True):
             def get_data():
-                get(
+                return get(
                     agent.agent_api(),
-                    callback=test_resulting_agent_data, errback=error)
+                    callback=test_resulting_agent_data,
+                    errback=finished.errback)
             return get_data() if run else get_data
 
         # test to make sure that the data in the database
         # matches that our agent says
         def test_resulting_agent_data(result):
             if result.code != OK:
-                reactor.callLater(.1, get_resulting_agent_data(run=False))
+                return reactor.callLater(
+                    .1, get_resulting_agent_data(run=False))
             else:
-                finished.callback(None)
                 db_data = result.json()
                 agent_data = json.loads(json.dumps(agent.system_data()))
                 self.assertEqual(db_data["id"], config["agent-id"])
@@ -98,17 +96,28 @@ class TestRunAgent(TestCase):
                 self.assertEqual(db_data["cpus"], agent_data["cpus"])
                 self.assertEqual(db_data["time_offset"], config["time-offset"])
 
+                # we've run all the tests
+                finished.callback(None)
+
         def start_search_for_agent_finished(result):
-            self.assertIn((True, "created"), result)
-            self.assertIn("agent-id", config)
-            self.assertEqual(
-                agent.agent_api(),
-                "%(master-api)s/agents/%(agent-id)s" % config)
-            reactor.callLater(.1, get_resulting_agent_data(run=False))
+            # Have to use a try/except here because we're not working
+            # directly with a deferred.  If we don't do this any tests
+            # that fail would end up blocking.
+            try:
+                self.assertIn((True, "created"), result)
+                self.assertIn("agent-id", config)
+                self.assertEqual(
+                    agent.agent_api(),
+                    "%(master-api)s/agents/%(agent-id)s" % config)
+            except Exception as e:
+                finished.errback(e)
+            else:
+                reactor.callLater(.1, get_resulting_agent_data(run=False))
 
         deferred = agent.start_search_for_agent()
-        deferred.addCallback(start_search_for_agent_finished)
-        return DeferredList([deferred, finished])
+        deferred.addCallbacks(
+            start_search_for_agent_finished, finished.errback)
+        return finished
 
     def test_agent_updated(self):
         agent = Agent()
@@ -116,15 +125,13 @@ class TestRunAgent(TestCase):
         agent_created_two = Deferred()
         self.agent_id = None
 
-        def error(failure):
-            raise failure
-
         # retrieve the data we just updated
         def get_resulting_agent_data(run=True):
             def get_data():
                 get(
                     agent.agent_api(),
-                    callback=test_resulting_agent_data, errback=error)
+                    callback=test_resulting_agent_data,
+                    errback=finished.errback)
             return get_data() if run else get_data
 
         # We got a response back from our GET request to the newly
@@ -134,25 +141,28 @@ class TestRunAgent(TestCase):
             if result.code != OK:
                 reactor.callLater(.1, get_resulting_agent_data(run=False))
             else:
-                finished.callback(None)
                 db_data = result.json()
                 agent_data = json.loads(json.dumps(agent.system_data()))
                 self.assertEqual(db_data["id"], config["agent-id"])
                 self.assertEqual(db_data["hostname"], agent_data["hostname"])
                 self.assertEqual(db_data["cpus"], agent_data["cpus"])
                 self.assertEqual(db_data["time_offset"], config["time-offset"])
+                finished.callback(None)
 
         # The method used to start the agent has started a second
         # time.  The results should be nearly identical minus
         # what the result contains
         def second_start_search_for_agent_finished(result):
-            self.assertTrue((True, "updated"), result)
-            self.assertEqual(config["agent-id"], self.agent_id)
-            self.assertEqual(
-                agent.agent_api(),
-                "%s/agents/%s" % (config["master-api"], self.agent_id))
+            try:
+                self.assertTrue((True, "updated"), result)
+                self.assertEqual(config["agent-id"], self.agent_id)
+                self.assertEqual(
+                    agent.agent_api(),
+                    "%s/agents/%s" % (config["master-api"], self.agent_id))
+            except Exception as e:
+                finished.errback(e)
 
-            reactor.callLater(.1, get_resulting_agent_data(run=False))
+            return reactor.callLater(.1, get_resulting_agent_data(run=False))
 
         # Callback run when the agent has been created in the database
         # and we've got a response back from the REST api.
@@ -168,12 +178,12 @@ class TestRunAgent(TestCase):
             agent.agent_created = agent_created_two
 
             deferred = agent.start_search_for_agent()
-            deferred.addCallback(second_start_search_for_agent_finished)
-            deferred.addErrback(error)
+            deferred.addCallbacks(
+                second_start_search_for_agent_finished, finished.errback)
             return deferred
 
         deferred = agent.start_search_for_agent()
-        deferred.addCallback(start_search_for_agent_finished)
+        deferred.addCallbacks(
+            start_search_for_agent_finished, finished.errback)
 
-        return DeferredList([
-            deferred, agent_created_two, finished])
+        return finished
