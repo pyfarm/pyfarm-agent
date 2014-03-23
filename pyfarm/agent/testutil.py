@@ -14,19 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from json import dumps
+from random import randint, choice
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
 from twisted.web.test.test_web import DummyRequest as _DummyRequest
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
-from pyfarm.core.enums import PY26, STRING_TYPES
-from pyfarm.agent.config import logger as config_logger
 from pyfarm.agent.config import config
+from pyfarm.core.config import read_env
+from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
+from pyfarm.core.sysinfo import memory, cpu
+from pyfarm.agent.config import logger as config_logger
 
-ORIGINAL_CONFIGURATION = config.copy()
+PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
+if ":" not in PYFARM_AGENT_MASTER:
+    raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
+
 
 if PY26:
     def safe_repr(obj, short=False):
@@ -86,6 +93,8 @@ def dummy_request(path="", data=None, http_method="GET", headers=None,
 
 
 class TestCase(_TestCase):
+    RAND_LENGTH = 8
+
     # Global timeout for all test cases.  If an individual test takes
     # longer than this amount of time to execute it will be stopped.  This
     # value should always be set to a value that's *much* longer than the
@@ -167,10 +176,24 @@ class TestCase(_TestCase):
         else:
             raise ValueError("Unexpected return value: %r" % (result,))
 
-    def tearDown(self):
-        super(TestCase, self).tearDown()
+    def setUp(self):
         config_logger.disabled = 1
-        config.callbacks.clear()
-        config.clear()
-        config.update(ORIGINAL_CONFIGURATION)
+        config.clear(callbacks=True)
+        config.update({
+            "foo": True,
+            "http-retry-delay": 1,
+            "persistent-http-connections": False,
+            "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
+            "master": PYFARM_AGENT_MASTER.split(":")[0],
+            "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
+            "ip": "10.%s.%s.%s" % (
+                randint(1, 255), randint(1, 255), randint(1, 255)),
+            "use-address": choice(UseAgentAddress),
+            "ram": int(memory.total_ram()),
+            "cpus": cpu.total_cpus(),
+            "port": randint(10000, 50000),
+            "free-ram": int(memory.ram_free()),
+            "time-offset": randint(-50, 50),
+            "state": choice(AgentState),
+            "ntp-server": "pool.ntp.org"})
         config_logger.disabled = 0
