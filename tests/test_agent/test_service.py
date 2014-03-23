@@ -16,7 +16,7 @@
 
 import os
 import json
-from httplib import OK
+from httplib import OK, CREATED
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -71,13 +71,13 @@ class TestAgentBasicMethods(TestCase):
 
 class TestRunAgent(TestCase):
     def test_agent_created(self):
-        agent = Agent()
+        self.agent = Agent()
         finished = Deferred()
 
         def get_resulting_agent_data(run=True):
             def get_data():
                 return get(
-                    agent.agent_api(),
+                    self.agent.agent_api(),
                     callback=test_resulting_agent_data,
                     errback=finished.errback)
             return get_data() if run else get_data
@@ -90,7 +90,7 @@ class TestRunAgent(TestCase):
                     .1, get_resulting_agent_data(run=False))
             else:
                 db_data = result.json()
-                agent_data = json.loads(json.dumps(agent.system_data()))
+                agent_data = json.loads(json.dumps(self.agent.system_data()))
                 self.assertEqual(db_data["id"], config["agent-id"])
                 self.assertEqual(db_data["hostname"], agent_data["hostname"])
                 self.assertEqual(db_data["cpus"], agent_data["cpus"])
@@ -104,23 +104,23 @@ class TestRunAgent(TestCase):
             # directly with a deferred.  If we don't do this any tests
             # that fail would end up blocking.
             try:
-                self.assertIn((True, "created"), result)
+                self.assertIn((True, CREATED), result)
                 self.assertIn("agent-id", config)
                 self.assertEqual(
-                    agent.agent_api(),
+                    self.agent.agent_api(),
                     "%(master-api)s/agents/%(agent-id)s" % config)
             except Exception as e:
                 finished.errback(e)
             else:
                 reactor.callLater(.1, get_resulting_agent_data(run=False))
 
-        deferred = agent.start_search_for_agent()
+        deferred = self.agent.run(shutdown_events=False)
         deferred.addCallbacks(
             start_search_for_agent_finished, finished.errback)
         return finished
 
     def test_agent_updated(self):
-        agent = Agent()
+        self.agent = Agent()
         finished = Deferred()
         agent_created_two = Deferred()
         self.agent_id = None
@@ -129,7 +129,7 @@ class TestRunAgent(TestCase):
         def get_resulting_agent_data(run=True):
             def get_data():
                 get(
-                    agent.agent_api(),
+                    self.agent.agent_api(),
                     callback=test_resulting_agent_data,
                     errback=finished.errback)
             return get_data() if run else get_data
@@ -142,7 +142,7 @@ class TestRunAgent(TestCase):
                 reactor.callLater(.1, get_resulting_agent_data(run=False))
             else:
                 db_data = result.json()
-                agent_data = json.loads(json.dumps(agent.system_data()))
+                agent_data = json.loads(json.dumps(self.agent.system_data()))
                 self.assertEqual(db_data["id"], config["agent-id"])
                 self.assertEqual(db_data["hostname"], agent_data["hostname"])
                 self.assertEqual(db_data["cpus"], agent_data["cpus"])
@@ -154,10 +154,10 @@ class TestRunAgent(TestCase):
         # what the result contains
         def second_start_search_for_agent_finished(result):
             try:
-                self.assertTrue((True, "updated"), result)
+                self.assertTrue((True, OK), result)
                 self.assertEqual(config["agent-id"], self.agent_id)
                 self.assertEqual(
-                    agent.agent_api(),
+                    self.agent.agent_api(),
                     "%s/agents/%s" % (config["master-api"], self.agent_id))
             except Exception as e:
                 finished.errback(e)
@@ -167,22 +167,25 @@ class TestRunAgent(TestCase):
         # Callback run when the agent has been created in the database
         # and we've got a response back from the REST api.
         def start_search_for_agent_finished(result):
-            self.assertIn((True, "created"), result)
-            self.assertIn("agent-id", config)
-            self.agent_id = config["agent-id"]
-            self.assertEqual(
-                agent.agent_api(),
-                "%s/agents/%s" % (config["master-api"], self.agent_id))
+            try:
+                self.assertIn((True, CREATED), result)
+                self.assertIn("agent-id", config)
+                self.agent_id = config["agent-id"]
+                self.assertEqual(
+                    self.agent.agent_api(),
+                    "%s/agents/%s" % (config["master-api"], self.agent_id))
+            except Exception as e:
+                finished.errback(e)
 
             # callbacks can't be called twice so we reset the callback
-            agent.agent_created = agent_created_two
+            self.agent.agent_created = agent_created_two
 
-            deferred = agent.start_search_for_agent()
+            deferred = self.agent.start_search_for_agent()
             deferred.addCallbacks(
                 second_start_search_for_agent_finished, finished.errback)
             return deferred
 
-        deferred = agent.start_search_for_agent()
+        deferred = self.agent.run(shutdown_events=False)
         deferred.addCallbacks(
             start_search_for_agent_finished, finished.errback)
 
