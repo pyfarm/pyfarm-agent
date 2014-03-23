@@ -180,7 +180,6 @@ class TestCase(_TestCase):
         config_logger.disabled = 1
         config.clear(callbacks=True)
         config.update({
-            "foo": True,
             "http-retry-delay": 1,
             "persistent-http-connections": False,
             "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
