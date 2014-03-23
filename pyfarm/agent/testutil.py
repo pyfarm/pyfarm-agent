@@ -146,6 +146,7 @@ class TestCase(_TestCase):
             "free-ram": int(memory.ram_free()),
             "time-offset": randint(-50, 50),
             "state": choice(AgentState),
+            "pretty-json": True,
             "ntp-server": "pool.ntp.org",
             "html-templates": TEMPLATE_ROOT,
             "html-templates-reload": True,
