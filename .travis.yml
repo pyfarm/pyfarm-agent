@@ -40,10 +40,10 @@ matrix:
 
 
 before_install:
-  - sudo apt-get -y install nginx
   - mkdir -pv ~/.pip
-  - cp -v pyfarm-agent/resources/travis/pip.conf ~/.pip/
-  - sed -e s/PYTHON_VERSION/$TRAVIS_PYTHON_VERSION/g pyfarm-agent/resources/travis/nginx.conf.template > /etc/nginx/nginx.conf
+  - cp -v resources/travis/pip.conf ~/.pip/
+  - sudo apt-get -y install nginx
+  - sed -e s/PYTHON_VERSION/$TRAVIS_PYTHON_VERSION/g resources/travis/nginx.conf.template > /etc/nginx/nginx.conf
   - sudo adduser travis www-data
   - sudo service nginx restart
 
