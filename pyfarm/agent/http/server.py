@@ -24,7 +24,6 @@ a service that the  :class:`pyfarm.agent.manager.service.ManagerServiceMaker`
 class can consume on start.
 """
 
-from datetime import timedelta
 from httplib import FORBIDDEN
 from os.path import exists
 
@@ -53,7 +52,7 @@ class StaticPath(File):
     directories.  In addition this will also sending along a
     response header asking clients to cache to data.
     """
-    EXPIRES = timedelta(days=10).total_seconds()
+    EXPIRES = 604800  # 7 days
     ALLOW_DIRECTORY_LISTING = False
 
     def __init__(
