@@ -26,7 +26,7 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         self.created = []
         self.modified = []
         self.deleted = []
-        LoggingConfiguration.__init__(self, *args, **kwargs)
+        super(ChangedLoggingConfiguration, self).__init__(*args, **kwargs)
 
     def changed(self, change_type, key, value=NOTSET):
         if change_type == self.CREATED:
@@ -36,7 +36,8 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         elif change_type == self.DELETED:
             self.deleted.append(key)
 
-        LoggingConfiguration.changed(self, change_type, key, value=value)
+        super(ChangedLoggingConfiguration, self).changed(
+            change_type, key, value=value)
 
 
 class TestLoggingConfiguration(TestCase):
