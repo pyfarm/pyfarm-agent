@@ -25,6 +25,9 @@ the master server.
 import json
 from collections import namedtuple
 from functools import partial
+from httplib import responses
+from urllib import quote
+from UserDict import UserDict
 
 import treq
 try:
@@ -38,9 +41,11 @@ from twisted.python import log
 from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES, NOTSET
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
+from pyfarm.agent.config import config
 
 logger = getLogger("agent.http")
 
@@ -50,6 +55,48 @@ if TQResponse is not NotImplemented:
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder, TQResponse)
 else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
+
+USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
+
+
+def build_url(url, params=None, quoted=False):
+    """
+    Builds the full url when provided the base ``url`` and some
+    url parameters:
+
+    >>> build_url("/foobar", {"first": "foo", "second": "bar"})
+    '/foobar?first=foo&second=bar'
+    >>> build_url("/foobar")
+    '/foobar'
+    >>> build_url("/foobar", {"first": "foo", "second": "bar"}, quoted=True)
+    '/foobar%3Ffirst%3Dfoo%26second%3Dbar'
+
+    :param str url:
+        The url to build off of.
+
+    :param dict params:
+        A dictionary of parameters that should be added on to ``url``.  If
+        this value is not provided ``url`` will be returned by itself.
+        Arguments to a url are unordered by default however they will be
+        sorted alphabetically so the results are repeatable from call to call.
+
+    :param bool quoted:
+        If True then run the result through :func:`.quote`.  By default
+        this keyword is set to False because :func:`.build_url` is typically
+        used for debugging.
+    """
+    assert isinstance(url, STRING_TYPES)
+
+    # append url arguments
+    if isinstance(params, (dict, ImmutableDict, UserDict)) and params:
+        url += "?" + "&".join([
+            "%s=%s" % (key, value)for key, value in sorted(params.items())])
+
+    # properly quote the url if requested
+    if quoted:
+        url = quote(url)
+
+    return url
 
 
 class Request(namedtuple("Request", ("method", "url", "kwargs"))):
@@ -73,10 +120,11 @@ class Request(namedtuple("Request", ("method", "url", "kwargs"))):
         request_kwargs = self.kwargs.copy()
         request_kwargs.update(kwargs)
 
-        # retry the request
+        # log and retry the request
+        debug_kwargs = request_kwargs.copy()
+        url = build_url(self.url, debug_kwargs.pop("params", None))
         logger.debug(
-            "retrying request(%r, %r, **%r",
-            self.method, self.url, request_kwargs)
+            "Retrying %s %s, kwargs: %r", self.method, url, debug_kwargs)
         return request(self.method, self.url, **request_kwargs)
 
 
@@ -174,9 +222,11 @@ class Response(Protocol):
         """
         if reason.type is ResponseDone:
             self._done = True
+            url = build_url(self.request.url, self.request.kwargs.get("params"))
+            code_text = responses.get(self.code, "UNKNOWN")
             logger.debug(
-                "%s %s (code: %s: body: %r)",
-                self.request.method, self.request.url, self.code, self._body)
+                "%s %s %s %s, body: %s",
+                self.code, code_text, self.request.method, url, self._body)
             self._deferred.callback(self)
         else:
             self._deferred.errback(reason)
@@ -229,13 +279,14 @@ def request(method, url, **kwargs):
     response_class = kwargs.pop("response_class", Response)
 
     # check assumptions for keywords
+    assert callback is not None, "callback not provided"
     assert callable(callback) and callable(errback)
     assert data is NOTSET or \
            isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
 
     # add our default headers
     headers.setdefault("Content-Type", ["application/json"])
-    headers.setdefault("User-Agent", ["PyFarm (agent) 1.0"])
+    headers.setdefault("User-Agent", [USERAGENT])
 
     # ensure all values in the headers are lists (needed by Twisted)
     for header, value in headers.items():
@@ -274,16 +325,24 @@ def request(method, url, **kwargs):
         raise NotImplementedError(
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    logmsg = "Queued request `%s %s`" % (method, url)
-
     # prepare keyword arguments
-    kwargs.update(headers=headers)
+    kwargs.update(
+        headers=headers,
+
+        # Controls if the http connection should be persistent or
+        # not.  Generally this should always be True because the connection
+        # self-terminates after a short period of time anyway.  We
+        # have setting for it however because the tests need this value
+        # to be False.
+        persistent=config.get("persistent-http-connections", False))
+
     if request_data is not NOTSET:
         kwargs.update(data=request_data)
-        logmsg += " data: %r" % data
 
-    # setup the request from treq
-    logger.debug(logmsg)
+    debug_kwargs = kwargs.copy()
+    debug_url = build_url(url, debug_kwargs.pop("params", None))
+    logger.debug(
+        "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
     deferred = treq.request(method, url, **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)

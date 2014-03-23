@@ -28,7 +28,6 @@ import importlib
 import json
 import logging
 import os
-import pkgutil
 import uuid
 from functools import partial
 from httplib import OK, UNSUPPORTED_MEDIA_TYPE, BAD_REQUEST, ACCEPTED

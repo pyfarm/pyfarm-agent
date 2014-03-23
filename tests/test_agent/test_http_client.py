@@ -18,6 +18,7 @@ import json
 import os
 from collections import namedtuple
 from httplib import responses, OK
+from urllib import quote
 
 from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
@@ -25,11 +26,12 @@ from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web.error import SchemeNotSupported
 from twisted.web.client import Response as TWResponse, Headers, ResponseDone
 
-from pyfarm.core.config import read_env, read_env_bool
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.config import config
 from pyfarm.agent.http.client import (
-    Request, Response, request, head, get, post, put, patch, delete, logger)
+    Request, Response, request, head, get, post, put, patch, delete, build_url)
 
 # fake object we use for triggering Response.connectionLost
 responseDone = namedtuple("reason", ["type"])(type=ResponseDone)
@@ -101,24 +103,24 @@ class RequestTestCase(TestCase):
         "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
     base_url = BASE_URL % {"scheme": HTTP_SCHEME}
 
+    def setUp(self):
+        super(RequestTestCase, self).setUp()
+        config["persistent-http-connections"] = False
+
     def get_url(self, url):
         assert isinstance(url, STRING_TYPES)
         return self.base_url + ("/%s" % url if not url.startswith("/") else url)
 
     def get(self, url, **kwargs):
-        kwargs.setdefault("persistent", False)
         return get(self.get_url(url), **kwargs)
 
     def post(self, url, **kwargs):
-        kwargs.setdefault("persistent", False)
         return post(self.get_url(url), **kwargs)
 
     def put(self, url, **kwargs):
-        kwargs.setdefault("persistent", False)
         return put(self.get_url(url), **kwargs)
 
     def delete(self, url, **kwargs):
-        kwargs.setdefault("persistent", False)
         return delete(self.get_url(url), **kwargs)
 
     def assert_response(self, response, code,
@@ -537,3 +539,33 @@ class TestResponse(RequestTestCase):
         self.assertTrue(r._done)
         self.assertEqual(r.json(), data)
         return deferred
+
+
+class TestBuildUrl(TestCase):
+    def test_basic_url(self):
+        self.assertEqual(build_url("/foobar"), "/foobar")
+
+    def test_url_with_arguments(self):
+        self.assertEqual(
+            build_url("/foobar", {"first": "foo", "second": "bar"}),
+            "/foobar?first=foo&second=bar")
+
+    def test_quoted_url(self):
+        self.assertEqual(
+            build_url("/foobar",
+                      {"first": "foo", "second": "bar"}, quoted=True),
+            "/foobar%3Ffirst%3Dfoo%26second%3Dbar")
+
+    def test_large_random_parameters(self):
+        params = {}
+        for i in range(50):
+            params[os.urandom(24).encode("hex")] = os.urandom(24).encode("hex")
+
+        expected = "/foobar?" + "&".join([
+            "%s=%s" % (key, value)for key, value in sorted(params.items())])
+        expected_quoted = quote(expected)
+
+        self.assertEqual(
+            build_url("/foobar", params), expected)
+        self.assertEqual(
+            build_url("/foobar", params, quoted=True), expected_quoted)

@@ -22,229 +22,432 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
-import json
 import time
-import logging
 from datetime import datetime
 from functools import partial
+from random import random
+from httplib import (
+    responses, BAD_REQUEST, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 
-import ntplib
-import requests
-from twisted.application.service import MultiService
+from ntplib import NTPClient
+from twisted.internet import reactor
+from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
-from pyfarm.agent.http.client import post as http_post
-from pyfarm.agent.utility.retry import RetryDeferred
-from pyfarm.agent.tasks import ScheduledTaskManager, memory_utilization
-from pyfarm.agent.process.manager import ProcessManager
+from pyfarm.agent.http.client import post, get
+from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.config import config
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
 
 
-class ManagerService(MultiService):
-    """the service object itself"""
-    ntp_client = ntplib.NTPClient()
-
+class Agent(object):
+    """
+    Main class associated with getting getting the internals
+    of the internals of the agent's operations up and running including
+    adding or updating itself with the master, starting the periodic
+    task manager, and handling shutdown conditions.
+    """
     def __init__(self):
+        self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
-        self.log = partial(log.msg, system=self.__class__.__name__)
-        self.info = partial(self.log, level=logging.INFO)
-        self.error = partial(self.log, level=logging.ERROR)
-        self.exception = partial(log.err, system=self.__class__.__name__)
 
-        # register any scheduled tasks
-        self.scheduled_tasks.register(
-            memory_utilization, config["memory-check-interval"],
-            func_args=(config, ))
+        # Some 'success' callbacks that get hit whenever
+        # certain events happen.  We don't use these much
+        # internally but they are/can be used externally when
+        # a method returns a DeferredList
+        self.agent_created = Deferred()
 
-        # finally, setup the base class
-        MultiService.__init__(self)
+    @classmethod
+    def agent_api(cls):
+        """
+        Return the API url for this agent or None if `agent-id` has not
+        been set
+        """
+        try:
+            return "%(master-api)s/agents/%(agent-id)s" % config
+        except KeyError:
+            svclog.error(
+                "The `agent-id` configuration value has not been set yet")
+            return None
 
-    def _startServiceCallback(self, response):
-        """internal callback used to start the service itself"""
-        config["agent-id"] = response["id"]
-        config["agent-url"] = \
-            config["http-api"] + "/agents/%s" % response["id"]
-        self.log("agent id is %s, starting service" % config["agent-id"])
-        self.scheduled_tasks.start()
+    @classmethod
+    def http_retry_delay(cls, uniform=False, get_delay=random):
+        """
+        Returns a floating point value that can be used to delay
+        an http request.  The main purpose of this is to ensure that not all
+        requests are run with the same interval between then.  This helps to
+        ensure that if the same request, such as agents coming online, is being
+        run on multiple systems they should be staggered a little more than
+        they would be without the non-uniform delay.
+        """
+        # TODO: provide command line flags for jitter
+        delay = config["http-retry-delay"]
+        if not uniform:
+            delay += get_delay()
+        return delay
 
-    def _failureCallback(self, response):
-        """internal callback which is run when the service fails to start"""
-        self.exception(response)
+    def system_data(self, requery_timeoffset=False):
+        """
+        Returns a dictionary of data containing information about the
+        agent.  This is the information that is also passed along to
+        the master.
+        """
+        # query the time offset and then cache it since
+        # this is typically a blocking operation
+        if requery_timeoffset or config["time-offset"] is None:
+            ntplog.info(
+                "Querying ntp server %r for current time", config["ntp-server"])
 
-    def startService(self):
-        self.info("informing master of agent startup")
-
-        def get_agent_data():
-            ntp_client = ntplib.NTPClient()
+            ntp_client = NTPClient()
             try:
                 pool_time = ntp_client.request(config["ntp-server"])
-                time_offset = int(pool_time.tx_time - time.time())
 
-            except Exception, e:
-                time_offset = 0
-                self.log("failed to determine network time: %s" % e,
-                         level=logging.WARNING)
+            except Exception as e:
+                ntplog.warning("Failed to determine network time: %s", e)
+
             else:
-                if time_offset:
-                    self.log("agent time offset is %s" % time_offset,
-                             level=logging.WARNING)
+                config["time-offset"] = int(pool_time.tx_time - time.time())
 
-            data = {
-                "hostname": config["hostname"],
-                "ip": config["ip"],
-                "use_address": config["use-address"],
-                "ram": config["ram"],
-                "cpus": config["cpus"],
-                "port": config["port"],
-                "free_ram": memory.ram_free(),
-                "time_offset": time_offset,
-                "state": AgentState.ONLINE}
+                # format the offset for logging purposes
+                utcoffset = datetime.utcfromtimestamp(pool_time.tx_time)
+                iso_timestamp = utcoffset.isoformat()
+                ntplog.debug(
+                    "network time: %s (local offset: %r)",
+                    iso_timestamp, config["time-offset"])
 
-            if config.get("remote-ip"):
-                data.update(remote_ip=config["remote-ip"])
+                if config["time-offset"] != 0:
+                    ntplog.warning(
+                        "Agent is %r second(s) off from ntp server at %r",
+                        config["time-offset"], config["ntp-server"])
 
-            if config.get("projects"):
-               data.update(projects=config["projects"])
+        data = {
+            "hostname": config["hostname"],
+            "ip": config["ip"],
+            "use_address": config["use-address"],
+            "ram": int(config["ram"]),
+            "cpus": config["cpus"],
+            "port": config["port"],
+            "free_ram": int(memory.ram_free()),
+            "time_offset": config["time-offset"] or 0,
+            "state": config["state"]}
 
-            return data
+        if "remote-ip" in config:
+            data.update(remote_ip=config["remote-ip"])
 
-        # prepare a retry request to POST to the master
-        retry_post_agent = RetryDeferred(
-            http_post, self._startServiceCallback, self._failureCallback,
-            headers={"Content-Type": "application/json"},
-            max_retries=config["http-max-retries"],
-            timeout=None,
-            retry_delay=config["http-retry-delay"])
+        if "projects" in config:
+           data.update(projects=config["projects"])
 
-        retry_post_agent(
-            config["http-api"] + "/agents",
-            data=json.dumps(get_agent_data()))
+        return data
 
-        config["manager"] = ProcessManager(config)
+    def run(self, shutdown_events=True):
+        """
+        Internal code which starts the agent, registers it with the master,
+        and performs the other steps necessary to get things running.
+        """
+        config.register_callback(
+            "agent-id",
+            partial(
+                self.callback_agent_id_set, shutdown_events=shutdown_events))
+        # TODO: start the internal http server here
+        return self.start_search_for_agent()
 
-        return retry_post_agent
-
-    def stopService(self):
+    def shutdown_task_manager(self):
+        """
+        This method is called before the reactor shuts and stops
+        any running tasks.
+        """
+        svclog.info("Stopping tasks")
         self.scheduled_tasks.stop()
+        # TODO: stop tasks
 
-        if "agent-id" not in config:
-            self.info(
-                "agent id was never set, cannot update master of state change")
-            return
+    def shutdown_post_update(self):
+        """
+        This method is called before the reactor shuts down and lets the
+        master know that the agent's state is now ``offline``
+        """
+        svclog.info("Agent is shutting down")
 
-        self.info("informing master of agent shutdown")
+        # This deferred is fired when we've either been successful
+        # or failed to letting the master know we're shutting
+        # down.  It is the last object to fire so if you have to do
+        # other things, like stop the process, that should happen before
+        # the callback for this one is run.
+        finished = Deferred()
 
-        try:
-            # Send the final update synchronously because the
-            # reactor is shutting down.  Sending out this update using
-            # the normal methods could very be missed as the reactor is
-            # cleaning up.  Attempting to send the request any other way
-            # at this point will just cause the deferred object to disappear
-            # before being fired.
-            response = requests.post(
-                config["agent-url"],
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(
-                    {"id": config["agent-id"],
-                     "state": AgentState.OFFLINE}))
+        def post_update(run=True):
+            def perform():
+                return post(
+                    self.agent_api(),
+                    data={
+                        "state": AgentState.OFFLINE,
+                        "free_ram": int(memory.ram_free())},
+                    callback=results_from_post,
+                    errback=error_while_posting)
 
-        except requests.RequestException, e:
-            self.exception(e)
+            return perform() if run else perform
+
+        def results_from_post(response):
+            if response.code == NOT_FOUND:
+                svclog.warning(
+                    "Agent %r no longer exists, cannot update state",
+                    config["agent-id"])
+                finished.callback(NOT_FOUND)
+
+            elif response.code == OK:
+                svclog.info(
+                    "Agent %r has shutdown successfully", config["agent-id"])
+                finished.callback(OK)
+
+            elif response.code >= INTERNAL_SERVER_ERROR:
+                delay = random() + random()
+                svclog.warning(
+                    "State update failed due to server error: %s.  "
+                    "Retrying in %s seconds",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
+
+            else:
+                delay = random() + random()
+                svclog.warning(
+                    "State update failed due to unhandled error: %s.  "
+                    "Retrying in %s seconds",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
+
+        def error_while_posting(failure):
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "State update failed due to unhandled error: %s.  "
+                "Retrying in %s seconds",
+                failure, delay)
+            reactor.callLater(delay, post_update(run=False))
+
+        # Post our current state to the master.  We're only posting ram_free
+        # and state here because all other fields would be updated the next
+        # time the agent starts up.  ram_free would be too but having it
+        # here is beneficial in cases where the agent terminated abnormally.
+        post_update()
+        return finished
+
+    def start_search_for_agent(self, run=True):
+        """
+        Produces a callable object which will initiate the process
+        necessary to search for this agent.  This is a method on the class
+        itself so we can repeat the search from any location.
+        """
+        def search():
+            system_data = self.system_data()
+            return get(
+                "%(master-api)s/agents/" % config,
+                callback=self.callback_search_for_agent,
+                errback=self.errback_search_for_agent,
+                params={
+                    "hostname": system_data["hostname"],
+                    "ip": system_data["ip"]})
+
+        if run:
+            # returns a DeferredList because we have to wait on other
+            # parts of the the to finish
+            return DeferredList([search(), self.agent_created])
+        else:
+            return search
+
+    def create_agent(self, run=True):
+        """Creates a new agent on the master"""
+        def create():
+            svclog.info("Registering this agent with the master")
+            return post(
+                "%(master-api)s/agents/" % config,
+                callback=self.callback_agent_created,
+                errback=self.errback_agent_created,
+                data=self.system_data())
+
+        return create() if run else create
+
+    def callback_agent_created(self, response):
+        """
+        Callback run when we're able to create the agent on the master.  This
+        method will retry the original request of the
+        """
+        if response.code == CREATED:
+            data = response.json()
+            config["agent-id"] = data["id"]
+            svclog.info("Agent is now online (created on master)")
+            self.agent_created.callback(CREATED)
+        else:
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "We expected to receive an CREATED response code but instead"
+                "we got %s. Retrying in %s seconds.",
+                responses[response.code], delay)
+            reactor.callLater(delay, self.create_agent(run=False))
+
+    def errback_agent_created(self, failure):
+        """
+        Error handler run whenever an error is raised while trying
+        to create the agent on the master.  The failed request will be
+        retried.
+        """
+        delay = self.http_retry_delay()
+        svclog.warning(
+            "There was a problem creating the agent: %s.  Retrying "
+            "in %r seconds.", failure, delay)
+        reactor.callLater(delay, self.create_agent(run=False))
+
+    def post_to_existing_agent(self, run=True):
+        """
+        Either executes the code necessary to post system data to
+        an existing agent or returns a callable to do so.
+        """
+        def run_post():
+            return post(self.agent_api(),
+                data=self.system_data(),
+                callback=self.callback_post_existing_agent,
+                errback=self.errback_post_existing_agent)
+        return run_post() if run else run_post
+
+    def callback_post_existing_agent(self, response):
+        """
+        Called when we got a response back while trying to post updated
+        information to an existing agent.  This should happen as a result
+        of other callbacks being run at startup.
+        """
+        if response.code == OK:
+            svclog.info("Agent is now online (updated on master)")
+            self.agent_created.callback(OK)
+        else:
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "We expected to receive an OK response code but instead"
+                "we got %s.  Retrying in %s.", responses[response.code], delay)
+            reactor.callLater(delay, self.post_to_existing_agent(run=False))
+
+    def errback_post_existing_agent(self, failure):
+        """
+        Error handler which is called if we fail to post an update
+        to an existing agent for some reason.
+        """
+        delay = self.http_retry_delay()
+        svclog.warning(
+            "There was error updating an existing agent: %s.  Retrying "
+            "in %r seconds", failure, delay)
+        reactor.callLater(delay, self.post_to_existing_agent(run=False))
+
+    def callback_search_for_agent(self, response):
+        """
+        Callback that gets called whenever we search for the agent.  This
+        search occurs at startup and after this callback finishes we
+        we'll either post updates to an existing agent or
+        """
+        delay = self.http_retry_delay()
+
+        if response.code == OK:
+            system_data = self.system_data()
+            agents_found = response.json()
+
+            if agents_found:
+                svclog.debug(
+                    "This agent may already be registered with the master")
+
+                # see if there's an agent which is the exact same as
+                # this agent
+                similar_agents = []
+                if isinstance(agents_found, list):
+                    for agent in agents_found:
+                        match_ip = \
+                            agent["ip"] == system_data["ip"]
+                        match_hostname = \
+                            agent["hostname"] == system_data["hostname"]
+                        match_port = agent["port"] == config["port"]
+
+                        # this agent matches exactly, setup the configuration
+                        if match_ip and match_hostname and match_port:
+                            svclog.info(
+                                "This agent is registered with the master, its "
+                                "id is %r.", agent["id"])
+                            config["agent-id"] = agent["id"]
+
+                            # now that we've found the agent,
+                            # post out date to the master
+                            self.post_to_existing_agent()
+                            break
+
+                        # close but it's the wrong port
+                        elif match_ip and match_hostname:
+                            similar_agents.append(agent)
+
+                    else:
+                        if similar_agents:
+                            svclog.info(
+                                "There are similar agents registered with the "
+                                "master but this agent is not.")
+                            self.create_agent()
+            else:
+                svclog.debug(
+                    "This agent is not currently registered with the master.")
+                self.create_agent()
+
+        elif config >= BAD_REQUEST:
+            svclog.warning(
+                "Something was either wrong with our request or the "
+                "server cannot handle it at this time: %s.  Retrying in "
+                "%s seconds.", response.data(), delay)
+            reactor.callLater(delay, lambda: response.request.retry())
+
+        # Retry anyway otherwise we could end up with the agent doing
+        # nothing.
+        else:
+            svclog.error(
+                "Unhandled case while attempting to find registered "
+                "agent: %s (code: %s).  Retrying in %s seconds.",
+                response.data(), response.code, delay)
+            reactor.callLater(delay, lambda: response.request.retry())
+
+    def errback_search_for_agent(self, failure):
+        """
+        Callback that gets called when we fail to search for the agent
+        due to an exception (not a response code).
+        """
+        delay = self.http_retry_delay()
+        if failure.type is ConnectionRefusedError:
+            agents_api = "%(master-api)s/agents/" % config
+            svclog.warning(
+                "Connection refused to %s: %s. Retrying in %s seconds.",
+                agents_api, failure, delay)
 
         else:
-            if response.ok:
-                self.info(
-                    "agent %s state is now OFFLINE" % config["agent-id"])
-            else:
-                self.error("ERROR SETTING AGENT STATE TO OFFLINE")
-                self.error("      code: %s" % response.status_code)
-                self.error("      text: %s" % response.text)
+            # TODO: need a better way of making these errors visible
+            svclog.critical(
+                "Unhandled exception: %s.  Retrying in %s seconds.",
+                failure, delay)
+            svclog.exception(failure)
 
+        reactor.callLater(delay, self.start_search_for_agent(run=False))
 
-def get_agent_data():
-    """
-    Returns a dictionary of data containing information about the
-    agent.  This is the information that is also passed along to
-    the master.
-    """
-    ntp_client = ntplib.NTPClient()
+    def callback_agent_id_set(
+            self, change_type, key, value, shutdown_events=True):
+        """
+        When `agent-id` is created we need to:
 
-    ntplog.debug(
-        "querying ntp server %r for current time", config["ntp-server"])
-    try:
-        pool_time = ntp_client.request(config["ntp-server"])
+            * Register a shutdown event so that when the agent is told to
+              shutdown it will notify the master of a state change.
+            * Star the scheduled task manager
+        """
+        if key == "agent-id" and change_type == config.CREATED \
+                and not self.shutdown_registered:
+            if shutdown_events:
+                reactor.addSystemEventTrigger(
+                    "before", "shutdown", self.shutdown_task_manager)
+                reactor.addSystemEventTrigger(
+                    "before", "shutdown", self.shutdown_post_update)
+                self.shutdown_registered = True
 
-    except Exception, e:
-        time_offset = 0
-        ntplog.warning("failed to determine network time: %s", e)
-
-    else:
-        time_offset = int(pool_time.tx_time - time.time())
-
-        # format the offset for logging purposes
-        dtime = datetime.fromtimestamp(pool_time.tx_time)
-        ntplog.debug(
-            "network time: %s (local offset: %r)",
-            dtime.isoformat(), time_offset)
-
-        if time_offset:
-            ntplog.warning(
-                "agent is %r second(s) off from ntp server at %r",
-                time_offset, config["ntp-server"])
-
-    data = {
-        "hostname": config["hostname"],
-        "ip": config["ip"],
-        "use_address": config["use-address"],
-        "ram": config["ram"],
-        "cpus": config["cpus"],
-        "port": config["port"],
-        "free_ram": memory.ram_free(),
-        "time_offset": time_offset,
-        "state": AgentState.ONLINE}
-
-    if config.get("remote-ip"):
-        data.update(remote_ip=config["remote-ip"])
-
-    if config.get("projects"):
-       data.update(projects=config["projects"])
-
-    return data
-
-
-def agent():
-    def initial_post_success(response):
-        """internal callback used to start the service itself"""
-        config["agent-id"] = response["id"]
-        config["agent-url"] = \
-            config["http-api"] + "/agents/%s/" % response["id"]
-
-        print "agent id is %s, starting service" % config["agent-id"]
-        # self.log("agent id is %s, starting service" % config["agent-id"])
-        # self.scheduled_tasks.start()
-
-    def initial_post_failure(error):
-        errors = map(str, [error.value for error in error.value])
-        svclog.error(
-            "errors(s) while posting agent data to %s: %s",
-            config["master-api"] + "/agents/", errors)
-
-    # post the agent's status to the master before
-    # we do anything else
-    retry_post_agent = RetryDeferred(
-        http_post, initial_post_success, initial_post_failure,
-        headers={"Content-Type": "application/json"},
-        max_retries=config["http-max-retries"],
-        timeout=None,
-        retry_delay=config["http-retry-delay"])
-
-    retry_post_agent(
-        config["master-api"] + "/agents/",
-        data=get_agent_data())
-
-
+            svclog.debug(
+                "`%s` was %s, adding system event trigger for shutdown",
+                key, change_type)
+            self.scheduled_tasks.start()

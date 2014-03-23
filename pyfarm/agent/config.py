@@ -30,16 +30,13 @@ module to be used:
     >>> from pyfarm.agent.config import config
 """
 
-try:
-    from UserDict import IterableUserDict, UserDict
-except ImportError:  # pragma: no cover
-    from collections import IterableUserDict, UserDict
-
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.logger import getLogger
 
+logger = getLogger("agent.config")
 
-class LoggingConfiguration(IterableUserDict):
+
+class LoggingConfiguration(dict):
     """
     Special configuration object which logs when a key is changed in
     a dictionary.  If the reactor is not running then log messages will
@@ -48,7 +45,17 @@ class LoggingConfiguration(IterableUserDict):
     MODIFIED = "modified"
     CREATED = "created"
     DELETED = "deleted"
-    log = getLogger("agent.config")
+
+    def __init__(self, seq=None, **kwargs):
+        if seq is None:
+            seq = {}
+        elif seq is not None and not isinstance(seq, dict):
+            raise TypeError("Expected None or dict for `seq`")
+
+        for key, value in dict(seq.items() + kwargs.items()).items():
+            self.changed(self.CREATED, key, value)
+
+        super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -56,54 +63,92 @@ class LoggingConfiguration(IterableUserDict):
         elif self[key] != value:
             self.changed(self.MODIFIED, key, value)
 
-        IterableUserDict.__setitem__(self, key, value)
+        # Run the base class's method after the above otherwise
+        # the value would already be in the data we're comparing
+        # against
+        super(LoggingConfiguration, self).__setitem__(key, value)
 
     def __delitem__(self, key):
-        IterableUserDict.__delitem__(self, key)
+        """
+        Deletes the provided ``key`` and triggers a ``delete`` event
+        using :meth:`.changed`.
+        """
+        super(LoggingConfiguration, self).__delitem__(key)
         self.changed(self.DELETED, key)
 
     def pop(self, key, *args):
-        IterableUserDict.pop(self, key, *args)
+        """
+        Deletes the provided ``key`` and triggers a ``delete`` event
+        using :meth:`.changed`.
+        """
+        super(LoggingConfiguration, self).pop(key, *args)
         self.changed(self.DELETED, key)
 
     def clear(self):
-        keys = self.keys()
-        IterableUserDict.clear(self)
+        """
+        Deletes all keys in this object and triggers a ``delete`` event
+        using :meth:`.changed` for each one.
+        """
+        keys = list(self.keys())
 
+        # Not quite the same thing as dict.clear() but the effect
+        # is the same as the call to changed() is more real time.
         for key in keys:
+            self.pop(key, None)
             self.changed(self.DELETED, key)
 
     def update(self, data=None, **kwargs):
-        if isinstance(data, (dict, UserDict)):
-            for key, value in data.items():
+        """
+        Updates the data held within this object and triggers the
+        appropriate events with :meth:`.changed`.
+        """
+        def trigger_changed(changed_object):
+            try:
+                items = changed_object.iteritems()
+            except AttributeError:
+                items = changed_object.items()
+
+            for key, value in items:
                 if key not in self:
                     self.changed(self.CREATED, key, value)
+
                 elif self[key] != value:  # pragma: no cover
                     self.changed(self.MODIFIED, key, value)
 
-        for key, value in kwargs.iteritems():
-            if key not in self:
-                self.changed(self.CREATED, key, value)
-            elif self[key] != value:  # pragma: no cover
-                self.changed(self.MODIFIED, key, value)
+        if isinstance(data, dict):
+            trigger_changed(data)
 
-        IterableUserDict.update(self, dict=data, **kwargs)
+        elif data is not None:
+            raise TypeError("Expected None or dict for `data`")
+
+        elif data is None:
+            data = {}
+
+        if kwargs:
+            trigger_changed(kwargs)
+
+        super(LoggingConfiguration, self).update(data, **kwargs)
 
     def changed(self, change_type, key, value=NOTSET):
+        """
+        This method is run whenever one of the keys in this object
+        changes.
+        """
         assert value is not NOTSET if change_type != self.DELETED else True
 
         if change_type == self.MODIFIED:
-            self.log.info("modified %r = %r", key, value)
+            logger.info("modified %r = %r", key, value)
 
         elif change_type == self.CREATED:
-            self.log.info("set %r = %r", key, value)
+            logger.info("set %r = %r", key, value)
 
         elif change_type == self.DELETED:
-            self.log.warning("deleted %r", key)
+            logger.warning("deleted %r", key)
 
         else:
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
+
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
     """
@@ -134,34 +179,46 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            cls.log.warning(
+            logger.warning(
                 "%r is already a registered callback for %r", callback, key)
             return
 
         callbacks.append(callback)
-        cls.log.debug("Registered callback %r for %r", callback, key)
+        logger.debug("Registered callback %r for %r", callback, key)
 
     @classmethod
     def deregister_callback(cls, key, callback):
-        if key in cls.callbacks and callback in cls.callbacks[key]:
-            # remove all instances of the callback
-            while callback in cls.callbacks[key]:
-                 cls.callbacks[key].remove(callback)
-
-            # if callbacks no longer exist, remove the key
-            if not cls.callbacks[key]:
-                cls.callbacks.pop(key)
-        else:  # pragma: no cover
-            cls.log.warning(
+        """
+        Removes any callback(s) that are registered with the provided ``key``
+        """
+        results = cls.callbacks.pop(key, None)
+        if results is None:
+            logger.warning(
                 "%r is not a registered callback for %r", callback, key)
 
+    def clear(self, callbacks=False):
+        """
+        Performs the same operations as :meth:`dict.clear` except
+        this method can also clear any registered callbacks if
+        requested.
+        """
+        super(ConfigurationWithCallbacks, self).clear()
+        if callbacks:
+            self.callbacks.clear()
+
     def changed(self, change_type, key, value=NOTSET):
-        LoggingConfiguration.changed(self, change_type, key, value)
+        """
+        This method is called internally whenever a given ``key``
+        changes which in turn will pass off the change to any
+        registered callback(s).
+        """
+        super(ConfigurationWithCallbacks, self).changed(
+            change_type, key, value=value)
 
         if key in self.callbacks:
             for callback in self.callbacks[key]:
                 callback(change_type, key, value)
-                self.log.debug(
+                logger.debug(
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)
 
