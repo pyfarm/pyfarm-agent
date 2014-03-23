@@ -16,57 +16,19 @@
 
 import os
 import json
-from random import randint, choice
 from httplib import OK
 
 from twisted.internet import reactor
 from twisted.internet.defer import DeferredList, Deferred
 
-from pyfarm.core.config import read_env_bool, read_env
-from pyfarm.core.enums import AgentState, UseAgentAddress
-from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.client import get
 from pyfarm.agent.service import Agent
 
-ORIGINAL_CONFIGURATION = config.copy()
-TIME_OFFSET = randint(-50, 50)
-
-config.update({
-    "time-offset": TIME_OFFSET
-})
-
-PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
-if ":" not in PYFARM_AGENT_MASTER:
-    raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
-
-
-class AgentTestBase(TestCase):
-    RAND_LENGTH = 8
-
-    def setUp(self):
-        super(AgentTestBase, self).setUp()
-        self.config = {
-            "http-retry-delay": 1,
-            "persistent-http-connections": False,
-            "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
-            "master": PYFARM_AGENT_MASTER.split(":")[0],
-            "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
-            "ip": "10.%s.%s.%s" % (
-                randint(1, 255), randint(1, 255), randint(1, 255)),
-            "use-address": choice(UseAgentAddress),
-            "ram": int(memory.total_ram()),
-            "cpus": cpu.total_cpus(),
-            "port": randint(10000, 50000),
-            "free-ram": int(memory.ram_free()),
-            "time-offset": randint(-50, 50),
-            "state": choice(AgentState)}
-        config.update(self.config)
-
 
 # TODO: need better tests, these are a little rudimentary at the moment
-class TestAgentBasicMethods(AgentTestBase):
+class TestAgentBasicMethods(TestCase):
     def test_agent_api_url(self):
         config["agent-id"] = 1
         agent = Agent()
@@ -107,30 +69,34 @@ class TestAgentBasicMethods(AgentTestBase):
         self.assertEqual(agent.system_data(), expected)
 
 
-class TestRunAgent(AgentTestBase):
-    def setUp(self):
-        if not read_env_bool("PYFARM_AGENT_TEST_STARTUP", True):
-            self.skipTest("startup tests disabled")
-
-        super(TestRunAgent, self).setUp()
-        self.agent_id = None
-
+class TestRunAgent(TestCase):
     def test_agent_created(self):
-        self.skipTest("disabled")
         agent = Agent()
         finished = Deferred()
+
+        def error(failure):
+            raise failure
+
+        def get_resulting_agent_data(run=True):
+            def get_data():
+                get(
+                    agent.agent_api(),
+                    callback=test_resulting_agent_data, errback=error)
+            return get_data() if run else get_data
 
         # test to make sure that the data in the database
         # matches that our agent says
         def test_resulting_agent_data(result):
-            finished.callback(None)
-            self.assertEqual(result.code, OK)
-            db_data = result.json()
-            agent_data = json.loads(json.dumps(agent.system_data()))
-            shared_keys = db_data.viewkeys() & agent_data.viewkeys()
-            filtered_db_data = dict(
-                (k, v) for k, v in db_data.items() if k in shared_keys)
-            self.assertEqual(filtered_db_data, agent_data)
+            if result.code != OK:
+                reactor.callLater(.1, get_resulting_agent_data(run=False))
+            else:
+                finished.callback(None)
+                db_data = result.json()
+                agent_data = json.loads(json.dumps(agent.system_data()))
+                self.assertEqual(db_data["id"], config["agent-id"])
+                self.assertEqual(db_data["hostname"], agent_data["hostname"])
+                self.assertEqual(db_data["cpus"], agent_data["cpus"])
+                self.assertEqual(db_data["time_offset"], config["time-offset"])
 
         def start_search_for_agent_finished(result):
             self.assertIn((True, "created"), result)
@@ -138,10 +104,7 @@ class TestRunAgent(AgentTestBase):
             self.assertEqual(
                 agent.agent_api(),
                 "%(master-api)s/agents/%(agent-id)s" % config)
-            return get(
-                agent.agent_api(),
-                callback=test_resulting_agent_data,
-                errback=lambda failure: self.fail(str(failure)))
+            reactor.callLater(.1, get_resulting_agent_data(run=False))
 
         deferred = agent.start_search_for_agent()
         deferred.addCallback(start_search_for_agent_finished)
@@ -156,6 +119,7 @@ class TestRunAgent(AgentTestBase):
         def error(failure):
             raise failure
 
+        # retrieve the data we just updated
         def get_resulting_agent_data(run=True):
             def get_data():
                 get(
@@ -163,6 +127,9 @@ class TestRunAgent(AgentTestBase):
                     callback=test_resulting_agent_data, errback=error)
             return get_data() if run else get_data
 
+        # We got a response back from our GET request to the newly
+        # updated agent.  We only care about OK responses, all others
+        # should be retried.
         def test_resulting_agent_data(result):
             if result.code != OK:
                 reactor.callLater(.1, get_resulting_agent_data(run=False))
@@ -185,9 +152,10 @@ class TestRunAgent(AgentTestBase):
                 agent.agent_api(),
                 "%s/agents/%s" % (config["master-api"], self.agent_id))
 
-            reactor.callLater(.5, get_resulting_agent_data(run=False))
+            reactor.callLater(.1, get_resulting_agent_data(run=False))
 
-        # the agent has been started
+        # Callback run when the agent has been created in the database
+        # and we've got a response back from the REST api.
         def start_search_for_agent_finished(result):
             self.assertIn((True, "created"), result)
             self.assertIn("agent-id", config)
