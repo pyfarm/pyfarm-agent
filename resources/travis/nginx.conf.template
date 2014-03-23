@@ -19,8 +19,10 @@ http {
     error_log /tmp/nginx_error.log;
 
     upstream backend {
-        server unix:/tmp/uwsgi.sock weight=10 max_fails=10 fail_timeout=3s;
-        server unix:/tmp/uwsgi.sock weight=10 max_fails=10 fail_timeout=3s;
+        server 127.0.0.1:5001;
+        server 127.0.0.1:5002;
+        server 127.0.0.1:5003;
+        server 127.0.0.1:5004;
     }
 
     server {
