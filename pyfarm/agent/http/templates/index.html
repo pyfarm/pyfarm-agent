@@ -1,14 +1,20 @@
-{% extends "pyfarm/layout.html" %}
+{% extends "layout.html" %}
 {% block title %}Index{% endblock %}
-{% block head %}
-    {{ super() }}
-    <style type="text/css">
-        .important { color: #336699; }
-    </style>
-{% endblock %}
 {% block content %}
-    <h1>Index</h1>
-    <p class="important">
-      Welcome on my awesome homepage.
-    </p>
+<table id="box-table">
+    <thead>
+        <tr>
+            <th scope="col">Key</th>
+            <th scope="col">Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in table_data %}
+        <tr>
+            <td>{{key}}</td>
+            <td>{{value}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endblock %}
