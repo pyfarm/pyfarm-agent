@@ -44,23 +44,36 @@ class PythonLoggingObserver(TwistedLogObserver):
     """
     STARTED = False
 
-    # logging system names that need to be remapped
-    # to something else before we pass it to Python's
-    # logger
-    systems = {
+    # This regular expression pull information out of an http
+    # log line so we can present the most relevant, non-duplicated,
+    # information.
+    REGEX_HTTP_MESSAGE = re.compile(
+        '^.*- - \[.*\] \"(GET|POST|HEAD|PUT|DELETE) '
+        '(.*) HTTP/\d[.]\d\" (\d{3}).*\".*\" \"(.*)\"')
+
+    # Maps system names from an incoming event to the
+    # real logger name.
+    event_system_names = {
         "Uninitialized": "twisted",
-        "-": "twisted"
-    }
+        "-": "twisted",
+        "pyfarm.agent.http.server.Site": "pf.agent.http"}
 
-    # loggers that we know we will have to handle in emit()
+    # For any system even we don't a default name for, because
+    # it's not given above, we use these regular expressions to
+    # find the 'final' logger name.
+    regex_remappers = {
+        re.compile("^HTTP.*ClientProtocol.*$"): "twisted",
+        re.compile("^HTTPChannel.*$"): "pf.agent.http"}
+
+    # This class may need to create new logger
+    # instances when a message comes in.  Those instances
+    # will be stored here.
     loggers = {
-        "-": _getLoggerPython("twisted")
-    }
-
+        "-": _getLoggerPython("twisted")}
 
     filters = {
-        "twisted":
-            set([re.compile("^(Starting|Stopping) factory .*$")])}
+        "pf.agent.http": set([re.compile("^(Starting|Stopping) factory .*$")]),
+        "twisted": set([re.compile("^(Starting|Stopping) factory .*$")])}
 
     def start(self):
         # only want to start once
@@ -71,9 +84,21 @@ class PythonLoggingObserver(TwistedLogObserver):
         self.STARTED = True
 
     def emit(self, event):
-        # Get the real system name
         system = event["system"]
-        system = self.systems.get(system, system)
+        if system in self.event_system_names:
+            system = self.event_system_names[system]
+
+        # If we've never seen this system name before see if we
+        # can remap it to a proper name using the regular expression
+        # names.
+        else:
+            for regex, value in self.regex_remappers.iteritems():
+                if regex.match(system):
+                    system = self.event_system_names[system] = value
+                    break
+            else:
+                self.loggers["-"].log(WARNING, "Unknown logger %s'" % system)
+                self.event_system_names[system] = "twisted"
 
         # Do we care about this message?
         text = textFromEventDict(event)
@@ -90,6 +115,24 @@ class PythonLoggingObserver(TwistedLogObserver):
             level = ERROR
         else:
             level = INFO
+
+        # If this is a http log then we should reformat it
+        if system == "pf.agent.http" or system[:8] == "twisted":
+            system = "pf.agent.http"  # because this could be a twisted log
+            matched = self.REGEX_HTTP_MESSAGE.match(text)
+            if matched:
+                try:
+                    code = int(matched.group(3))
+                    text = " ".join(matched.groups())
+
+                    if code >= 400:
+                        level = ERROR
+                    else:
+                        level = DEBUG
+
+                except Exception as e:
+                    error = "Failed to convert http log: %s" % e
+                    self.loggers[system].log(ERROR, error)
 
         # Create a logger if necessary
         if system not in self.loggers:
