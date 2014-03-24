@@ -72,10 +72,16 @@ class Resource(_Resource):
     def __init__(self):
         _Resource.__init__(self)
 
+        # If we have not already create the template
+        # loader
         if Resource.template_loader is None:
-            Resource.template_loader = Jinja2TemplateLoader(
+            loader = Resource.template_loader = Jinja2TemplateLoader(
                 config["html-templates"],
                 auto_reload=config.get("html-templates-reload", False))
+
+            # Function(s) which the template can access internally
+            loader.environment.globals.update(
+                hostname=lambda: config["hostname"])
 
         # Template is only required for subclasses.  This class can serve
         # http requests but when we build the http server that's not how
