@@ -24,7 +24,7 @@ from pyfarm.agent.http.resource import Resource
 
 class Index(Resource):
     """serves request for the root, '/', target"""
-    TEMPLATE = "pyfarm/index.html"
+    TEMPLATE = "index.html"
 
     def get(self, request):
         # write out the results from the template back
