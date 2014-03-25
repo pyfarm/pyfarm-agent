@@ -81,7 +81,9 @@ class Resource(_Resource):
 
             # Function(s) which the template can access internally
             loader.environment.globals.update(
-                hostname=lambda: config["hostname"])
+                hostname=lambda: config["hostname"],
+                agent_id=lambda: config["agent-id"],
+                state=lambda: config["state"])
 
         # Template is only required for subclasses.  This class can serve
         # http requests but when we build the http server that's not how
