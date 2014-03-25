@@ -69,6 +69,8 @@ TEMPLATE_ROOT = abspath(
 STATIC_ROOT = abspath(
     join(dirname(pyfarm.agent.__file__), "http", "static"))
 
+config["start"] = time.time()
+
 
 class AgentEntryPoint(object):
     """Main object for parsing command line options"""
