@@ -370,16 +370,9 @@ def cast_enum(enum, enum_type):
 _WorkState = Enum(
     "WorkState",
     PAUSED=Values(100, "paused"),
-    QUEUED=Values(101, "queued"),
-    BLOCKED=Values(102, "blocked"),
-    ALLOC=Values(103, "alloc"),
-    ASSIGN=Values(104, "assign"),
     RUNNING=Values(105, "running"),
     DONE=Values(106, "done"),
-    FAILED=Values(107, "failed"),
-    JOBTYPE_FAILED_IMPORT=Values(108, "jobtype_failed_import"),
-    JOBTYPE_INVALID_CLASS=Values(109, "jobtype_invalid_class"),
-    NO_SUCH_COMMAND=Values(110, "no_such_command"))
+    FAILED=Values(107, "failed"))
 
 # 2xx - agent states
 # NOTE: these values are directly tested test_enums.test_direct_agent_values
@@ -421,26 +414,16 @@ DBOperatingSystem = cast_enum(_OperatingSystem, int)
 DBUseAgentAddress = cast_enum(_UseAgentAddress, int)
 
 RUNNING_WORK_STATES = set([
-    WorkState.ALLOC,
-    WorkState.ASSIGN,
     WorkState.RUNNING])
 
 DB_RUNNING_WORK_STATES = set([
-    DBWorkState.ALLOC,
-    DBWorkState.ASSIGN,
     DBWorkState.RUNNING])
 
 FAILED_WORK_STATES = set([
-    WorkState.FAILED,
-    WorkState.JOBTYPE_FAILED_IMPORT,
-    WorkState.JOBTYPE_INVALID_CLASS,
-    WorkState.NO_SUCH_COMMAND])
+    WorkState.FAILED])
 
 DB_FAILED_WORK_STATES = set([
-    DBWorkState.FAILED,
-    DBWorkState.JOBTYPE_FAILED_IMPORT,
-    DBWorkState.JOBTYPE_INVALID_CLASS,
-    DBWorkState.NO_SUCH_COMMAND])
+    DBWorkState.FAILED])
 
 # operating system information
 OS = operating_system()
