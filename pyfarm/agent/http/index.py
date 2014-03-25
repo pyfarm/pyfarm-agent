@@ -14,12 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+from datetime import timedelta
+
+import psutil
 from twisted.web.server import NOT_DONE_YET
 
+from pyfarm.core.utility import convert
 from pyfarm.core.enums import AgentState
-from pyfarm.core.sysinfo import cpu, memory
+from pyfarm.core.sysinfo import cpu, memory, network
 from pyfarm.agent.config import config
 from pyfarm.agent.http.resource import Resource
+
+
+def mb(value):
+    if isinstance(value, float):
+        value = int(value)
+    return str(value) + "MB"
+
+
+def seconds(value):
+    if value is not None:
+        return "%.2f seconds" % value
 
 
 class Index(Resource):
@@ -42,25 +58,74 @@ class Index(Resource):
         else:
             raise KeyError("failed to find state")
 
-        # data which will appear in the table
-        table_data = [
-            ("Master API", config["master-api"]),
-            ("Agent API", config["agent"].agent_api()),
-            ("State", state),
-            ("Hostname", config["hostname"]),
-            ("Agent ID", config.get("agent-id", "UNASSIGNED")),
-            ("IP Address", config["ip"]),
-            ("Port", config["port"]),
-            ("Reported CPUs", config["cpus"]),
-            ("Reported RAM", config["ram"]),
-            ("Total CPUs", cpu.total_cpus()),
-            ("Total RAM", int(memory.total_ram())),
-            ("Free RAM", int(memory.ram_free())),
-            ("Total Swap", int(memory.total_swap())),
-            ("Free Swap", int(memory.swap_free()))]
+        # Memory usage of the agent's process
+        process = psutil.Process()
+        process_memory = convert.bytetomb(process.get_memory_info().rss)
 
-        # schedule a deferred so the reactor can get control back
-        deferred = self.template.render(table_data=table_data)
+        ram_allocated = (memory.ram_used() / float(config["ram"])) * 100
+        swap_allocated = (memory.swap_used() / float(config["swap"])) * 100
+
+        if ram_allocated >= 100:
+            ram_css = "danger"
+        elif ram_allocated >= 75:
+            ram_css = "warning"
+        elif ram_allocated >= 50:
+            ram_css = "info"
+        else:
+            ram_css = None
+
+        if swap_allocated >= 20:
+            swap_css = "danger"
+        elif swap_allocated >= 10:
+            swap_css = "warning"
+        elif swap_allocated >= 5:
+            swap_css = "info"
+        else:
+            swap_css = None
+
+        memory_info = [
+            ("RAM Used",
+                "%.2f%% (%s of %s)" % (
+                    ram_allocated,
+                    int(memory.ram_used()), mb((config["ram"]))), ram_css),
+            ("SWAP Used",
+                "%.2f%% (%s of %s)" % (
+                    swap_allocated,
+                    int(memory.swap_used()), mb((config["swap"]))), swap_css),
+            ("System RAM", mb(memory.total_ram()), None),
+            ("System RAM (reported)", mb(config["ram"]), None),
+            ("Agent RAM Usage", mb(process_memory), None)]
+
+        network_info = [
+            ("Hostname", config["hostname"]),
+            ("IP Address", network.ip()),
+            ("IP Address (reported)", config["ip"]),
+            ("Agent Port", config["port"]),
+            ("Master API", config["master-api"])]
+
+        cpu_info = [
+            ("CPUs", cpu.total_cpus()),
+            ("CPUs (reported)", config["cpus"]),
+            ("System Time", seconds(cpu.system_time())),
+            ("User Time", seconds(cpu.user_time())),
+            ("Idle Time", seconds(cpu.idle_time())),
+            ("IO Wait", seconds(cpu.iowait()) or "Not Supported")]
+
+        miscellaneous = [
+            ("Database ID", config["agent-id"]),
+            ("Logged On User(s)",
+             ", ".join(sorted(set(user.name for user in psutil.get_users())))),
+            ("Host Uptime",
+             str(timedelta(seconds=time.time() - psutil.get_boot_time()))),
+            ("Agent Uptime",
+             str(timedelta(seconds=time.time() - config["start"])))]
+
+        deferred = self.template.render(
+            memory_info=memory_info,
+            network_info=network_info,
+            cpu_info=cpu_info,
+            miscellaneous=miscellaneous)
         deferred.addCallback(cb)
 
         return NOT_DONE_YET
+
