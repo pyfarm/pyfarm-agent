@@ -16,6 +16,7 @@
 
 import time
 from datetime import timedelta
+from httplib import OK
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
@@ -47,7 +48,7 @@ class Index(Resource):
         # to the original request
         def cb(content):
             request.write(content)
-            request.setResponseCode(200)
+            request.setResponseCode(OK)
             request.finish()
 
         # convert the state integer to a string
@@ -129,3 +130,24 @@ class Index(Resource):
 
         return NOT_DONE_YET
 
+
+class Configuration(Resource):
+    TEMPLATE = "configuration.html"
+
+    def get(self, request):
+        # write out the results from the template back
+        # to the original request
+        def cb(content):
+            request.write(content)
+            request.setResponseCode(OK)
+            request.finish()
+
+        configuration = []
+        for key, value in sorted(config.items()):
+            configuration.append((key, value, None))
+
+        deferred = self.template.render(
+            configuration=configuration)
+        deferred.addCallback(cb)
+
+        return NOT_DONE_YET
