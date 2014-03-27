@@ -39,9 +39,9 @@ from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.client import post, get
-from pyfarm.agent.http.index import Index
 from pyfarm.agent.http.resource import Resource
 from pyfarm.agent.http.server import Site, StaticPath
+from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.config import config
 
@@ -168,6 +168,7 @@ class Agent(object):
 
         # external endpoints
         resource.putChild("", Index())
+        resource.putChild("configuration", Configuration())
 
         # TODO: renable these once they are working again
         # resource.putChild("assign", Assign(config))

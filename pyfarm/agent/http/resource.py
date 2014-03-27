@@ -83,7 +83,8 @@ class Resource(_Resource):
             loader.environment.globals.update(
                 hostname=lambda: config["hostname"],
                 agent_id=lambda: config["agent-id"],
-                state=lambda: config["state"])
+                state=lambda: config["state"],
+                repr=repr)
 
         # Template is only required for subclasses.  This class can serve
         # http requests but when we build the http server that's not how

@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block title %}Information{% endblock %}
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .firstcolumn {
+            width: 40%;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+<h3>Current Configuration Table</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Key</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value, css_class in configuration %}
+        <tr>
+            {% if css_class %}
+                <td class="{{ css_class }}">{{key}}</td>
+                <td class="{{ css_class }}">{{ repr(value) }}</td>
+            {% else %}
+                <td>{{key}}</td>
+                <td>{{value}}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

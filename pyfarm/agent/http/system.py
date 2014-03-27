@@ -131,6 +131,7 @@ class Index(Resource):
         return NOT_DONE_YET
 
 
+# TODO: add form to edit values
 class Configuration(Resource):
     TEMPLATE = "configuration.html"
 
