@@ -64,13 +64,9 @@ to tasks as job statuses are built from task status values.
     :widths: 10, 50
 
     PAUSED, this task cannot be assigned right now but can be once unpaused
-    BLOCKED, this task cannot be assigned to an agent at this point in time
-    QUEUED, waiting on queue to assign this work
-    ASSIGN, work has been assigned to an agent but is waiting to start
     RUNNING, work is currently being processed
     DONE, work is finished (previous failures may be present)
     FAILED, work as failed and cannot be continued
-    ALLOC, special internal state for a job or task entry is being built
 
 
 Use Agent Address
@@ -236,7 +232,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         NUMERIC_TYPES = (int, long)
     except NameError:  # pragma: no cover
         NUMERIC_TYPES = (int, )
-        
+
     check_uniqueness = True
     _integers = set()
 
