@@ -64,13 +64,9 @@ to tasks as job statuses are built from task status values.
     :widths: 10, 50
 
     PAUSED, this task cannot be assigned right now but can be once unpaused
-    BLOCKED, this task cannot be assigned to an agent at this point in time
-    QUEUED, waiting on queue to assign this work
-    ASSIGN, work has been assigned to an agent but is waiting to start
     RUNNING, work is currently being processed
     DONE, work is finished (previous failures may be present)
     FAILED, work as failed and cannot be continued
-    ALLOC, special internal state for a job or task entry is being built
 
 
 Use Agent Address
@@ -257,7 +253,7 @@ class Values(namedtuple("Values", ("int", "str"))):
         NUMERIC_TYPES = (int, long)
     except NameError:  # pragma: no cover
         NUMERIC_TYPES = (int, )
-        
+
     check_uniqueness = True
     _integers = set()
 
@@ -391,16 +387,9 @@ def cast_enum(enum, enum_type):
 _WorkState = Enum(
     "WorkState",
     PAUSED=Values(100, "paused"),
-    QUEUED=Values(101, "queued"),
-    BLOCKED=Values(102, "blocked"),
-    ALLOC=Values(103, "alloc"),
-    ASSIGN=Values(104, "assign"),
     RUNNING=Values(105, "running"),
     DONE=Values(106, "done"),
-    FAILED=Values(107, "failed"),
-    JOBTYPE_FAILED_IMPORT=Values(108, "jobtype_failed_import"),
-    JOBTYPE_INVALID_CLASS=Values(109, "jobtype_invalid_class"),
-    NO_SUCH_COMMAND=Values(110, "no_such_command"))
+    FAILED=Values(107, "failed"))
 
 # 2xx - agent states
 # NOTE: these values are directly tested test_enums.test_direct_agent_values
@@ -442,26 +431,16 @@ DBOperatingSystem = cast_enum(_OperatingSystem, int)
 DBUseAgentAddress = cast_enum(_UseAgentAddress, int)
 
 RUNNING_WORK_STATES = set([
-    WorkState.ALLOC,
-    WorkState.ASSIGN,
     WorkState.RUNNING])
 
 DB_RUNNING_WORK_STATES = set([
-    DBWorkState.ALLOC,
-    DBWorkState.ASSIGN,
     DBWorkState.RUNNING])
 
 FAILED_WORK_STATES = set([
-    WorkState.FAILED,
-    WorkState.JOBTYPE_FAILED_IMPORT,
-    WorkState.JOBTYPE_INVALID_CLASS,
-    WorkState.NO_SUCH_COMMAND])
+    WorkState.FAILED])
 
 DB_FAILED_WORK_STATES = set([
-    DBWorkState.FAILED,
-    DBWorkState.JOBTYPE_FAILED_IMPORT,
-    DBWorkState.JOBTYPE_INVALID_CLASS,
-    DBWorkState.NO_SUCH_COMMAND])
+    DBWorkState.FAILED])
 
 # operating system information
 OS = operating_system()

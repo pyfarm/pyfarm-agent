@@ -164,38 +164,6 @@ class TestEnums(TestCase):
         self.assertEqual(
             DBOperatingSystem.LINUX, 300)
         self.assertEqual(
-            _WorkState.ALLOC.int, 103)
-        self.assertEqual(
-            _WorkState.ALLOC.str, "alloc")
-        self.assertEqual(
-            WorkState.ALLOC, "alloc")
-        self.assertEqual(
-            DBWorkState.ALLOC, 103)
-        self.assertEqual(
-            _WorkState.JOBTYPE_INVALID_CLASS.int, 109)
-        self.assertEqual(
-            _WorkState.JOBTYPE_INVALID_CLASS.str, "jobtype_invalid_class")
-        self.assertEqual(
-            WorkState.JOBTYPE_INVALID_CLASS, "jobtype_invalid_class")
-        self.assertEqual(
-            DBWorkState.JOBTYPE_INVALID_CLASS, 109)
-        self.assertEqual(
-            _WorkState.QUEUED.int, 101)
-        self.assertEqual(
-            _WorkState.QUEUED.str, "queued")
-        self.assertEqual(
-            WorkState.QUEUED, "queued")
-        self.assertEqual(
-            DBWorkState.QUEUED, 101)
-        self.assertEqual(
-            _WorkState.PAUSED.int, 100)
-        self.assertEqual(
-            _WorkState.PAUSED.str, "paused")
-        self.assertEqual(
-            WorkState.PAUSED, "paused")
-        self.assertEqual(
-            DBWorkState.PAUSED, 100)
-        self.assertEqual(
             _WorkState.FAILED.int, 107)
         self.assertEqual(
             _WorkState.FAILED.str, "failed")
@@ -219,38 +187,7 @@ class TestEnums(TestCase):
             WorkState.DONE, "done")
         self.assertEqual(
             DBWorkState.DONE, 106)
-        self.assertEqual(
-            _WorkState.JOBTYPE_FAILED_IMPORT.int, 108)
-        self.assertEqual(
-            _WorkState.JOBTYPE_FAILED_IMPORT.str, "jobtype_failed_import")
-        self.assertEqual(
-            WorkState.JOBTYPE_FAILED_IMPORT, "jobtype_failed_import")
-        self.assertEqual(
-            DBWorkState.JOBTYPE_FAILED_IMPORT, 108)
-        self.assertEqual(
-            _WorkState.NO_SUCH_COMMAND.int, 110)
-        self.assertEqual(
-            _WorkState.NO_SUCH_COMMAND.str, "no_such_command")
-        self.assertEqual(
-            WorkState.NO_SUCH_COMMAND, "no_such_command")
-        self.assertEqual(
-            DBWorkState.NO_SUCH_COMMAND, 110)
-        self.assertEqual(
-            _WorkState.ASSIGN.int, 104)
-        self.assertEqual(
-            _WorkState.ASSIGN.str, "assign")
-        self.assertEqual(
-            WorkState.ASSIGN, "assign")
-        self.assertEqual(
-            DBWorkState.ASSIGN, 104)
-        self.assertEqual(
-            _WorkState.BLOCKED.int, 102)
-        self.assertEqual(
-            _WorkState.BLOCKED.str, "blocked")
-        self.assertEqual(
-            WorkState.BLOCKED, "blocked")
-        self.assertEqual(
-            DBWorkState.BLOCKED, 102)
+
 
     @skipUnless(sys.platform.startswith("win"), "Not windows")
     def test_windows(self):
