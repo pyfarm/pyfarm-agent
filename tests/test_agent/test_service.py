@@ -20,12 +20,13 @@ from httplib import OK, CREATED
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
-
 from pyfarm.core.enums import AgentState
+
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
-from pyfarm.agent.http.client import get
+from pyfarm.agent.http.core.client import get
 from pyfarm.agent.service import Agent
+
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
