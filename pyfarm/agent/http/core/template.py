@@ -86,14 +86,14 @@ class Environment(_Environment):
             "loader", PackageLoader("pyfarm.agent.http"))
         kwargs.setdefault(
             "auto_reload", config.get("html-templates-reload", False))
-        # kwargs.setdefault("template_class")
 
         super(Environment, self).__init__(**kwargs)
 
         # global functions which are available within
         # the templates
         self.globals.update(
-            isinstance=isinstance,
+            is_int=lambda value: isinstance(value, int),
+            is_str=lambda value: isinstance(value, (str, unicode)),
             typename=lambda value: type(value).__name__,
             hostname=lambda: config["hostname"],
             agent_id=lambda: config["agent-id"],
