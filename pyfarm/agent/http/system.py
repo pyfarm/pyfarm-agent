@@ -20,12 +20,12 @@ from httplib import OK
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
-
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import AgentState
 from pyfarm.core.sysinfo import cpu, memory, network
+
 from pyfarm.agent.config import config
-from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.core.resource import Resource
 
 
 def mb(value):
@@ -131,8 +131,19 @@ class Index(Resource):
         return NOT_DONE_YET
 
 
-# TODO: add form to edit values
+# TODO: form submission
+# TODO: make 'port' field editable (requires restart)
+# TODO: add callbacks for any field that needs to update the db
 class Configuration(Resource):
+    # fields which nobody can see
+    HIDDEN_FIELDS = set([
+        "agent", "api_endpoint_prefix", "pretty-json"])
+
+    # fields that a user can edit
+    EDITABLE_FIELDS = set([
+        "cpus", "hostname", "http-max-retries", "http-retry-delays",
+        "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
+        "time-offset", "use-address", "state", "swap-report-delta"])
     TEMPLATE = "configuration.html"
 
     def get(self, request):
@@ -143,12 +154,19 @@ class Configuration(Resource):
             request.setResponseCode(OK)
             request.finish()
 
-        configuration = []
+        editable_fields = []
+        non_editable_fields = []
         for key, value in sorted(config.items()):
-            configuration.append((key, value, None))
+            if key in self.HIDDEN_FIELDS:
+                pass
+            elif key in self.EDITABLE_FIELDS:
+                editable_fields.append((key, value))
+            else:
+                non_editable_fields.append((key, value))
 
         deferred = self.template.render(
-            configuration=configuration)
+            non_editable_fields=non_editable_fields,
+            editable_fields=editable_fields)
         deferred.addCallback(cb)
 
         return NOT_DONE_YET
