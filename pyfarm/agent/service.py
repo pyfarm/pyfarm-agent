@@ -38,6 +38,7 @@ from twisted.internet.error import ConnectionRefusedError
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
+from pyfarm.agent.http.api.core import APIIndex, Versions
 from pyfarm.agent.http.core.client import post, get
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
@@ -154,27 +155,32 @@ class Agent(object):
 
     def build_http_resource(self):
         svclog.debug("Building HTTP Service")
-        resource = Resource()
+        root = Resource()
 
         # static endpoints to redirect resources
         # to the right objects
-        resource.putChild(
-            "favicon.ico",
+        root.putChild(
+            "/favicon.ico",
             StaticPath(join(config["static-files"], "favicon.ico"),
                        defaultType="image/x-icon"))
-        resource.putChild(
-            "static",
+        root.putChild(
+            "/static",
             StaticPath(config["static-files"]))
 
         # external endpoints
-        resource.putChild("", Index())
-        resource.putChild("configuration", Configuration())
+        root.putChild("/", Index())
+        root.putChild("/configuration/", Configuration())
 
         # TODO: renable these once they are working again
         # resource.putChild("assign", Assign(config))
         # resource.putChild("processes", Processes(config))
         # resource.putChild("shutdown", Shutdown(config))
-        return resource
+
+        # api endpoints
+        api = root.putChild("/api/", APIIndex())
+        api.putChild("/versions/", Versions())
+
+        return root
 
     def run(self, shutdown_events=True, http_server=True):
         """
