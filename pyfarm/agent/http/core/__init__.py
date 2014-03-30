@@ -16,17 +16,10 @@
 
 
 """
-Processes
----------
+Core Libraries for HTTP
+=======================
 
-End point which handle requests relating to processes
-on an agent.
+This module contains the core libraries necessary for
+working with HTTP requests and responses.
 """
 
-from pyfarm.agent.http.core.resource import Resource
-
-
-# TODO: handle DELETE/GET/POST (post may need to wait)
-# TODO: handle ?wait=1
-class Processes(Resource):
-    pass

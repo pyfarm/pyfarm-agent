@@ -25,7 +25,7 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
 from pyfarm.core.sysinfo import memory, cpu
-from pyfarm.agent.entrypoints.commands import TEMPLATE_ROOT, STATIC_ROOT
+from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.config import config
 from pyfarm.agent.config import logger as config_logger
 
@@ -148,7 +148,6 @@ class TestCase(_TestCase):
             "state": choice(AgentState),
             "pretty-json": True,
             "ntp-server": "pool.ntp.org",
-            "html-templates": TEMPLATE_ROOT,
             "html-templates-reload": True,
             "static-files": STATIC_ROOT})
         config_logger.disabled = 0

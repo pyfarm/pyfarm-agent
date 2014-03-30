@@ -25,13 +25,14 @@ from twisted.internet.error import DNSLookupError
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web.error import SchemeNotSupported
 from twisted.web.client import Response as TWResponse, Headers, ResponseDone
-
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
+
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
-from pyfarm.agent.http.client import (
+from pyfarm.agent.http.core.client import (
     Request, Response, request, head, get, post, put, patch, delete, build_url)
+
 
 # fake object we use for triggering Response.connectionLost
 responseDone = namedtuple("reason", ["type"])(type=ResponseDone)

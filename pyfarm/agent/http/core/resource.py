@@ -32,9 +32,8 @@ from twisted.python import log
 from twisted.python.compat import nativeString, intToBytes
 from twisted.web.error import Error, UnsupportedMethod
 from twisted.web.resource import Resource as _Resource
-from txtemplate import Jinja2TemplateLoader
 
-from pyfarm.agent.config import config
+from pyfarm.agent.http.core import template
 
 
 class Request(_Request):
@@ -69,31 +68,15 @@ class Resource(_Resource):
     # pull the config values until we instance the class
     template_loader = None
 
-    def __init__(self):
-        _Resource.__init__(self)
-
-        if Resource.template_loader is None:
-            Resource.template_loader = Jinja2TemplateLoader(
-                config["html-templates"],
-                auto_reload=config.get("html-templates-reload", False))
-
-        # Template is only required for subclasses.  This class can serve
-        # http requests but when we build the http server that's not how
-        # we end up using it.
-        if self.__class__ is not Resource and self.TEMPLATE is NotImplemented:
-            raise NotImplementedError("You must set `TEMPLATE` first")
-
-        for path in self.template_loader.paths:
-            if not isdir(path):
-                raise OSError("%s does not exist" % path)
-
     @property
     def template(self):
         """
         Loads the template provided but the partial path in ``TEMPLATE`` on
         the class.
         """
-        return self.template_loader.load(self.TEMPLATE)
+        if self.TEMPLATE is NotImplemented:
+            raise NotImplementedError("You must set `TEMPLATE` first")
+        return template.load(self.TEMPLATE)
 
     def render(self, request):
         """

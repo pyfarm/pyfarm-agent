@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block title %}Information{% endblock %}
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .firstcolumn {
+            width: 40%;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+<h1>TODO: This form does not actually submit values, yet.</h1>
+<h3>Editable Configuration</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Key</th>
+            <th>Type</th>
+            <th>Value</th>
+            <th>New Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in editable_fields %}
+        <tr>
+            <td>{{ key }}</td>
+            <td>{{ typename(value) }}</td>
+            <td>{{ value }}</td>
+            {% if is_int(value) or key == "http-max-retries"%}
+                <td><input type="number" placeholder="{{ value }}" name="{{ key }}"></td>
+            {% elif key == "state" %}
+                <td>
+                    <select>
+                        <option value="No Change">No Change</option>
+                        <option value="Online">Online</option>
+                        <option value="Disabled">Disabled</option>
+                    </select>
+                </td>
+            {% elif key == "use-address" %}
+                <td>
+                    <select>
+                        <option value="No Change">No Change</option>
+                        <option value="remote">Remote IP Address</option>
+                        <option value="local">Local IP Address</option>
+                        <option value="hostname">hostname</option>
+                    </select>
+                </td>
+            {% elif is_str(value) %}
+                <td><input type="text" placeholder="{{ value }}" name="{{ key }}"></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Read Only Configuration</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Key</th>
+            <th>Type</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in non_editable_fields %}
+        <tr>
+            <td>{{ key }}</td>
+            <td>{{ typename(value) }}</td>
+            <td>{{ value }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

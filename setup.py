@@ -28,7 +28,7 @@ install_requires = [
     "pyfarm.core",
     "PyOpenSSL",  # required for https support
     "netaddr", "twisted", "ntplib", "requests", "treq",
-    "txtemplate", "voluptuous", "netifaces-merged"]
+    "voluptuous", "netifaces-merged"]
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]

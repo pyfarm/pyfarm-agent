@@ -31,7 +31,7 @@ from twisted.web.server import Site as _Site
 from twisted.web.static import File
 from twisted.web.error import Error
 
-from pyfarm.agent.http.resource import Request
+from pyfarm.agent.http.core.resource import Request
 
 
 class Site(_Site):
@@ -40,7 +40,7 @@ class Site(_Site):
     some of the internal agent data.
     """
     requestFactory = Request
-    displayTracebacks = False
+    displayTracebacks = True
 
     def __init__(self, resource, logPath=None, timeout=60*60*12):
         _Site.__init__(self, resource, logPath=logPath, timeout=timeout)

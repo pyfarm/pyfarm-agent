@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block title %}Information{% endblock %}
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .firstcolumn {
+            width: 40%;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+<h4>Memory</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Resource</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value, css_class in memory_info %}
+        <tr>
+            {% if css_class %}
+                <td class="{{ css_class }}">{{key}}</td>
+                <td class="{{ css_class }}">{{value}}</td>
+            {% else %}
+                <td>{{key}}</td>
+                <td>{{value}}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4>Network</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Name</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in network_info %}
+        <tr>
+            <td>{{key}}</td>
+            <td>{{value}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4>CPU</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Name</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in cpu_info %}
+        <tr>
+            <td>{{key}}</td>
+            <td>{{value}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h4>Miscellaneous</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th class="firstcolumn">Name</th>
+            <th>Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, value in miscellaneous %}
+        <tr>
+            <td>{{key}}</td>
+            <td>{{value}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
