@@ -136,14 +136,15 @@ class Index(Resource):
 # TODO: add callbacks for any field that needs to update the db
 class Configuration(Resource):
     # fields which nobody can see
-    HIDDEN_FIELDS = set([
-        "agent", "api_endpoint_prefix", "pretty-json"])
+    HIDDEN_FIELDS = (
+        "agent", "api_endpoint_prefix", "pretty-json")
 
     # fields that a user can edit
-    EDITABLE_FIELDS = set([
+    EDITABLE_FIELDS = (
         "cpus", "hostname", "http-max-retries", "http-retry-delays",
         "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
-        "time-offset", "use-address", "state", "swap-report-delta"])
+        "time-offset", "use-address", "state", "swap-report-delta",
+        "http-retry-delay", "swap")
     TEMPLATE = "configuration.html"
 
     def get(self, request):
