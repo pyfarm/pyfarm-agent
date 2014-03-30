@@ -6,9 +6,9 @@ python:
   - 3.3
 
 install:
-  - if [[ $TRAVIS_PYTHON_VERSION == 2.6 ]]; then pip install unittest2 --use-mirrors; fi
-  - pip install nose coverage python-coveralls "psutil>=1.2.0" --use-mirrors
-  - pip install . --use-mirrors
+  - if [[ $TRAVIS_PYTHON_VERSION == 2.6 ]]; then pip install unittest2; fi
+  - pip install nose coverage python-coveralls "psutil>=1.2.0"
+  - pip install .
 
 script:
   - pip freeze
