@@ -40,8 +40,6 @@ matrix:
 
 
 before_install:
-  - mkdir -pv ~/.pip
-  - cp -v resources/travis/pip.conf ~/.pip/
   - sudo apt-get -y install nginx
   - sed -e s/PYTHON_VERSION/$TRAVIS_PYTHON_VERSION/g resources/travis/nginx.conf.template > /tmp/nginx.conf
   - sudo mv -v /tmp/nginx.conf /etc/nginx/nginx.conf
