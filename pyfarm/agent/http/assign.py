@@ -42,7 +42,8 @@ from voluptuous import (
 
 from pyfarm.core.utility import read_env_bool
 from pyfarm.jobtypes.core.jobtype import JobType
-from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.core.resource import Resource
+
 
 ALLOW_MODULE_CODE_EXECUTION = read_env_bool(
     "PYFARM_JOBTYPE_ALLOW_CODE_EXECUTION_IN_MODULE_ROOT", False)

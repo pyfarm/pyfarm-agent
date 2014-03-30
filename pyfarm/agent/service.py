@@ -38,9 +38,9 @@ from twisted.internet.error import ConnectionRefusedError
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
-from pyfarm.agent.http.client import post, get
-from pyfarm.agent.http.resource import Resource
-from pyfarm.agent.http.server import Site, StaticPath
+from pyfarm.agent.http.core.client import post, get
+from pyfarm.agent.http.core.resource import Resource
+from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.config import config
