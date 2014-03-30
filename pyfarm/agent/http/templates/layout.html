@@ -35,17 +35,53 @@
             </div>
             <div class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
+
+                <!-- / and /configuration menu item -->
+                {% if active_menu == "system" %}
+                    <li class="dropdown active">
+                {% else %}
                     <li class="dropdown">
+                {% endif %}
                         <a href="/" class="dropdown-toggle" data-toggle="dropdown">System <b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             <li><a href="/">Hardware</a></li>
                             <li><a href="/configuration">Configuration</a></li>
                         </ul>
                     </li>
-                    <li><a href="/processes">Processes</a></li>
-                    <li><a href="/tasks">Tasks</a></li>
-                    <li><a href="/logging">Logging</a></li>
+
+                <!-- /processes menu item -->
+                {% if active_menu == "processes" %}
+                    <li class="active">
+                {% else %}
+                    <li>
+                {% endif %}
+                        <a href="/processes">Processes</a>
+                    </li>
+
+                <!-- /tasks menu item -->
+                {% if active_menu == "tasks" %}
+                    <li class="active">
+                {% else %}
+                    <li>
+                {% endif %}
+                        <a href="/tasks">Tasks</a>
+                    </li>
+
+                <!-- /logging menu item -->
+                {% if active_menu == "logging" %}
+                    <li class="active">
+                {% else %}
+                    <li>
+                {% endif %}
+                        <a href="/logging">Logging</a>
+                    </li>
+
+                <!-- actions menu item -->
+                {% if active_menu == "actions" %}
+                    <li class="dropdown active">
+                {% else %}
                     <li class="dropdown">
+                {% endif %}
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">Actions <b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             <li class="dropdown-header">Change State</li>
@@ -54,7 +90,6 @@
                             <li class="dropdown-header">Agent Daemon</li>
                             <li><a href="#">Restart</a></li>
                             <li><a href="#">Shutdown</a></li>
-                            <!--<li class="divider"></li>-->
                         </ul>
                     </li>
                 </ul>
