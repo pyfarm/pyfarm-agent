@@ -135,6 +135,8 @@ class Index(Resource):
 # TODO: make 'port' field editable (requires restart)
 # TODO: add callbacks for any field that needs to update the db
 class Configuration(Resource):
+    TEMPLATE = "configuration.html"
+
     # fields which nobody can see
     HIDDEN_FIELDS = (
         "agent", "api_endpoint_prefix", "pretty-json")
@@ -145,7 +147,6 @@ class Configuration(Resource):
         "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
         "time-offset", "use-address", "state", "swap-report-delta",
         "http-retry-delay", "swap")
-    TEMPLATE = "configuration.html"
 
     def get(self, request):
         # write out the results from the template back
