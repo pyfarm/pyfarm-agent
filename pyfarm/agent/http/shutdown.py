@@ -23,7 +23,7 @@ End point which handles shutdown of the agent process
 in a controlled fashion.
 """
 
-from pyfarm.agent.http.resource import Resource
+from pyfarm.agent.http.core.resource import Resource
 
 
 # TODO: handle DELETE/GET/POST (post may need to wait)
