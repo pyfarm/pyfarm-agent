@@ -1,0 +1,7 @@
+{% extends "layout.html" %}
+{% block title %}Error {{ code }} - {{ code_msg }}{% endblock %}
+{% block content %}
+    <div class="alert alert-danger">
+        {{ message }}
+    </div>
+{% endblock %}
