@@ -31,7 +31,7 @@ from twisted.web.server import Site as _Site
 from twisted.web.static import File
 from twisted.web.error import Error
 
-from pyfarm.agent.http.resource import Request
+from pyfarm.agent.http.core.resource import Request
 
 
 class Site(_Site):
