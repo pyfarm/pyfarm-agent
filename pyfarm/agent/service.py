@@ -39,6 +39,7 @@ from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.api.base import APIRoot, Versions
+from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.core.client import post, get
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
@@ -182,6 +183,7 @@ class Agent(object):
         api = root.putChild("api", APIRoot())
         v1 = api.putChild("v1", APIRoot())
         v1.putChild("versions", Versions())
+        v1.putChild("logging", LogQuery())
 
         return root
 
