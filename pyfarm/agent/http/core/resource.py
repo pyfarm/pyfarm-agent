@@ -119,7 +119,7 @@ class Resource(_Resource):
 
     def render(self, request):
         # I this is a leaf, meaning the end of the uri branch, then
-        # make sure the uri contains '/'.  Proper REST-like services
+        # make sure the uri ends with '/'.  Proper REST-like services
         # differentiate between /foo and /foo/ but twisted generally does
         # not care so we enforce it ourselves.
         if self.isLeaf and not request.uri.endswith("/"):
