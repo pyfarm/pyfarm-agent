@@ -30,7 +30,7 @@ from pyfarm.agent.http.core.resource import Resource
 
 
 class APIIndex(Resource):
-    isLeaf = True
+    isLeaf = False
 
     def get(self, request):
         def cb(content):
@@ -45,9 +45,7 @@ class APIIndex(Resource):
 
 
 class Versions(Resource):
-    isLeaf = False
+    isLeaf = True
 
     def get(self, request):
-        request.write("1")
-        request.setResponseCode(OK)
-        request.finish()
+        return "1"
