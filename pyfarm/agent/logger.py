@@ -23,6 +23,9 @@ Twisted's and Python's logging facilities.
 """
 
 import re
+from collections import deque
+from itertools import islice
+from logging import Handler
 
 from logging import (
     DEBUG, INFO, WARNING, ERROR, CRITICAL,
@@ -32,8 +35,84 @@ from twisted.python.log import (
     PythonLoggingObserver as TwistedLogObserver, msg, textFromEventDict)
 
 from pyfarm.core.logger import getLogger as _getLogger
+from pyfarm.core.config import read_env_int
 
 twisted_logger = _getLoggerPython("twisted")
+
+
+class LoggingHistory(Handler):
+    """
+    This is a standard logging handler similar to
+    :class:`logging.StreamHandler.`  The purpose of this handler is
+    to consume logging events and store them for retrieval at a later
+    time.
+
+    At startup this class attaches itself to PyFarm's root logger so recent
+    logging messages can be retrieved without resulting to file I/O which can
+    block the reactor.
+
+    The data is stored in the ``data`` class attribute which is a fixed length
+    :class:`deque` object.  The max number of records retained can be
+    controlled with the :envvar:`PYFARM_AGENT_LOG_HISTORY_MAX_LENGTH`
+    environment variable.  Unlike other options in the agent this is controlled
+    by an environment variable because it need to be setup before anything
+    else and it's not something that can be changed without restarting the
+    process.
+
+    The information stored in ``data`` is append as space efficiently as
+    possible by using integers instead of strings.  More could be done to
+    improve ram utilization, such as compressing the log messages, but this
+    would be at the cost of cpu cycles.  The current structure for each entry
+    in ``data`` is as follows::
+
+        (log_level_number, float_timestamp, message)
+
+    For reference, twenty-thousand messages that are 1024 characters in
+    length (which is well beyond the average) will consume around twenty
+    megabytes of memory on Linux.  Results should be similar on other
+    platforms.
+    """
+    data = deque(
+        maxlen=read_env_int("PYFARM_AGENT_LOG_HISTORY_MAX_LENGTH", 20000))
+
+    @classmethod
+    def messages(cls, start=None, end=None):
+        """
+        Produces a generator which will yield all log messages within the
+        given range.  If ``start`` is not provided then all log messages will
+        be returned up until ``end``
+        """
+        assert start is None or isinstance(start, int)
+        assert end is None or isinstance(end, int)
+
+        # Even though we've requested everything return
+        # a slice anyway so it can't change size during iteration.
+        if start is None:
+            return islice(cls.data, 0, len(cls.data))
+        elif end is None:
+            return islice(cls.data, start, len(cls.data))
+        else:
+            return islice(cls.data, start, min(len(cls.data), end))
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+        else:
+            # store the data in the most space efficient manner possible
+            self.data.append((record.levelno, msg, ))
+
+
+# attach the history handler to PyFarm's root logger
+try:
+    HISTORY_HANDLER
+except NameError:
+    HISTORY_HANDLER = LoggingHistory()
+    PF_LOGGER = _getLoggerPython("pf")
+    PF_LOGGER.addHandler(HISTORY_HANDLER)
 
 
 class PythonLoggingObserver(TwistedLogObserver):
