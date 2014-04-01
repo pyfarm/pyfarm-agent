@@ -27,25 +27,46 @@ from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.agent.http.core.resource import Resource
+from pyfarm.agent.utility import dumps
 
 
-class APIIndex(Resource):
+class APIResource(Resource):
+    """Base class for all api resources"""
+    isLeaf = True
+
+    # TODO: implement more standardized display of json in an html page
+
+
+class APIRoot(APIResource):
     isLeaf = False
 
-    def get(self, request):
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(OK)
-            request.finish()
 
-        deferred = Deferred()
-        deferred.addCallback(cb)
-        deferred.callback("Hello world")
-        return NOT_DONE_YET
+class Versions(APIResource):
+    """
+    Returns a list of api versions which this agent will support
 
+    .. http:get:: /api/v1/versions/ HTTP/1.1
 
-class Versions(Resource):
+        **Request**
+
+        .. sourcecode:: http
+
+            GET /api/v1/versions/HTTP/1.1
+            Accept: application/json
+
+        **Response**
+
+        .. sourcecode:: http
+
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+
+            {
+                "versions": [1]
+            }
+
+    """
     isLeaf = True
 
     def get(self, request):
-        return "1"
+        return dumps(versions=[1])
