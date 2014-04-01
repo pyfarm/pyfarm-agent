@@ -31,7 +31,6 @@ from httplib import (
     responses, INTERNAL_SERVER_ERROR, NOT_FOUND,
     UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
 
-from twisted.web.error import Error
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
 
