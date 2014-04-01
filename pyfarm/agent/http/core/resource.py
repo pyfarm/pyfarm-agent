@@ -137,7 +137,8 @@ class Resource(_Resource):
         # our usual convention then the 'standard' convention.
         request_methods = (request.method.lower(), "render_%s" % request.method)
         for method_name in request_methods:
-            return getattr(self, method_name)(request)
+            if hasattr(self, method_name):
+                return getattr(self, method_name)(request)
 
         # If we could not find function to call for the given method
         # produce a warning.
