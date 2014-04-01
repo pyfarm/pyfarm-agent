@@ -15,16 +15,12 @@
 # limitations under the License.
 
 """
-API Core
+API Base
 --------
 
-Contains the root resources which build the /api/ endpoints.
+Contains the base resources used for building up the root
+of the agent's api.
 """
-
-from httplib import OK
-
-from twisted.internet.defer import Deferred
-from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.utility import dumps
