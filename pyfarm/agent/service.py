@@ -160,16 +160,16 @@ class Agent(object):
         # static endpoints to redirect resources
         # to the right objects
         root.putChild(
-            "/favicon.ico",
+            "favicon.ico",
             StaticPath(join(config["static-files"], "favicon.ico"),
                        defaultType="image/x-icon"))
         root.putChild(
-            "/static",
+            "static",
             StaticPath(config["static-files"]))
 
         # external endpoints
-        root.putChild("/", Index())
-        root.putChild("/configuration/", Configuration())
+        root.putChild("", Index())
+        root.putChild("configuration", Configuration())
 
         # TODO: renable these once they are working again
         # resource.putChild("assign", Assign(config))
@@ -177,8 +177,8 @@ class Agent(object):
         # resource.putChild("shutdown", Shutdown(config))
 
         # api endpoints
-        api = root.putChild("/api/", APIIndex())
-        api.putChild("/versions/", Versions())
+        api = root.putChild("api", APIIndex())
+        api.putChild("versions", Versions())
 
         return root
 
