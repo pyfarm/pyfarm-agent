@@ -31,15 +31,12 @@ from twisted.web.server import Site as _Site
 from twisted.web.static import File
 from twisted.web.error import Error
 
-from pyfarm.agent.http.core.resource import Request
-
 
 class Site(_Site):
     """
     Site object similar to Twisted's except it also carries along
     some of the internal agent data.
     """
-    requestFactory = Request
     displayTracebacks = True
 
     def __init__(self, resource, logPath=None, timeout=60*60*12):
