@@ -16,8 +16,8 @@
 
 
 """
-Core Libraries for HTTP
-=======================
+Core
+----
 
 This module contains the core libraries necessary for
 working with HTTP requests and responses.

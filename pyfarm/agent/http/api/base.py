@@ -15,8 +15,8 @@
 # limitations under the License.
 
 """
-API Base
---------
+Base
+++++
 
 Contains the base resources used for building up the root
 of the agent's api.

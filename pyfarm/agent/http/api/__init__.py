@@ -13,3 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+"""
+API
+---
+
+This package contains the components that form the agent's api.  The objects
+contained in this section act as an interface layer between an incoming
+http request and the agent's internals.
+"""
