@@ -24,11 +24,16 @@ import netifaces
 import logging
 from os.path import isfile
 
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
+
 from pyfarm.core.testutil import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import system, network, cpu, memory, user
 from pyfarm.core.sysinfo.network import logger
-from pyfarm.core.enums import LINUX
+from pyfarm.core.enums import LINUX, WINDOWS
 
 
 class BaseSystem(TestCase):
@@ -90,32 +95,78 @@ class BaseSystem(TestCase):
 
 
 class Network(TestCase):
-    def test_packets_sent(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_packets_sent_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_sent
         self.assertEqual(network.packets_sent() >= v, True)
 
-    def test_packets_recv(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_packets_recv_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_recv
         self.assertEqual(network.packets_received() >= v, True)
 
-    def test_data_sent(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_data_sent_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_sent)
         self.assertEqual(network.data_sent() >= v, True)
 
-    def test_data_recv(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_data_recv_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_recv)
         self.assertEqual(network.data_received() >= v, True)
 
-    def test_error_incoming(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_error_incoming_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errin
         self.assertEqual(network.incoming_error_count() >= v, True)
 
-    def test_error_outgoing(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_error_outgoing_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errout
+        self.assertEqual(network.outgoing_error_count() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_packets_sent_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(
+            pernic=True)[interface].packets_sent
+        self.assertEqual(network.packets_sent() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_packets_recv_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(
+            pernic=True)[interface].packets_recv
+        self.assertEqual(network.packets_received() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_data_sent_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = convert.bytetomb(psutil.net_io_counters(
+            pernic=True)[interface].bytes_sent)
+        self.assertEqual(network.data_sent() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_data_recv_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = convert.bytetomb(psutil.net_io_counters(
+            pernic=True)[interface].bytes_recv)
+        self.assertEqual(network.data_received() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_error_incoming_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(pernic=True)[interface].errin
+        self.assertEqual(network.incoming_error_count() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_error_outgoing_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(pernic=True)[interface].errout
         self.assertEqual(network.outgoing_error_count() >= v, True)
 
     def test_hostname(self):
@@ -175,6 +226,19 @@ class Network(TestCase):
             i.get("addr") == network.ip()
             for i in netifaces.ifaddresses(
             network.interface()).get(socket.AF_INET, [])), True)
+
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_interface_guid_to_nicename_windows_only(self):
+        with self.assertRaises(NotImplementedError):
+            network.interface_guid_to_nicename(None)
+
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_wmi_import_not_imported(self):
+        self.assertIs(network.wmi, NotImplemented)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_wmi_imported(self):
+        self.assertIsNot(network.wmi, NotImplemented)
 
 
 class Processor(TestCase):

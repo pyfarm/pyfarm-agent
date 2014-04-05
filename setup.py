@@ -26,6 +26,26 @@ install_requires = [
     "psutil==1.2.1", "netifaces-merged", "netaddr",
     "colorama", "logutils"]
 
+
+# Windows is a little special because we have to have pywin32
+# installed.  pyfarm.core uses it and certain components of
+# other libraries use it too, such as twisted, so we check for
+# it here.  Unfortunately, we can't use PyPi for this.
+if sys.platform.startswith("win"):
+    try:
+        import win32api
+    except ImportError:
+        raise ImportError(
+            "On Windows, you must manually install pywin32 before running "
+            "pyfarm.core's setup.py.  This is required because there's not "
+            "a package that we can pull down and reliably install from "
+            "Python package repository.  Please visit "
+            "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
+            "download and install this package.")
+    else:
+        install_requires.append("wmi")
+
+
 if isfile("README.rst"):
     with open("README.rst", "r") as readme:
         long_description = readme.read()

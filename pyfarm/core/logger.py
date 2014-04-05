@@ -139,7 +139,7 @@ class config(object):
     DEFAULT_CONFIGURATION = {
         "version": 1,
         "root": {
-            "level": "DEBUG",
+            "level": os.environ.get("PYFARM_ROOT_LOGLEVEL", "DEBUG"),
             "handlers": ["stdout"],
         },
         "handlers": {

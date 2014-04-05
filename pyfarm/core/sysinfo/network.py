@@ -63,14 +63,20 @@ sent/received, and some error information.
     above constants except the :const:`IP_PRIVATE`
 """
 
-import netifaces
 import socket
+
 import netaddr
+import netifaces
 import psutil
+
+try:
+    import wmi
+except ImportError:
+    wmi = NotImplemented
 
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import MAC
+from pyfarm.core.enums import MAC, WINDOWS
 
 logger = getLogger("core.network")
 
@@ -96,7 +102,10 @@ def iocounter():
     Mapping to the internal network io counter class
     """
     values = psutil.net_io_counters(pernic=True)
-    return values[interface()]
+    interface_id = interface()
+    if WINDOWS:
+        interface_id = interface_guid_to_nicename(interface_id)
+    return values[interface_id]
 
 
 def packets_sent():
@@ -225,6 +234,90 @@ def interfaces():
         logger.warning("Failed to find any interfaces")
 
 
+def interface_guid_to_nicename(interface_guid):
+    """
+    A Windows only function that converts a guid to the internal
+    nicename.  This function should be called when working with psutil
+    and netifaces at the same time because the two libraries use different
+    conventions for querying network interface information.
+    """
+    if not WINDOWS:
+        raise NotImplementedError(
+            "This function is only implemented on Windows.  Other platforms "
+            "do not need to call this.")
+
+    assert wmi is not NotImplemented, "`wmi` was never imported"
+
+    client = wmi.WMI()
+    try:
+        wmi_interfaces = client.Win32_NetworkAdapter(GUID=interface_guid)
+
+    # Possibly an older system such as XP.  Now we have to try harder
+    # to get the information we need.
+    except wmi.x_wmi_invalid_query:
+        logger.warning(
+            "Performing secondary search for the nicename of network "
+            "adapter %s" % interface_guid)
+        adapters_with_names = set()
+        netiface = netifaces.ifaddresses(interface_guid)
+
+        # for every matching ethernet address
+        for mac_address in netiface[netifaces.AF_LINK]:
+            # ... find all network adapters
+            for wmi_adapter in client.Win32_NetworkAdapter(
+                    MacAddress=mac_address["addr"]):
+                logger.debug(
+                    "Found network adapter matching mac %r: %s",
+                    mac_address["addr"], wmi_adapter)
+
+                # ... that have some specific attribute(s) set
+                if wmi_adapter.NetConnectionID is not None \
+                        and wmi_adapter.NetConnectionStatus is not None:
+                    adapters_with_names.add(wmi_adapter.NetConnectionID)
+                else:
+                    logger.debug(
+                        "WMI adapter found does not have `NetConnectionID` "
+                        "set, skipping")
+
+        if not adapters_with_names:
+            raise ValueError(
+                "Failed to find any built-in network adapter names using WMI")
+
+        # now find all the names psutil knows about and get the names in common
+        known_psutil_names = set(psutil.network_io_counters(pernic=True).keys())
+        wmi_interface_names = list(known_psutil_names & adapters_with_names)
+
+        if not wmi_interface_names:
+            raise ValueError(
+                "Failed to find any network adapter interfaces by name using "
+                "a secondary search")
+
+        # there's not a great way to handle more than one match yet
+        if len(wmi_interface_names) > 1:
+            raise NotImplementedError(
+                "Don't know how to handle more than one matching network "
+                "adapter that's been found with the fallback search")
+
+        return wmi_interface_names[0]
+
+    else:
+        # Didn't find anything matching interface_guid which is odd
+        # because netifaces was able to find it
+        if not wmi_interfaces:
+            raise ValueError(
+                "Failed to find any network interfaces with the "
+                "GUID %s.  This may be a bug, please report "
+                "it." % interface_guid)
+
+        # For now, we don't know how to handle this because we don't have any
+        # same data to make some assumptions off of yet.
+        if len(wmi_interfaces) != 1:
+            raise NotImplementedError(
+                "Don't know how to handle multiple results for a single GUID.")
+
+        return wmi_interfaces[0].NetConnectionID
+
+
 def interface(addr=None):
     """
     Based on the result from :func:`ip` return the network interface
@@ -263,8 +356,31 @@ def ip(as_object=False):
     counters = psutil.net_io_counters(pernic=True)
 
     for address in addresses():
+        interface_name = interface(address)
+
+        if WINDOWS:
+            try:
+                interface_name = interface_guid_to_nicename(interface_name)
+
+            except ValueError:
+                pass
+
+            # It's possible, although unlikely, that wmi will not be able
+            # to map to an adapter name.  Because of this we'll try to see
+            # if the match we came up with works and if not we'll just
+            # check to see if the name we do have is part of the name
+            # psutil has.
+            for psutil_interface_name in counters:
+                if interface_name == psutil_interface_name or \
+                        interface_name in psutil_interface_name:
+                    interface_name = psutil_interface_name
+                    break
+            else:
+                logger.warning(
+                    "Couldn't map adapter %r to a 'nicename'", interface_name)
+
         try:
-            counter = counters[interface(address)]
+            counter = counters[interface_name]
 
         except KeyError:  # pragma: no cover
             total_bytes = 0
