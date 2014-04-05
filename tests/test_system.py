@@ -91,31 +91,37 @@ class BaseSystem(TestCase):
 
 
 class Network(TestCase):
-    def test_packets_sent(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_packets_sent_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_sent
         self.assertEqual(network.packets_sent() >= v, True)
 
-    def test_packets_recv(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_packets_recv_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_recv
         self.assertEqual(network.packets_received() >= v, True)
 
-    def test_data_sent(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_data_sent_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_sent)
         self.assertEqual(network.data_sent() >= v, True)
 
-    def test_data_recv(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_data_recv_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_recv)
         self.assertEqual(network.data_received() >= v, True)
 
-    def test_error_incoming(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_error_incoming_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errin
         self.assertEqual(network.incoming_error_count() >= v, True)
 
-    def test_error_outgoing(self):
+    @skipIf(WINDOWS, "Not POSIX")
+    def test_error_outgoing_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errout
         self.assertEqual(network.outgoing_error_count() >= v, True)
 
