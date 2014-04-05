@@ -183,16 +183,16 @@ class Network(TestCase):
             for i in netifaces.ifaddresses(
             network.interface()).get(socket.AF_INET, [])), True)
 
-    @skipIf(WINDOWS, "Non-Windows test")
+    @skipIf(WINDOWS, "Not POSIX")
     def test_interface_guid_to_nicename_windows_only(self):
         with self.assertRaises(NotImplementedError):
             network.interface_guid_to_nicename(None)
 
-    @skipIf(WINDOWS, "Non-Windows test")
+    @skipIf(WINDOWS, "Not POSIX")
     def test_wmi_import_not_imported(self):
         self.assertIs(network.wmi, NotImplemented)
 
-    @skipIf(not WINDOWS, "Windows only test")
+    @skipIf(not WINDOWS, "Windows only")
     def test_wmi_imported(self):
         self.assertIsNot(network.wmi, NotImplemented)
 
