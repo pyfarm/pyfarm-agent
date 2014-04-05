@@ -23,7 +23,11 @@ import uuid
 import netifaces
 import logging
 from os.path import isfile
-from unittest import skipIf
+
+try:
+    from unittest import skipIf
+except ImportError:
+    from unittest2 import skipIf
 
 from pyfarm.core.testutil import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
