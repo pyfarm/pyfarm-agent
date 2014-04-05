@@ -249,22 +249,65 @@ def interface_guid_to_nicename(interface_guid):
     assert wmi is not NotImplemented, "`wmi` was never imported"
 
     client = wmi.WMI()
-    wmi_interfaces = client.Win32_NetworkAdapter(GUID=interface_guid)
+    try:
+        wmi_interfaces = client.Win32_NetworkAdapter(GUID=interface_guid)
 
-    # Didn't find anything matching interface_guid which is odd
-    # because netifaces was able to find it
-    if not wmi_interfaces:
-        raise ValueError(
-            "Failed to find any network interfaces with the "
-            "GUID %s.  This may be a bug, please report it." % interface_guid)
+    # Possibly an older system such as XP.  Now we have to try harder
+    # to get the information we need.
+    except wmi.x_wmi_invalid_query:
+        adapters_with_names = set()
+        netiface = netifaces.ifaddresses(interface_guid)
 
-    # For now, we don't know how to handle this because we don't have any
-    # same data to make some assumptions off of yet.
-    if len(wmi_interfaces) != 1:
-        raise NotImplementedError(
-            "Don't know how to handle multiple results for a single GUID.")
+        # for every matching ethernet address
+        for mac_address in netiface[netifaces.AF_LINK]:
 
-    return wmi_interfaces[0].NetConnectionID
+            # find all network adapters
+            for wmi_adapter in client.Win32_NetworkAdapter(
+                    MacAddress=mac_address["addr"]):
+
+                # that have NetConnectionID and NetConnectionStatus set
+                # and add them to a set
+                if wmi_adapter.NetConnectionID is None and \
+                                wmi_adapter.NetConnectionStatus is not None:
+                    adapters_with_names.add(wmi_adapter.NetConnectionID)
+
+        if not adapters_with_names:
+            raise ValueError(
+                "Failed to find any built-in network adapter names using WMI")
+
+        # now find all the names psutil knows about and get the names in common
+        known_psutil_names = set(psutil.network_io_counters(pernic=True).keys())
+        wmi_interface_names = list(known_psutil_names & adapters_with_names)
+
+        if not wmi_interface_names:
+            raise ValueError(
+                "Failed to find any network adapter interfaces by name using "
+                "a secondary search")
+
+        # there's not a great way to handle more than one match yet
+        if len(wmi_interface_names) > 1:
+            raise NotImplementedError(
+                "Don't know how to handle more than one matching network "
+                "adapter that's been found with the fallback search")
+
+        return wmi_interface_names[0]
+
+    else:
+        # Didn't find anything matching interface_guid which is odd
+        # because netifaces was able to find it
+        if not wmi_interfaces:
+            raise ValueError(
+                "Failed to find any network interfaces with the "
+                "GUID %s.  This may be a bug, please report "
+                "it." % interface_guid)
+
+        # For now, we don't know how to handle this because we don't have any
+        # same data to make some assumptions off of yet.
+        if len(wmi_interfaces) != 1:
+            raise NotImplementedError(
+                "Don't know how to handle multiple results for a single GUID.")
+
+        return wmi_interfaces[0].NetConnectionID
 
 
 def interface(addr=None):
