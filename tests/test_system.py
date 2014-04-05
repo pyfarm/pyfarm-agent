@@ -23,12 +23,13 @@ import uuid
 import netifaces
 import logging
 from os.path import isfile
+from unittest import skipIf
 
 from pyfarm.core.testutil import TestCase, skip_on_ci
 from pyfarm.core.utility import convert
 from pyfarm.core.sysinfo import system, network, cpu, memory, user
 from pyfarm.core.sysinfo.network import logger
-from pyfarm.core.enums import LINUX
+from pyfarm.core.enums import LINUX, WINDOWS
 
 
 class BaseSystem(TestCase):
@@ -175,6 +176,19 @@ class Network(TestCase):
             i.get("addr") == network.ip()
             for i in netifaces.ifaddresses(
             network.interface()).get(socket.AF_INET, [])), True)
+
+    @skipIf(WINDOWS, "Non-Windows test")
+    def test_interface_guid_to_nicename_windows_only(self):
+        with self.assertRaises(NotImplementedError):
+            network.interface_guid_to_nicename(None)
+
+    @skipIf(WINDOWS, "Non-Windows test")
+    def test_wmi_import_not_imported(self):
+        self.assertIs(network.wmi, NotImplemented)
+
+    @skipIf(not WINDOWS, "Windows only test")
+    def test_wmi_imported(self):
+        self.assertIsNot(network.wmi, NotImplemented)
 
 
 class Processor(TestCase):
