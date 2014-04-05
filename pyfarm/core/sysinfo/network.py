@@ -255,19 +255,28 @@ def interface_guid_to_nicename(interface_guid):
     # Possibly an older system such as XP.  Now we have to try harder
     # to get the information we need.
     except wmi.x_wmi_invalid_query:
+        logger.warning(
+            "Performing secondary search for the nicename of network "
+            "adapter %s" % interface_guid)
         adapters_with_names = set()
         netiface = netifaces.ifaddresses(interface_guid)
 
         # for every matching ethernet address
         for mac_address in netiface[netifaces.AF_LINK]:
-
             # ... find all network adapters
             for wmi_adapter in client.Win32_NetworkAdapter(
                     MacAddress=mac_address["addr"]):
+                logger.debug(
+                    "Found network adapter matching mac %r: %s",
+                    mac_address["addr"], wmi_adapter)
 
                 # ... that have some specific attribute(s) set
                 if wmi_adapter.NetConnectionID is None:
                     adapters_with_names.add(wmi_adapter.NetConnectionID)
+                else:
+                    logger.debug(
+                        "WMI adapter found does not have `NetConnectionID` "
+                        "set, skipping")
 
         if not adapters_with_names:
             raise ValueError(
