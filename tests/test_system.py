@@ -125,6 +125,46 @@ class Network(TestCase):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errout
         self.assertEqual(network.outgoing_error_count() >= v, True)
 
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_packets_sent_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(
+            pernic=True)[interface].packets_sent
+        self.assertEqual(network.packets_sent() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_packets_recv_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(
+            pernic=True)[interface].packets_recv
+        self.assertEqual(network.packets_received() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_data_sent_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = convert.bytetomb(psutil.net_io_counters(
+            pernic=True)[interface].bytes_sent)
+        self.assertEqual(network.data_sent() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_data_recv_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = convert.bytetomb(psutil.net_io_counters(
+            pernic=True)[interface].bytes_recv)
+        self.assertEqual(network.data_received() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_error_incoming_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(pernic=True)[interface].errin
+        self.assertEqual(network.incoming_error_count() >= v, True)
+
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_error_outgoing_windows(self):
+        interface = network.interface_guid_to_nicename(network.interface())
+        v = psutil.net_io_counters(pernic=True)[interface].errout
+        self.assertEqual(network.outgoing_error_count() >= v, True)
+
     def test_hostname(self):
         _hostname = socket.gethostname()
         hostnames = set([
@@ -192,7 +232,7 @@ class Network(TestCase):
     def test_wmi_import_not_imported(self):
         self.assertIs(network.wmi, NotImplemented)
 
-    @skipIf(not WINDOWS, "Windows only")
+    @skipIf(not WINDOWS, "Not Windows")
     def test_wmi_imported(self):
         self.assertIsNot(network.wmi, NotImplemented)
 
