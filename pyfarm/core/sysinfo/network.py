@@ -271,7 +271,8 @@ def interface_guid_to_nicename(interface_guid):
                     mac_address["addr"], wmi_adapter)
 
                 # ... that have some specific attribute(s) set
-                if wmi_adapter.NetConnectionID is None:
+                if wmi_adapter.NetConnectionID is not None \
+                        and wmi_adapter.NetConnectionStatus is not None:
                     adapters_with_names.add(wmi_adapter.NetConnectionID)
                 else:
                     logger.debug(
