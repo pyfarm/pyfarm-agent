@@ -261,14 +261,12 @@ def interface_guid_to_nicename(interface_guid):
         # for every matching ethernet address
         for mac_address in netiface[netifaces.AF_LINK]:
 
-            # find all network adapters
+            # ... find all network adapters
             for wmi_adapter in client.Win32_NetworkAdapter(
                     MacAddress=mac_address["addr"]):
 
-                # that have NetConnectionID and NetConnectionStatus set
-                # and add them to a set
-                if wmi_adapter.NetConnectionID is None and \
-                                wmi_adapter.NetConnectionStatus is not None:
+                # ... that have some specific attribute(s) set
+                if wmi_adapter.NetConnectionID is None:
                     adapters_with_names.add(wmi_adapter.NetConnectionID)
 
         if not adapters_with_names:
