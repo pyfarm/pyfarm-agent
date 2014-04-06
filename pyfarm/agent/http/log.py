@@ -19,10 +19,13 @@ from twisted.web.server import NOT_DONE_YET
 from pyfarm.agent.http.core.resource import Resource
 
 
+# TODO: long-polling json so logging output can be watched from the web ui
 class Logging(Resource):
     TEMPLATE = "logging.html"
 
-    def get(self, request):
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
         def cb(result):
             request.write(result)
             request.finish()
