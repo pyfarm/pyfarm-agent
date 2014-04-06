@@ -181,8 +181,8 @@ class Agent(object):
 
         # api endpoints
         api = root.putChild("api", APIRoot())
+        api.putChild("versions", Versions())
         v1 = api.putChild("v1", APIRoot())
-        v1.putChild("versions", Versions())
         v1.putChild("logging", LogQuery())
 
         return root
