@@ -22,14 +22,15 @@ Base resources which can be used to build top leve
 documents, pages, or other types of data for the web.
 """
 
+from json import loads
+from httplib import (
+    responses, INTERNAL_SERVER_ERROR, NOT_FOUND, BAD_REQUEST,
+    UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
+
 try:
     from itertools import ifilter as filter_
 except ImportError:
     filter_ = filter
-
-from httplib import (
-    responses, INTERNAL_SERVER_ERROR, NOT_FOUND,
-    UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
@@ -46,6 +47,7 @@ class Resource(_Resource):
     """
     TEMPLATE = NotImplemented
     CONTENT_TYPES = set(["text/html", "application/json"])
+    LOAD_DATA_FOR_METHODS = set(["POST", "PUT"])
 
     def __init__(self):
         _Resource.__init__(self)
@@ -138,7 +140,22 @@ class Resource(_Resource):
         request_methods = (request.method.lower(), "render_%s" % request.method)
         for method_name in request_methods:
             if hasattr(self, method_name):
-                return getattr(self, method_name)(request)
+                kwargs = {"request": request}
+
+                # unpack the incoming data for the request
+                if "application/json" in content_type \
+                        and request.method in self.LOAD_DATA_FOR_METHODS:
+                    try:
+                        data = loads(request.content.read())
+                    except ValueError as e:
+                        self.error(
+                            request, BAD_REQUEST,
+                            "Failed to decode json data: %r" % e)
+                        return NOT_DONE_YET
+                    else:
+                        kwargs.update(data=data)
+
+                return getattr(self, method_name)(**kwargs)
 
         # If we could not find function to call for the given method
         # produce a warning.
