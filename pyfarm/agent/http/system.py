@@ -43,7 +43,9 @@ class Index(Resource):
     """serves request for the root, '/', target"""
     TEMPLATE = "index.html"
 
-    def get(self, request):
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
         # write out the results from the template back
         # to the original request
         def cb(content):
@@ -148,7 +150,9 @@ class Configuration(Resource):
         "time-offset", "use-address", "state", "swap-report-delta",
         "http-retry-delay", "swap")
 
-    def get(self, request):
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
         # write out the results from the template back
         # to the original request
         def cb(content):
