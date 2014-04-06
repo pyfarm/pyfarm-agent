@@ -142,16 +142,27 @@ class Resource(_Resource):
             if hasattr(self, method_name):
                 kwargs = {"request": request}
 
-                # unpack the incoming data for the request
+                # Unpack the incoming data for the request
                 if "application/json" in content_type \
                         and request.method in self.LOAD_DATA_FOR_METHODS:
+                    request_content = request.content.read()
+
+                    # Check to see if we have any incoming data at all
+                    if not request_content.strip():
+                        self.error(request, BAD_REQUEST, "No data provided")
+                        return NOT_DONE_YET
+
+                    # Either load the data or handle the error, don't call
+                    # the method unless we're successful.
                     try:
-                        data = loads(request.content.read())
+                        data = loads(request_content)
+
                     except ValueError as e:
                         self.error(
                             request, BAD_REQUEST,
                             "Failed to decode json data: %r" % e)
                         return NOT_DONE_YET
+
                     else:
                         kwargs.update(data=data)
 
