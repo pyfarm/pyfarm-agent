@@ -29,8 +29,7 @@ from pyfarm.agent.utility import dumps
 class APIResource(Resource):
     """Base class for all api resources"""
     isLeaf = True
-
-    # TODO: implement more standardized display of json in an html page
+    CONTENT_TYPES = set(["application/json"])
 
 
 class APIRoot(APIResource):
@@ -64,5 +63,5 @@ class Versions(APIResource):
     """
     isLeaf = True
 
-    def get(self, request):
+    def get(self, **kwargs):
         return dumps(versions=[1])
