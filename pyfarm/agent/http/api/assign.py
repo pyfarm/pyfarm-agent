@@ -18,28 +18,63 @@ from decimal import Decimal
 from httplib import ACCEPTED
 
 from twisted.web.server import NOT_DONE_YET
-from voluptuous import Schema, Required, Optional, All, Range, Any
+from voluptuous import Invalid, Schema, Required, Optional, All, Any
 
+from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.http.api.base import APIResource
+
+
+# We're not using pyfarm.core.enums here because
+# we need some specific values
+try:
+    WHOLE_NUMBER_TYPES = (int, long)
+    NUMERIC_TYPES = (int, long, float, Decimal)
+except NameError:
+    WHOLE_NUMBER_TYPES = (int, )
+    NUMERIC_TYPES = (int, float, Decimal)
+
+
+# used to validate individual tasks in Assign.SCHEMAS["POST"]
+TASK_SCHEMA = Schema({
+    Required("id"): Any(WHOLE_NUMBER_TYPES),
+    Required("frame"): Any(NUMERIC_TYPES)})
+
+
+def validate_environment(values):
+    """
+    Ensures that ``values`` is a dictionary and that it only
+    contains string keys and values.
+    """
+    if not isinstance(values, dict):
+        raise Invalid("Expected a dictionary")
+
+    for key, value in values.items():
+        if not isinstance(key, STRING_TYPES):
+            raise Invalid("Key %r must be a string" % key)
+
+        if not isinstance(value, STRING_TYPES):
+            raise Invalid("Value %r for key %r must be a string" % (key, value))
 
 
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
 
+    # Schemas used for validating the request before
+    # the target function will handle it.  These make
+    # assertions about what kind of input data is required
+    # or not based on the agent's internal cod.
     SCHEMAS = {
         "POST": Schema({
         Required("job"): Schema({
-            Required("id"): Any(int, long),
-            Required("by"): All(Any(int, long), Range(min=1)),
+            Required("id"): Any(WHOLE_NUMBER_TYPES),
+            Required("by"): All(Any(NUMERIC_TYPES)),
             Optional("data"): dict,
-            Optional("environ"): dict,
-            Optional("title"): Any(str, unicode)}),
+            Optional("environ"): validate_environment,
+            Optional("title"): Any(STRING_TYPES)}),
         Required("jobtype"): {
-            Required("name"): Any(str, unicode),
-            Required("version"): Any(int, long)},
-        Required("tasks"): lambda values: map(Schema({
-            Required("id"): Any(int, long),
-            Required("frame"): Any(int, float, long, Decimal)}), values)})}
+            Required("name"): Any(STRING_TYPES),
+            Required("version"): Any(WHOLE_NUMBER_TYPES)},
+        Required("tasks"): lambda values: map(TASK_SCHEMA, values)})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
