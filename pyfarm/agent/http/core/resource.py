@@ -34,10 +34,14 @@ except ImportError:
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
+from voluptuous import Invalid, Schema
 
 from pyfarm.core.enums import STRING_TYPES
+from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.core import template
 from pyfarm.agent.utility import dumps
+
+logger = getLogger("agent.http")
 
 
 class Resource(_Resource):
@@ -48,6 +52,7 @@ class Resource(_Resource):
     TEMPLATE = NotImplemented
     CONTENT_TYPES = set(["text/html", "application/json"])
     LOAD_DATA_FOR_METHODS = set(["POST", "PUT"])
+    SCHEMAS = {}  # used by the api
 
     def __init__(self):
         _Resource.__init__(self)
@@ -97,6 +102,7 @@ class Resource(_Resource):
         content type in the request
         """
         content_types = self.content_types(request, default="text/html")
+        logger.error(message)
 
         if "text/html" in content_types:
             request.setResponseCode(code)
@@ -163,8 +169,20 @@ class Resource(_Resource):
                             "Failed to decode json data: %r" % e)
                         return NOT_DONE_YET
 
-                    else:
-                        kwargs.update(data=data)
+                    # We have data, check to see if we have a schema
+                    # and if we do does it validate.
+                    schema = self.SCHEMAS.get(request.method)
+                    if isinstance(schema, Schema):
+                        try:
+                            schema(data)
+                        except Invalid as e:
+                            self.error(
+                                request, BAD_REQUEST,
+                                "Failed to validate the request data "
+                                "against the schema: %s" % e)
+                            return NOT_DONE_YET
+
+                    kwargs.update(data=data)
 
                 return getattr(self, method_name)(**kwargs)
 
