@@ -1,0 +1,24 @@
+{
+    "job": {
+        "id": 0,
+        "by": 1,
+        "data": {
+            "str": "hello world",
+            "int": 1,
+            "bool": true
+        },
+        "environ": {
+            "POST_ASSIGN_TEST": "true"
+        },
+        "title": "test job"
+    },
+    "jobtype": {
+        "name": "TestJobType",
+        "version": 0
+    },
+    "tasks": [
+        {"id": 0, "frame": 1},
+        {"id": 0, "frame": 2},
+        {"id": 0, "frame": 3}
+    ]
+}
