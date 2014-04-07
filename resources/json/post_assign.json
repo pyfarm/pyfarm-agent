@@ -17,8 +17,8 @@
         "version": 0
     },
     "tasks": [
-        {"id": 0, "frame": 1},
-        {"id": 0, "frame": 2},
-        {"id": 0, "frame": 3}
+        {"id": 1, "frame": 1},
+        {"id": 2, "frame": 2},
+        {"id": 3, "frame": 3}
     ]
 }
