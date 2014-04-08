@@ -24,20 +24,20 @@ from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.http.api.base import APIResource
 
 
-# We're not using pyfarm.core.enums here because
-# we need some specific values
+# Some values we use in the schema
+STRINGS = Any(*STRING_TYPES)
 try:
-    WHOLE_NUMBER_TYPES = (int, long)
-    NUMERIC_TYPES = (int, long, float, Decimal)
-except NameError:
-    WHOLE_NUMBER_TYPES = (int, )
-    NUMERIC_TYPES = (int, float, Decimal)
+    WHOLE_NUMBERS = Any(*(int, long))
+    ANY_NUMBER = Any(*(int, long, float, Decimal))
+except NameError:  # Python 3.0
+    WHOLE_NUMBERS = int
+    ANY_NUMBER = Any(*(int, float, Decimal))
 
 
 # used to validate individual tasks in Assign.SCHEMAS["POST"]
 TASK_SCHEMA = Schema({
-    Required("id"): Any(WHOLE_NUMBER_TYPES),
-    Required("frame"): Any(NUMERIC_TYPES)})
+    Required("id"): WHOLE_NUMBERS,
+    Required("frame"): ANY_NUMBER})
 
 
 def validate_environment(values):
@@ -66,14 +66,14 @@ class Assign(APIResource):
     SCHEMAS = {
         "POST": Schema({
         Required("job"): Schema({
-            Required("id"): Any(WHOLE_NUMBER_TYPES),
-            Required("by"): All(Any(NUMERIC_TYPES)),
+            Required("id"): WHOLE_NUMBERS,
+            Required("by"): ANY_NUMBER,
             Optional("data"): dict,
             Optional("environ"): validate_environment,
-            Optional("title"): Any(STRING_TYPES)}),
+            Optional("title"): STRINGS}),
         Required("jobtype"): {
-            Required("name"): Any(STRING_TYPES),
-            Required("version"): Any(WHOLE_NUMBER_TYPES)},
+            Required("name"): STRINGS,
+            Required("version"): WHOLE_NUMBERS},
         Required("tasks"): lambda values: map(TASK_SCHEMA, values)})}
 
     def post(self, **kwargs):
