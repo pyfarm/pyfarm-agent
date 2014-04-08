@@ -15,30 +15,28 @@
 # limitations under the License.
 
 from decimal import Decimal
-from httplib import ACCEPTED
+
+try:
+    from httplib import ACCEPTED
+except ImportError:  # Python 3.0
+    from httplib.client import ACCEPTED
 
 from twisted.web.server import NOT_DONE_YET
-from voluptuous import Invalid, Schema, Required, Optional, All, Any
+from voluptuous import Invalid, Schema, Required, Optional, Any
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.http.api.base import APIResource
 
 
-# Some values we use in the schema
+# Values used by the schema to do type testing
+# of input requests
 STRINGS = Any(*STRING_TYPES)
 try:
     WHOLE_NUMBERS = Any(*(int, long))
-    ANY_NUMBER = Any(*(int, long, float, Decimal))
+    NUMBERS = Any(*(int, long, float, Decimal))
 except NameError:  # Python 3.0
     WHOLE_NUMBERS = int
-    ANY_NUMBER = Any(*(int, float, Decimal))
-
-
-# used to validate individual tasks in Assign.SCHEMAS["POST"]
-TASK_SCHEMA = Schema({
-    Required("id"): WHOLE_NUMBERS,
-    Required("frame"): ANY_NUMBER})
-
+    NUMBERS = Any(*(int, float, Decimal))
 
 def validate_environment(values):
     """
@@ -58,7 +56,6 @@ def validate_environment(values):
 
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
-
     # Schemas used for validating the request before
     # the target function will handle it.  These make
     # assertions about what kind of input data is required
@@ -67,14 +64,17 @@ class Assign(APIResource):
         "POST": Schema({
         Required("job"): Schema({
             Required("id"): WHOLE_NUMBERS,
-            Required("by"): ANY_NUMBER,
+            Required("by"): NUMBERS,
             Optional("data"): dict,
             Optional("environ"): validate_environment,
             Optional("title"): STRINGS}),
         Required("jobtype"): {
             Required("name"): STRINGS,
             Required("version"): WHOLE_NUMBERS},
-        Required("tasks"): lambda values: map(TASK_SCHEMA, values)})}
+        Required("tasks"): lambda values: map(
+            Schema({
+                Required("id"): WHOLE_NUMBERS,
+                Required("frame"): NUMBERS}), values)})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
