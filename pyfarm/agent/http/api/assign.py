@@ -38,6 +38,7 @@ except NameError:  # Python 3.0
     WHOLE_NUMBERS = int
     NUMBERS = Any(*(int, float, Decimal))
 
+
 def validate_environment(values):
     """
     Ensures that ``values`` is a dictionary and that it only
@@ -65,6 +66,12 @@ class Assign(APIResource):
         Required("job"): Schema({
             Required("id"): WHOLE_NUMBERS,
             Required("by"): NUMBERS,
+            Optional("batch"): WHOLE_NUMBERS,
+            Optional("user"): STRINGS,
+            Optional("ram"): WHOLE_NUMBERS,
+            Optional("ram_warning"): WHOLE_NUMBERS,
+            Optional("ram_max"): WHOLE_NUMBERS,
+            Optional("cpus"): WHOLE_NUMBERS,
             Optional("data"): dict,
             Optional("environ"): validate_environment,
             Optional("title"): STRINGS}),
@@ -80,4 +87,18 @@ class Assign(APIResource):
         request = kwargs["request"]
         request.setResponseCode(ACCEPTED)
         request.finish()
+
+        # TODO: Next steps as deferreds.  Some of these are done in the queue,
+        #       or will be, but the information the agent has available may be
+        #       more up to date and these checks are fast anyway.
+        #   - ensure we have enough ram left to serve the optional requirements
+        #   - check for number of cpus currently required by other jobs + this
+        #     job to see if we've hit a limit
+        #   - get job type (and cache if not already)
+        #   - instance the job type with env, user, resource requirements, etc
+        #   - execute the job type
+        #   - (done) - workload handed off to job type including
+        #     ram_max/ram_warning check, user -> uid conversion (or warning, on
+        #     windows), etc
+
         return NOT_DONE_YET

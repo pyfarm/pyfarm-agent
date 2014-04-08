@@ -2,6 +2,12 @@
     "job": {
         "id": 0,
         "by": 1,
+        "ram": 256,
+        "ram_warning": 260,
+        "ram_max": 270,
+        "cpus": 1,
+        "batch": 1,
+        "user": "foo",
         "data": {
             "str": "hello world",
             "int": 1,
