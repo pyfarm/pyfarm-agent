@@ -16,10 +16,10 @@
 
 
 """
-Core
-----
+API
+---
 
-This module contains the core libraries necessary for
-working with HTTP requests and responses.
+This package contains the components that form the agent's api.  The objects
+contained in this section act as an interface layer between an incoming
+http request and the agent's internals.
 """
-

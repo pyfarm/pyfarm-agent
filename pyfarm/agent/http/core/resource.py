@@ -22,51 +22,47 @@ Base resources which can be used to build top leve
 documents, pages, or other types of data for the web.
 """
 
-import json
-from functools import partial
-from httplib import responses, BAD_REQUEST, INTERNAL_SERVER_ERROR
-from os.path import isdir
+from json import loads
+from httplib import (
+    responses, INTERNAL_SERVER_ERROR, NOT_FOUND, BAD_REQUEST,
+    UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
 
-from twisted.web.server import Request as _Request, NOT_DONE_YET
-from twisted.python import log
-from twisted.python.compat import nativeString, intToBytes
-from twisted.web.error import Error, UnsupportedMethod
+try:
+    from itertools import ifilter as filter_
+except ImportError:
+    filter_ = filter
+
+from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
+from voluptuous import Invalid, Schema
 
+from pyfarm.core.enums import STRING_TYPES
+from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.core import template
+from pyfarm.agent.utility import dumps
 
-
-class Request(_Request):
-    """
-    Overrides the default :class:`._Request` so we can produce
-    custom errors
-    """
-    def processingFailed(self, reason):
-        if reason.type is JSONError:
-            log.err(reason)
-            body = json.dumps((reason.value.status, reason.value.message))
-            self.setResponseCode(reason.value.status)
-            self.setHeader(b"content-type", b"application/json")
-            self.setHeader(b"content-length", intToBytes(len(body)))
-            self.write(body)
-            self.finish()
-        else:
-            return _Request.processingFailed(self, reason)
+logger = getLogger("agent.http")
 
 
 class Resource(_Resource):
     """
-    basic subclass of :class:`._Resource` for passing requests to
-    specific methods
+    Basic subclass of :class:`._Resource` for passing requests to
+    specific methods.  Unlike :class:`._Resource` however this will
+    will also handle:
+        * rewriting of request objects
+        * templating
+        * content type discovery and validation
+        * unpacking of request data
+        * rerouting of request to specific internal methods
     """
-    # set by child classes
     TEMPLATE = NotImplemented
-    CONTENT_TYPE = NotImplemented
-    SET_RESPONSE_CONTENT_TYPE = False
+    CONTENT_TYPES = set(["text/html", "application/json"])
+    LOAD_DATA_FOR_METHODS = set(["POST", "PUT"])
+    SCHEMAS = {}  # used by the api
 
-    # setup in __init__ because we don't want to
-    # pull the config values until we instance the class
-    template_loader = None
+    def __init__(self):
+        _Resource.__init__(self)
+        assert isinstance(self.CONTENT_TYPES, set)
 
     @property
     def template(self):
@@ -78,94 +74,134 @@ class Resource(_Resource):
             raise NotImplementedError("You must set `TEMPLATE` first")
         return template.load(self.TEMPLATE)
 
+    @property
+    def methods(self):
+        """A set containing all the methods this resource implements."""
+        methods = set()
+        for method in ("get", "post", "put", "delete", "head"):
+            for attribute_name in (method, "render_%s" % method.upper()):
+                attribute = getattr(self, attribute_name, None)
+                if attribute is not None:
+                    methods.add(method)
+        return methods
+
+    def content_types(self, request, default=None):
+        """Returns the content type(s) present in the request"""
+        headers = request.requestHeaders.getRawHeaders("content-type")
+        if isinstance(default, STRING_TYPES):
+            default = [default]
+        elif default is None:
+            default = []
+        return set(headers) if headers is not None else set(default)
+
+    def putChild(self, path, child):
+        """
+        Overrides the builtin putChild() so we can return the results for
+        each call and use them externally
+        """
+        _Resource.putChild(self, path, child)
+        return child
+
+    def error(self, request, code, message):
+        """
+        Writes the proper out an error response message depending on the
+        content type in the request
+        """
+        content_types = self.content_types(request, default="text/html")
+        logger.error(message)
+
+        if "text/html" in content_types:
+            request.setResponseCode(code)
+            html_error = template.load("error.html")
+            deferred = html_error.render(
+                code=code, code_msg=responses[code], message=message)
+            deferred.addCallback(request.write).addCallback(
+                lambda _: request.finish())
+
+        elif "application/json" in content_types:
+            request.setResponseCode(code)
+            request.write(dumps(error=message))
+            request.finish()
+
+        else:
+            request.setResponseCode(INTERNAL_SERVER_ERROR)
+            request.write(
+                dumps(
+                    error="Can only handle text/html or application/json here"))
+            request.finish()
+
     def render(self, request):
-        """
-        Provides similar behavior to :class:`flask.view.MethodView`.
-        while processing like :meth:`._Resource.render`
-        """
-        # Didn't find the method?  Find what methods are supported
-        # and tell the client about them.
-        request_method = nativeString(request.method).lower()
-        instance_method = getattr(self, request_method, None)
-        if instance_method is None:
-            raise UnsupportedMethod(
-                [name for name in ("get", "post", "put", "delete", "head")
-                 if hasattr(self, name)])
+        # I this is a leaf, meaning the end of the uri branch, then
+        # make sure the uri ends with '/'.  Proper REST-like services
+        # differentiate between /foo and /foo/ but twisted generally does
+        # not care so we enforce it ourselves.
+        if self.isLeaf and not request.uri.endswith("/"):
+            self.error(request, NOT_FOUND, "%s does not exist" % request.uri)
+            return NOT_DONE_YET
 
-        # CONTENT_TYPE was specified so the incoming request should
-        # both specify the header and it should match our expected content type
-        if self.CONTENT_TYPE is not NotImplemented:
-            if not request.requestHeaders.hasHeader("content-type"):
-                raise Error(BAD_REQUEST, "missing content-type header")
+        # make sure that the requested content type is supported
+        content_type = self.content_types(request, default="text/html")
+        if not self.CONTENT_TYPES & content_type:
+            self.error(
+                request, UNSUPPORTED_MEDIA_TYPE,
+                "%s is not a support content type for this url" % content_type)
+            return NOT_DONE_YET
+
+        # Try to find the method this web request is making by first trying
+        # our usual convention then the 'standard' convention.
+        request_methods = (request.method.lower(), "render_%s" % request.method)
+        for method_name in request_methods:
+            if hasattr(self, method_name):
+                kwargs = {"request": request}
+
+                # Unpack the incoming data for the request
+                if "application/json" in content_type \
+                        and request.method in self.LOAD_DATA_FOR_METHODS:
+                    request_content = request.content.read()
+
+                    # Check to see if we have any incoming data at all
+                    if not request_content.strip():
+                        self.error(request, BAD_REQUEST, "No data provided")
+                        return NOT_DONE_YET
+
+                    # Either load the data or handle the error, don't call
+                    # the method unless we're successful.
+                    try:
+                        data = loads(request_content)
+
+                    except ValueError as e:
+                        self.error(
+                            request, BAD_REQUEST,
+                            "Failed to decode json data: %r" % e)
+                        return NOT_DONE_YET
+
+                    # We have data, check to see if we have a schema
+                    # and if we do does it validate.
+                    schema = self.SCHEMAS.get(request.method)
+                    if isinstance(schema, Schema):
+                        try:
+                            schema(data)
+                        except Invalid as e:
+                            self.error(
+                                request, BAD_REQUEST,
+                                "Failed to validate the request data "
+                                "against the schema: %s" % e)
+                            return NOT_DONE_YET
+
+                    kwargs.update(data=data)
+
+                return getattr(self, method_name)(**kwargs)
+
+        # If we could not find function to call for the given method
+        # produce a warning.
+        else:
+            supported_methods = self.methods
+            if not supported_methods:
+                message = "%r does not support any methods" % request.uri
             else:
-                headers = set(
-                    request.requestHeaders.getRawHeaders("content-type"))
+                message = "%r only supports the %s method(s)" % (
+                    request.uri,
+                    ", ".join(map(str.upper, supported_methods)))
 
-                # check the headers against the requested headers
-                if headers != self.CONTENT_TYPE:
-                    raise Error(
-                        BAD_REQUEST, "invalid headers for this resource")
-
-            if self.SET_RESPONSE_CONTENT_TYPE:
-                request.responseHeaders.setRawHeaders(
-                    "content-type", list(self.CONTENT_TYPE))
-
-        return self.handle(instance_method, request)
-
-    def handle(self, instance_method, request):
-        """
-        Method which receives an instance method from :meth:`render` as well
-        as the incoming request.  This is provided so a subclass can change
-        both the calling behavior as well as the results.
-        """
-        return instance_method(request)
-
-
-class JSONResource(Resource):
-    """
-    Subclass of :class:`.Resource` but tailored for sending and
-    responding with json
-    """
-    CONTENT_TYPE = set(["application/json"])
-
-    def __init__(self, config=None):
-        Resource.__init__(self, config=config)
-
-        if config.get("pretty-json", False):
-            self.dumps = partial(json.dumps, indent=4)
-        else:
-            self.dumps = json.dumps
-
-    def handle(self, instance_method, request):
-        """
-        Run :func:`json.loads` on ``request`` before passing it along to
-        ``instance_method``.  :func:`json.dumps` will also be run on the result
-        from ``instance_method`` before returning.
-        """
-        content = request.content.read()
-        try:
-            data = json.loads(content)
-        except ValueError, e:
-            raise Error(BAD_REQUEST, str(e))
-        else:
-            result = instance_method(data, request)
-
-            if result == NOT_DONE_YET:
-                return result
-
-            try:
-                return self.dumps(result)
-            except ValueError:
-                raise Error(INTERNAL_SERVER_ERROR, "failed to dump response")
-
-
-class JSONError(Error):
-    """
-    Replacement for Twisted's :class:`.Error` class that's specifically
-    geared towards to providing an error in a json style format.
-    """
-    def __init__(self, code, message, response=None):
-        assert code in responses, "invalid code for a response"
-        self.status = code
-        self.message = message
-        self.response = response
+            self.error(request, METHOD_NOT_ALLOWED, message)
+            return NOT_DONE_YET

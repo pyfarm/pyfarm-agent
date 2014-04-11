@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Entry Points
+------------
+
+This module contains
+"""
 
 from pyfarm.agent.entrypoints.commands import AgentEntryPoint
 

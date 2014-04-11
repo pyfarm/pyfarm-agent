@@ -14,12 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from twisted.web.server import NOT_DONE_YET
 
-"""
-Core
-----
+from pyfarm.agent.http.core.resource import Resource
 
-This module contains the core libraries necessary for
-working with HTTP requests and responses.
-"""
 
+# TODO: long-polling json so logging output can be watched from the web ui
+class Logging(Resource):
+    TEMPLATE = "logging.html"
+
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
+        def cb(result):
+            request.write(result)
+            request.finish()
+        deferred = self.template.render()
+        deferred.addCallback(cb)
+        return NOT_DONE_YET

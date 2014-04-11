@@ -14,12 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 """
-Core
-----
+Log
++++
 
-This module contains the core libraries necessary for
-working with HTTP requests and responses.
+The core objects involved in querying logging information from the agent
+and returning it.
 """
 
+from pyfarm.agent.http.api.base import APIResource
+
+# TODO: this is kind of basic and only pulls top level events
+
+
+class LogQuery(APIResource):
+    pass

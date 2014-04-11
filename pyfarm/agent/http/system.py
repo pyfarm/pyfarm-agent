@@ -43,7 +43,9 @@ class Index(Resource):
     """serves request for the root, '/', target"""
     TEMPLATE = "index.html"
 
-    def get(self, request):
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
         # write out the results from the template back
         # to the original request
         def cb(content):
@@ -135,18 +137,22 @@ class Index(Resource):
 # TODO: make 'port' field editable (requires restart)
 # TODO: add callbacks for any field that needs to update the db
 class Configuration(Resource):
-    # fields which nobody can see
-    HIDDEN_FIELDS = set([
-        "agent", "api_endpoint_prefix", "pretty-json"])
-
-    # fields that a user can edit
-    EDITABLE_FIELDS = set([
-        "cpus", "hostname", "http-max-retries", "http-retry-delays",
-        "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
-        "time-offset", "use-address", "state", "swap-report-delta"])
     TEMPLATE = "configuration.html"
 
-    def get(self, request):
+    # fields which nobody can see
+    HIDDEN_FIELDS = (
+        "agent", "api_endpoint_prefix", "pretty-json")
+
+    # fields that a user can edit
+    EDITABLE_FIELDS = (
+        "cpus", "hostname", "http-max-retries", "http-retry-delays",
+        "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
+        "time-offset", "use-address", "state", "swap-report-delta",
+        "http-retry-delay", "swap")
+
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
         # write out the results from the template back
         # to the original request
         def cb(content):
