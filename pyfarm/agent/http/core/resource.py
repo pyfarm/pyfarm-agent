@@ -46,8 +46,14 @@ logger = getLogger("agent.http")
 
 class Resource(_Resource):
     """
-    basic subclass of :class:`._Resource` for passing requests to
-    specific methods
+    Basic subclass of :class:`._Resource` for passing requests to
+    specific methods.  Unlike :class:`._Resource` however this will
+    will also handle:
+        * rewriting of request objects
+        * templating
+        * content type discovery and validation
+        * unpacking of request data
+        * rerouting of request to specific internal methods
     """
     TEMPLATE = NotImplemented
     CONTENT_TYPES = set(["text/html", "application/json"])
