@@ -16,19 +16,20 @@
 
 import os
 import re
+import logging
 from random import randint, choice
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet.defer import succeed
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
-from pyfarm.core.config import read_env
+from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
 from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
-from pyfarm.agent.config import config
-from pyfarm.agent.config import logger as config_logger
+from pyfarm.agent.config import config, logger as config_logger
 
+ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
@@ -129,6 +130,8 @@ class TestCase(_TestCase):
             raise ValueError("Unexpected return value: %r" % (result,))
 
     def setUp(self):
+        if not ENABLE_LOGGING:
+            logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
         config.clear(callbacks=True)
         config.update({
