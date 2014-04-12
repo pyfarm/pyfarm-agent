@@ -18,7 +18,7 @@ from decimal import Decimal
 
 try:
     from httplib import ACCEPTED
-except ImportError:  # Python 3.0
+except ImportError:  # pragma: no cover
     from httplib.client import ACCEPTED
 
 from twisted.web.server import NOT_DONE_YET
@@ -34,7 +34,7 @@ STRINGS = Any(*STRING_TYPES)
 try:
     WHOLE_NUMBERS = Any(*(int, long))
     NUMBERS = Any(*(int, long, float, Decimal))
-except NameError:  # Python 3.0
+except NameError:  # pragma: no cover
     WHOLE_NUMBERS = int
     NUMBERS = Any(*(int, float, Decimal))
 
