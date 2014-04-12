@@ -216,6 +216,7 @@ class Agent(object):
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
         config.register_callback("free_ram", self.callback_free_ram_changed)
+        config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.start_search_for_agent()
 
     def shutdown_task_manager(self):
@@ -535,7 +536,7 @@ class Agent(object):
             return deferred
         else:
             return post(self.agent_api(),
-                data={"free_ram": int(memory.ram_free())},
+                data={"free_ram": config["free_ram"]},
                 callback=self.callback_post_free_ram,
                 errback=self.errback_post_free_ram)
 
@@ -549,6 +550,51 @@ class Agent(object):
                 svclog.debug("Not enough change in free_ram to report")
             else:
                 self.post_free_ram()
+
+    def errback_post_cpu_count_change(self, failure):
+        """
+        Error handler which is called if we fail to post a cpu count update
+        to an existing agent for some reason.
+        """
+        delay = self.http_retry_delay()
+        svclog.warning(
+            "There was error updating an existing agent: %s.  Retrying "
+            "in %r seconds", failure, delay)
+        reactor.callLater(delay, self.post_cpu_count(run=False))
+
+    def callback_post_cpu_count_change(self, response):
+        """
+        Called when we received a response from the master after
+        """
+        if response.code == OK:
+            svclog.info("CPU count change POSTed to %s", self.agent_api())
+        else:
+            delay = self.http_retry_delay()
+            svclog.warning(
+                "We expected to receive an OK response code but instead"
+                "we got %s.  Retrying in %s.", responses[response.code], delay)
+            reactor.callLater(delay, self.post_cpu_count(run=False))
+
+    def post_cpu_count(self, run=True):
+        """POSTs CPU count changes to the master"""
+        def run_post():
+            return post(self.agent_api(),
+                data={"cpus": config["cpus"]},
+                callback=self.callback_post_cpu_count_change,
+                errback=self.errback_post_cpu_count_change)
+        return run_post() if run else run_post
+
+    def callback_cpu_count_changed(
+            self, change_type, key, new_value, old_value):
+        """
+        Callback used to decide and act on changes to the
+        ``config['cpus']`` value.
+        """
+        if change_type == config.MODIFIED and new_value != old_value:
+            svclog.debug(
+                "CPU count has been changed from %s to %s",
+                old_value, new_value)
+            self.post_cpu_count()
 
     def callback_agent_id_set(
             self, change_type, key, new_value, old_value, shutdown_events=True):
