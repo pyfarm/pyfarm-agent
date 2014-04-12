@@ -112,23 +112,6 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
-    def _render(self, resource, request):
-        result = resource.render(request)
-
-        if isinstance(result, str):
-            request.write(result)
-            request.finish()
-            return succeed(None)
-
-        elif result is NOT_DONE_YET:
-            if request.finished:
-                return succeed(None)
-
-            else:
-                return request.notifyFinish()
-        else:
-            raise ValueError("Unexpected return value: %r" % (result,))
-
     def setUp(self):
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
