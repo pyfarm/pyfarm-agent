@@ -39,7 +39,6 @@ from voluptuous import Invalid, Schema
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.core import template
-from pyfarm.agent.utility import dumps
 
 logger = getLogger("agent.http")
 
@@ -129,14 +128,13 @@ class Resource(_Resource):
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
-            request.write(dumps(error=message))
+            request.write({"error": message})
             request.finish()
 
         else:
             request.setResponseCode(INTERNAL_SERVER_ERROR)
             request.write(
-                dumps(
-                    error="Can only handle text/html or application/json here"))
+                {"error": "Can only handle text/html or application/json here"})
             request.finish()
 
     def render(self, request):
