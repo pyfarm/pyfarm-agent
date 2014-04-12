@@ -27,6 +27,7 @@ from voluptuous import Invalid, Schema, Required, Optional, Any
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.sysinfo.memory import ram_free
 from pyfarm.core.logger import getLogger
+from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 
 logger = getLogger("agent.assign")
@@ -65,6 +66,7 @@ class HandlePost(object):
 
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
+
     # Schemas used for validating the request before
     # the target function will handle it.  These make
     # assertions about what kind of input data is required
@@ -95,15 +97,40 @@ class Assign(APIResource):
         request = kwargs["request"]
         data = kwargs["data"]
 
-        # First, get the resources we have *right now*.
+        # First, get the resources we have *right now*.  In some cases
+        # this means using the functions in pyfarm.core.sysinfo because
+        # entries in `config` could be slightly out of sync with the system.
         memory_free = int(ram_free())
+        cpus = config["cpus"]
+        requires_ram = data["job"].get("ram")
+        requires_cpus = data["job"].get("cpus")
 
         # Do we have enough ram?
-        if "ram" in data["job"] and data["job"]["ram"] > memory_free:
+        if requires_cpus is not None and requires_ram > memory_free:
             logger.error(
-                "Task %s needs %sMB of ram, this agent has %sMB free.",
-                data["job"]["id"], data["job"]["ram"], memory_free)
-            request.write({"error": "Not enough ram","ram_free": memory_free})
+                "Task %s requires %sMB of ram, this agent has %sMB free.  "
+                "Rejecting Task %s.",
+                data["job"]["id"], requires_ram, memory_free, data["job"]["id"])
+            request.write(
+                {"error": "Not enough ram",
+                 "agent_ram": memory_free,
+                 "requires_ram": requires_ram})
+            request.setResponseCode(BAD_REQUEST)
+            request.finish()
+
+            # touch the config
+            config["free_ram"] = memory_free
+
+        # Do we have enough cpus (count wise)?
+        elif requires_cpus is not None and requires_cpus > cpus:
+            logger.error(
+                "Task %s requires %s CPUs, this agent has %s CPUs.  "
+                "Rejecting Task %s.",
+                data["job"]["id"], requires_cpus, cpus, data["job"]["id"])
+            request.write(
+                {"error": "Not enough cpus",
+                 "agent_cpus": cpus,
+                 "requires_cpus": requires_cpus})
             request.setResponseCode(BAD_REQUEST)
             request.finish()
 
