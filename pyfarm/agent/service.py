@@ -517,16 +517,14 @@ class Agent(object):
         svclog.error(
             "Failed to post update to `free_ram` to the master: %s", failure)
 
-    def post_free_ram(self, run=True):
+    def post_free_ram(self):
         """
         Posts the current nu
         """
-        def run_post():
-            return post(self.agent_api(),
-                data={"free_ram": int(memory.ram_free())},
-                callback=self.callback_post_free_ram,
-                errback=self.errback_post_free_ram)
-        return run_post() if run else run_post
+        return post(self.agent_api(),
+            data={"free_ram": int(memory.ram_free())},
+            callback=self.callback_post_free_ram,
+            errback=self.errback_post_free_ram)
 
     def callback_free_ram_changed(self, change_type, key, new_value, old_value):
         """
