@@ -79,10 +79,19 @@ class Resource(_Resource):
         """A set containing all the methods this resource implements."""
         methods = set()
         for method in ("get", "post", "put", "delete", "head"):
+            attribute_count = 0
             for attribute_name in (method, "render_%s" % method.upper()):
                 attribute = getattr(self, attribute_name, None)
                 if attribute is not None:
+                    attribute_count += 1
                     methods.add(method)
+
+            if attribute_count == 2:
+                raise ValueError(
+                    "%s has both `%s` and `%s` methods" % (
+                        self.__class__.__name__,
+                        method, "render_%s" % method.upper()))
+
         return methods
 
     def content_types(self, request, default=None):
