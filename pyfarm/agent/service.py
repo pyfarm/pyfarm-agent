@@ -67,6 +67,7 @@ class Agent(object):
         self.http = None
         self.shutdown_registered = False
         self.scheduled_tasks = ScheduledTaskManager()
+        self.last_free_ram_post = time.time()
 
         # Some 'success' callbacks that get hit whenever
         # certain events happen.  We don't use these much
@@ -495,6 +496,7 @@ class Agent(object):
         Called when we get a response back from the master
         after posing a change for ``free_ram``
         """
+        self.last_free_ram_post = time.time()
         if response.code == OK:
             svclog.info(
                 "POST %s {'free_ram': %d}` succeeded",
@@ -521,10 +523,21 @@ class Agent(object):
         """
         Posts the current nu
         """
-        return post(self.agent_api(),
-            data={"free_ram": int(memory.ram_free())},
-            callback=self.callback_post_free_ram,
-            errback=self.errback_post_free_ram)
+        since_last_update = time.time() - self.last_free_ram_post
+        left_till_update = config["ram-max-report-interval"] - since_last_update
+
+        if left_till_update > 0:
+            svclog.debug(
+                "Skipping POST for `free_ram` change, %.2f seconds left "
+                "in current interval.", left_till_update)
+            deferred = Deferred()
+            deferred.callback("delay")
+            return deferred
+        else:
+            return post(self.agent_api(),
+                data={"free_ram": int(memory.ram_free())},
+                callback=self.callback_post_free_ram,
+                errback=self.errback_post_free_ram)
 
     def callback_free_ram_changed(self, change_type, key, new_value, old_value):
         """
