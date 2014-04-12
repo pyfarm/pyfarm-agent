@@ -18,6 +18,7 @@ import os
 import re
 import logging
 import shutil
+import tempfile
 from random import randint, choice
 
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
@@ -150,3 +151,19 @@ class TestCase(_TestCase):
                 pass
 
         self.addCleanup(rm, path)
+
+    def create_test_file(self, content="Hello, World!"):
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        self.add_cleanup_path(path)
+        with open(path, "w") as stream:
+            stream.write(content)
+        return path
+
+    def create_test_directory(self, count=10):
+        directory = tempfile.mkdtemp()
+        self.add_cleanup_path(directory)
+        files = []
+        for i in range(count):
+            fd, tmpfile = tempfile.mkstemp(dir=directory)
+            files.append(tmpfile)
+        return directory, files
