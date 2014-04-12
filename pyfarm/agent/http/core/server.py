@@ -37,6 +37,7 @@ from twisted.web.server import Site as _Site, Request as _Request
 from twisted.web.static import File
 from twisted.web.error import Error
 
+from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.utility import dumps
 
@@ -76,7 +77,8 @@ class Site(_Site):
     Site object similar to Twisted's except it also carries along
     some of the internal agent data.
     """
-    displayTracebacks = True
+    displayTracebacks = read_env_bool(
+        "PYFARM_AGENT_API_DISPLAY_TRACEBACKS", True)
     requestFactory = RewriteRequest
 
 
@@ -97,7 +99,8 @@ class StaticPath(File):
 
     def render(self, request):
         """Overrides :meth:`.File.render` and sets the expires header"""
-        request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
+        request.responseHeaders.addRawHeader(
+            "Cache-Control", "max-age=%s" % self.EXPIRES)
         return File.render(self, request)
 
     def directoryListing(self):
