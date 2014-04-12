@@ -214,6 +214,7 @@ class Agent(object):
             "agent-id",
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
+        config.register_callback("free_ram", self.callback_free_ram_changed)
         return self.start_search_for_agent()
 
     def shutdown_task_manager(self):
@@ -489,8 +490,57 @@ class Agent(object):
 
         reactor.callLater(delay, self.start_search_for_agent(run=False))
 
+    def callback_post_free_ram(self, response):
+        """
+        Called when we get a response back from the master
+        after posing a change for ``free_ram``
+        """
+        if response.code == OK:
+            svclog.info(
+                "POST %s {'free_ram': %d}` succeeded",
+                self.agent_api(), response.json()["free_ram"])
+
+        # Because this happens with a fairly high frequency we don't
+        # retry failed requests because we'll be running `post_free_ram`
+        # soon again anyway
+        else:
+            svclog.warning(
+                "Failed to post `free_ram` to %s: %s %s - %s",
+                self.agent_api(), response.code, responses[response.code],
+                response.json())
+
+    def errback_post_free_ram(self, failure):
+        """
+        Error handler which is called if we fail to post a ram
+        update to the master for some reason
+        """
+        svclog.error(
+            "Failed to post update to `free_ram` to the master: %s", failure)
+
+    def post_free_ram(self, run=True):
+        """
+        Posts the current nu
+        """
+        def run_post():
+            return post(self.agent_api(),
+                data={"free_ram": int(memory.ram_free())},
+                callback=self.callback_post_free_ram,
+                errback=self.errback_post_free_ram)
+        return run_post() if run else run_post
+
+    def callback_free_ram_changed(self, change_type, key, new_value, old_value):
+        """
+        Callback used to decide and act on changes to the
+        ``config['ram']`` value.
+        """
+        if change_type == config.MODIFIED:
+            if abs(new_value - old_value) < config["ram-report-delta"]:
+                svclog.debug("Not enough change in free_ram to report")
+            else:
+                self.post_free_ram()
+
     def callback_agent_id_set(
-            self, change_type, key, value, shutdown_events=True):
+            self, change_type, key, new_value, old_value, shutdown_events=True):
         """
         When `agent-id` is created we need to:
 
@@ -506,6 +556,9 @@ class Agent(object):
                 reactor.addSystemEventTrigger(
                     "before", "shutdown", self.shutdown_post_update)
                 self.shutdown_registered = True
+
+            # set the initial free_ram
+            config["free_ram"] = int(memory.ram_free())
 
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
