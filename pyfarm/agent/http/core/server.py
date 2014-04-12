@@ -67,24 +67,19 @@ class StaticPath(File):
     EXPIRES = 604800  # 7 days
     ALLOW_DIRECTORY_LISTING = False
 
-    def __init__(
-            self, path, defaultType="text/html", ignoredExts=(),
-            registry=None, allowExt=0):
+    def __init__(self, *args, **kwargs):
+        File.__init__(self, *args, **kwargs)
 
-        if not exists(path):
-            raise OSError("%s does not exist" % path)
-
-        File.__init__(self, path, defaultType=defaultType,
-                      ignoredExts=ignoredExts, registry=registry,
-                      allowExt=allowExt)
+        if not exists(self.path):
+            raise OSError("%s does not exist" % self.path)
 
     def render(self, request):
-        """overrides :meth:`.File.render` and sets the expires header"""
+        """Overrides :meth:`.File.render` and sets the expires header"""
         request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
         return File.render(self, request)
 
     def directoryListing(self):
-        """override which ensures directories cannot be listed"""
+        """Override which ensures directories cannot be listed"""
         if not self.ALLOW_DIRECTORY_LISTING:
             raise Error(FORBIDDEN, "directory listing is not allowed")
         return File.directoryListing(self)
