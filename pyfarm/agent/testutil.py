@@ -17,10 +17,9 @@
 import os
 import re
 import logging
+import shutil
 from random import randint, choice
 
-from twisted.web.server import NOT_DONE_YET
-from twisted.internet.defer import succeed
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.config import read_env, read_env_bool
@@ -138,3 +137,16 @@ class TestCase(_TestCase):
             "html-templates-reload": True,
             "static-files": STATIC_ROOT})
         config_logger.disabled = 0
+
+    def add_cleanup_path(self, path):
+        def rm(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+            try:
+                shutil.rmtree(path)
+            except Exception:
+                pass
+
+        self.addCleanup(rm, path)
