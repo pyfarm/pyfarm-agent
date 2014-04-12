@@ -17,16 +17,19 @@
 from decimal import Decimal
 
 try:
-    from httplib import ACCEPTED
+    from httplib import ACCEPTED, BAD_REQUEST
 except ImportError:  # pragma: no cover
-    from httplib.client import ACCEPTED
+    from httplib.client import ACCEPTED, BAD_REQUEST
 
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional, Any
 
 from pyfarm.core.enums import STRING_TYPES
+from pyfarm.core.sysinfo.memory import ram_free
+from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.api.base import APIResource
 
+logger = getLogger("agent.assign")
 
 # Values used by the schema to do type testing
 # of input requests
@@ -55,6 +58,11 @@ def validate_environment(values):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
 
 
+class HandlePost(object):
+    def __init__(self, data):
+        self.data = data
+
+
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
     # Schemas used for validating the request before
@@ -63,30 +71,47 @@ class Assign(APIResource):
     # or not based on the agent's internal cod.
     SCHEMAS = {
         "POST": Schema({
-        Required("job"): Schema({
-            Required("id"): WHOLE_NUMBERS,
-            Required("by"): NUMBERS,
-            Optional("batch"): WHOLE_NUMBERS,
-            Optional("user"): STRINGS,
-            Optional("ram"): WHOLE_NUMBERS,
-            Optional("ram_warning"): WHOLE_NUMBERS,
-            Optional("ram_max"): WHOLE_NUMBERS,
-            Optional("cpus"): WHOLE_NUMBERS,
-            Optional("data"): dict,
-            Optional("environ"): validate_environment,
-            Optional("title"): STRINGS}),
-        Required("jobtype"): {
-            Required("name"): STRINGS,
-            Required("version"): WHOLE_NUMBERS},
-        Required("tasks"): lambda values: map(
-            Schema({
+            Required("job"): Schema({
                 Required("id"): WHOLE_NUMBERS,
-                Required("frame"): NUMBERS}), values)})}
+                Required("by"): NUMBERS,
+                Optional("batch"): WHOLE_NUMBERS,
+                Optional("user"): STRINGS,
+                Optional("ram"): WHOLE_NUMBERS,
+                Optional("ram_warning"): WHOLE_NUMBERS,
+                Optional("ram_max"): WHOLE_NUMBERS,
+                Optional("cpus"): WHOLE_NUMBERS,
+                Optional("data"): dict,
+                Optional("environ"): validate_environment,
+                Optional("title"): STRINGS}),
+            Required("jobtype"): {
+                Required("name"): STRINGS,
+                Required("version"): WHOLE_NUMBERS},
+            Required("tasks"): lambda values: map(
+                Schema({
+                    Required("id"): WHOLE_NUMBERS,
+                    Required("frame"): NUMBERS}), values)})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
-        request.setResponseCode(ACCEPTED)
-        request.finish()
+        data = kwargs["data"]
+
+        # First, get the resources we have *right now*.
+        memory_free = int(ram_free())
+
+        # Do we have enough ram?
+        if "ram" in data["job"] and data["job"]["ram"] > memory_free:
+            logger.error(
+                "Task %s needs %sMB of ram, this agent has %sMB free.",
+                data["job"]["id"], data["job"]["ram"], memory_free)
+            request.write({"error": "Not enough ram","ram_free": memory_free})
+            request.setResponseCode(BAD_REQUEST)
+            request.finish()
+
+        # In all other cases we have some work to do inside of
+        # deferreds so we just have to respond
+        else:
+            request.setResponseCode(ACCEPTED)
+            request.finish()
 
         # TODO: Next steps as deferreds.  Some of these are done in the queue,
         #       or will be, but the information the agent has available may be
