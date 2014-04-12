@@ -43,8 +43,8 @@ else:
 def get_package_data():
     master_root = join("pyfarm", "agent")
     packge_data_roots = (
-        join("pyfarm", "agent", "static"),
-        join("pyfarm", "agent", "templates"))
+        join("pyfarm", "agent", "http", "static"),
+        join("pyfarm", "agent", "http", "templates"))
 
     output = []
     for top in packge_data_roots:
@@ -57,15 +57,16 @@ def get_package_data():
 setup(
     name="pyfarm.agent",
     version="0.7.0-dev0",
-    packages=["pyfarm",
-              "pyfarm.agent",
-              "pyfarm.agent.entrypoints",
-              "pyfarm.agent.http",
-              "pyfarm.agent.http.api",
-              "pyfarm.agent.http.core",
-              "pyfarm.agent.process",
-              "pyfarm.jobtypes",
-              "pyfarm.jobtypes.core"],
+    packages=[
+        "pyfarm",
+        "pyfarm.agent",
+        "pyfarm.agent.entrypoints",
+        "pyfarm.agent.http",
+        "pyfarm.agent.http.api",
+        "pyfarm.agent.http.core",
+        "pyfarm.agent.process",
+        "pyfarm.jobtypes",
+        "pyfarm.jobtypes.core"],
     package_data={
         "pyfarm.agent": get_package_data()},
     namespace_packages=["pyfarm"],
