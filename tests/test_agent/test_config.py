@@ -28,7 +28,7 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         self.deleted = []
         super(ChangedLoggingConfiguration, self).__init__(*args, **kwargs)
 
-    def changed(self, change_type, key, value=NOTSET):
+    def changed(self, change_type, key, new_value=NOTSET, old_value=NOTSET):
         if change_type == self.CREATED:
             self.created.append(key)
         elif change_type == self.MODIFIED:
@@ -37,7 +37,7 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
             self.deleted.append(key)
 
         super(ChangedLoggingConfiguration, self).changed(
-            change_type, key, value=value)
+            change_type, key, new_value=new_value, old_value=old_value)
 
 
 class TestLoggingConfiguration(TestCase):
@@ -177,7 +177,7 @@ class TestCallbackConfiguration(TestCase):
     def test_callback_on_change(self):
         results = []
 
-        def callback(change_type, key, value):
+        def callback(change_type, key, value, old_value):
             results.append((change_type, key, value))
 
         config = ConfigurationWithCallbacks()

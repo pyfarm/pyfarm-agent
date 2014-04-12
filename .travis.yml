@@ -6,6 +6,9 @@ python:
 cache:
   cache: apt
 
+services:
+  - redis-server
+
 env:
   global:
     - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
@@ -45,6 +48,7 @@ install:
   - pip install .
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
+  - pyfarm-create-tables
   - uwsgi resources/travis/uwsgi.ini
 
 script:

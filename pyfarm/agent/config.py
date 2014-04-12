@@ -53,15 +53,15 @@ class LoggingConfiguration(dict):
             raise TypeError("Expected None or dict for `seq`")
 
         for key, value in dict(seq.items() + kwargs.items()).items():
-            self.changed(self.CREATED, key, value)
+            self.changed(self.CREATED, key, value, NOTSET)
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
     def __setitem__(self, key, value):
         if key not in self:
-            self.changed(self.CREATED, key, value)
+            self.changed(self.CREATED, key, value, NOTSET)
         elif self[key] != value:
-            self.changed(self.MODIFIED, key, value)
+            self.changed(self.MODIFIED, key, value, self[key])
 
         # Run the base class's method after the above otherwise
         # the value would already be in the data we're comparing
@@ -73,16 +73,18 @@ class LoggingConfiguration(dict):
         Deletes the provided ``key`` and triggers a ``delete`` event
         using :meth:`.changed`.
         """
+        old_value = self[key] if key in self else NOTSET
         super(LoggingConfiguration, self).__delitem__(key)
-        self.changed(self.DELETED, key)
+        self.changed(self.DELETED, key, NOTSET, old_value)
 
     def pop(self, key, *args):
         """
         Deletes the provided ``key`` and triggers a ``delete`` event
         using :meth:`.changed`.
         """
+        old_value = self[key] if key in self else NOTSET
         super(LoggingConfiguration, self).pop(key, *args)
-        self.changed(self.DELETED, key)
+        self.changed(self.DELETED, key, NOTSET, old_value)
 
     def clear(self):
         """
@@ -94,8 +96,8 @@ class LoggingConfiguration(dict):
         # Not quite the same thing as dict.clear() but the effect
         # is the same as the call to changed() is more real time.
         for key in keys:
-            self.pop(key, None)
-            self.changed(self.DELETED, key)
+            old_value = self.pop(key, NOTSET)
+            self.changed(self.DELETED, key, NOTSET, old_value)
 
     def update(self, data=None, **kwargs):
         """
@@ -105,15 +107,15 @@ class LoggingConfiguration(dict):
         def trigger_changed(changed_object):
             try:
                 items = changed_object.iteritems()
-            except AttributeError:
+            except AttributeError:  # pragma: no cover
                 items = changed_object.items()
 
             for key, value in items:
                 if key not in self:
-                    self.changed(self.CREATED, key, value)
+                    self.changed(self.CREATED, key, value, NOTSET)
 
-                elif self[key] != value:  # pragma: no cover
-                    self.changed(self.MODIFIED, key, value)
+                elif self[key] != value:
+                    self.changed(self.MODIFIED, key, value, self[key])
 
         if isinstance(data, dict):
             trigger_changed(data)
@@ -129,18 +131,19 @@ class LoggingConfiguration(dict):
 
         super(LoggingConfiguration, self).update(data, **kwargs)
 
-    def changed(self, change_type, key, value=NOTSET):
+    def changed(self, change_type, key, new_value=NOTSET, old_value=NOTSET):
         """
         This method is run whenever one of the keys in this object
         changes.
         """
-        assert value is not NOTSET if change_type != self.DELETED else True
+        assert new_value is not NOTSET if change_type != self.DELETED else True
+        assert old_value is NOTSET if change_type == self.CREATED else True
 
         if change_type == self.MODIFIED:
-            logger.info("modified %r = %r", key, value)
+            logger.info("modified %r = %r", key, new_value)
 
         elif change_type == self.CREATED:
-            logger.info("set %r = %r", key, value)
+            logger.info("set %r = %r", key, new_value)
 
         elif change_type == self.DELETED:
             logger.warning("deleted %r", key)
@@ -206,18 +209,18 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         if callbacks:
             self.callbacks.clear()
 
-    def changed(self, change_type, key, value=NOTSET):
+    def changed(self, change_type, key, new_value=NOTSET, old_value=NOTSET):
         """
         This method is called internally whenever a given ``key``
         changes which in turn will pass off the change to any
         registered callback(s).
         """
         super(ConfigurationWithCallbacks, self).changed(
-            change_type, key, value=value)
+            change_type, key, new_value=new_value, old_value=old_value)
 
         if key in self.callbacks:
             for callback in self.callbacks[key]:
-                callback(change_type, key, value)
+                callback(change_type, key, new_value, old_value)
                 logger.debug(
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)

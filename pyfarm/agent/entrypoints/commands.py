@@ -231,11 +231,6 @@ class AgentEntryPoint(object):
             type=partial(integer, instance=self, flag="ram"),
             help="The total amount of ram installed on the system in "
                  "megabytes.  [default: %(default)s]")
-        start_hardware_group.add_argument(
-            "--swap", default=int(memory.total_swap()),
-            type=partial(integer, instance=self, flag="swap"),
-            help="The total amount of swap installed on the system in "
-                 "megabytes.  [default: %(default)s]")
 
         # start interval controls
         start_interval_group = start.add_argument_group(
@@ -243,21 +238,27 @@ class AgentEntryPoint(object):
             description="Controls which dictate when certain internal "
                         "intervals should occur.")
         start_interval_group.add_argument(
-            "--memory-check-interval", default=10,
-            type=partial(integer, instance=self, flag="memory-check-interval"),
-            help="How often swap and ram resources should be checked for "
-                 "changes. Ram and swap are also checked after certain events "
-                 "too such as when a job starts or errors out. [default: "
-                 "%(default)s]")
+            "--ram-check-interval", default=30,
+            type=partial(integer, instance=self, flag="ram-check-interval"),
+            help="How often ram resources should be checked for changes. "
+                 "The amount of memory currently being consumed on the system "
+                 "is checked after certain events occur such as a process but "
+                 "this flag specifically controls how often we should check "
+                 "when no such events are occurring. [default: %(default)s]")
+        start_interval_group.add_argument(
+            "--ram-max-report-interval", default=10,
+            type=partial(
+                integer, instance=self, flag="ram-max-report-interval"),
+            help="This is a limiter that prevents the agent from reporting "
+                 "memory changes to the master more often than a specific "
+                 "time interval.  This is done in order to ensure that when "
+                 "100s of events fire in a short period of time cause changes "
+                 "in ram usage only one or two will be reported to the "
+                 "master. [default: %(default)s]")
         start_interval_group.add_argument(
             "--ram-report-delta", default=100,
             type=partial(integer, instance=self, flag="ram-report-delta"),
             help="Only report a change in ram if the value has changed "
-                 "at least this many megabytes. [default: %(default)s]")
-        start_interval_group.add_argument(
-            "--swap-report-delta", default=100,
-            type=partial(integer, instance=self, flag="ram-report-delta"),
-            help="Only report a change in swap if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
 
 
@@ -405,14 +406,13 @@ class AgentEntryPoint(object):
                 "use-address": self.args.use_address,
                 "state": self.args.state,
                 "ram": self.args.ram,
-                "swap": self.args.swap,
                 "cpus": self.args.cpus,
                 "projects": list(set(self.args.projects)),
                 "http-max-retries": self.args.http_max_retries,
                 "http-retry-delay": self.args.http_retry_delay,
-                "memory-check-interval": self.args.memory_check_interval,
+                "ram-check-interval": self.args.ram_check_interval,
                 "ram-report-delta": self.args.ram_report_delta,
-                "swap-report-delta": self.args.swap_report_delta,
+                "ram-max-report-interval": self.args.ram_max_report_interval,
                 "static-files": self.args.static_files,
                 "html-templates-reload": self.args.html_templates_reload,
                 "ntp-server": self.args.ntp_server,

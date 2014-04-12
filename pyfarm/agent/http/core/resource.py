@@ -29,7 +29,7 @@ from httplib import (
 
 try:
     from itertools import ifilter as filter_
-except ImportError:
+except ImportError:  # pragma: no cover
     filter_ = filter
 
 from twisted.web.server import NOT_DONE_YET

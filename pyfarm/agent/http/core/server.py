@@ -26,12 +26,19 @@ class can consume on start.
 
 import re
 
-from httplib import FORBIDDEN
+try:
+    from httplib import FORBIDDEN
+except ImportError:  # pragma: no cover
+    from httplib.client import FORBIDDEN
+
 from os.path import exists
 
 from twisted.web.server import Site as _Site, Request as _Request
 from twisted.web.static import File
 from twisted.web.error import Error
+
+from pyfarm.core.enums import STRING_TYPES
+from pyfarm.agent.utility import dumps
 
 
 class RewriteRequest(_Request):
@@ -42,11 +49,26 @@ class RewriteRequest(_Request):
     REPLACE_REPEATED_DELIMITER = re.compile("/{2,}")
 
     def requestReceived(self, command, path, version):
+        """
+        Override the built in :meth:`._Request.requestReceived` so we
+        can rewrite portions of the request, such as the url, before it's
+        passed along to the internal server.
+        """
         # before we give the path to Twisted, replace any
         # repeated `/`s with `/`
         if "//" in path:
             path = self.REPLACE_REPEATED_DELIMITER.sub("/", path)
         _Request.requestReceived(self, command, path, version)
+
+    def write(self, data):
+        """
+        Override the built in :meth:`._Request.write` so that any data
+        that's not a string will be dumped to json using :func:`.dumps`
+        """
+        if not isinstance(data, STRING_TYPES):
+            data = dumps(data)
+
+        _Request.write(self, data)
 
 
 class Site(_Site):
@@ -67,24 +89,19 @@ class StaticPath(File):
     EXPIRES = 604800  # 7 days
     ALLOW_DIRECTORY_LISTING = False
 
-    def __init__(
-            self, path, defaultType="text/html", ignoredExts=(),
-            registry=None, allowExt=0):
+    def __init__(self, *args, **kwargs):
+        File.__init__(self, *args, **kwargs)
 
-        if not exists(path):
-            raise OSError("%s does not exist" % path)
-
-        File.__init__(self, path, defaultType=defaultType,
-                      ignoredExts=ignoredExts, registry=registry,
-                      allowExt=allowExt)
+        if not exists(self.path):
+            raise OSError("%s does not exist" % self.path)
 
     def render(self, request):
-        """overrides :meth:`.File.render` and sets the expires header"""
+        """Overrides :meth:`.File.render` and sets the expires header"""
         request.setHeader("Cache-Control", "max-age=%s" % self.EXPIRES)
         return File.render(self, request)
 
     def directoryListing(self):
-        """override which ensures directories cannot be listed"""
+        """Override which ensures directories cannot be listed"""
         if not self.ALLOW_DIRECTORY_LISTING:
             raise Error(FORBIDDEN, "directory listing is not allowed")
         return File.directoryListing(self)
