@@ -26,6 +26,7 @@ from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.template import DeferredTemplate
+from pyfarm.agent.utility import dumps
 
 
 class DummyRequest(_DummyRequest):
@@ -54,7 +55,7 @@ class ResourceWithDuplicateMethods(Resource):
     render_GET = lambda *args, **kwargs: None
 
 
-class TestResource(TestCase):
+class TestResourceInternals(TestCase):
     def setUp(self):
         TestCase.setUp(self)
         self._template = Resource.TEMPLATE
@@ -133,8 +134,21 @@ class TestResource(TestCase):
         self.assertIn("error_html", request.data[0])
 
     def test_error_json(self):
-        pass
+        request = DummyRequest({"content-type": "application/json"})
+        resource = Resource()
+        resource.error(request, BAD_REQUEST, "error_json")
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.data[0], {"error": "error_json"})
 
     def test_error_unhandled(self):
-        pass
+        request = DummyRequest({"content-type": "foobar"})
+        resource = Resource()
+        resource.error(request, BAD_REQUEST, "internal_error")
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+        self.assertTrue(request.finished)
+        self.assertEqual(
+            request.data[0],
+            {"error": "Can only handle text/html or application/json here"})
+
 
