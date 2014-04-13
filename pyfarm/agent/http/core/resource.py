@@ -23,14 +23,25 @@ documents, pages, or other types of data for the web.
 """
 
 from json import loads
-from httplib import (
-    responses, INTERNAL_SERVER_ERROR, NOT_FOUND, BAD_REQUEST,
-    UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
+
+try:
+    from httplib import (
+        responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
+        METHOD_NOT_ALLOWED)
+except ImportError:  # pragma: no cover
+    from httplib.client import (
+        responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
+        METHOD_NOT_ALLOWED)
 
 try:
     from itertools import ifilter as filter_
 except ImportError:  # pragma: no cover
     filter_ = filter
+
+try:
+    from itertools import imap as map_
+except ImportError:  # pragma: no cover
+    map_ = map
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
@@ -39,7 +50,6 @@ from voluptuous import Invalid, Schema
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.core import template
-from pyfarm.agent.utility import dumps
 
 logger = getLogger("agent.http")
 
@@ -79,10 +89,19 @@ class Resource(_Resource):
         """A set containing all the methods this resource implements."""
         methods = set()
         for method in ("get", "post", "put", "delete", "head"):
+            attribute_count = 0
             for attribute_name in (method, "render_%s" % method.upper()):
                 attribute = getattr(self, attribute_name, None)
                 if attribute is not None:
+                    attribute_count += 1
                     methods.add(method)
+
+            if attribute_count == 2:
+                raise ValueError(
+                    "%s has both `%s` and `%s` methods" % (
+                        self.__class__.__name__,
+                        method, "render_%s" % method.upper()))
+
         return methods
 
     def content_types(self, request, default=None):
@@ -120,14 +139,13 @@ class Resource(_Resource):
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
-            request.write(dumps(error=message))
+            request.write({"error": message})
             request.finish()
 
         else:
-            request.setResponseCode(INTERNAL_SERVER_ERROR)
+            request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
             request.write(
-                dumps(
-                    error="Can only handle text/html or application/json here"))
+                {"error": "Can only handle text/html or application/json here"})
             request.finish()
 
     def render(self, request):
@@ -193,15 +211,12 @@ class Resource(_Resource):
                 return getattr(self, method_name)(**kwargs)
 
         # If we could not find function to call for the given method
-        # produce a warning.
+        # produce an error.
         else:
             supported_methods = self.methods
-            if not supported_methods:
-                message = "%r does not support any methods" % request.uri
-            else:
-                message = "%r only supports the %s method(s)" % (
-                    request.uri,
-                    ", ".join(map(str.upper, supported_methods)))
+            message = "%r only supports the %s method(s)" % (
+                request.uri,
+                ", ".join(list(map_(str.upper, supported_methods))))
 
             self.error(request, METHOD_NOT_ALLOWED, message)
             return NOT_DONE_YET

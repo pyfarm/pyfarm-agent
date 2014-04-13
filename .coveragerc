@@ -11,3 +11,5 @@ exclude_lines =
     if __name__ == .__main__.:
 omit =
     *pyfarm*__init__*
+    *pyfarm/agent/http/templates/*
+    *pyfarm/agent/http/static/*

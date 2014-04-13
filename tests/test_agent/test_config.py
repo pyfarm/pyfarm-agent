@@ -136,6 +136,7 @@ class TestConfigurationExceptions(TestCase):
 
 class TestCallbackConfiguration(TestCase):
     def setUp(self):
+        TestCase.setUp(self)
         ConfigurationWithCallbacks.callbacks.clear()
 
     def test_assert_callable(self):
