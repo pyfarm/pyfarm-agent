@@ -65,8 +65,9 @@ class Index(Resource):
         process = psutil.Process()
         process_memory = convert.bytetomb(process.get_memory_info().rss)
 
+        total_swap = memory.total_swap()
         ram_allocated = (memory.ram_used() / float(config["ram"])) * 100
-        swap_allocated = (memory.swap_used() / float(config["swap"])) * 100
+        swap_allocated = (memory.swap_used() / total_swap) * 100
 
         if ram_allocated >= 100:
             ram_css = "danger"
@@ -94,7 +95,7 @@ class Index(Resource):
             ("SWAP Used",
                 "%.2f%% (%s of %s)" % (
                     swap_allocated,
-                    int(memory.swap_used()), mb((config["swap"]))), swap_css),
+                    int(memory.swap_used()), mb((total_swap))), swap_css),
             ("System RAM", mb(memory.total_ram()), None),
             ("System RAM (reported)", mb(config["ram"]), None),
             ("Agent RAM Usage", mb(process_memory), None)]
