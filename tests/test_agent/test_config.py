@@ -116,6 +116,34 @@ class TestLoggingConfiguration(TestCase):
             config[key] = None
         self.assertEqual(set(config.modified), set(all_data.keys()))
 
+    def test_raises_type_error(self):
+        self.assertRaises(TypeError, lambda: LoggingConfiguration(seq=1))
+
+    def test_update_modified_dict(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration()
+        config.update(data)
+        for key, value in config.items():
+            config.update({key: True})
+
+        self.assertEqual(set(config.modified), set(data.keys()))
+
+    def test_update_modified_kwargs(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration()
+        config.update(data)
+        for key, value in config.items():
+            config.update(**{key: True})
+
+        self.assertEqual(set(config.modified), set(data.keys()))
+
+    def test_update_modified_type_error(self):
+        data = self.get_data()
+        config = ChangedLoggingConfiguration()
+        config.update(data)
+        for _, _ in config.items():
+            self.assertRaises(TypeError, lambda: config.update(1))
+
 
 class TestConfigurationExceptions(TestCase):
     def test_change_type_assert_missing_value(self):
