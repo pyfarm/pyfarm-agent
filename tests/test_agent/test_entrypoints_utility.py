@@ -43,7 +43,7 @@ class TestGetJson(TestCase):
     def test_ok(self):
         data = get_json(self.base_url + "/get")
         self.assertIsInstance(data, dict)
-        self.assertEqual(data["url"], self.base_url + "/get")
+        self.assertEqual(unicode(data["url"]), unicode(self.base_url + "/get"))
 
 
 class TestIp(TestCase):
