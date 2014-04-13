@@ -112,6 +112,13 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+        def assertRaises(self, exception, f, *args, **kwargs):
+            if exception is AssertionError and __debug__:
+                self.skipTest(
+                    "Operating in optimized mode, can't test AssertionError")
+
+            return _TestCase.assertRaises(self, exception, f, *args, **kwargs)
+
     def setUp(self):
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
