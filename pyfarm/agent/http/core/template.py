@@ -41,11 +41,15 @@ class InMemoryCache(BytecodeCache):
     def clear(self):
         self.cache.clear()
 
-    def load_bytecode(self, bucket):
+    # Untested as this is an internal implementation for
+    # the Environment class below.
+    def load_bytecode(self, bucket):  # pragma: no cover
         if bucket.key in self.cache:
             bucket.load_bytecode(self.cache[bucket.key])
 
-    def dump_bytecode(self, bucket):
+    # Untested as this is an internal implementation for
+    # the Environment class below.
+    def dump_bytecode(self, bucket):  # pragma: no cover
         cache = BytesIO()
         bucket.write_bytecode(cache)
         self.cache[bucket.key] = cache
@@ -64,7 +68,7 @@ class DeferredTemplate(Template):
             # unicode from here
             deferred.callback(
                 str(super(DeferredTemplate, self).render(*args, **kwargs)))
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             deferred.errback(e)
 
         return deferred
