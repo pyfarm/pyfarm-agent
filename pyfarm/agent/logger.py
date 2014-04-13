@@ -135,7 +135,9 @@ class PythonLoggingObserver(TwistedLogObserver):
     event_system_names = {
         "Uninitialized": "twisted",
         "-": "twisted",
-        "pyfarm.agent.http.server.Site": "pf.agent.http"}
+        "pyfarm.agent.http.server.Site": "pf.agent.http",
+        "pyfarm.agent.http.core.server.Site": "pf.agent.http",
+        "pf.agent.cmd": "pf.agent.cmd"}
 
     # For any system even we don't a default name for, because
     # it's not given above, we use these regular expressions to
@@ -176,7 +178,7 @@ class PythonLoggingObserver(TwistedLogObserver):
                     system = self.event_system_names[system] = value
                     break
             else:
-                self.loggers["-"].log(WARNING, "Unknown logger %s'" % system)
+                self.loggers["-"].log(WARNING, "Unknown logger %s" % system)
                 self.event_system_names[system] = "twisted"
 
         # Do we care about this message?
