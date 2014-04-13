@@ -219,3 +219,9 @@ class TestCallbackConfiguration(TestCase):
             (LoggingConfiguration.CREATED, "foo", True),
             (LoggingConfiguration.MODIFIED, "foo", False),
             (LoggingConfiguration.DELETED, "foo", NOTSET)])
+
+    def test_reload_protection(self):
+        from pyfarm.agent import config as config_module
+        config_id = id(config_module.config)
+        reload(config_module)
+        self.assertEqual(config_id, id(config_module.config))
