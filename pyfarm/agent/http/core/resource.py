@@ -214,12 +214,9 @@ class Resource(_Resource):
         # produce an error.
         else:
             supported_methods = self.methods
-            if not supported_methods:
-                message = "%r does not support any methods" % request.uri
-            else:
-                message = "%r only supports the %s method(s)" % (
-                    request.uri,
-                    ", ".join(list(map_(str.upper, supported_methods))))
+            message = "%r only supports the %s method(s)" % (
+                request.uri,
+                ", ".join(list(map_(str.upper, supported_methods))))
 
             self.error(request, METHOD_NOT_ALLOWED, message)
             return NOT_DONE_YET
