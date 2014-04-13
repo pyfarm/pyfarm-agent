@@ -123,7 +123,7 @@ def get_process(pidfile):
         # Be careful, we don't want to return a pid or process object
         # for something which might not be a PyFarm process.
         if not any([
-                process_name == "python",
+                process_name in ("python", "coverage"),
                 process_name.startswith("pyfarm"),
                 process_name.startswith("trial")]):  # pragma: no cover
             raise OSError(
