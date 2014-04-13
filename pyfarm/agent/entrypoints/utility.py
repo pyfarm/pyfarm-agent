@@ -50,7 +50,7 @@ def get_json(url):
     """retrieve the json data from the given url or returns None"""
     try:
         page = requests.get(
-            url, headers={"Content-Type": "application/json"})
+            url, headers={"content-type": "application/json"})
     except ConnectionError:
         logger.debug("GET %s (connection error)" % url)
         return None
@@ -58,12 +58,13 @@ def get_json(url):
         logger.debug("GET %s" % url)
         logger.debug("  contents: %s" % page.text)
         if not page.ok:
-            logger.warning("%s status was %s" % repr(page.reason))
+            logger.warning("%s's status was %s" % (url, repr(page.reason)))
             return None
         else:
             return page.json()
 
 
+# TODO: improve internal coverage
 def get_process(pidfile):
     """
     Returns (pid, process_object) after loading the pid file.  If we
@@ -86,7 +87,7 @@ def get_process(pidfile):
         try:
             os.remove(pidfile)
             logger.debug("removed empty pid file %s" % pidfile)
-        except OSError:
+        except OSError:  # pragma: no cover
             pass
 
         return None, None
@@ -94,7 +95,7 @@ def get_process(pidfile):
     # convert the pid to a number from a string
     try:
         pid = convert.ston(pid)
-    except ValueError:
+    except ValueError:  # pragma: no cover
         logger.error(
             "failed to convert pid in %s to a number" % pidfile)
         raise
@@ -106,7 +107,7 @@ def get_process(pidfile):
     # try to load up the process object
     try:
         process = psutil.Process(pid)
-    except psutil.NoSuchProcess:
+    except psutil.NoSuchProcess:  # pragma: no cover
         logger.debug("no such process %s" % pid)
 
         try:
@@ -119,25 +120,18 @@ def get_process(pidfile):
         process_name = process.name.lower()
         logger.debug("%s is named '%s'" % (pid, process_name))
 
-        # the vast majority of the time, the process will be
-        # ours in this case
-        if process_name == "pyfarm-agent" \
-                or process_name.startswith("pyfarm"):
-            return pid, process
+        # Be careful, we don't want to return a pid or process object
+        # for something which might not be a PyFarm process.
+        if not any([
+                process_name in ("python", "coverage"),
+                process_name.startswith("pyfarm"),
+                process_name.startswith("trial")]):  # pragma: no cover
+            raise OSError(
+                "%s contains pid %s with the name %s.  This seems to be "
+                "a process this script does not know about so we're stopping "
+                "here rather than continuing." % (pidfile, pid, process_name))
 
-        # if it's a straight Python process it might still
-        # be ours depending on how it was launched but we can't
-        # do much else without more information
-        elif process_name.startswith("python"):
-            logger.warning(
-                "%s appears to be a normal Python process and may not "
-                "be pyfarm-agent" % pid)
-            return pid, process
-
-        else:
-            logger.warning(
-                "Process name is neither python or "
-                "pyfarm-agent, instead it was '%s'." % process_name)
+        return pid, process
 
     return None, None
 
@@ -152,79 +146,82 @@ def get_pids(pidfile, index_url):
     pid_from_file, process = get_process(pidfile)
     index = get_json(index_url) or {}
 
-    if not index:
+    if not index:  # pragma: no cover
         logger.debug("failed to retrieve agent information using the REST api")
 
     return pid_from_file, index.get("pid")
 
 
-def start_daemon_posix(log, logerr, chroot, uid, gid):
-        """
-        Runs the agent process via a double fork.  This basically a duplicate
-        of Marcechal's original code with some adjustments:
+# This is a Linux specific test and will be hard to get due to the nature
+# of how the tests are run, for now we're excluding it.
+# TODO: figure out a reliable way to test  start_daemon_posix
+def start_daemon_posix(log, logerr, chroot, uid, gid):  # pragma: no cover
+    """
+    Runs the agent process via a double fork.  This basically a duplicate
+    of Marcechal's original code with some adjustments:
 
-            http://www.jejik.com/articles/2007/02/
-            a_simple_unix_linux_daemon_in_python/
+        http://www.jejik.com/articles/2007/02/
+        a_simple_unix_linux_daemon_in_python/
 
-        Source files from his post are here:
-            http://www.jejik.com/files/examples/daemon.py
-            http://www.jejik.com/files/examples/daemon3x.py
-        """
-        # first fork
-        try:
-            pid = fork()
-            if pid > 0:
-                sys.exit(0)
-        except OSError as e:
-            logger.error(
-                "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
-            sys.exit(1)
+    Source files from his post are here:
+        http://www.jejik.com/files/examples/daemon.py
+        http://www.jejik.com/files/examples/daemon3x.py
+    """
+    # first fork
+    try:
+        pid = fork()
+        if pid > 0:
+            sys.exit(0)
+    except OSError as e:
+        logger.error(
+            "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
+        sys.exit(1)
 
-        # decouple from the parent environment
-        os.chdir(chroot or "/")
-        os.setsid()
-        os.umask(0)
+    # decouple from the parent environment
+    os.chdir(chroot or "/")
+    os.setsid()
+    os.umask(0)
 
-        # second fork
-        try:
-            pid = fork()
-            if pid > 0:
-                sys.exit(0)
-        except OSError as e:
-            logger.error(
-                "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
-            sys.exit(1)
+    # second fork
+    try:
+        pid = fork()
+        if pid > 0:
+            sys.exit(0)
+    except OSError as e:
+        logger.error(
+            "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
+        sys.exit(1)
 
-        # flush any pending data before we duplicate
-        # the file descriptors
-        sys.stdout.flush()
-        sys.stderr.flush()
+    # flush any pending data before we duplicate
+    # the file descriptors
+    sys.stdout.flush()
+    sys.stderr.flush()
 
-        # open up file descriptors for the new process
-        stdin = open(os.devnull, "r")
-        stdout = open(log, "a+")
-        stderr = open(logerr, "a+", 0)
-        os.dup2(stdin.fileno(), sys.stdin.fileno())
-        os.dup2(stdout.fileno(), sys.stdout.fileno())
-        os.dup2(stderr.fileno(), sys.stderr.fileno())
+    # open up file descriptors for the new process
+    stdin = open(os.devnull, "r")
+    stdout = open(log, "a+")
+    stderr = open(logerr, "a+", 0)
+    os.dup2(stdin.fileno(), sys.stdin.fileno())
+    os.dup2(stdout.fileno(), sys.stdout.fileno())
+    os.dup2(stderr.fileno(), sys.stderr.fileno())
 
-        # if requested, set the user id of this process
-        if uid is not None and setuid is not NotImplemented:
-            setuid(uid)
+    # if requested, set the user id of this process
+    if uid is not None and setuid is not NotImplemented:
+        setuid(uid)
 
-        elif uid is not None:
-            logger.warning(
-                "--uid was requested but `setuid` is not "
-                "implemented on %s" % OS.title())
+    elif uid is not None:
+        logger.warning(
+            "--uid was requested but `setuid` is not "
+            "implemented on %s" % OS.title())
 
-        # if requested, set the group id of this process
-        if gid is not None and setgid is not NotImplemented:
-            setgid(gid)
+    # if requested, set the group id of this process
+    if gid is not None and setgid is not NotImplemented:
+        setgid(gid)
 
-        elif gid is not None:
-            logger.warning(
-                "--gid was requested but `setgid` is not "
-                "implemented on %s" % OS.title())
+    elif gid is not None:
+        logger.warning(
+            "--gid was requested but `setgid` is not "
+            "implemented on %s" % OS.title())
 
 
 def write_pid_file(path, pid):
@@ -236,7 +233,7 @@ def write_pid_file(path, pid):
     if not isdir(pidfile_dirname):
         try:
             os.makedirs(pidfile_dirname)
-        except OSError:
+        except OSError:  # pragma: no cover
             logger.warning("failed to create %s" % pidfile_dirname)
 
     with open(path, "w") as pidfile:
@@ -244,7 +241,8 @@ def write_pid_file(path, pid):
 
     logger.debug("wrote %s to %s" % (pid, pidfile.name))
 
-    def remove_pid_file(pidfile):
+    # Not testing this because it's only run on exist
+    def remove_pid_file(pidfile):  # pragma: no cover
         try:
             os.remove(pidfile)
             logger.debug("removed %s" % pidfile)
@@ -258,6 +256,11 @@ def get_default_ip():
     """returns the default ip address to use"""
     try:
         return network.ip()
-    except ValueError:
+
+    # Not testing because this is difficult to replicate under the most
+    # circumstances depending on the network.  The test case for this
+    # does cover the results here however in the event we do find
+    # a case.
+    except ValueError:  # pragma: no cover
         logger.error("failed to find network ip address")
         return "127.0.0.1"

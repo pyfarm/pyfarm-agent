@@ -49,6 +49,7 @@ class LoggingConfiguration(dict):
     def __init__(self, seq=None, **kwargs):
         if seq is None:
             seq = {}
+
         elif seq is not None and not isinstance(seq, dict):
             raise TypeError("Expected None or dict for `seq`")
 
@@ -195,7 +196,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         Removes any callback(s) that are registered with the provided ``key``
         """
         results = cls.callbacks.pop(key, None)
-        if results is None:
+        if results is None:  # pragma: no cover
             logger.warning(
                 "%r is not a registered callback for %r", callback, key)
 

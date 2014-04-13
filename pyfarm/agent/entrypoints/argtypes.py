@@ -68,21 +68,26 @@ def port(value, instance=None):
     """convert and check to make sure the provided port is valid"""
     try:
         value = convert.ston(value)
-    except ValueError:
+    except (ValueError, SyntaxError):
         instance.parser.error("failed to convert --port to a number")
     else:
         low_port = 1 if instance.args.uid == 0 else 49152
         high_port = 65535
 
-        if low_port <= value <= high_port:
+        if low_port > value or value > high_port:
             instance.parser.error(
                 "valid port range is %s-%s" % (low_port, high_port))
 
         return value
 
+# Function is not currently tested because uid/gid mapping is system specific,
+# may require access to external network resources, and internally is
+# covered for the most part by other tests.
+# TODO: find a reliable way to test uidgid()
 @assert_instance
 def uidgid(value=None, flag=None,
-           get_id=None, check_id=None, set_id=None, instance=None):
+           get_id=None, check_id=None, set_id=None,
+           instance=None):  # pragma: no cover
         """
         Retrieves and validates the user or group id for a command line flag
         """
@@ -146,7 +151,8 @@ def direxists(path, instance=None, flag=None):
     """checks to make sure the directory exists"""
     if not isdir(path):
         instance.parser.error(
-            "--%s, directory does not exist: %s" % (flag, path))
+            "--%s, path does not exist or is not "
+            "a directory: %s" % (flag, path))
 
     return path
 
@@ -155,7 +161,8 @@ def direxists(path, instance=None, flag=None):
 def number(value, types=None, instance=None, allow_inf=False, min_=1,
            flag=None):
     """convert the given value to a number"""
-    if isinstance(value, NUMERIC_TYPES):
+    # Internally used
+    if isinstance(value, NUMERIC_TYPES):  # pragma: no cover
         return value
 
     elif value.lower() in INFINITE and allow_inf:

@@ -39,22 +39,8 @@ class TestEnvironment(TestCase):
         TestCase.setUp(self)
         self._created_agent_id = False
         self._created_state = False
-
-        if "state" not in config:
-            config["state"] = "online"
-            self._created_state = True
-
-        if "agent-id" not in config:
-            config["agent-id"] = 0
-            self._created_agent_id = True
-
-    def tearDown(self):
-        TestCase.tearDown(self)
-        if self._created_state:
-            config.pop("state")
-
-        if self._created_agent_id:
-            config.pop("agent-id")
+        config["state"] = "online"
+        config["agent-id"] = 0
 
     def test_parent_class(self):
         self.assertIsInstance(Environment(), _Environment)
