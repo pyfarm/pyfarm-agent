@@ -74,7 +74,7 @@ def port(value, instance=None):
         low_port = 1 if instance.args.uid == 0 else 49152
         high_port = 65535
 
-        if low_port <= value <= high_port:
+        if low_port > value or value > high_port:
             instance.parser.error(
                 "valid port range is %s-%s" % (low_port, high_port))
 
