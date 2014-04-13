@@ -119,25 +119,17 @@ def get_process(pidfile):
         process_name = process.name.lower()
         logger.debug("%s is named '%s'" % (pid, process_name))
 
-        # the vast majority of the time, the process will be
-        # ours in this case
-        if process_name == "pyfarm-agent" \
-                or process_name.startswith("pyfarm"):
-            return pid, process
+        # Be careful, we don't want to return a pid or process object
+        # for something which might not be a PyFarm process.
+        if not any([
+                process_name.startswith("pyfarm"),
+                process_name.startswith("trial")]):
+            raise OSError(
+                "%s contains pid %s with the name %s.  This seems to be "
+                "a process this script does not know about so we're stopping "
+                "here rather than continuing." % (pidfile, pid, process_name))
 
-        # if it's a straight Python process it might still
-        # be ours depending on how it was launched but we can't
-        # do much else without more information
-        elif process_name.startswith("python"):
-            logger.warning(
-                "%s appears to be a normal Python process and may not "
-                "be pyfarm-agent" % pid)
-            return pid, process
-
-        else:
-            logger.warning(
-                "Process name is neither python or "
-                "pyfarm-agent, instead it was '%s'." % process_name)
+        return pid, process
 
     return None, None
 
