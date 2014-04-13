@@ -23,14 +23,25 @@ documents, pages, or other types of data for the web.
 """
 
 from json import loads
-from httplib import (
-    responses, INTERNAL_SERVER_ERROR, NOT_FOUND, BAD_REQUEST,
-    UNSUPPORTED_MEDIA_TYPE, METHOD_NOT_ALLOWED)
+
+try:
+    from httplib import (
+        responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
+        METHOD_NOT_ALLOWED)
+except ImportError:  # pragma: no cover
+    from httplib.client import (
+        responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
+        METHOD_NOT_ALLOWED)
 
 try:
     from itertools import ifilter as filter_
 except ImportError:  # pragma: no cover
     filter_ = filter
+
+try:
+    from itertools import imap as map_
+except ImportError:  # pragma: no cover
+    map_ = map
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
@@ -132,7 +143,7 @@ class Resource(_Resource):
             request.finish()
 
         else:
-            request.setResponseCode(INTERNAL_SERVER_ERROR)
+            request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
             request.write(
                 {"error": "Can only handle text/html or application/json here"})
             request.finish()
@@ -200,7 +211,7 @@ class Resource(_Resource):
                 return getattr(self, method_name)(**kwargs)
 
         # If we could not find function to call for the given method
-        # produce a warning.
+        # produce an error.
         else:
             supported_methods = self.methods
             if not supported_methods:
@@ -208,7 +219,7 @@ class Resource(_Resource):
             else:
                 message = "%r only supports the %s method(s)" % (
                     request.uri,
-                    ", ".join(map(str.upper, supported_methods)))
+                    ", ".join(list(map_(str.upper, supported_methods))))
 
             self.error(request, METHOD_NOT_ALLOWED, message)
             return NOT_DONE_YET
