@@ -50,7 +50,7 @@ def get_json(url):
     """retrieve the json data from the given url or returns None"""
     try:
         page = requests.get(
-            url, headers={"Content-Type": "application/json"})
+            url, headers={"content-type": "application/json"})
     except ConnectionError:
         logger.debug("GET %s (connection error)" % url)
         return None
@@ -58,7 +58,7 @@ def get_json(url):
         logger.debug("GET %s" % url)
         logger.debug("  contents: %s" % page.text)
         if not page.ok:
-            logger.warning("%s status was %s" % repr(page.reason))
+            logger.warning("%s's status was %s" % (url, repr(page.reason)))
             return None
         else:
             return page.json()
