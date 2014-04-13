@@ -21,6 +21,7 @@ except ImportError:
 
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 from twisted.web.http import Headers
+from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
@@ -30,9 +31,9 @@ from pyfarm.agent.utility import dumps
 
 
 class DummyRequest(_DummyRequest):
-    def __init__(self, headers=None):
-        _DummyRequest.__init__(self, [""])
-        self.data = []
+    def __init__(self, uri=None, headers=None):
+        _DummyRequest.__init__(self, uri or [""])
+        self.data = ""
         self.requestHeaders = Headers()
 
         if headers is not None:
@@ -41,8 +42,14 @@ class DummyRequest(_DummyRequest):
                     value = [value]
                 self.requestHeaders.setRawHeaders(key, value)
 
+        if uri is not None:
+            self.path = self.uri = uri
+
     def write(self, data):
-        self.data.append(data)
+        if not isinstance(data, STRING_TYPES):
+            data = dumps(data)
+
+        self.data += data
 
 
 class ResourceWithMethods(Resource):
@@ -108,14 +115,14 @@ class TestResourceInternals(TestCase):
         self.assertRaises(ValueError, lambda: resource.methods)
 
     def test_content_types_default(self):
-        request = DummyRequest({})
+        request = DummyRequest(headers={})
         resource = Resource()
         self.assertEqual(resource.content_types(request), set())
         self.assertEqual(
             resource.content_types(request, default="foo"), set(["foo"]))
 
     def test_content_types(self):
-        request = DummyRequest({"content-type": "foo"})
+        request = DummyRequest(headers={"content-type": "foo"})
         resource = Resource()
         self.assertEqual(resource.content_types(request), set(["foo"]))
 
@@ -125,30 +132,39 @@ class TestResourceInternals(TestCase):
         self.assertIs(child, root.putChild("", child))
 
     def test_error_html(self):
-        request = DummyRequest({"content-type": "text/html"})
+        request = DummyRequest(headers={"content-type": "text/html"})
         resource = Resource()
         resource.error(request, BAD_REQUEST, "error_html")
         self.assertEqual(request.responseCode, BAD_REQUEST)
         self.assertTrue(request.finished)
-        self.assertIn("DOCTYPE html", request.data[0])
-        self.assertIn("error_html", request.data[0])
+        self.assertIn("DOCTYPE html", request.data)
+        self.assertIn("error_html", request.data)
 
     def test_error_json(self):
-        request = DummyRequest({"content-type": "application/json"})
+        request = DummyRequest(headers={"content-type": "application/json"})
         resource = Resource()
         resource.error(request, BAD_REQUEST, "error_json")
         self.assertEqual(request.responseCode, BAD_REQUEST)
         self.assertTrue(request.finished)
-        self.assertEqual(request.data[0], {"error": "error_json"})
+        self.assertEqual(request.data, dumps({"error": "error_json"}))
 
     def test_error_unhandled(self):
-        request = DummyRequest({"content-type": "foobar"})
+        request = DummyRequest(headers={"content-type": "foobar"})
         resource = Resource()
         resource.error(request, BAD_REQUEST, "internal_error")
         self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
         self.assertTrue(request.finished)
         self.assertEqual(
-            request.data[0],
-            {"error": "Can only handle text/html or application/json here"})
+            request.data,
+            dumps({"error":
+                       "Can only handle text/html or application/json here"}))
 
 
+class TestResourceRendering(TestCase):
+    def test_leaf_without_trailing_slash(self):
+        request = DummyRequest("")
+        resource = Resource()
+        resource.isLeaf = True
+        render_result = resource.render(request)
+        self.assertEqual(render_result, NOT_DONE_YET)
+        # results
