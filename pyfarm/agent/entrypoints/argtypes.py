@@ -80,9 +80,13 @@ def port(value, instance=None):
 
         return value
 
+# Function not tested because uid/gid mapping is system specific,
+# may require access to external network resources, and internally is
+# covered for the most part by other tests
 @assert_instance
 def uidgid(value=None, flag=None,
-           get_id=None, check_id=None, set_id=None, instance=None):
+           get_id=None, check_id=None, set_id=None,
+           instance=None):  # pragma: no cover
         """
         Retrieves and validates the user or group id for a command line flag
         """
