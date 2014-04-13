@@ -159,72 +159,72 @@ def get_pids(pidfile, index_url):
 
 
 def start_daemon_posix(log, logerr, chroot, uid, gid):
-        """
-        Runs the agent process via a double fork.  This basically a duplicate
-        of Marcechal's original code with some adjustments:
+    """
+    Runs the agent process via a double fork.  This basically a duplicate
+    of Marcechal's original code with some adjustments:
 
-            http://www.jejik.com/articles/2007/02/
-            a_simple_unix_linux_daemon_in_python/
+        http://www.jejik.com/articles/2007/02/
+        a_simple_unix_linux_daemon_in_python/
 
-        Source files from his post are here:
-            http://www.jejik.com/files/examples/daemon.py
-            http://www.jejik.com/files/examples/daemon3x.py
-        """
-        # first fork
-        try:
-            pid = fork()
-            if pid > 0:
-                sys.exit(0)
-        except OSError as e:
-            logger.error(
-                "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
-            sys.exit(1)
+    Source files from his post are here:
+        http://www.jejik.com/files/examples/daemon.py
+        http://www.jejik.com/files/examples/daemon3x.py
+    """
+    # first fork
+    try:
+        pid = fork()
+        if pid > 0:
+            sys.exit(0)
+    except OSError as e:
+        logger.error(
+            "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
+        sys.exit(1)
 
-        # decouple from the parent environment
-        os.chdir(chroot or "/")
-        os.setsid()
-        os.umask(0)
+    # decouple from the parent environment
+    os.chdir(chroot or "/")
+    os.setsid()
+    os.umask(0)
 
-        # second fork
-        try:
-            pid = fork()
-            if pid > 0:
-                sys.exit(0)
-        except OSError as e:
-            logger.error(
-                "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
-            sys.exit(1)
+    # second fork
+    try:
+        pid = fork()
+        if pid > 0:
+            sys.exit(0)
+    except OSError as e:
+        logger.error(
+            "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
+        sys.exit(1)
 
-        # flush any pending data before we duplicate
-        # the file descriptors
-        sys.stdout.flush()
-        sys.stderr.flush()
+    # flush any pending data before we duplicate
+    # the file descriptors
+    sys.stdout.flush()
+    sys.stderr.flush()
 
-        # open up file descriptors for the new process
-        stdin = open(os.devnull, "r")
-        stdout = open(log, "a+")
-        stderr = open(logerr, "a+", 0)
-        os.dup2(stdin.fileno(), sys.stdin.fileno())
-        os.dup2(stdout.fileno(), sys.stdout.fileno())
-        os.dup2(stderr.fileno(), sys.stderr.fileno())
+    # open up file descriptors for the new process
+    stdin = open(os.devnull, "r")
+    stdout = open(log, "a+")
+    stderr = open(logerr, "a+", 0)
+    os.dup2(stdin.fileno(), sys.stdin.fileno())
+    os.dup2(stdout.fileno(), sys.stdout.fileno())
+    os.dup2(stderr.fileno(), sys.stderr.fileno())
 
-        # if requested, set the user id of this process
-        if uid is not None and setuid is not NotImplemented:
-            setuid(uid)
+    # if requested, set the user id of this process
+    if uid is not None and setuid is not NotImplemented:
+        setuid(uid)
 
-        elif uid is not None:
-            logger.warning(
-                "--uid was requested but `setuid` is not "
-                "implemented on %s" % OS.title())
+    elif uid is not None:
+        logger.warning(
+            "--uid was requested but `setuid` is not "
+            "implemented on %s" % OS.title())
 
-        # if requested, set the group id of this process
-        if gid is not None and setgid is not NotImplemented:
-            setgid(gid)
+    # if requested, set the group id of this process
+    if gid is not None and setgid is not NotImplemented:
+        setgid(gid)
 
-        elif gid is not None:
-            logger.warning(
-                "--gid was requested but `setgid` is not "
-                "implemented on %s" % OS.title())
+    elif gid is not None:
+        logger.warning(
+            "--gid was requested but `setgid` is not "
+            "implemented on %s" % OS.title())
 
 
 def write_pid_file(path, pid):
