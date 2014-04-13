@@ -244,11 +244,7 @@ class TestResourceRendering(TestResourceBase):
         resource = PostResource()
         render_result = resource.render(request)
         self.assertEqual(render_result, NOT_DONE_YET)
-        self.assertEqual(
-            request.data,
-            dumps({
-                "error": "Failed to decode json data: ValueError('Expecting "
-                         "object: line 1 column 1 (char 0)',)"}))
+        self.assertIn("Failed to decode json data", request.data)
         self.assertEqual(request.responseCode, BAD_REQUEST)
 
     def test_post_schema(self):
