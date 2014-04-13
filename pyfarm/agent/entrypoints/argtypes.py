@@ -68,7 +68,7 @@ def port(value, instance=None):
     """convert and check to make sure the provided port is valid"""
     try:
         value = convert.ston(value)
-    except ValueError:
+    except (ValueError, SyntaxError):
         instance.parser.error("failed to convert --port to a number")
     else:
         low_port = 1 if instance.args.uid == 0 else 49152
@@ -150,7 +150,8 @@ def direxists(path, instance=None, flag=None):
     """checks to make sure the directory exists"""
     if not isdir(path):
         instance.parser.error(
-            "--%s, directory does not exist: %s" % (flag, path))
+            "--%s, path does not exist or is not "
+            "a directory: %s" % (flag, path))
 
     return path
 
