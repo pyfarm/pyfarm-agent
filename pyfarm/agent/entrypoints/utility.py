@@ -64,6 +64,7 @@ def get_json(url):
             return page.json()
 
 
+# TODO: improve internal coverage
 def get_process(pidfile):
     """
     Returns (pid, process_object) after loading the pid file.  If we
@@ -86,7 +87,7 @@ def get_process(pidfile):
         try:
             os.remove(pidfile)
             logger.debug("removed empty pid file %s" % pidfile)
-        except OSError:
+        except OSError:  # pragma: no cover
             pass
 
         return None, None
@@ -94,7 +95,7 @@ def get_process(pidfile):
     # convert the pid to a number from a string
     try:
         pid = convert.ston(pid)
-    except ValueError:
+    except ValueError:  # pragma: no cover
         logger.error(
             "failed to convert pid in %s to a number" % pidfile)
         raise
@@ -106,7 +107,7 @@ def get_process(pidfile):
     # try to load up the process object
     try:
         process = psutil.Process(pid)
-    except psutil.NoSuchProcess:
+    except psutil.NoSuchProcess:  # pragma: no cover
         logger.debug("no such process %s" % pid)
 
         try:
@@ -122,8 +123,9 @@ def get_process(pidfile):
         # Be careful, we don't want to return a pid or process object
         # for something which might not be a PyFarm process.
         if not any([
+                process_name == "python",
                 process_name.startswith("pyfarm"),
-                process_name.startswith("trial")]):
+                process_name.startswith("trial")]):  # pragma: no cover
             raise OSError(
                 "%s contains pid %s with the name %s.  This seems to be "
                 "a process this script does not know about so we're stopping "
@@ -144,13 +146,16 @@ def get_pids(pidfile, index_url):
     pid_from_file, process = get_process(pidfile)
     index = get_json(index_url) or {}
 
-    if not index:
+    if not index:  # pragma: no cover
         logger.debug("failed to retrieve agent information using the REST api")
 
     return pid_from_file, index.get("pid")
 
 
-def start_daemon_posix(log, logerr, chroot, uid, gid):
+# This is a Linux specific test and will be hard to get due to the nature
+# of how the tests are run, for now we're excluding it.
+# TODO: figure out a reliable way to test  start_daemon_posix
+def start_daemon_posix(log, logerr, chroot, uid, gid):  # pragma: no cover
     """
     Runs the agent process via a double fork.  This basically a duplicate
     of Marcechal's original code with some adjustments:
@@ -228,7 +233,7 @@ def write_pid_file(path, pid):
     if not isdir(pidfile_dirname):
         try:
             os.makedirs(pidfile_dirname)
-        except OSError:
+        except OSError:  # pragma: no cover
             logger.warning("failed to create %s" % pidfile_dirname)
 
     with open(path, "w") as pidfile:
@@ -236,7 +241,8 @@ def write_pid_file(path, pid):
 
     logger.debug("wrote %s to %s" % (pid, pidfile.name))
 
-    def remove_pid_file(pidfile):
+    # Not testing this because it's only run on exist
+    def remove_pid_file(pidfile):  # pragma: no cover
         try:
             os.remove(pidfile)
             logger.debug("removed %s" % pidfile)
@@ -250,6 +256,11 @@ def get_default_ip():
     """returns the default ip address to use"""
     try:
         return network.ip()
-    except ValueError:
+
+    # Not testing because this is difficult to replicate under the most
+    # circumstances depending on the network.  The test case for this
+    # does cover the results here however in the event we do find
+    # a case.
+    except ValueError:  # pragma: no cover
         logger.error("failed to find network ip address")
         return "127.0.0.1"
