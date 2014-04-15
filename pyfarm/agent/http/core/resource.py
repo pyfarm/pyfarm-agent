@@ -29,7 +29,7 @@ try:
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
         METHOD_NOT_ALLOWED)
 except ImportError:  # pragma: no cover
-    from httplib.client import (
+    from http.client import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
         METHOD_NOT_ALLOWED)
 
