@@ -19,7 +19,7 @@
 Configuration
 -------------
 
-Central module for storing and working with a live configuration object.  This
+Central module for storing and working with a live configuration objects.  This
 module instances :class:`.ConfigurationWithCallbacks` onto :const:`.config`.
 Attempting to reload this module will not reinstance the :const:`.config`
 object.
@@ -57,6 +57,10 @@ class LoggingConfiguration(dict):
             self.changed(self.CREATED, key, value, NOTSET)
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
+
+        # Create the initial internal structure for storing
+        # job types
+        self["jobtypes"] = {}
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -226,7 +230,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)
 
-# prevent a call to reload() from dumping the config object
+# Prevent a call to reload() from dumping the config object
 try:
     config
 except NameError:
