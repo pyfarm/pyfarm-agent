@@ -19,7 +19,7 @@ from decimal import Decimal
 try:
     from httplib import ACCEPTED, BAD_REQUEST
 except ImportError:  # pragma: no cover
-    from httplib.client import ACCEPTED, BAD_REQUEST
+    from http.client import ACCEPTED, BAD_REQUEST
 
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional, Any
@@ -106,7 +106,7 @@ class Assign(APIResource):
         requires_cpus = data["job"].get("cpus")
 
         # Do we have enough ram?
-        if requires_cpus is not None and requires_ram > memory_free:
+        if requires_ram is not None and requires_ram > memory_free:
             logger.error(
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",

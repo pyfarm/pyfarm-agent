@@ -29,7 +29,7 @@ import re
 try:
     from httplib import FORBIDDEN
 except ImportError:  # pragma: no cover
-    from httplib.client import FORBIDDEN
+    from http.client import FORBIDDEN
 
 from os.path import exists
 

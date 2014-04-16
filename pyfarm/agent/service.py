@@ -499,7 +499,7 @@ class Agent(object):
     def callback_post_free_ram(self, response):
         """
         Called when we get a response back from the master
-        after posing a change for ``free_ram``
+        after POSTing a change for ``free_ram``
         """
         self.last_free_ram_post = time.time()
         if response.code == OK:
