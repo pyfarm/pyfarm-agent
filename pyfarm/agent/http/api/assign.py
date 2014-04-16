@@ -29,7 +29,7 @@ from pyfarm.core.sysinfo.memory import ram_free
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.agent.utility import JobTypeCache
+from pyfarm.jobtypes.core.cache import get_jobtype
 
 logger = getLogger("agent.assign")
 
@@ -145,7 +145,7 @@ class Assign(APIResource):
         # TODO: the job type class should probably handle the caching
         # for us
         jobtype = data["jobtype"]
-        deferred = JobTypeCache.get(jobtype["name"], jobtype["version"])
+        deferred = get_jobtype(jobtype["name"], jobtype["version"])
         deferred.addCallback(logger.debug)
 
 
