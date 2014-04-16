@@ -112,6 +112,9 @@ Describes which address should be used to contact the agent
     A tuple of string types, provided for Python 3 backwards compatibility
 
 :const NUMERIC_TYPES:
+    A tuple of numeric types, provided for Python 3 backwards compatibility
+
+:const INTEGER_TYPES:
     A tuple of integer types, provided for Python 3 backwards compatibility
 
 :const BOOLEAN_TRUE:
@@ -198,9 +201,11 @@ from pyfarm.core.sysinfo.system import (
 try:  # pragma: no cover
     STRING_TYPES = (str, unicode)
     NUMERIC_TYPES = (int, long, float, complex)
+    INTERGER_TYPES = (int, long)
 except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
+    INTERGER_TYPES = int
 
 # constants used by pyfarm.core.utility.convert by provided
 # here so they could be reused elsewhere
