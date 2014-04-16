@@ -20,7 +20,7 @@
     },
     "jobtype": {
         "name": "TestJobType",
-        "version": 0
+        "version": 1
     },
     "tasks": [
         {"id": 1, "frame": 1},
