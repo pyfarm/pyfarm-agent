@@ -314,8 +314,12 @@ class Agent(object):
                     "ip": system_data["ip"]})
 
         if run:
-            # returns a DeferredList because we have to wait on other
-            # parts of the the to finish
+            # Returns a DeferredList because we have to wait
+            # for the search to complete which will then fire
+            # the deferred object on self.agent_created.  This
+            # ensures that any callbacks attached to this return
+            # value won't do anything until we're finished search
+            # for the agent in the database.
             return DeferredList([search(), self.agent_created])
         else:
             return search
