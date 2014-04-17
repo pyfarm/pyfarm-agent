@@ -14,22 +14,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import imp
 import os
-from functools import partial
+import json
+import tempfile
+import sys
 from string import Template
+from os.path import join, dirname, isfile
 
 try:
-    import json
-except ImportError:
-    import simplejson as json
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
 
-from twisted.internet import reactor
+from twisted.internet import reactor, threads
+from twisted.internet.defer import Deferred
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
-from twisted.python import log
 
 from pyfarm.core.enums import WorkState
 from pyfarm.core.files import which
+from pyfarm.core.config import read_env
+from pyfarm.core.logger import getLogger
+from pyfarm.agent.config import config
+from pyfarm.agent.http.core.client import get
 from pyfarm.jobtypes.core.protocol import ProcessProtocol
+
+DEFAULT_CACHE_DIRECTORY = read_env(
+    "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
+
+logcache = getLogger("jobtypes.cache")
 
 
 class JobType(object):
@@ -37,30 +50,189 @@ class JobType(object):
     Base class for all other job types.  This class is intended
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
+
+    :attribute cache:
+        Stores the cached job types
+
+    :attribute process_protocol:
+        The protocol object used to communicate between the process
+        and the job type.
     """
-    protocol_class = ProcessProtocol
+    process_protocol = ProcessProtocol
+    cache = {}
 
-    def __init__(self, config, assignment_data):
-        self.config = config
-        self.assignment = assignment_data.copy()
-        self.process = None
-        self.protocol = None
-        self._last_state = None
-        self.called = False
+    def __init__(self, assignment):
+        assert isinstance(assignment, dict)
+        self.assignment = assignment
 
-        # TODO: replace logger with observer
-        # TODO: use observers to prefix certain log messages (ex. stdout)
-        self.log = partial(log.msg, system=self.__class__.__name__)
+    @classmethod
+    def _cache_key(cls, assignment):
+        """Returns the key used to store and retrieve the cached job type"""
+        return assignment["jobtype"]["name"], assignment["jobtype"]["version"]
 
-    def __call__(self, *args, **kwargs):
-        if self.called:
-            raise ValueError("class already called")
+    @classmethod
+    def _url(cls, name, version):
+        """Returns the remote url for the requested job type and version"""
+        return str(
+            "%(master-api)s/jobtypes/%(jobtype)s/versions/%(version)s" % {
+            "master-api": config["master-api"],
+            "jobtype": name,
+            "version": version})
 
-        self.called = True
-        raise NotImplementedError("not yet implemented")
+    @classmethod
+    def _cache_directory(cls):
+        """Returns the path where job types should be cached"""
+        return config.get("jobtype_cache_directory") or DEFAULT_CACHE_DIRECTORY
+
+    @classmethod
+    def _cache_filename(cls, cache_key, jobtype):
+        """
+        Returns the path where this specific job type should be
+        stored or loaded from
+        """
+        return str(join(
+            cls._cache_directory(),
+            "_".join(map(str, cache_key)) + "_" + jobtype["classname"] + ".py"))
+
+    @classmethod
+    def _download_jobtype(cls, assignment):
+        """
+        Downloads the job type specified in ``assignment``.  This
+        method will pass the response it receives to :meth:`_cache_jobtype`
+        however failures will be retried.
+        """
+        result = Deferred()
+        url = cls._url(
+            assignment["jobtype"]["name"],
+            assignment["jobtype"]["version"])
+
+        def download(*_):
+            get(url, callback=result.callback, errback=download)
+
+        download()
+        return result
+
+    @classmethod
+    def _cache_jobtype(cls, cache_key, jobtype):
+        """
+        Once the job type is downloaded this classmethod is called
+        to store it on disk.  In the rare even that we fail to write it
+        to disk, we store it in memory instead.
+        """
+        filename = cls._cache_filename(cache_key, jobtype)
+        success = Deferred()
+
+        def write_to_disk(filename):
+            try:
+                os.makedirs(dirname(filename))
+            except (IOError, OSError):
+                pass
+
+            if isfile(filename):
+                logcache.debug("%s is already cached on disk", filename)
+                jobtype.pop("code", None)
+                return filename, jobtype
+
+            try:
+                with open(filename, "w") as stream:
+                    stream.write(jobtype["code"])
+
+                jobtype.pop("code", None)
+                return filename, jobtype
+
+            # If the above fails, use a temp file instead
+            except (IOError, OSError) as e:
+                fd, tmpfilepath = tempfile.mkstemp(suffix=".py")
+                logcache.warning(
+                    "Failed to write %s, using %s instead: %s",
+                    filename, tmpfilepath, e)
+
+                with open(tmpfilepath, "w") as stream:
+                    stream.write(jobtype["code"])
+
+                jobtype.pop("code", None)
+                return filename, jobtype
+
+        def written_to_disk(results):
+            filename, jobtype = results
+            cls.cache[cache_key] = (jobtype, filename)
+            logcache.info("Created cache for %r at %s", cache_key, filename)
+            success.callback((jobtype, filename))
+
+        def failed_to_write_to_disk(error):
+            logcache.error(
+                "Failed to write job type cache to disk, will use "
+                "memory instead: %s", error)
+
+            # The code exists in the job type because it's
+            # only removed on success.
+            cls.cache[cache_key] = (jobtype, None)
+            success.callback((jobtype, None))
+
+        # Defer the write process to a thread so we don't
+        # block the reactor if the write is slow
+        writer = threads.deferToThread(write_to_disk, filename)
+        writer.addCallbacks(written_to_disk, failed_to_write_to_disk)
+        return success
+
+    @classmethod
+    def load(cls, assignment):
+        """
+        Given ``data`` this class method will load the job type either
+        from cache or from the master and then instance it with the
+        incoming assignment data
+        """
+        result = Deferred()
+        cache_key = cls._cache_key(assignment)
+
+        def load_jobtype(args):
+            jobtype, filepath = args
+            module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
+                jobtype["classname"], jobtype["name"], jobtype["version"])
+
+            if filepath is not None:
+                # If we've made it to this point we have to assume
+                # we have access to the file.
+                module = imp.load_source(module_name, filepath)
+            else:
+                # TODO: this needs testing
+                logcache.warning(
+                    "Loading (%s, %s) directly from memory",
+                    jobtype["name"], jobtype["version"])
+                module = imp.new_module(module_name)
+
+                # WARNING: This is dangerous and only used as a last
+                # resort.  There's probably something wrong with the
+                # file system.
+                exec jobtype["code"] in module.__dict__
+
+                sys.modules[module_name] = module
+
+            # Finally, send the results to the callback
+            result.callback(getattr(module, jobtype["classname"]))
+
+        # TODO: if the file is cached on disk, and a command line flag (which
+        # does not exist yet) says to use disk cache, do so instead of the below
+        # If the job type is not cached, we have to download it
+        if cache_key not in cls.cache:
+            def download_complete(response):
+                if response.code != OK:
+                    return response.request.retry()
+
+                # When the download is complete, cache the results
+                caching = cls._cache_jobtype(cache_key, response.json())
+                caching.addCallback(load_jobtype)
+
+            # Start the download
+            download = cls._download_jobtype(assignment)
+            download.addCallback(download_complete)
+        else:
+            load_jobtype((cls.cache[cache_key]))
+
+        return result
 
     @property
-    def spawned_process(self):
+    def running(self):
         """property which returns True if the process has been spawned"""
         if self.process and self.protocol:
             return True
@@ -112,7 +284,7 @@ class JobType(object):
             raised if the protocol object is not a subclass of
             :class:`._ProcessProtocol`
         """
-        instance = self.protocol_class(self.config, self)
+        instance = self.protocol(self.config, self)
 
         if not isinstance(instance, _ProcessProtocol):
             raise TypeError("expected an instance of Twisted's ProcessProtocol")
@@ -175,7 +347,7 @@ class JobType(object):
         :raises ValueError:
             raised if the process has already been spawned
         """
-        if not force and self.spawned_process:
+        if not force and self.running:
             raise ValueError("process has already been spawned")
 
         try:

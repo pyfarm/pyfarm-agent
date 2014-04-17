@@ -29,7 +29,7 @@ from pyfarm.core.sysinfo.memory import ram_free
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.jobtypes.core.cache import get_jobtype
+from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")
 
@@ -142,12 +142,10 @@ class Assign(APIResource):
             request.finish()
 
         # Retrieve the job tpe
-        # TODO: the job type class should probably handle the caching
-        # for us
-        jobtype = data["jobtype"]
-        deferred = get_jobtype(jobtype["name"], jobtype["version"])
-        deferred.addCallback(logger.debug)
-
+        # TODO: attach to a function to instance the class
+        # and get the process started
+        jobtype = JobType.load(data)
+        jobtype.addCallback(logger.info)
 
         # TODO: Next steps as deferreds.  Some of these are done in the queue,
         #       or will be, but the information the agent has available may be
