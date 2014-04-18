@@ -214,12 +214,12 @@ class JobType(object):
         # TODO: if the file is cached on disk, and a command line flag (which
         # does not exist yet) says to use disk cache, do so instead of the below
         # If the job type is not cached, we have to download it
-        if config["no-cache-jobtype"] or cache_key not in cls.cache:
+        if config["jobtype-no-cache"] or cache_key not in cls.cache:
             def download_complete(response):
                 if response.code != OK:
                     return response.request.retry()
 
-                if config["no-cache-jobtype"]:
+                if config["jobtype-no-cache"]:
                     return response.json()
 
                 # When the download is complete, cache the results

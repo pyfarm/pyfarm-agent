@@ -331,7 +331,7 @@ class AgentEntryPoint(object):
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
-            "--no-cache-jobtype", default=False, action="store_true",
+            "--jobtype-no-cache", default=False, action="store_true",
             help="If provided then do not cache job types, always directly "
                  "retrieve them.  This is beneficial if you're testing the "
                  "agent or a new job type class.")
@@ -424,7 +424,7 @@ class AgentEntryPoint(object):
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
                 "api_endpoint_prefix": "/api/v1",
-                "no-cache-jobtype": self.args.no_cache_jobtype}
+                "jobtype-no-cache": self.args.jobtype_no_cache}
 
             config.update(config_flags)
 
