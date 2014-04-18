@@ -220,7 +220,7 @@ class JobType(object):
                     return response.request.retry()
 
                 if config["jobtype-no-cache"]:
-                    return response.json()
+                    return load_jobtype((response.json(), None))
 
                 # When the download is complete, cache the results
                 caching = cls._cache_jobtype(cache_key, response.json())
