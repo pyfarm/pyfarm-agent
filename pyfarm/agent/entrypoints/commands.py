@@ -261,7 +261,6 @@ class AgentEntryPoint(object):
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
 
-
         # start logging options
         logging_group = start.add_argument_group(
             "Logging Options",
@@ -330,7 +329,12 @@ class AgentEntryPoint(object):
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 
-        # start_ram_group = start.add_argument_group("Memory")
+        jobtype_group = start.add_argument_group("Job Types")
+        jobtype_group.add_argument(
+            "--no-cache-jobtype", default=False, action="store_true",
+            help="If provided then do not cache job types, always directly "
+                 "retrieve them.  This is beneficial if you're testing the "
+                 "agent or a new job type class.")
 
         # options when stopping the agent
         stop_process_group = stop.add_argument_group(
@@ -419,7 +423,8 @@ class AgentEntryPoint(object):
                 "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
-                "api_endpoint_prefix": "/api/v1"}
+                "api_endpoint_prefix": "/api/v1",
+                "no-cache-jobtype": self.args.no_cache_jobtype}
 
             config.update(config_flags)
 
