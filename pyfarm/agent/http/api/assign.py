@@ -141,23 +141,14 @@ class Assign(APIResource):
             request.setResponseCode(ACCEPTED)
             request.finish()
 
-        # Retrieve the job tpe
-        # TODO: attach to a function to instance the class
-        # and get the process started
-        jobtype = JobType.load(data)
-        jobtype.addCallback(logger.info)
+        def loaded_jobtype(jobtype_class):
+            instance = jobtype_class(data)
+            print instance
 
-        # TODO: Next steps as deferreds.  Some of these are done in the queue,
-        #       or will be, but the information the agent has available may be
-        #       more up to date and these checks are fast anyway.
-        #   - ensure we have enough ram left to serve the optional requirements
-        #   - check for number of cpus currently required by other jobs + this
-        #     job to see if we've hit a limit
-        #   - get job type (and cache if not already)
-        #   - instance the job type with env, user, resource requirements, etc
-        #   - execute the job type
-        #   - (done) - workload handed off to job type including
-        #     ram_max/ram_warning check, user -> uid conversion (or warning, on
-        #     windows), etc
+        # Load the job type then pass the class along to the
+        # callback.  No errback here because all the errors
+        # are handled internally in this case.
+        jobtype_loader = JobType.load(data)
+        jobtype_loader.addCallback(loaded_jobtype)
 
         return NOT_DONE_YET
