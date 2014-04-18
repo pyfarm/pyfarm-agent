@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import imp
+import inspect
 import os
 import json
 import tempfile
@@ -64,6 +65,12 @@ class JobType(object):
     def __init__(self, assignment):
         assert isinstance(assignment, dict)
         self.assignment = assignment
+
+        module = inspect.getmodule(self.__class__)
+        logcache.debug(
+            "Instanced job type %s.%s",
+            module.__name__ if module is not None else "<unknown>",
+            self.__class__.__name__)
 
     @classmethod
     def _cache_key(cls, assignment):
