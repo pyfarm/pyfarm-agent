@@ -31,14 +31,14 @@ class ProcessProtocol(_ProcessProtocol):
     necessary to run and manage a process.  More specifically, this helps
     to act as plumbing between the process being run and the job type.
     """
-    def __init__(self, config, jobtype):
-        self.config = config
+    def __init__(self, jobtype, task):
         self.jobtype = jobtype
+        self.task = task
         # TODO: pull in settings specific to the process
         # TODO: register a manager so we can send events up to a central class
 
     def connectionMade(self):
-        self.jobtype.process_started()
+        self.jobtype.process_started(self.task)
 
     def processEnded(self, reason):
         # TODO: **below should all be handled by the jobtype**
