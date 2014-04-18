@@ -15,13 +15,12 @@
 # limitations under the License.
 
 import imp
-import inspect
-import os
 import json
+import os
 import tempfile
 import sys
-from string import Template
 from os.path import join, dirname, isfile
+from collections import namedtuple
 
 try:
     from httplib import OK
@@ -29,8 +28,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK
 
 from twisted.internet import reactor, threads
-from twisted.internet.defer import Deferred
-from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
+from twisted.internet.defer import Deferred, DeferredList
 
 from pyfarm.core.enums import WorkState
 from pyfarm.core.files import which
@@ -40,10 +38,27 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.jobtypes.core.protocol import ProcessProtocol
 
+logcache = getLogger("jobtypes.cache")
+logger = getLogger("jobtypes.core")
+Process = namedtuple("Process", ("process", "protocol"))
+
+# Construct the base environment that all job types will use.  We do this
+# once per process so a job type can't modify the running environment
+# on purpose or by accident.
+BASE_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_BASE_ENVIRONMENT", "")
+if isfile(BASE_ENVIRONMENT_CONFIG):
+    logger.info(
+        "Attempting to load base environment from %s", BASE_ENVIRONMENT_CONFIG)
+    with open(BASE_ENVIRONMENT_CONFIG, "rb") as stream:
+        BASE_ENVIRONMENT = json.load(stream)
+    assert isinstance(BASE_ENVIRONMENT, dict)
+
+else:
+    BASE_ENVIRONMENT = os.environ.copy()
+
+
 DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
-
-logcache = getLogger("jobtypes.cache")
 
 
 class JobType(object):
@@ -64,13 +79,30 @@ class JobType(object):
 
     def __init__(self, assignment):
         assert isinstance(assignment, dict)
+        self._processes = []
         self.assignment = assignment
 
-        module = inspect.getmodule(self.__class__)
-        logcache.debug(
-            "Instanced job type %s.%s",
-            module.__name__ if module is not None else "<unknown>",
-            self.__class__.__name__)
+        logger.debug("Instanced %r", self)
+
+    def __repr__(self):
+        return "JobType(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)" % (
+            self.assignment["job"]["id"],
+            tuple(task["id"] for task in self.assignment["tasks"]),
+            str(self.assignment["jobtype"]["name"]),
+            self.assignment["jobtype"]["version"],
+            str(self.assignment["job"]["title"]))
+
+    @property
+    def processes(self):
+        """Provides access to the ``processes`` attribute"""
+        # Provided as a property so you can't accidentally
+        # do self.processes = []
+        return self._processes
+
+    #
+    # Functions related to loading the job type and/or
+    # interacting with the cache
+    #
 
     @classmethod
     def _cache_key(cls, assignment):
@@ -218,9 +250,6 @@ class JobType(object):
             # Finally, send the results to the callback
             result.callback(getattr(module, jobtype["classname"]))
 
-        # TODO: if the file is cached on disk, and a command line flag (which
-        # does not exist yet) says to use disk cache, do so instead of the below
-        # If the job type is not cached, we have to download it
         if config["jobtype-no-cache"] or cache_key not in cls.cache:
             def download_complete(response):
                 if response.code != OK:
@@ -241,50 +270,11 @@ class JobType(object):
 
         return result
 
-    @property
-    def running(self):
-        """property which returns True if the process has been spawned"""
-        if self.process and self.protocol:
-            return True
-        elif not self.process and not self.protocol:
-            return False
-        else:
-            raise ValueError(
-                "`process` and `protocol` must both be True or False")
+    #
+    # Functions for setting up the job type
+    #
 
-    def task_state_changed(self, new_state):
-        """
-        Callback used whenever the state of the task being run is
-        changed.
-        """
-        if new_state == self._last_state:
-            return
-
-        # validate the state name
-        for state_name, value in WorkState._asdict().iteritems():
-            if value == new_state:
-                args = (self.assignment["task"], state_name)
-                self.log("tasks %s's state is changing to %s" % args)
-                break
-        else:
-            raise ValueError("no such state %s" % new_state)
-
-
-        # prepare a retry request to POST to the master
-        retry_post_agent = RetryDeferred(
-            http_post, self._startServiceCallback, self._failureCallback,
-            headers={"Content-Type": "application/json"},
-            max_retries=self.config["http-max-retries"],
-            timeout=None,
-            retry_delay=self.config["http-retry-delay"])
-
-        retry_post_agent(
-            self.config["http-api"] + "/agents",
-            data=json.dumps(get_agent_data()))
-
-        self._last_reported_state = new_state
-
-    def get_process_protocol(self):
+    def build_process_protocol(self, task):
         """
         Returns the process protocol object used to spawn connect
         a job type to a running process.  By default this will instance
@@ -294,113 +284,121 @@ class JobType(object):
             raised if the protocol object is not a subclass of
             :class:`._ProcessProtocol`
         """
-        instance = self.protocol(self.config, self)
+        instance = self.process_protocol(self, task)
 
-        if not isinstance(instance, _ProcessProtocol):
-            raise TypeError("expected an instance of Twisted's ProcessProtocol")
+        if not isinstance(instance, ProcessProtocol):
+            raise TypeError(
+                "Expected of pyfarm.jobtypes.core.protocol.ProcessProtocol")
 
         return instance
 
-    def get_environment(self):
+    def get_default_environment(self):
         """
-        Constructs and returns the environment dictionary.  By default this
-        takes the current environment and updates it with the environment
-        found in the assignment data.
+        Constructs a reasonable default environment dictionary.  This method
+        is not directly used by the core job type class but could be used
+        within subclasses.
         """
-        return dict(os.environ.items() + self.assignment.get("env", {}).items())
+        return dict(
+            list(BASE_ENVIRONMENT.items()) +
+            list(self.assignment["job"].get("environ", {}).items()))
 
-    def get_command(self):
+    def get_id_for_user(self, username):
+        # TODO: docs including Linux vs. Windows and how we try to
+        # find the id
+        raise NotImplementedError("TODO: implementation of get_id_for_user")
+
+    def build_commands(self):
         """
         Returns the command to pass along to :func:`.reactor.spawnProcess`.
-        This method will expand the user variable (~) and any environment
-        variables in the command.
-
-        :raises OSError:
-            raised when the given command couldn't be expanded using
-            environment variables into a path or when we cannot find the
-            command by name on $PATH
-        """
-        # construct a template and attempt to sub in values from
-        # the environment and user (~)
-        template = Template(self.assignment["jobtype"]["command"])
-        command = os.path.expanduser(
-            template.safe_substitute(self.get_environment()))
-
-        if os.path.isfile(command):
-            return command
-        else:
-            return which(command)
-
-    def get_arguments(self):
-        """
-        Returns the arguments to pass into :func:`.reactor.spawnProcess`.
 
         .. note::
-            this method is generally overridden in a subclass so things
-            like frame number or processor could can be pulled from the
-            assignment data
+
+            This method must be overridden in your job type and it should
+            return of lists.  Each list entry should be a list with exactly
+            two items containing:
+
+                #. The absolute path to the command.  This is a requirement
+                   by one of underlying library used to run the command.
+                   You may find :func:`os.path.expandvars` or
+                   :func:`pyfarm.core.files.which` useful to achieve this.
+                #. The arguments the command should execute.
+
+            It is not required to return multiple commands
         """
-        return " ".join(self.assignment["jobtype"]["args"])
+        raise NotImplementedError("You must implement `build_command`")
 
-    def spawn_process(self, force=False):
+    def build_process_inputs(self):
         """
-        Spawns a process using :func:`.reactor.spawnProcess` after instancing
-        the process protocol from :meth:`get_process_protocol`.  Calling this
-        method will populate the ``process`` and ``protocol`` instance
-        variables.
+        This method constructs and returns all the arguments necessary
+        to execute one or multiple processes on the system.  This method
+        must return a structured list similar to this:
 
-        :param bool force:
-            If True, disregard if the process is already running.  This should
-            be used with great care because it does not try to stop or cleanup
-            any existing processes.
+        >>> [(("/bin/ls", "-l", "path1"), os.environ.copy(), "someuser")]
 
-        :raises ValueError:
-            raised if the process has already been spawned
+        The above is a list inside of a list, this will cause a single
+        process to execute on the agent.  To execute multiple processes
+        just add another entry to the list.
+
+        Each entry within the list is three parts:
+
+            #. The absolute path to the command and any command line
+               arguments to include.  You may find :func:`os.path.expandvars`
+               and :func:`pyfarm.core.files.which` helpful in building the
+               absolute path
+            #  The environment in which the process should run.  You can either
+               use :meth:`get_default_environment` to do this or build your
+               own.  Additionally you may want to read the documentation
+               on some of the special values for **env**:
+                http://twistedmatrix.com/documents/current/api/twisted.internet.interfaces.IReactorProcess.spawnProcess.html
+            #. The user the job should execute as.  On Windows this value
+               is ignored due to combination of API differences and the
+               lack of support from the underlying library.  On Linux the agent
+               will try to map the user to a user id, you can use
+               :meth:`get_id_for_user` to do this.
         """
-        if not force and self.running:
-            raise ValueError("process has already been spawned")
+        raise NotImplementedError(
+            "You must implement `build_process_inputs`")
 
-        try:
-            command = self.get_command()
-        except OSError:
-            self.state_changed(WorkState.NO_SUCH_COMMAND)
-            return
+    def spawn_process(self, command, environment, user):
+        """
+        Spawns a process using :func:`.reactor.spawnProcess` and returns
+        a deferred object which will fire when t
+        """
+        arguments = command[1:]
+        command = command[0]
+        protocol = self.build_process_protocol()
+        # TODO: create deferred to connect to the protocol's 'finished' signal
 
+    def start(self):
+        """This method is called when the job type should start working"""
+        # TODO: catch and and properly handle exceptions these could throw
+        started = []
+        for command, environment, user in self.build_process_inputs():
+            deferred = self.spawn_process(command, environment, user)
+            started.append(deferred)
+        return DeferredList(started)
 
-
-        # prepare command and arguments
-        command = self.assignment["jobtype"]["args"]
-        arguments = self.assignment["jobtype"]["args"]
-        if arguments[0] != command:
-            arguments.insert(0, command)
-
-        # launch process
-        self.protocol = self.get_process_protocol()
-        self.process = reactor.spawnProcess(self.protocol, command, arguments)
-
-    def process_started(self):
-        """Callback run once the process has started"""
-        print "started"
-
-    def process_stopped(self, exit_code):
-        print "stopped", exit_code
-
-
-    # TODO: [GENERAL] - this operates on the agent, abstract away as much of the async work as possible
-    # TODO: get_process_protocol() - by default uses self._process_protocol
-    # TODO: spawn_process()
-    # TODO: process_started()
-    # TODO: process_stopped()
-    # TODO: stdout_received()
-    # TODO: stderr_received()
-    # TODO: post_status_change()
+    # TODO: process_started(task)
+    # TODO: process_stopped(task)
+    # TODO: stdout_received(task)
+    # TODO: stderr_received(task)
+    # TODO: post_status_change(task)
 
 if __name__ == "__main__":
     assignment = {
-        "jobtype": {
-            "cmd": "ping",
-            "args": ["-c", "5", "127.0.0.1"]
-        }
-    }
-    jobtype = JobType({}, assignment)
+        u'job': {
+            u'ram_max': 270, u'title':
+            u'test job', u'ram': 256, u'cpus': 1, u'by': 1,
+            u'environ':
+                {u'POST_ASSIGN_TEST': u'true'},
+            u'user': u'foo', u'batch': 1, u'data': {
+            u'int': 1, u'bool': True, u'str': u'hello world'},
+            u'id': 0, u'ram_warning': 260},
+        u'tasks': [
+            {u'frame': 1, u'id': 1},
+            {u'frame': 2, u'id': 2},
+            {u'frame': 3, u'id': 3}],
+        u'jobtype':
+            {u'version': 1, u'name': u'TestJobType'}}
+    jobtype = JobType(assignment)
     jobtype.spawn_process()
