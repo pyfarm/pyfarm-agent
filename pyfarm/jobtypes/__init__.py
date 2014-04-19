@@ -13,3 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+Job Types
+=========
+
+This package, :mod:`pyfarm.jobtypes`, contains the code which
+executes a task on an agent.
+"""
