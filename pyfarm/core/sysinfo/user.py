@@ -25,28 +25,45 @@ access, or other related information.
 import os
 import ctypes
 
-pwd, getpass = None, None
 
+# Linux/mac
 try:
     import pwd
-
 except ImportError:  # pragma: no cover
+    pwd = NotImplemented
+
+# Windows
+try:
+    import win32api
+    from win32com.shell import shell
+except ImportError:  # pragma: no cover
+    win32api = NotImplemented
+
+# Shouldn't generally need this, but just in case someone
+# has a broken setup we should try
+try:
     import getpass
+except ImportError:  # pragma: no cover
+    getpass = NotImplemented
 
-from pyfarm.core.sysinfo import system
+
+from pyfarm.core.sysinfo.system import operating_system
+from pyfarm.core.enums import WINDOWS, LINUX, MAC
 
 
-def username():
+def username():  # pragma: no cover
     """
-    Returns the current user name.  On posix based platforms this uses
-    :func:`pwd.getpwuid` and on windows it falls back to
-    :func:`getpass.getuser`.
+    Returns the current user name using the most native api
+    we can import. On Linux for example this will use the :mod:`pwd`
+    module but on Windows we try to use :mod:`win32api`.
     """
-    if pwd is not None:
+    if pwd is not NotImplemented:
         return pwd.getpwuid(os.getuid())[0]
-    elif getpass is not None:  # pragma: no cover
+    elif win32api is not NotImplemented:
+        return win32api.GetUserName()
+    elif getpass is not NotImplemented:
         return getpass.getuser()
-    else:  # pragma: no cover
+    else:
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
 
 
@@ -55,10 +72,12 @@ def is_administrator():  # pragma: no cover
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
     """
-    if system.IS_POSIX:
+    if LINUX or MAC:
         return os.getuid() == 0
-    elif system.IS_WINDOWS:
+    elif win32api is not NotImplemented:
+        return shell.IsUserAnAdmin()
+    elif win32api is NotImplemented and WINDOWS:
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
-
-    osname = system.OS(system.OS())
-    raise NotImplementedError("`is_administrator` is not implemented for %s" % osname)
+    else:
+        raise NotImplementedError(
+            "`is_administrator` is not implemented for %s" % operating_system())
