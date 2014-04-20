@@ -24,8 +24,13 @@ are useful in starting or managing a process.
 """
 
 import os
+from collections import namedtuple
 
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
+
+Task = namedtuple(
+    "Task",
+    ("process", "protocol", "inputs"))
 
 
 class ProcessInputs(object):
@@ -84,6 +89,11 @@ class ProcessInputs(object):
         self.user = user
         self.group = group
         self.expandvars = expandvars
+
+    def __repr__(self):
+        return "%s(task=%r, command=%r, env=%r, user=%r, group=%r)" % (
+            self.__class__.__name__,
+            self.task, self.command, self.env, self.user, self.group)
 
 
 class ReplaceEnvironment(object):
