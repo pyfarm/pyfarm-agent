@@ -47,7 +47,32 @@ class ProcessInputs(object):
         use the job type's ``get_default_environment``.
 
     :param string chdir:
-        The location for
+        The directory the process should run in.  If no directory is provided
+        then this will use the agent's ``--chroot`` flag to determine the
+        location change into.  If this flag was not present when the agent
+        was launched then the current working directory will be used instead.
+
+    :param string user:
+        The user name the process should run as when its launched.
+
+        .. note::
+
+            This value is ignored on Windows.  The underlying library used
+            to execute processes does not support changing the user which
+            will run the process.
+
+    :param string group:
+        The group name the process should run as when its launched.
+
+        .. note::
+
+            This value is ignored on Windows.  The underlying library used
+            to execute processes does not support changing the group which
+            will run the process.
+
+    :param bool expandvars:
+        If ``True`` then environment variables in ``command``, ``chdir`` and
+        ``group`` will be expanded before the process is launched.
     """
     def __init__(
             self, task, command, env=None, chdir=None, user=None, group=None,
