@@ -396,62 +396,65 @@ class JobType(object):
         """
         raise NotImplementedError("`build_process_inputs` must be implemented")
 
-    def spawn_process(self, inputs):
+    def spawn_process(self, process_inputs):
         """
         Spawns a process using :func:`.reactor.spawnProcess` and returns
         a deferred object which will fire when t
         """
-        assert isinstance(inputs, ProcessInputs)
+        assert isinstance(process_inputs, ProcessInputs)
 
         # assert `task` is a valid type
-        if not isinstance(inputs.task, dict):
+        if not isinstance(process_inputs.task, dict):
             self.set_state(
-                inputs.task, WorkState.FAILED,
+                process_inputs.task, WorkState.FAILED,
                 "`task` must be a dictionary, got %s instead.  Check "
                 "the output produced by `build_process_inputs`" % type(
-                    inputs.task))
+                    process_inputs.task))
             return
 
         # assert `command` is a valid type
-        if not isinstance(inputs.command, (list, tuple)):
+        if not isinstance(process_inputs.command, (list, tuple)):
             self.set_state(
-                inputs.task, WorkState.FAILED,
+                process_inputs.task, WorkState.FAILED,
                 "`command` must be a list or tuple, got %s instead.  Check "
                 "the output produced by `build_process_inputs`" % type(
-                    inputs.command))
+                    process_inputs.command))
             return
 
         # username/group to uid/gid mapping
         uid, gid = None, None
         if all([pwd is not NotImplemented,
                 grp is not NotImplemented,
-                inputs.user is not None or inputs.group is not None]):
+                process_inputs.user is not None or
+                    process_inputs.group is not None]):
 
             try:
-                uid, gid = self.usrgrp_to_uidgid(inputs.user, inputs.group)
+                uid, gid = self.usrgrp_to_uidgid(
+                    process_inputs.user, process_inputs.group)
             except KeyError as e:
                 self.set_state(
-                    inputs.task, WorkState.FAILED,
+                    process_inputs.task, WorkState.FAILED,
                     "Failed to map username/group (%r, %r) to a user id "
-                    "and group id: %s" % (inputs.user, inputs.group, e))
+                    "and group id: %s" % (
+                        process_inputs.user, process_inputs.group, e))
 
         # generate environment and ensure
-        if inputs.env is None:
+        if process_inputs.env is None:
             environment = self.get_default_environment()
         else:
-            environment = inputs.env
+            environment = process_inputs.env
 
         if not isinstance(environment, dict):
             self.set_state(
-                inputs.task, WorkState.FAILED,
-                "`inputs.env` must be a dictionary, got %s instead.  Check "
-                "the output produced by "
+                process_inputs.task, WorkState.FAILED,
+                "`process_inputs.env` must be a dictionary, got %s instead.  "
+                "Check the output produced by "
                 "`build_process_inputs`" % type(environment))
             return
 
         # Prepare the arguments for the spawnProcess call
-        protocol = self.build_process_protocol(self, inputs.task)
-        kwargs = {"env": None, "args": inputs.command[1:]}
+        protocol = self.build_process_protocol(self, process_inputs.task)
+        kwargs = {"env": None, "args": process_inputs.command[1:]}
 
         # update kwargs with uid/gid
         if uid is not None:
@@ -459,22 +462,23 @@ class JobType(object):
         if gid is not None:
             kwargs.update(gid=gid)
 
-        # inputs.chdir may be a file path
+        # process_inputs.chdir may be a file path
         chdir = config["chroot"]
-        if isinstance(inputs.chdir, STRING_TYPES):
-            # Convert inputs.chdir to a template first so we
+        if isinstance(process_inputs.chdir, STRING_TYPES):
+            # Convert process_inputs.chdir to a template first so we
             # can resolve any environment variables it may contain
-            template = Template(inputs.chdir)
+            template = Template(process_inputs.chdir)
             chdir = template.safe_substitute(**environment)
 
-        if not isdir(chdir):
+        if chdir is not None and not isdir(chdir):
             self.set_state(
-                inputs.task, WorkState.FAILED,
-                "Directory provided for `inputs.chdir` does not "
+                process_inputs.task, WorkState.FAILED,
+                "Directory provided for `process_inputs.chdir` does not "
                 "exist: %r" % chdir)
             return
 
-        kwargs.update(path=chdir)
+        if chdir is not None:
+            kwargs.update(path=chdir)
 
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
@@ -483,11 +487,11 @@ class JobType(object):
         # we replace the original environment.
         with ReplaceEnvironment(environment):
             process = reactor.spawnProcess(
-                protocol, inputs.command[0], **kwargs)
+                protocol, process_inputs.command[0], **kwargs)
 
         return Task(
             protocol=protocol, process=process,
-            command=inputs.command[0], kwargs=kwargs)
+            command=process_inputs.command[0], kwargs=kwargs)
 
     def start(self):
         """
@@ -496,8 +500,8 @@ class JobType(object):
         prepare and start one more more processes.
         """
         tasks = []
-        for task, command, environment, uidgid in self.build_process_inputs():
-            spawned = self.spawn_process(task, command, environment, uidgid)
+        for process_inputs in self.build_process_inputs():
+            spawned = self.spawn_process(process_inputs)
             if spawned is not None:
                 tasks.append(spawned)
 
