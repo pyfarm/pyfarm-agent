@@ -143,7 +143,7 @@ class Assign(APIResource):
 
         def loaded_jobtype(jobtype_class):
             instance = jobtype_class(data)
-            print instance
+            instance.start()
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
