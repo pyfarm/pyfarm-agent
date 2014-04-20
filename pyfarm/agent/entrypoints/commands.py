@@ -403,6 +403,7 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
+                "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
                 "ip": self.args.ip,
