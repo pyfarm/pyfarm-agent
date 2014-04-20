@@ -45,7 +45,8 @@ from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
-from pyfarm.jobtypes.core.protocol import ProcessProtocol
+from pyfarm.jobtypes.core.process import (
+    ProcessProtocol, ProcessInputs, ReplaceEnvironment)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -68,42 +69,7 @@ assert isinstance(DEFAULT_ENVIRONMENT, dict)
 
 DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
-ProcessInputs = namedtuple(
-    "ProcessInputs",
-    ("task", "command", "env", "chdir", "user", "group"))
 Task = namedtuple("Task", ("protocol", "process", "command", "kwargs"))
-
-
-class ReplaceEnvironment(object):
-    """
-    A context manager which will replace ``os.environ``'s, or dictionary of
-    your choosing, for a short period of time.  After exiting the
-    context manager the original environment will be restored.
-
-    This is useful if you have something like a process that's using
-    global environment and you want to ensure that global environment is
-    always consistent.
-
-    :param dict environment:
-        If provided, use this as the environment dictionary instead
-        of ``os.environ``
-    """
-    def __init__(self, frozen_environment, environment=None):
-        if environment is None:
-            environment = os.environ
-
-        self.environment = environment
-        self.original_environment = None
-        self.frozen_environment = frozen_environment
-
-    def __enter__(self):
-        self.original_environment = self.environment.copy()
-        self.environment.clear()
-        self.environment.update(self.frozen_environment)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.environment.clear()
-        self.environment.update(self.original_environment)
 
 
 class JobType(object):
