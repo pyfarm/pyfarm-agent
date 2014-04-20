@@ -19,46 +19,91 @@ import json
 import os
 import tempfile
 import sys
-from os.path import join, dirname, isfile
+from string import Template
 from collections import namedtuple
+from os.path import join, dirname, isfile, isdir
 
 try:
     from httplib import OK
 except ImportError:  # pragma: no cover
     from http.client import OK
 
-from twisted.internet import reactor, threads
+try:
+    import pwd
+    import grp
+except ImportError:  # pragma: no cover
+    pwd = NotImplemented
+    grp = NotImplemented
+
+from twisted.internet import threads, reactor
 from twisted.internet.defer import Deferred, DeferredList
 
-from pyfarm.core.enums import WorkState
-from pyfarm.core.files import which
 from pyfarm.core.config import read_env
+from pyfarm.core.enums import INTERGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
+from pyfarm.core.sysinfo.user import is_administrator
+from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.jobtypes.core.protocol import ProcessProtocol
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
-Process = namedtuple("Process", ("process", "protocol"))
+
 
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment
 # on purpose or by accident.
-BASE_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_BASE_ENVIRONMENT", "")
-if isfile(BASE_ENVIRONMENT_CONFIG):
+DEFAULT_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_DEFAULT_ENVIRONMENT", "")
+if isfile(DEFAULT_ENVIRONMENT_CONFIG):
     logger.info(
-        "Attempting to load base environment from %s", BASE_ENVIRONMENT_CONFIG)
-    with open(BASE_ENVIRONMENT_CONFIG, "rb") as stream:
-        BASE_ENVIRONMENT = json.load(stream)
-    assert isinstance(BASE_ENVIRONMENT, dict)
-
+        "Attempting to load default environment from %r",
+        DEFAULT_ENVIRONMENT_CONFIG)
+    with open(DEFAULT_ENVIRONMENT_CONFIG, "rb") as stream:
+        DEFAULT_ENVIRONMENT = json.load(stream)
 else:
-    BASE_ENVIRONMENT = os.environ.copy()
+    DEFAULT_ENVIRONMENT = os.environ.copy()
 
+assert isinstance(DEFAULT_ENVIRONMENT, dict)
 
 DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
+ProcessInputs = namedtuple(
+    "ProcessInputs",
+    ("task", "command", "env", "chdir", "user", "group"))
+Task = namedtuple("Task", ("protocol", "process", "command", "kwargs"))
+
+
+class ReplaceEnvironment(object):
+    """
+    A context manager which will replace ``os.environ``'s, or dictionary of
+    your choosing, for a short period of time.  After exiting the
+    context manager the original environment will be restored.
+
+    This is useful if you have something like a process that's using
+    global environment and you want to ensure that global environment is
+    always consistent.
+
+    :param dict environment:
+        If provided, use this as the environment dictionary instead
+        of ``os.environ``
+    """
+    def __init__(self, frozen_environment, environment=None):
+        if environment is None:
+            environment = os.environ
+
+        self.environment = environment
+        self.original_environment = None
+        self.frozen_environment = frozen_environment
+
+    def __enter__(self):
+        self.original_environment = self.environment.copy()
+        self.environment.clear()
+        self.environment.update(self.frozen_environment)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.environment.clear()
+        self.environment.update(self.original_environment)
 
 
 class JobType(object):
@@ -67,6 +112,12 @@ class JobType(object):
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
+    :attribute bool ignore_uid_gid_mapping_errors:
+        If True, then ignore any errors produced by :meth:`usrgrp_to_uidgid`
+        and return ``(None, None`)` instead.  If this value is False
+        the original exception will be raised instead and report as
+        an error which can prevent a task from running.
+
     :attribute cache:
         Stores the cached job types
 
@@ -74,14 +125,17 @@ class JobType(object):
         The protocol object used to communicate between the process
         and the job type.
     """
+    ignore_uid_gid_mapping_errors = False
     process_protocol = ProcessProtocol
     cache = {}
 
     def __init__(self, assignment):
         assert isinstance(assignment, dict)
-        self._processes = []
-        self.assignment = assignment
+        self.assignment = ImmutableDict(assignment)
+        self.running_tasks = {}
 
+        # NOTE: Don't call this logging statement before the above, we need
+        # self.assignment
         logger.debug("Instanced %r", self)
 
     def __repr__(self):
@@ -92,12 +146,9 @@ class JobType(object):
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
-    @property
-    def processes(self):
-        """Provides access to the ``processes`` attribute"""
-        # Provided as a property so you can't accidentally
-        # do self.processes = []
-        return self._processes
+    def tasks(self):
+        """Short cut method to access tasks"""
+        return self.assignment["tasks"]
 
     #
     # Functions related to loading the job type and/or
@@ -271,20 +322,20 @@ class JobType(object):
         return result
 
     #
-    # Functions for setting up the job type
+    # External functions for setting up the job type
     #
 
-    def build_process_protocol(self, task):
+    def build_process_protocol(self, jobtype, task):
         """
         Returns the process protocol object used to spawn connect
-        a job type to a running process.  By default this will instance
-        and return :cvar:`.protocol`.
+        a job type to a running process.  By default this instance
+        :cvar:`.process_protocol` class variable.
 
         :raises TypeError:
             raised if the protocol object is not a subclass of
-            :class:`._ProcessProtocol`
+            :class:`.ProcessProtocol`
         """
-        instance = self.process_protocol(self, task)
+        instance = self.process_protocol(jobtype, task)
 
         if not isinstance(instance, ProcessProtocol):
             raise TypeError(
@@ -294,111 +345,271 @@ class JobType(object):
 
     def get_default_environment(self):
         """
-        Constructs a reasonable default environment dictionary.  This method
-        is not directly used by the core job type class but could be used
-        within subclasses.
+        Constructs a default environment dictionary that will replace
+        ``os.environ`` before the process is launched in
+        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
+        before and after each process and so that each process can't modify
+        the original environment.
         """
         return dict(
-            list(BASE_ENVIRONMENT.items()) +
+            list(DEFAULT_ENVIRONMENT.items()) +
             list(self.assignment["job"].get("environ", {}).items()))
 
-    def get_id_for_user(self, username):
-        # TODO: docs including Linux vs. Windows and how we try to
-        # find the id
-        raise NotImplementedError("TODO: implementation of get_id_for_user")
+    # TODO: add support to get explicit uid/gid for launching processes
+    # TODO: this needs to be a deferred in a thread, `pwd` *could* hit netio
+    def usrgrp_to_uidgid(self, user, group):
+        """Convert the provided username and group into a uid/gid pair"""
+        user_name = user
+        group_name = group
+        if pwd is NotImplemented or grp is NotImplemented:
+            logger.warning(
+                "This platform does not implement the `pwd` module, cannot "
+                "convert username to uid/gid pair")
+            return None, None
 
-    def build_commands(self):
-        """
-        Returns the command to pass along to :func:`.reactor.spawnProcess`.
+        elif not is_administrator():
+            # Not supported other wise because we need the uid/gid
+            # to change the process owner, something we can't do without
+            # root/admin powers
+            logger.warning(
+                "Conversion from username to uid/gid pair is only support "
+                "when running as an administrator.")
+            return None, None
 
-        .. note::
+        else:
+            logger.debug("Mapping user and group to uid/gid")
 
-            This method must be overridden in your job type and it should
-            return of lists.  Each list entry should be a list with exactly
-            two items containing:
+            # Remap user -> uid
+            try:
+                data = pwd.getpwnam(user)
+                user = data.pw_uid
+            except KeyError:
+                logger.error("Failed to resolve user %r into a uid", user)
+                if not self.ignore_uid_gid_mapping_errors:
+                    raise
+                return None, None
 
-                #. The absolute path to the command.  This is a requirement
-                   by one of underlying library used to run the command.
-                   You may find :func:`os.path.expandvars` or
-                   :func:`pyfarm.core.files.which` useful to achieve this.
-                #. The arguments the command should execute.
+            # Remap group -> gid
+            try:
+                data = grp.getgrnam(group)
+                group = data.gr_gid
+            except KeyError:
+                logger.error("Failed to resolve group %r into a gid", group)
+                if not self.ignore_uid_gid_mapping_errors:
+                    raise
+                return None, None
 
-            It is not required to return multiple commands
-        """
-        raise NotImplementedError("You must implement `build_command`")
+            logger.debug(
+                "Mapped user/group (%r, %r) -> (%r, %r)",
+                user_name, group_name, user, group)
+            return user, group
 
+    # TODO: finish required/not required docs
+    # TODO: document chdir behavior (None - use PWD of env or agent chroot,
+    # string - check if it's a directory or if we use expand vars on it)
     def build_process_inputs(self):
         """
         This method constructs and returns all the arguments necessary
-        to execute one or multiple processes on the system.  This method
-        must return a structured list similar to this:
+        to execute one or multiple processes on the system.  An example
+        implementation may look similar to this:
 
-        >>> [(("/bin/ls", "-l", "path1"), os.environ.copy(), "someuser")]
+        >>> from pyfarm.jobtypes.core.jobtype import ProcessInputs
+        >>> def build_process_inputs(self):
+        ...     for task in self.tasks():
+        ...         ProcessInputs(
+        ...             task=task,
+        ...             command=("/bin/ls", "/tmp/foo%s" % task["frame"]),
+        ...             environ={"FOO": "1"},
+        ...             usrgrp=("foo", "bar"))
 
-        The above is a list inside of a list, this will cause a single
-        process to execute on the agent.  To execute multiple processes
-        just add another entry to the list.
+        The above is a generator that will return everything that's needed to
+        run the process.  Here's some details on specific attribute you
+        can pass into a :class:`ProcessInputs` instance:
 
-        Each entry within the list is three parts:
-
-            #. The absolute path to the command and any command line
-               arguments to include.  You may find :func:`os.path.expandvars`
-               and :func:`pyfarm.core.files.which` helpful in building the
-               absolute path
-            #  The environment in which the process should run.  You can either
-               use :meth:`get_default_environment` to do this or build your
-               own.  Additionally you may want to read the documentation
-               on some of the special values for **env**:
-                http://twistedmatrix.com/documents/current/api/twisted.internet.interfaces.IReactorProcess.spawnProcess.html
-            #. The user the job should execute as.  On Windows this value
-               is ignored due to combination of API differences and the
-               lack of support from the underlying library.  On Linux the agent
-               will try to map the user to a user id, you can use
-               :meth:`get_id_for_user` to do this.
+            * **task** (required) - The task
         """
-        raise NotImplementedError(
-            "You must implement `build_process_inputs`")
+        raise NotImplementedError("`build_process_inputs` must be implemented")
 
-    def spawn_process(self, command, environment, user):
+    def spawn_process(self, inputs):
         """
         Spawns a process using :func:`.reactor.spawnProcess` and returns
         a deferred object which will fire when t
         """
-        arguments = command[1:]
-        command = command[0]
-        protocol = self.build_process_protocol()
-        # TODO: create deferred to connect to the protocol's 'finished' signal
+        assert isinstance(inputs, ProcessInputs)
+
+        # assert `task` is a valid type
+        if not isinstance(inputs.task, dict):
+            self.set_state(
+                inputs.task, WorkState.FAILED,
+                "`task` must be a dictionary, got %s instead.  Check "
+                "the output produced by `build_process_inputs`" % type(
+                    inputs.task))
+            return
+
+        # assert `command` is a valid type
+        if not isinstance(inputs.command, (list, tuple)):
+            self.set_state(
+                inputs.task, WorkState.FAILED,
+                "`command` must be a list or tuple, got %s instead.  Check "
+                "the output produced by `build_process_inputs`" % type(
+                    inputs.command))
+            return
+
+        # username/group to uid/gid mapping
+        uid, gid = None, None
+        if all([pwd is not NotImplemented,
+                grp is not NotImplemented,
+                inputs.user is not None or inputs.group is not None]):
+
+            try:
+                uid, gid = self.usrgrp_to_uidgid(inputs.user, inputs.group)
+            except KeyError as e:
+                self.set_state(
+                    inputs.task, WorkState.FAILED,
+                    "Failed to map username/group (%r, %r) to a user id "
+                    "and group id: %s" % (inputs.user, inputs.group, e))
+
+        # generate environment and ensure
+        if inputs.env is None:
+            environment = self.get_default_environment()
+        else:
+            environment = inputs.env
+
+        if not isinstance(environment, dict):
+            self.set_state(
+                inputs.task, WorkState.FAILED,
+                "`inputs.env` must be a dictionary, got %s instead.  Check "
+                "the output produced by "
+                "`build_process_inputs`" % type(environment))
+            return
+
+        # Prepare the arguments for the spawnProcess call
+        protocol = self.build_process_protocol(self, inputs.task)
+        kwargs = {"env": None, "args": inputs.command[1:]}
+
+        # update kwargs with uid/gid
+        if uid is not None:
+            kwargs.update(uid=uid)
+        if gid is not None:
+            kwargs.update(gid=gid)
+
+        # inputs.chdir may be a file path
+        chdir = config["chroot"]
+        if isinstance(inputs.chdir, STRING_TYPES):
+            # Convert inputs.chdir to a template first so we
+            # can resolve any environment variables it may contain
+            template = Template(inputs.chdir)
+            chdir = template.safe_substitute(**environment)
+
+        if not isdir(chdir):
+            self.set_state(
+                inputs.task, WorkState.FAILED,
+                "Directory provided for `inputs.chdir` does not "
+                "exist: %r" % chdir)
+            return
+
+        kwargs.update(path=chdir)
+
+        # reactor.spawnProcess does different things with the environment
+        # depending on what platform you're on and what you're passing in.
+        # To avoid inconsistent behavior, we replace os.environ with
+        # our own environment so we can launch the process.  After launching
+        # we replace the original environment.
+        with ReplaceEnvironment(environment):
+            process = reactor.spawnProcess(
+                protocol, inputs.command[0], **kwargs)
+
+        return Task(
+            protocol=protocol, process=process,
+            command=inputs.command[0], kwargs=kwargs)
 
     def start(self):
-        """This method is called when the job type should start working"""
-        # TODO: catch and and properly handle exceptions these could throw
-        started = []
-        for command, environment, user in self.build_process_inputs():
-            deferred = self.spawn_process(command, environment, user)
-            started.append(deferred)
-        return DeferredList(started)
+        """
+        This method is called when the job type should start
+        working.  Depending on the job type's implementation this will
+        prepare and start one more more processes.
+        """
+        tasks = []
+        for task, command, environment, uidgid in self.build_process_inputs():
+            spawned = self.spawn_process(task, command, environment, uidgid)
+            if spawned is not None:
+                tasks.append(spawned)
 
-    # TODO: process_started(task)
-    # TODO: process_stopped(task)
-    # TODO: stdout_received(task)
-    # TODO: stderr_received(task)
-    # TODO: post_status_change(task)
+        # TODO: verify this does the right thing since `spawned` might not
+        # work with this
+        return DeferredList(tasks)
 
-if __name__ == "__main__":
-    assignment = {
-        u'job': {
-            u'ram_max': 270, u'title':
-            u'test job', u'ram': 256, u'cpus': 1, u'by': 1,
-            u'environ':
-                {u'POST_ASSIGN_TEST': u'true'},
-            u'user': u'foo', u'batch': 1, u'data': {
-            u'int': 1, u'bool': True, u'str': u'hello world'},
-            u'id': 0, u'ram_warning': 260},
-        u'tasks': [
-            {u'frame': 1, u'id': 1},
-            {u'frame': 2, u'id': 2},
-            {u'frame': 3, u'id': 3}],
-        u'jobtype':
-            {u'version': 1, u'name': u'TestJobType'}}
-    jobtype = JobType(assignment)
-    jobtype.spawn_process()
+    #
+    # General method used for internal processing that could
+    # be overridden
+    #
+    def format_exception(self, exception):
+        """
+        Takes an :class:`.Exception` instance and formats it so it could
+        be used as an error message.  By default this simply runs the
+        exception through :func:`str` but this could be overridden to
+        do something more complex.
+        """
+        return str(exception)
+
+    def set_state(self, task, state, error=None):
+        """
+        Sets the state of the given task
+
+        :param dict task:
+            The dictionary containing the task we're changing the state
+            for.
+
+        :param string state:
+            The state to change ``task`` to
+
+        :type error: string, :class:`Exception`
+        :param error:
+            If the state is changing to 'error' then also set the
+            ``last_error`` column.  Any exception instance that is
+            passed to this keyword will be passed through
+            :meth:`format_exception` first to format it.
+        """
+        if state not in WorkState:
+            logger.error(
+                "Cannot set state for task %r to %r, %r is an invalid "
+                "state", task, state, state)
+        elif not isinstance(task, dict):
+            logger.error(
+                "Expected a dictionary for `task`, cannot change state")
+
+        elif not "id" in task or not isinstance(task["id"], INTERGER_TYPES):
+            logger.error(
+                "Expected to find 'id' in `task` or for `task['id']` to "
+                "be an integer.")
+
+        elif task not in self.assignment["tasks"]:
+            logger.error(
+                "Cannot set state, expected task %r to be a member of this "
+                "job type's assignments", task)
+
+        else:
+            if state != WorkState.ERROR and error:
+                logger.warning(
+                    "Resetting `error` to None, state is not being "
+                    "WorkState.ERROR")
+                error = None
+
+            job_id = self.assignment["job"]["id"]
+            task_id = task["id"]
+
+            if state == WorkState.ERROR:
+                if isinstance(error, Exception):
+                    error = self.format_exception(error)
+
+                logger.error("Task %r failed: %r", task, error)
+                running_task = self.running_tasks[task_id]
+
+
+
+
+                # TODO: process_started(task)
+                # TODO: process_stopped(task)
+                # TODO: stdout_received(task)
+                # TODO: stderr_received(task)
+                # TODO: post_status_change(task)
