@@ -46,7 +46,7 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ProcessInputs, ReplaceEnvironment)
+    ProcessProtocol, ProcessInputs, ReplaceEnvironment, Task)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -69,7 +69,6 @@ assert isinstance(DEFAULT_ENVIRONMENT, dict)
 
 DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
-Task = namedtuple("Task", ("protocol", "process", "command", "kwargs"))
 
 
 class JobType(object):
@@ -115,6 +114,60 @@ class JobType(object):
     def tasks(self):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
+
+    def _get_uidgid(self, value, value_name, func_name, module, module_name):
+        """
+        Internal function which handles both user name and group conversion.
+        """
+        # This platform does not implement the module
+        if module is NotImplemented:
+            logger.warning(
+                "This platform does not implement the %r module, skipping "
+                "%s()", module_name, func_name)
+
+        # Convert a user/group string to an integer
+        elif isinstance(value, STRING_TYPES):
+            try:
+                if module_name == "pwd":
+                    return pwd.getpwnam(value).pw_uid
+                elif module_name == "grp":
+                    return grp.getgrnam(value).gr_gid
+                else:
+                    raise ValueError(
+                        "Internal error, failed to get module to use for "
+                        "conversion.  Was given %r" % module)
+            except KeyError:
+                logger.error(
+                    "Failed to convert %s to a %s",
+                    value, func_name.split("_")[1])
+
+                if not self.ignore_uid_gid_mapping_errors:
+                    raise
+
+        # Verify that the provided user/group string is real
+        elif isinstance(value, INTERGER_TYPES):
+            try:
+                if module_name == "pwd":
+                    pass
+                elif module_name == "grp":
+                    pass
+                else:
+                    raise ValueError(
+                        "Internal error, failed to get module to use for "
+                        "conversion.  Was given %r" % module)
+
+                # Seems to check out, return the original value
+                return value
+            except KeyError:
+                logger.error(
+                    "%s %s does not seem to exist", value_name, value)
+
+                if not self.ignore_uid_gid_mapping_errors:
+                    raise
+        else:
+            raise ValueError(
+                "Expected an integer or string for `%s`" % value_name)
+
 
     #
     # Functions related to loading the job type and/or
@@ -321,58 +374,34 @@ class JobType(object):
             list(DEFAULT_ENVIRONMENT.items()) +
             list(self.assignment["job"].get("environ", {}).items()))
 
-    # TODO: add support to get explicit uid/gid for launching processes
-    # TODO: this needs to be a deferred in a thread, `pwd` *could* hit netio
-    def usrgrp_to_uidgid(self, user, group):
-        """Convert the provided username and group into a uid/gid pair"""
-        user_name = user
-        group_name = group
-        if pwd is NotImplemented or grp is NotImplemented:
-            logger.warning(
-                "This platform does not implement the `pwd` module, cannot "
-                "convert username to uid/gid pair")
-            return None, None
+    def get_uid(self, username):
+        """
+        Convert ``username`` into an integer representing the user id.  If
+        ``username`` is an integer verify that it exists instead.
 
-        elif not is_administrator():
-            # Not supported other wise because we need the uid/gid
-            # to change the process owner, something we can't do without
-            # root/admin powers
-            logger.warning(
-                "Conversion from username to uid/gid pair is only support "
-                "when running as an administrator.")
-            return None, None
+        .. warning::
 
-        else:
-            logger.debug("Mapping user and group to uid/gid")
+            This method returns ``None`` on platforms that don't implement
+            the :mod:`pwd` module.
+        """
+        if username is None:
+            return username
+        return self._get_uidgid(username, "username", "get_uid", pwd, "pwd")
 
-            # Remap user -> uid
-            try:
-                data = pwd.getpwnam(user)
-                user = data.pw_uid
-            except KeyError:
-                logger.error("Failed to resolve user %r into a uid", user)
-                if not self.ignore_uid_gid_mapping_errors:
-                    raise
-                return None, None
+    def get_gid(self, group):
+        """
+        Convert ``group`` into an integer representing the group id.  If
+        ``group`` is an integer verify that it exists instead.
 
-            # Remap group -> gid
-            try:
-                data = grp.getgrnam(group)
-                group = data.gr_gid
-            except KeyError:
-                logger.error("Failed to resolve group %r into a gid", group)
-                if not self.ignore_uid_gid_mapping_errors:
-                    raise
-                return None, None
+        .. warning::
 
-            logger.debug(
-                "Mapped user/group (%r, %r) -> (%r, %r)",
-                user_name, group_name, user, group)
-            return user, group
+            This method returns ``None`` on platforms that don't implement
+            the :mod:`grp` module.
+        """
+        if group is None:
+            return group
+        return self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
-    # TODO: finish required/not required docs
-    # TODO: document chdir behavior (None - use PWD of env or agent chroot,
-    # string - check if it's a directory or if we use expand vars on it)
     def build_process_inputs(self):
         """
         This method constructs and returns all the arguments necessary
@@ -383,16 +412,15 @@ class JobType(object):
         >>> def build_process_inputs(self):
         ...     for task in self.tasks():
         ...         ProcessInputs(
-        ...             task=task,
-        ...             command=("/bin/ls", "/tmp/foo%s" % task["frame"]),
+        ...             task,
+        ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
         ...             environ={"FOO": "1"},
-        ...             usrgrp=("foo", "bar"))
+        ...             user="foo",
+        ...             group="bar")
 
         The above is a generator that will return everything that's needed to
-        run the process.  Here's some details on specific attribute you
-        can pass into a :class:`ProcessInputs` instance:
-
-            * **task** (required) - The task
+        run the process. See :class:`ProcessInputs` for some more detailed
+        documentation on each attribute's function.
         """
         raise NotImplementedError("`build_process_inputs` must be implemented")
 
@@ -428,15 +456,23 @@ class JobType(object):
                 process_inputs.user is not None or
                     process_inputs.group is not None]):
 
+            # map user
             try:
-                uid, gid = self.usrgrp_to_uidgid(
-                    process_inputs.user, process_inputs.group)
-            except KeyError as e:
+                uid = self.get_uid(process_inputs.user)
+            except (ValueError, KeyError):
                 self.set_state(
                     process_inputs.task, WorkState.FAILED,
-                    "Failed to map username/group (%r, %r) to a user id "
-                    "and group id: %s" % (
-                        process_inputs.user, process_inputs.group, e))
+                    "Failed to or verify user %r" % process_inputs.user)
+                return
+
+            # map group
+            try:
+                gid = self.get_uid(process_inputs.group)
+            except (ValueError, KeyError):
+                self.set_state(
+                    process_inputs.task, WorkState.FAILED,
+                    "Failed to or verify group %r" % process_inputs.group)
+                return
 
         # generate environment and ensure
         if process_inputs.env is None:
@@ -464,7 +500,8 @@ class JobType(object):
 
         # process_inputs.chdir may be a file path
         chdir = config["chroot"]
-        if isinstance(process_inputs.chdir, STRING_TYPES):
+        if isinstance(process_inputs.chdir, STRING_TYPES) \
+                and process_inputs.expandvars:
             # Convert process_inputs.chdir to a template first so we
             # can resolve any environment variables it may contain
             template = Template(process_inputs.chdir)
@@ -480,6 +517,13 @@ class JobType(object):
         if chdir is not None:
             kwargs.update(path=chdir)
 
+        # Update the process_inputs object with the resolved
+        # properties so we can store it for later use or review.
+        process_inputs.chdir = chdir
+        process_inputs.user = uid
+        process_inputs.group = gid
+        process_inputs.env = environment
+
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
         # To avoid inconsistent behavior, we replace os.environ with
@@ -489,9 +533,7 @@ class JobType(object):
             process = reactor.spawnProcess(
                 protocol, process_inputs.command[0], **kwargs)
 
-        return Task(
-            protocol=protocol, process=process,
-            command=process_inputs.command[0], kwargs=kwargs)
+        return Task(process=process, protocol=protocol, inputs=process_inputs)
 
     def start(self):
         """
@@ -502,8 +544,10 @@ class JobType(object):
         tasks = []
         for process_inputs in self.build_process_inputs():
             spawned = self.spawn_process(process_inputs)
+
             if spawned is not None:
                 tasks.append(spawned)
+                self.running_tasks[spawned.task["id"]]
 
         # TODO: verify this does the right thing since `spawned` might not
         # work with this
@@ -575,8 +619,8 @@ class JobType(object):
                 logger.error("Task %r failed: %r", task, error)
                 running_task = self.running_tasks[task_id]
 
-
-
+    # def process_started(self, task):
+    #     logger.info("Process %i")
 
                 # TODO: process_started(task)
                 # TODO: process_stopped(task)
