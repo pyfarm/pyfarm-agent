@@ -423,6 +423,15 @@ class JobType(object):
         """
         raise NotImplementedError("`build_process_inputs` must be implemented")
 
+    def expandvars(self, value, environment):
+        """Expands variables inside of a string using an environment"""
+        if isinstance(value, STRING_TYPES):
+            template = Template(value)
+            return template.safe_substitute(**environment)
+
+        logger.warning("Expected a string for `value` to expandvars()")
+        return value
+
     def spawn_process(self, process_inputs):
         """
         Spawns a process using :func:`.reactor.spawnProcess` and returns
@@ -512,8 +521,7 @@ class JobType(object):
                 and process_inputs.expandvars:
             # Convert process_inputs.chdir to a template first so we
             # can resolve any environment variables it may contain
-            template = Template(process_inputs.chdir)
-            chdir = template.safe_substitute(**environment)
+            chdir = self.expandvars(process_inputs.chdir, environment)
 
         if chdir is not None and not isdir(chdir):
             self.set_state(
@@ -524,6 +532,12 @@ class JobType(object):
 
         if chdir is not None:
             kwargs.update(path=chdir)
+
+        # Expand any environment variables in the command
+        if process_inputs.expandvars:
+            process_inputs.command = map(
+                lambda value: self.expandvars(value, environment),
+                process_inputs.command)
 
         # Update the process_inputs object with the resolved
         # properties so we can store it for later use or review.
