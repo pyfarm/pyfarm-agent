@@ -26,6 +26,7 @@ are useful in starting or managing a process.
 import os
 
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
+from twisted.internet.process import Process
 
 
 class ProcessInputs(object):
@@ -91,33 +92,6 @@ class ProcessInputs(object):
             self.task, self.command, self.env, self.user, self.group)
 
 
-class Task(object):
-    """
-    Wrapper object which wraps a running task including the process,
-    it's protocol and any additional information that was used to
-    start the process.  This class also contains shortcut attributes,
-    such as ``self.task``.
-    """
-    def __init__(
-            self, process_inputs, process, protocol, command, arguments, env,
-            chdir, uid, gid):
-        self.inputs = process_inputs
-        self.process = process
-        self.protocol = protocol
-        self.command = command
-        self.args = arguments
-        self.env = env
-        self.uid = uid
-        self.gid = gid
-        self.chdir = chdir
-        self.task = self.inputs.task
-
-    def __repr__(self):
-        return "%s(command=%r, args=%r, chdir=%r, uid=%r, gid=%r, task=%r)" % (
-            self.__class__.__name__, self.command, self.args, self.chdir,
-            self.uid, self.gid, self.task)
-
-
 class ReplaceEnvironment(object):
     """
     A context manager which will replace ``os.environ``'s, or dictionary of
@@ -156,32 +130,41 @@ class ProcessProtocol(_ProcessProtocol):
     necessary to run and manage a process.  More specifically, this helps
     to act as plumbing between the process being run and the job type.
     """
-    def __init__(self, jobtype, task):
+    def __init__(self, jobtype, process_inputs, command, arguments, env,
+                 chdir, uid, gid):
         self.jobtype = jobtype
-        self.task = task
-        # TODO: pull in settings specific to the process
-        # TODO: register a manager so we can send events up to a central class
+        self.inputs = process_inputs
+        self.command = command
+        self.args = arguments
+        self.env = env
+        self.chdir = chdir
+        self.uid = uid
+        self.gid = gid
+        self.id = self.inputs.task["id"]
+
+    def __repr__(self):
+        return "Process(task=%r, pid=%r, command=%r, args=%r, chdir=%r, " \
+               "uid=%r, gid=%r)" % (
+            self.id, self.pid, self.command, self.args,
+            self.chdir, self.uid, self.gid)
+
+    @property
+    def pid(self):
+        return self.transport.pid
+
+    @property
+    def process(self):
+        return self.transport
 
     def connectionMade(self):
-        self.jobtype.process_started(self.task)
+        """Called when the process first starts"""
+        self.jobtype.process_started(self)
 
     def processEnded(self, reason):
-        # TODO: **below should all be handled by the jobtype**
-        # TODO: post state change to master
-        # TODO: shutdown logger(s) and optionally gzip any files on disk
-        self.jobtype.process_stopped(reason.value.exitCode)
+        self.jobtype.process_stopped(self, reason.value.exitCode)
 
     def outReceived(self, data):
-        # TODO: **below should all be handled by the jobtype**
-        # TODO: emit log message (logstash handler too?)
-        # TODO: set the stream id using logger.LOGSTREAM
-        pass
+        self.jobtype.received_stdout(self, data)
 
     def errReceived(self, data):
-        if self.combined_output_streams:
-            self.outReceived(data)
-        else:
-            # TODO: **below should all be handled by the jobtype**
-            # TODO: emit log message (logstash handler too?)
-            # TODO: set the stream id using logger.LOGSTREAM
-            pass
+        self.jobtype.received_stderr(self, data)
