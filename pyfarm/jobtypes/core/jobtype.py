@@ -20,7 +20,6 @@ import os
 import tempfile
 import sys
 from string import Template
-from collections import namedtuple
 from os.path import join, dirname, isfile, isdir
 
 try:
@@ -456,23 +455,32 @@ class JobType(object):
                 process_inputs.user is not None or
                     process_inputs.group is not None]):
 
-            # map user
-            try:
-                uid = self.get_uid(process_inputs.user)
-            except (ValueError, KeyError):
-                self.set_state(
-                    process_inputs.task, WorkState.FAILED,
-                    "Failed to or verify user %r" % process_inputs.user)
-                return
+            # Regardless of platform, we run a command as
+            # another user unless we're an admin
+            if is_administrator():
+                # map user
+                try:
+                    uid = self.get_uid(process_inputs.user)
+                except (ValueError, KeyError):
+                    self.set_state(
+                        process_inputs.task, WorkState.FAILED,
+                        "Failed to or verify user %r" % process_inputs.user)
+                    return
 
-            # map group
-            try:
-                gid = self.get_uid(process_inputs.group)
-            except (ValueError, KeyError):
-                self.set_state(
-                    process_inputs.task, WorkState.FAILED,
-                    "Failed to or verify group %r" % process_inputs.group)
-                return
+                # map group
+                try:
+                    gid = self.get_uid(process_inputs.group)
+                except (ValueError, KeyError):
+                    self.set_state(
+                        process_inputs.task, WorkState.FAILED,
+                        "Failed to or verify group %r" % process_inputs.group)
+                    return
+
+            else:
+                logger.warning(
+                    "User and/or group were provided but the agent is not "
+                    "running as an administrator which is required to run"
+                    "processes as another user.")
 
         # generate environment and ensure
         if process_inputs.env is None:
