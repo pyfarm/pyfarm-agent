@@ -487,7 +487,7 @@ class JobType(object):
 
             else:
                 logger.warning(
-                    "User and/or group were provided but the agent is not "
+                    "User and/or group was provided but the agent is not "
                     "running as an administrator which is required to run"
                     "processes as another user.")
 
@@ -507,7 +507,7 @@ class JobType(object):
 
         # Prepare the arguments for the spawnProcess call
         protocol = self.build_process_protocol(self, process_inputs.task)
-        kwargs = {"env": None, "args": process_inputs.command[1:]}
+        kwargs = {"env": None}
 
         # update kwargs with uid/gid
         if uid is not None:
@@ -534,17 +534,14 @@ class JobType(object):
             kwargs.update(path=chdir)
 
         # Expand any environment variables in the command
+        command = process_inputs.command
         if process_inputs.expandvars:
-            process_inputs.command = map(
+            command = map(
                 lambda value: self.expandvars(value, environment),
                 process_inputs.command)
 
-        # Update the process_inputs object with the resolved
-        # properties so we can store it for later use or review.
-        process_inputs.chdir = chdir
-        process_inputs.user = uid
-        process_inputs.group = gid
-        process_inputs.env = environment
+        arguments = command[1:]
+        kwargs.update(args=arguments)
 
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
@@ -553,9 +550,11 @@ class JobType(object):
         # we replace the original environment.
         with ReplaceEnvironment(environment):
             process = reactor.spawnProcess(
-                protocol, process_inputs.command[0], **kwargs)
+                protocol, command[0], **kwargs)
 
-        return Task(process=process, protocol=protocol, inputs=process_inputs)
+        return Task(
+            process_inputs, process, protocol, command[0], arguments,
+            environment, chdir, uid, gid)
 
     def start(self):
         """
@@ -565,11 +564,12 @@ class JobType(object):
         """
         tasks = []
         for process_inputs in self.build_process_inputs():
-            spawned = self.spawn_process(process_inputs)
+            task = self.spawn_process(process_inputs)
 
-            if spawned is not None:
-                tasks.append(spawned)
-                self.running_tasks[spawned.task["id"]]
+            if task is not None:
+                logger.info("Spawned %r", task)
+                tasks.append(task)
+                # self.running_tasks[spawned.task["id"]]
 
         # TODO: verify this does the right thing since `spawned` might not
         # work with this
