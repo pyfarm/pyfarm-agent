@@ -45,11 +45,12 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ProcessInputs, ReplaceEnvironment, Task)
+    ProcessProtocol, ProcessInputs, ReplaceEnvironment)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
-
+process_stdout = getLogger("process.stdout")
+process_stderr = getLogger("process.stderr")
 
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment
@@ -95,8 +96,8 @@ class JobType(object):
 
     def __init__(self, assignment):
         assert isinstance(assignment, dict)
+        self.protocols = {}
         self.assignment = ImmutableDict(assignment)
-        self.running_tasks = {}
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -109,10 +110,6 @@ class JobType(object):
             str(self.assignment["jobtype"]["name"]),
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
-
-    def tasks(self):
-        """Short cut method to access tasks"""
-        return self.assignment["tasks"]
 
     def _get_uidgid(self, value, value_name, func_name, module, module_name):
         """
@@ -166,12 +163,6 @@ class JobType(object):
         else:
             raise ValueError(
                 "Expected an integer or string for `%s`" % value_name)
-
-
-    #
-    # Functions related to loading the job type and/or
-    # interacting with the cache
-    #
 
     @classmethod
     def _cache_key(cls, assignment):
@@ -339,11 +330,13 @@ class JobType(object):
 
         return result
 
-    #
-    # External functions for setting up the job type
-    #
+    def assignments(self):
+        """Short cut method to access tasks"""
+        return self.assignment["tasks"]
 
-    def build_process_protocol(self, jobtype, task):
+    def build_process_protocol(
+            self, jobtype, process_inputs, command, arguments,
+            environment, chdir, uid, gid):
         """
         Returns the process protocol object used to spawn connect
         a job type to a running process.  By default this instance
@@ -353,7 +346,9 @@ class JobType(object):
             raised if the protocol object is not a subclass of
             :class:`.ProcessProtocol`
         """
-        instance = self.process_protocol(jobtype, task)
+        instance = self.process_protocol(
+            jobtype, process_inputs, command, arguments, environment,
+            chdir, uid, gid)
 
         if not isinstance(instance, ProcessProtocol):
             raise TypeError(
@@ -409,7 +404,7 @@ class JobType(object):
 
         >>> from pyfarm.jobtypes.core.jobtype import ProcessInputs
         >>> def build_process_inputs(self):
-        ...     for task in self.tasks():
+        ...     for task in self.assignments():
         ...         ProcessInputs(
         ...             task,
         ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
@@ -462,7 +457,7 @@ class JobType(object):
         if all([pwd is not NotImplemented,
                 grp is not NotImplemented,
                 process_inputs.user is not None or
-                    process_inputs.group is not None]):
+                                process_inputs.group is not None]):
 
             # Regardless of platform, we run a command as
             # another user unless we're an admin
@@ -506,7 +501,6 @@ class JobType(object):
             return
 
         # Prepare the arguments for the spawnProcess call
-        protocol = self.build_process_protocol(self, process_inputs.task)
         kwargs = {"env": None}
 
         # update kwargs with uid/gid
@@ -543,18 +537,20 @@ class JobType(object):
         arguments = command[1:]
         kwargs.update(args=arguments)
 
+        protocol = self.build_process_protocol(
+            self, process_inputs, command[0], arguments, environment, chdir,
+            uid, gid)
+        self.protocols[protocol.id] = protocol
+
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
         # To avoid inconsistent behavior, we replace os.environ with
         # our own environment so we can launch the process.  After launching
         # we replace the original environment.
         with ReplaceEnvironment(environment):
-            process = reactor.spawnProcess(
-                protocol, command[0], **kwargs)
+            reactor.spawnProcess(protocol, command[0], **kwargs)
 
-        return Task(
-            process_inputs, process, protocol, command[0], arguments,
-            environment, chdir, uid, gid)
+        return protocol
 
     def start(self):
         """
@@ -562,23 +558,16 @@ class JobType(object):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
-        tasks = []
         for process_inputs in self.build_process_inputs():
-            task = self.spawn_process(process_inputs)
+            self.spawn_process(process_inputs)
 
-            if task is not None:
-                logger.info("Spawned %r", task)
-                tasks.append(task)
-                # self.running_tasks[spawned.task["id"]]
+            # if task is not None:
+            #     tasks.append(task)
 
         # TODO: verify this does the right thing since `spawned` might not
         # work with this
-        return DeferredList(tasks)
+        # return DeferredList(tasks)
 
-    #
-    # General method used for internal processing that could
-    # be overridden
-    #
     def format_exception(self, exception):
         """
         Takes an :class:`.Exception` instance and formats it so it could
@@ -634,18 +623,37 @@ class JobType(object):
             job_id = self.assignment["job"]["id"]
             task_id = task["id"]
 
+            # TODO: POST change
             if state == WorkState.ERROR:
                 if isinstance(error, Exception):
                     error = self.format_exception(error)
 
                 logger.error("Task %r failed: %r", task, error)
-                running_task = self.running_tasks[task_id]
 
-    # def process_started(self, task):
-    #     logger.info("Process %i")
+            # TODO: if new state is the equiv. of 'stopped', stop the process
+            # and POST the change
 
-                # TODO: process_started(task)
-                # TODO: process_stopped(task)
-                # TODO: stdout_received(task)
-                # TODO: stderr_received(task)
-                # TODO: post_status_change(task)
+    # TODO: documentation
+    def process_stopped(self, protocol, reason):
+        logger.info("%r stopped (code: %r)", protocol, reason)
+        self.protocols.pop(protocol.id, None)
+        # TODO: POST status
+
+    # TODO: documentation
+    def process_started(self, protocol):
+        logger.info("%r started", protocol)
+        # TODO: POST status
+
+    # TODO: documentation
+    def received_stdout(self, protocol, data):
+        if config["capture-process-output"]:
+            process_stdout.info("task %r: %s", protocol.id, data)
+
+        # TODO: log to file in thread pool, keep the file handle open, queue it
+
+    # TODO: documentation
+    def received_stderr(self, protocol, data):
+        if config["capture-process-output"]:
+            process_stderr.info("task %r: %s", protocol.id, data)
+
+        # TODO: log to file in thread pool, keep the file handle open, queue it
