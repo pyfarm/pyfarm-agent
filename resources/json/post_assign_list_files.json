@@ -19,7 +19,7 @@
         "title": "test job"
     },
     "jobtype": {
-        "name": "TouchFile",
+        "name": "ListFiles",
         "version": 1
     },
     "tasks": [
