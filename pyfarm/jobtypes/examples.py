@@ -20,3 +20,16 @@ Examples
 
 This module contains some basic example job type implementations.
 """
+
+from pyfarm.core.files import which
+from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.jobtypes.core.process import ProcessInputs
+
+
+class ListFiles(JobType):
+    def build_process_inputs(self):
+        for task in self.assignments():
+            yield ProcessInputs(
+                task, (which("mkdir"), "-pfv", "/tmp/foo%s" % task["frame"]))
+            yield ProcessInputs(
+                task, (which("ls"), "/tmp/foo%s" % task["frame"]))
