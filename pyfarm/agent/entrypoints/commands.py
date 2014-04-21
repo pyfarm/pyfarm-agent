@@ -275,6 +275,10 @@ class AgentEntryPoint(object):
             "--logerr",
             help="If provided then split any output from stderr into this file "
                  "path, otherwise send it to the same file as --log.")
+        logging_group.add_argument(
+            "--capture-process-output", default=False, action="store_true",
+            help="If provided then all log output from each process launched "
+                 "by the agent will be sent through agent's loggers.")
 
         # network options for the agent when start is called
         start_network = start.add_argument_group(
@@ -425,7 +429,8 @@ class AgentEntryPoint(object):
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
                 "api_endpoint_prefix": "/api/v1",
-                "jobtype-no-cache": self.args.jobtype_no_cache}
+                "jobtype-no-cache": self.args.jobtype_no_cache,
+                "capture-process-output": self.args.capture_process_output}
 
             config.update(config_flags)
 
