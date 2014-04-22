@@ -18,9 +18,12 @@ import imp
 import json
 import os
 import tempfile
+import threading
 import sys
+from datetime import datetime
 from string import Template
 from os.path import join, dirname, isfile, isdir
+from Queue import Queue, Empty
 
 try:
     from httplib import OK
@@ -35,15 +38,17 @@ except ImportError:  # pragma: no cover
     grp = NotImplemented
 
 from twisted.internet import threads, reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
+from twisted.internet.error import ProcessDone
 
-from pyfarm.core.config import read_env
+from pyfarm.core.config import read_env, read_env_float, read_env_int
 from pyfarm.core.enums import INTERGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
+from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
 
@@ -69,6 +74,71 @@ assert isinstance(DEFAULT_ENVIRONMENT, dict)
 
 DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
+STDOUT = 0
+STDERR = 1
+
+
+class LoggingThread(threading.Thread):
+    """
+    This class runs a thread which writes lines in csv format
+    to the log file.
+    """
+    FLUSH_AFTER_LINES = read_env_int(
+        "PYFARM_JOBTYPE_LOGGING_FLUSH_AFTER_LINES", 50)
+    QUEUE_GET_TIMEOUT = read_env_float(
+        "PYFARM_JOBTYPE_LOGGING_QUEUE_TIMEOUT", .25)
+
+    def __init__(self, filepath):
+        super(LoggingThread, self).__init__()
+        self.queue = Queue()
+        self.stream = open(filepath, "wb")
+        self.writer = UnicodeCSVWriter(self.stream)
+        self.lineno = 1
+        self.next_flush = self.FLUSH_AFTER_LINES
+        self.stopped = False
+        self.shutdown_event = \
+            reactor.addSystemEventTrigger("before", "shutdown", self.stop)
+
+    def put(self, streamno, message):
+        """Put a message in the queue for the thread to pickup"""
+        assert self.stopped is False, "Cannot put(), thread is stopped"
+        now = datetime.utcnow()
+        self.queue.put_nowait(
+            (now.isoformat(), streamno, self.lineno, message))
+        self.lineno += 1
+
+    def stop(self):
+        self.stopped = True
+        reactor.removeSystemEventTrigger(self.shutdown_event)
+
+    def run(self):
+        stopping = False
+        while True:
+            # Pull data from the queue or retry again
+            try:
+                timestamp, streamno, lineno, message = self.queue.get(
+                    timeout=self.QUEUE_GET_TIMEOUT)
+            except Empty:
+                pass
+            else:
+                # Write data from the queue to a file
+                self.writer.writerow(
+                    [timestamp, str(streamno), str(lineno), message])
+                if self.lineno >= self.next_flush:
+                    self.stream.flush()
+                    self.next_flush += self.FLUSH_AFTER_LINES
+
+            # We're either being told to stop or we
+            # need to run one more iteration of the
+            # loop to pickup any straggling messages.
+            if self.stopped and stopping:
+                logger.debug("Closing %s", self.stream.name)
+                self.stream.close()
+                break
+
+            # Go around one more time to pickup remaining messages
+            elif self.stopped:
+                stopping = True
 
 
 class JobType(object):
@@ -89,9 +159,16 @@ class JobType(object):
     :attribute process_protocol:
         The protocol object used to communicate between the process
         and the job type.
+
+    :attribute list success_codes:
+        A list of exit codes which indicate the process has terminated
+        successfully.  This list does not have to be used but is the
+        defacto attribute we just inside of :meth:`` to determine success.
     """
+    success_codes = set([0])
     ignore_uid_gid_mapping_errors = False
     process_protocol = ProcessProtocol
+    logging = {}
     cache = {}
 
     def __init__(self, assignment):
@@ -396,6 +473,24 @@ class JobType(object):
             return group
         return self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
+    # TODO: This needs more command line arguments and configuration options
+    def get_csvlog_path(self, task, now=None):
+        """
+        Returns the path to the comma separated value (csv) log file.
+        The agent stores logs from processes in a csv format so we can store
+        additional information such as a timestamp, line number, stdout/stderr
+        identification and the the log message itself.
+        """
+        assert isinstance(task, dict)
+        if now is None:
+            now = datetime.utcnow()
+
+        return join(
+            config["task-log-dir"],
+            "%s_%s_%s.csv" % (
+                now.strftime("%G%m%d%H%M%S"),
+                self.assignment["job"]["id"], task["id"]))
+
     def build_process_inputs(self):
         """
         This method constructs and returns all the arguments necessary
@@ -540,7 +635,14 @@ class JobType(object):
         protocol = self.build_process_protocol(
             self, process_inputs, command[0], arguments, environment, chdir,
             uid, gid)
+
+        # Internal data setup
+        logfile = self.get_csvlog_path(process_inputs.task)
         self.protocols[protocol.id] = protocol
+
+        # Start the logging thread
+        thread = self.logging[protocol.id] = LoggingThread(logfile)
+        thread.start()
 
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
@@ -560,9 +662,6 @@ class JobType(object):
         """
         for process_inputs in self.build_process_inputs():
             self.spawn_process(process_inputs)
-
-            # if task is not None:
-            #     tasks.append(task)
 
         # TODO: verify this does the right thing since `spawned` might not
         # work with this
@@ -633,11 +732,30 @@ class JobType(object):
             # TODO: if new state is the equiv. of 'stopped', stop the process
             # and POST the change
 
+    # TODO: check other exit types
+    def is_successful(self, reason):
+        return (
+            reason.type is ProcessDone and
+            reason.value.exitCode in self.success_codes)
+
     # TODO: documentation
+    # TODO: POST status
     def process_stopped(self, protocol, reason):
-        logger.info("%r stopped (code: %r)", protocol, reason)
+        logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
+
         self.protocols.pop(protocol.id, None)
-        # TODO: POST status
+        thread = self.logging.pop(protocol.id)
+
+        if self.is_successful(reason):
+            thread.put(
+                STDOUT, "Process has terminated successfully, code %s" %
+                reason.value.exitCode)
+        else:
+            thread.put(
+                STDOUT, "Process has not terminated successfully, code %s" %
+                reason.value.exitCode)
+
+        thread.stop()
 
     # TODO: documentation
     def process_started(self, protocol):
@@ -648,12 +766,12 @@ class JobType(object):
     def received_stdout(self, protocol, data):
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, data)
-
-        # TODO: log to file in thread pool, keep the file handle open, queue it
+        else:
+            self.logging[protocol.id].put(STDOUT, data)
 
     # TODO: documentation
     def received_stderr(self, protocol, data):
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, data)
-
-        # TODO: log to file in thread pool, keep the file handle open, queue it
+        else:
+            self.logging[protocol.id].put(STDERR, data)
