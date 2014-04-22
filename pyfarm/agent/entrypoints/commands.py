@@ -25,7 +25,7 @@ import argparse
 import os
 import time
 from functools import partial
-from os.path import abspath, dirname, isfile, join
+from os.path import abspath, dirname, isfile, join, isdir
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -267,7 +267,7 @@ class AgentEntryPoint(object):
             description="Settings which control logging of the agent's parent "
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
-            "--log", default="pyfarm-agent.log",
+            "--log", default=join("logs", "pyfarm-agent.log"),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
@@ -279,6 +279,9 @@ class AgentEntryPoint(object):
             "--capture-process-output", default=False, action="store_true",
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
+        logging_group.add_argument(
+            "--task-log-dir", default=join("logs", "tasks"),
+            help="The directory tasks should log to.")
 
         # network options for the agent when start is called
         start_network = start.add_argument_group(
@@ -430,7 +433,8 @@ class AgentEntryPoint(object):
                 "pretty-json": self.args.pretty_json,
                 "api_endpoint_prefix": "/api/v1",
                 "jobtype-no-cache": self.args.jobtype_no_cache,
-                "capture-process-output": self.args.capture_process_output}
+                "capture-process-output": self.args.capture_process_output,
+                "task-log-dir": self.args.task_log_dir}
 
             config.update(config_flags)
 
@@ -444,6 +448,10 @@ class AgentEntryPoint(object):
             return
 
         logger.info("starting agent")
+
+        if not isdir(self.args.task_log_dir):
+            logger.debug("Creating %s", self.args.task_log_dir)
+            os.makedirs(self.args.task_log_dir)
 
         # create the directory for the stdout log
         if not self.args.no_daemon and not isfile(self.args.log):
