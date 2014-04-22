@@ -157,14 +157,25 @@ class ProcessProtocol(_ProcessProtocol):
         return self.transport
 
     def connectionMade(self):
-        """Called when the process first starts"""
+        """
+        Called when the process first starts and the file descriptors
+        have opened.
+        """
         self.jobtype.process_started(self)
 
     def processEnded(self, reason):
-        self.jobtype.process_stopped(self, reason.value.exitCode)
+        """
+        Called when the process has terminated and all file descriptors
+        have been closed.  :meth:`processExited` is called to however we
+        only want to notify the parent job type once the process has freed
+        up the last bit of resources.
+        """
+        self.jobtype.process_stopped(self, reason)
 
     def outReceived(self, data):
+        """Called when the process emits on stdout"""
         self.jobtype.received_stdout(self, data)
 
     def errReceived(self, data):
+        """Called when the process emits on stderr"""
         self.jobtype.received_stderr(self, data)
