@@ -78,6 +78,7 @@ STDOUT = 0
 STDERR = 1
 
 
+# TODO: if we get fail the task if we have errors
 class LoggingThread(threading.Thread):
     """
     This class runs a thread which writes lines in csv format
