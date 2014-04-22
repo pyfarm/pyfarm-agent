@@ -29,7 +29,10 @@ from pyfarm.jobtypes.core.process import ProcessInputs
 class ListFiles(JobType):
     def build_process_inputs(self):
         for task in self.assignments():
-            yield ProcessInputs(
-                task, (which("mkdir"), "-pfv", "/tmp/foo%s" % task["frame"]))
-            yield ProcessInputs(
-                task, (which("ls"), "/tmp/foo%s" % task["frame"]))
+            path = "/tmp/foo%s" % task["frame"]
+
+            # generate the test file
+            with open(path, "w") as stream:
+                pass
+
+            yield ProcessInputs(task, (which("ls"), path))
