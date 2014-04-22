@@ -416,12 +416,12 @@ class JobType(object):
             self, jobtype, process_inputs, command, arguments,
             environment, chdir, uid, gid):
         """
-        Returns the process protocol object used to spawn connect
-        a job type to a running process.  By default this instance
-        :cvar:`.process_protocol` class variable.
+        Returns the process protocol object used to connect a job type
+        to a running process.  By default this instances
+        the :cvar:`.process_protocol` class variable.
 
         :raises TypeError:
-            raised if the protocol object is not a subclass of
+            Raised if the protocol object is not a subclass of
             :class:`.ProcessProtocol`
         """
         instance = self.process_protocol(
