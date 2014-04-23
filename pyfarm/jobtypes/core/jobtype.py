@@ -474,6 +474,54 @@ class JobType(object):
             return group
         return self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
+    def get_chdir(self, chdir, environment=None, expandvars=True, task=None):
+        """
+        Returns the directory a process should change into before
+        running.
+
+        :param string chdir:
+            The directory we need to resolve or validate
+
+        :param dict environment:
+            The environment to use when expanding environment
+            variables in ``chdir``
+
+        :param bool expandvars:
+            If True, use the environment to expand any environment
+            variables in ``chdir``
+
+        :param dict task:
+            If provided this task will be set to ``FAILED`` if the
+            directory does not exist
+
+        :returns:
+            Returns ``None`` if we failed to resolve ``chdir`` or the
+            directory to change into
+        """
+        if isinstance(chdir, STRING_TYPES) and expandvars:
+            if environment is None:
+                environment = self.get_default_environment()
+
+            # Convert process_inputs.chdir to a template first so we
+            # can resolve any environment variables it may contain
+            chdir = self.expandvars(chdir, environment)
+        else:
+            chdir = config["chroot"]
+
+        if not isdir(chdir):
+            logger.error(
+                "Directory provided for chdir, %s, does not exist or is "
+                "not a directory.", chdir)
+
+            if task is not None:
+                self.set_state(
+                    task, WorkState.FAILED,
+                    "Directory provided for `process_inputs.chdir` does not "
+                    "exist: %r" % chdir)
+            return
+
+        return chdir
+
     # TODO: This needs more command line arguments and configuration options
     def get_csvlog_path(self, task, now=None):
         """
@@ -605,23 +653,11 @@ class JobType(object):
         if gid is not None:
             kwargs.update(gid=gid)
 
-        # process_inputs.chdir may be a file path
-        chdir = config["chroot"]
-        if isinstance(process_inputs.chdir, STRING_TYPES) \
-                and process_inputs.expandvars:
-            # Convert process_inputs.chdir to a template first so we
-            # can resolve any environment variables it may contain
-            chdir = self.expandvars(process_inputs.chdir, environment)
-
-        if chdir is not None and not isdir(chdir):
-            self.set_state(
-                process_inputs.task, WorkState.FAILED,
-                "Directory provided for `process_inputs.chdir` does not "
-                "exist: %r" % chdir)
+        chdir = self.get_chdir(process_inputs.chdir, environment=environment)
+        if chdir is None:
             return
 
-        if chdir is not None:
-            kwargs.update(path=chdir)
+        kwargs.update(path=chdir)
 
         # Expand any environment variables in the command
         command = process_inputs.command
