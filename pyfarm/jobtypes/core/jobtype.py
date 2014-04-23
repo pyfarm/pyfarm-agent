@@ -501,7 +501,7 @@ class JobType(object):
         >>> from pyfarm.jobtypes.core.jobtype import ProcessInputs
         >>> def build_process_inputs(self):
         ...     for task in self.assignments():
-        ...         ProcessInputs(
+        ...         yield ProcessInputs(
         ...             task,
         ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
         ...             environ={"FOO": "1"},
