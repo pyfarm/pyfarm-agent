@@ -42,7 +42,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone
 
 from pyfarm.core.config import read_env, read_env_float, read_env_int
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
@@ -434,18 +434,6 @@ class JobType(object):
 
         return instance
 
-    def get_default_environment(self):
-        """
-        Constructs a default environment dictionary that will replace
-        ``os.environ`` before the process is launched in
-        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
-        before and after each process and so that each process can't modify
-        the original environment.
-        """
-        return dict(
-            list(DEFAULT_ENVIRONMENT.items()) +
-            list(self.assignment["job"].get("environ", {}).items()))
-
     def get_uid(self, username):
         """
         Convert ``username`` into an integer representing the user id.  If
@@ -500,27 +488,32 @@ class JobType(object):
         """
         if isinstance(chdir, STRING_TYPES) and expandvars:
             if environment is None:
-                environment = self.get_default_environment()
+                environment = self.get_environment()
 
             # Convert process_inputs.chdir to a template first so we
             # can resolve any environment variables it may contain
-            chdir = self.expandvars(chdir, environment)
-        else:
-            chdir = config["chroot"]
+            return self.expandvars(chdir, environment)
 
-        if not isdir(chdir):
-            logger.error(
-                "Directory provided for chdir, %s, does not exist or is "
-                "not a directory.", chdir)
+        return config["chroot"]
 
-            if task is not None:
-                self.set_state(
-                    task, WorkState.FAILED,
-                    "Directory provided for `process_inputs.chdir` does not "
-                    "exist: %r" % chdir)
-            return
+    def get_environment(self, env=None):
+        """
+        Constructs a default environment dictionary that will replace
+        ``os.environ`` before the process is launched in
+        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
+        before and after each process and so that each process can't modify
+        the original environment.
+        """
+        if isinstance(dict, env):
+            return env
+        elif env is not None:
+            logger.warning(
+                "Expected a dictionary for `env`, falling back onto default "
+                "environment")
 
-        return chdir
+        return dict(
+            list(DEFAULT_ENVIRONMENT.items()) +
+            list(self.assignment["job"].get("environ", {}).items()))
 
     # TODO: This needs more command line arguments and configuration options
     def get_csvlog_path(self, task, now=None):
@@ -630,34 +623,15 @@ class JobType(object):
                     "running as an administrator which is required to run"
                     "processes as another user.")
 
-        # generate environment and ensure
-        if process_inputs.env is None:
-            environment = self.get_default_environment()
-        else:
-            environment = process_inputs.env
-
-        if not isinstance(environment, dict):
-            self.set_state(
-                process_inputs.task, WorkState.FAILED,
-                "`process_inputs.env` must be a dictionary, got %s instead.  "
-                "Check the output produced by "
-                "`build_process_inputs`" % type(environment))
-            return
-
         # Prepare the arguments for the spawnProcess call
-        kwargs = {"env": None}
-
-        # update kwargs with uid/gid
-        if uid is not None:
-            kwargs.update(uid=uid)
-        if gid is not None:
-            kwargs.update(gid=gid)
-
-        chdir = self.get_chdir(process_inputs.chdir, environment=environment)
-        if chdir is None:
-            return
-
-        kwargs.update(path=chdir)
+        environment = self.get_environment(process_inputs.env)
+        
+        kwargs = {
+            "env": environment,
+            "chdir": self.get_chdir(
+                process_inputs.chdir,
+                environment=environment, expandvars=process_inputs.expandvars),
+        }
 
         # Expand any environment variables in the command
         command = process_inputs.command
@@ -680,6 +654,11 @@ class JobType(object):
         # Start the logging thread
         thread = self.logging[protocol.id] = LoggingThread(logfile)
         thread.start()
+
+        # TODO: do validation of **kwargs here so we don't do it in one location
+        # * environment (dict, strings only)
+        # * chdir exists (see previous setup for this in the history)
+        #
 
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
