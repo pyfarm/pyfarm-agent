@@ -201,11 +201,11 @@ from pyfarm.core.sysinfo.system import (
 try:  # pragma: no cover
     STRING_TYPES = (str, unicode)
     NUMERIC_TYPES = (int, long, float, complex)
-    INTERGER_TYPES = (int, long)
+    INTEGER_TYPES = (int, long)
 except NameError:  # pragma: no cover
     STRING_TYPES = (str, )
     NUMERIC_TYPES = (int, float, complex)
-    INTERGER_TYPES = int
+    INTEGER_TYPES = int
 
 # constants used by pyfarm.core.utility.convert by provided
 # here so they could be reused elsewhere
