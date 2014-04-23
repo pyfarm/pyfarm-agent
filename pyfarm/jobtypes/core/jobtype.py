@@ -43,7 +43,7 @@ from twisted.internet.error import ProcessDone
 
 from pyfarm.core.config import (
     read_env, read_env_float, read_env_int, read_env_bool)
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
@@ -625,10 +625,11 @@ class JobType(object):
 
         # username/group to uid/gid mapping
         uid, gid = None, None
-        if all([pwd is not NotImplemented,
+        if all([not WINDOWS,  # Twisted does not implement this on Windows
+                pwd is not NotImplemented,
                 grp is not NotImplemented,
                 process_inputs.user is not None or
-                                process_inputs.group is not None]):
+                    process_inputs.group is not None]):
 
             # Regardless of platform, we run a command as
             # another user unless we're an admin
@@ -669,10 +670,16 @@ class JobType(object):
                 process_inputs.chdir,
                 environment=environment, expandvars=process_inputs.expandvars)}
 
+        # Add uid/gid into kwargs
+        if uid is not None:
+            kwargs.update(uid=uid)
+        if gid is not None:
+            kwargs.update(gid=gid)
+
         # Instance the process protocol so the process we create will
         # call into this class
         protocol = self.build_process_protocol(
-            self, process_inputs, commands[0], kwargs["args"], environment,
+            self, process_inputs, commands[0], kwargs["args"], kwargs["env"],
             kwargs["chdir"], uid, gid)
 
         # Internal data setup
@@ -680,6 +687,8 @@ class JobType(object):
         self.protocols[protocol.id] = protocol
 
         # Start the logging thread
+        # TODO: need a method to generate or retrieve a LoggingThread, we could
+        # run up to this point with the same log file
         thread = self.logging[protocol.id] = LoggingThread(logfile)
         thread.start()
 
@@ -704,6 +713,10 @@ class JobType(object):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
+        # TODO: add deferred handlers
+        # TODO: collect all tasks and depending on the relationship
+        # between tasks and processes we have to change how we notify
+        # the master (and how we cancel other tasks which are queued)
         for process_inputs in self.build_process_inputs():
             self.spawn_process(process_inputs)
 
