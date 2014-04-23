@@ -22,7 +22,7 @@ import threading
 import sys
 from datetime import datetime
 from string import Template
-from os.path import join, dirname, isfile, isdir
+from os.path import join, dirname, isfile
 from Queue import Queue, Empty
 
 try:
@@ -41,8 +41,9 @@ from twisted.internet import threads, reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone
 
-from pyfarm.core.config import read_env, read_env_float, read_env_int
-from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.config import (
+    read_env, read_env_float, read_env_int, read_env_bool)
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
@@ -166,9 +167,13 @@ class JobType(object):
         successfully.  This list does not have to be used but is the
         defacto attribute we just inside of :meth:`` to determine success.
     """
-    success_codes = set([0])
-    ignore_uid_gid_mapping_errors = False
+    # TODO: add command line flags for some of these
+    expand_path_vars = read_env_bool(
+        "PYFARM_JOBTYPE_DEFAULT_EXPANDVARS", True)
+    ignore_uid_gid_mapping_errors = read_env_bool(
+        "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
     process_protocol = ProcessProtocol
+    success_codes = set([0])
     logging = {}
     cache = {}
 
@@ -462,7 +467,27 @@ class JobType(object):
             return group
         return self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
-    def get_chdir(self, chdir, environment=None, expandvars=True, task=None):
+    def get_environment(self, env=None):
+        """
+        Constructs a default environment dictionary that will replace
+        ``os.environ`` before the process is launched in
+        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
+        before and after each process and so that each process can't modify
+        the original environment.
+        """
+        if isinstance(dict, env):
+            return env
+
+        elif env is not None:
+            logger.warning(
+                "Expected a dictionary for `env`, falling back onto default "
+                "environment")
+
+        return dict(
+            list(DEFAULT_ENVIRONMENT.items()) +
+            list(self.assignment["job"].get("environ", {}).items()))
+
+    def get_chdir(self, chdir, environment=None, expandvars=None, task=None):
         """
         Returns the directory a process should change into before
         running.
@@ -486,34 +511,43 @@ class JobType(object):
             Returns ``None`` if we failed to resolve ``chdir`` or the
             directory to change into
         """
+        if expandvars is None:
+            expandvars = self.expand_path_vars
+
         if isinstance(chdir, STRING_TYPES) and expandvars:
             if environment is None:
                 environment = self.get_environment()
 
-            # Convert process_inputs.chdir to a template first so we
-            # can resolve any environment variables it may contain
+            # Convert chdir to a template first so we  can resolve
+            # any environment variables it may contain
             return self.expandvars(chdir, environment)
 
         return config["chroot"]
 
-    def get_environment(self, env=None):
+    def get_command_list(self, cmdlist, environment=None, expandvars=None):
         """
-        Constructs a default environment dictionary that will replace
-        ``os.environ`` before the process is launched in
-        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
-        before and after each process and so that each process can't modify
-        the original environment.
-        """
-        if isinstance(dict, env):
-            return env
-        elif env is not None:
-            logger.warning(
-                "Expected a dictionary for `env`, falling back onto default "
-                "environment")
+        Return a list of command to be used when running the process
+        as a read-only tuple.
 
-        return dict(
-            list(DEFAULT_ENVIRONMENT.items()) +
-            list(self.assignment["job"].get("environ", {}).items()))
+        :param dict environment:
+            If provided this will be used to perform environment variable
+            expansion for each entry in ``cmdlist``
+
+        :param bool expandvars:
+            If True then use ``environment`` to expand any environment
+            variables in ``cmdlist``
+        """
+        if expandvars is None:
+            expandvars = self.expand_path_vars
+
+        if expandvars and environment is None:
+            environment = self.get_environment()
+
+        if expandvars and environment:
+            cmdlist = map(
+                lambda value: self.expandvars(value, environment), cmdlist)
+
+        return tuple(cmdlist)  # read-only copy (also takes less memory)
 
     # TODO: This needs more command line arguments and configuration options
     def get_csvlog_path(self, task, now=None):
@@ -625,27 +659,21 @@ class JobType(object):
 
         # Prepare the arguments for the spawnProcess call
         environment = self.get_environment(process_inputs.env)
-        
+        commands = self.get_command_list(
+            process_inputs.command,
+            environment=environment, expandvars=process_inputs.expandvars)
         kwargs = {
+            "args": commands[1:],
             "env": environment,
             "chdir": self.get_chdir(
                 process_inputs.chdir,
-                environment=environment, expandvars=process_inputs.expandvars),
-        }
+                environment=environment, expandvars=process_inputs.expandvars)}
 
-        # Expand any environment variables in the command
-        command = process_inputs.command
-        if process_inputs.expandvars:
-            command = map(
-                lambda value: self.expandvars(value, environment),
-                process_inputs.command)
-
-        arguments = command[1:]
-        kwargs.update(args=arguments)
-
+        # Instance the process protocol so the process we create will
+        # call into this class
         protocol = self.build_process_protocol(
-            self, process_inputs, command[0], arguments, environment, chdir,
-            uid, gid)
+            self, process_inputs, commands[0], kwargs["args"], environment,
+            kwargs["chdir"], uid, gid)
 
         # Internal data setup
         logfile = self.get_csvlog_path(process_inputs.task)
@@ -666,7 +694,7 @@ class JobType(object):
         # our own environment so we can launch the process.  After launching
         # we replace the original environment.
         with ReplaceEnvironment(environment):
-            reactor.spawnProcess(protocol, command[0], **kwargs)
+            reactor.spawnProcess(protocol, commands[0], **kwargs)
 
         return protocol
 
