@@ -42,7 +42,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone
 
 from pyfarm.core.config import read_env, read_env_float, read_env_int
-from pyfarm.core.enums import INTERGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
@@ -219,7 +219,7 @@ class JobType(object):
                     raise
 
         # Verify that the provided user/group string is real
-        elif isinstance(value, INTERGER_TYPES):
+        elif isinstance(value, INTEGER_TYPES):
             try:
                 if module_name == "pwd":
                     pass
@@ -703,7 +703,7 @@ class JobType(object):
             logger.error(
                 "Expected a dictionary for `task`, cannot change state")
 
-        elif not "id" in task or not isinstance(task["id"], INTERGER_TYPES):
+        elif not "id" in task or not isinstance(task["id"], INTEGER_TYPES):
             logger.error(
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
