@@ -131,7 +131,7 @@ class ProcessProtocol(_ProcessProtocol):
     to act as plumbing between the process being run and the job type.
     """
     def __init__(self, jobtype, process_inputs, command, arguments, env,
-                 chdir, uid, gid):
+                 chdir, uid, gid, protocol_id=None):
         self.jobtype = jobtype
         self.inputs = process_inputs
         self.command = command
@@ -140,7 +140,11 @@ class ProcessProtocol(_ProcessProtocol):
         self.chdir = chdir
         self.uid = uid
         self.gid = gid
-        self.id = self.inputs.task["id"]
+
+        if protocol_id is None:
+            protocol_id = self.inputs.task["id"]
+
+        self.id = protocol_id
 
     def __repr__(self):
         return "Process(task=%r, pid=%r, command=%r, args=%r, chdir=%r, " \
