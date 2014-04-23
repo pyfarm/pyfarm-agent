@@ -526,7 +526,7 @@ class JobType(object):
     def spawn_process(self, process_inputs):
         """
         Spawns a process using :func:`.reactor.spawnProcess` and returns
-        a deferred object which will fire when t
+        the protocol object it generates.
         """
         assert isinstance(process_inputs, ProcessInputs)
 
