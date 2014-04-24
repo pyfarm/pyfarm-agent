@@ -174,7 +174,7 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self.jobtype.process_stopped(self, reason)
+        self.jobtype._process_stopped(self, reason)
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""

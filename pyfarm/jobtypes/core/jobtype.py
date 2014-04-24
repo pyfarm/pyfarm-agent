@@ -796,7 +796,7 @@ class JobType(object):
 
     # TODO: documentation
     # TODO: POST status
-    def process_stopped(self, protocol, reason):
+    def _process_stopped(self, protocol, reason):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
         self.protocols.pop(protocol.id, None)
@@ -812,6 +812,11 @@ class JobType(object):
                 reason.value.exitCode)
 
         thread.stop()
+
+        self.process_stopped(protocol, reason)
+
+    def process_stopped(self, protocol, reason):
+        pass
 
     # TODO: documentation
     def process_started(self, protocol):
