@@ -819,7 +819,14 @@ class JobType(object):
         self.process_stopped(protocol, reason)
 
     def process_stopped(self, protocol, reason):
-        pass
+        # If this was the last process running
+        if not self.protocols:
+            if not self.any_process_failed:
+                for task in self.assignment["tasks"]:
+                    self.set_state(task, WorkState.DONE)
+            else:
+                for task in self.assignment["tasks"]:
+                    self.set_state(task, WorkState.FAILED)
 
     # TODO: documentation
     def process_started(self, protocol):
