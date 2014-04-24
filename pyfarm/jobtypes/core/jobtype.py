@@ -181,6 +181,7 @@ class JobType(object):
         assert isinstance(assignment, dict)
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
+        self.any_process_failed = False
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -751,6 +752,7 @@ class JobType(object):
             passed to this keyword will be passed through
             :meth:`format_exception` first to format it.
         """
+
         if state not in WorkState:
             logger.error(
                 "Cannot set state for task %r to %r, %r is an invalid "
@@ -807,6 +809,7 @@ class JobType(object):
                 STDOUT, "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
+            self.any_process_failed = True
             thread.put(
                 STDOUT, "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
