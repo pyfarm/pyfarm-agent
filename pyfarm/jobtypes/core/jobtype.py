@@ -770,17 +770,16 @@ class JobType(object):
                 "job type's assignments", task)
 
         else:
-            if state != WorkState.ERROR and error:
+            if state != WorkState.FAILED and error:
                 logger.warning(
-                    "Resetting `error` to None, state is not being "
-                    "WorkState.ERROR")
+                    "Resetting `error` to None, state is not WorkState.FAILED")
                 error = None
 
             job_id = self.assignment["job"]["id"]
             task_id = task["id"]
 
             # TODO: POST change
-            if state == WorkState.ERROR:
+            if state == WorkState.FAILED:
                 if isinstance(error, Exception):
                     error = self.format_exception(error)
 
