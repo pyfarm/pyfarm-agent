@@ -475,7 +475,7 @@ class JobType(object):
         before and after each process and so that each process can't modify
         the original environment.
         """
-        if isinstance(dict, env):
+        if isinstance(env, dict):
             return env
 
         elif env is not None:
