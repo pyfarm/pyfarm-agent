@@ -666,7 +666,7 @@ class JobType(object):
         kwargs = {
             "args": commands[1:],
             "env": environment,
-            "chdir": self.get_chdir(
+            "path": self.get_chdir(
                 process_inputs.chdir,
                 environment=environment, expandvars=process_inputs.expandvars)}
 
@@ -680,7 +680,7 @@ class JobType(object):
         # call into this class
         protocol = self.build_process_protocol(
             self, process_inputs, commands[0], kwargs["args"], kwargs["env"],
-            kwargs["chdir"], uid, gid)
+            kwargs["path"], uid, gid)
 
         # Internal data setup
         logfile = self.get_csvlog_path(process_inputs.task)
