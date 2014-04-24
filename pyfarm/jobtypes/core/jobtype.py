@@ -48,7 +48,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import get
+from pyfarm.agent.http.core.client import get, post
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
@@ -787,8 +787,32 @@ class JobType(object):
 
                 logger.error("Task %r failed: %r", task, error)
 
-            # TODO: if new state is the equiv. of 'stopped', stop the process
-            # and POST the change
+            url = "%s/jobs/%s/tasks/%s" % (config["master-api"],
+                                           self.assignment["job"]["id"],
+                                           task["id"])
+            data = {"state": state}
+
+            def post_update(url, data, delay=0.0):
+                # TODO Honor delay
+                post(url,
+                     data=data,
+                     callback=lambda x: result_callback(task["id"], state, x),
+                     errback=lambda x: error_callback(url, data, x))
+
+            def result_callback(task_id, state, response):
+                if response.code != OK:
+                    # Nothing else we could do about that
+                    logger.error("Could not set state for task %s to %s")
+
+            def error_callback(url, data, failure):
+                logger.error("Error while posting state update for task, "
+                             "retrying")
+                post_update(url, data, Agent.http_retry_delay())
+
+            post_update(url, data)
+
+        # TODO: if new state is the equiv. of 'stopped', stop the process
+        # and POST the change
 
     # TODO: check other exit types
     def is_successful(self, reason):
