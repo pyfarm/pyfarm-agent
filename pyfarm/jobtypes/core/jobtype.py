@@ -804,10 +804,20 @@ class JobType(object):
                     errback=lambda x: error_callback(url, data, x))
                 reactor.callLater(delay, post_func)
 
-            def result_callback(task_id, state, response):
-                if response.code != OK:
+            def result_callback(url, data, task_id, state, response):
+                if response.code >= 500 and response.code < 600:
+                    logger.error("Error while posting state update for task %s "
+                                 "to %s, return code is %s, retrying",
+                                 task_id, state, response.code)
+                    # TODO: Configurable delay
+                    post_update(url, data, 10 * random())
+                elif response.code != OK:
                     # Nothing else we could do about that
-                    logger.error("Could not set state for task %s to %s")
+                    logger.error("Could not set state for task %s to %s, server "
+                        "response code was %s" % (task_id, state, response.code))
+                else:
+                    logger.info("Set state of task %s to %s on master",
+                                task_id, state)
 
             def error_callback(url, data, failure):
                 logger.error("Error while posting state update for task, "
