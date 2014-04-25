@@ -25,6 +25,7 @@ from string import Template
 from os.path import join, dirname, isfile
 from Queue import Queue, Empty
 from functools import partial
+from random import random
 
 try:
     from httplib import OK
@@ -811,7 +812,8 @@ class JobType(object):
             def error_callback(url, data, failure):
                 logger.error("Error while posting state update for task, "
                              "retrying")
-                post_update(url, data, Agent.http_retry_delay())
+                # TODO: Configurable delay
+                post_update(url, data, 10 * random())
 
             post_update(url, data)
 
