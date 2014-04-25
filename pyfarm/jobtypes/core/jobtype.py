@@ -24,6 +24,7 @@ from datetime import datetime
 from string import Template
 from os.path import join, dirname, isfile
 from Queue import Queue, Empty
+from functools import partial
 
 try:
     from httplib import OK
@@ -793,11 +794,14 @@ class JobType(object):
             data = {"state": state}
 
             def post_update(url, data, delay=0.0):
-                # TODO Honor delay
-                post(url,
-                     data=data,
-                     callback=lambda x: result_callback(task["id"], state, x),
-                     errback=lambda x: error_callback(url, data, x))
+                post_func = partial(
+                    post,
+                    url,
+                    data=data,
+                    callback=lambda x: result_callback(url, data, task["id"],
+                                                       state, x),
+                    errback=lambda x: error_callback(url, data, x))
+                reactor.callLater(delay, post_func)
 
             def result_callback(task_id, state, response):
                 if response.code != OK:
