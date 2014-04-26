@@ -331,7 +331,7 @@ class AgentEntryPoint(object):
             help="The max number of times to retry a request to the master "
                  "after it has failed.  [default: %(default)s]")
         start_http_group.add_argument(
-            "--http-retry-delay", default=3,
+            "--http-retry-delay", default=5,
             type=partial(number, instance=self),
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
