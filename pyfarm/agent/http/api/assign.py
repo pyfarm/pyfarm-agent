@@ -106,8 +106,18 @@ class Assign(APIResource):
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")
 
+        if "agent-id" not in config:
+            logger.error(
+                "Agent has not yet connected to the master or `agent-id` "
+                "has not been set yet.")
+            request.write(
+                {"error": "agent-id has not been set in the config"})
+            request.setResponseCode(BAD_REQUEST)
+            request.finish()
+            return NOT_DONE_YET
+
         # Do we have enough ram?
-        if requires_ram is not None and requires_ram > memory_free:
+        elif requires_ram is not None and requires_ram > memory_free:
             logger.error(
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",
@@ -121,6 +131,7 @@ class Assign(APIResource):
 
             # touch the config
             config["free_ram"] = memory_free
+            return NOT_DONE_YET
 
         # Do we have enough cpus (count wise)?
         elif requires_cpus is not None and requires_cpus > cpus:
@@ -134,13 +145,13 @@ class Assign(APIResource):
                  "requires_cpus": requires_cpus})
             request.setResponseCode(BAD_REQUEST)
             request.finish()
+            return NOT_DONE_YET
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
-        else:
-            # TODO Mark this agent as running on the master
-            request.setResponseCode(ACCEPTED)
-            request.finish()
+        # TODO Mark this agent as running on the master
+        request.setResponseCode(ACCEPTED)
+        request.finish()
 
         def loaded_jobtype(jobtype_class):
             instance = jobtype_class(data)
