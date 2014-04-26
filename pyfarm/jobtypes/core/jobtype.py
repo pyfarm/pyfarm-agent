@@ -25,7 +25,6 @@ from string import Template
 from os.path import join, dirname, isfile
 from Queue import Queue, Empty
 from functools import partial
-from random import random
 
 try:
     from httplib import OK
@@ -50,7 +49,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import get, post
+from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
@@ -794,7 +793,7 @@ class JobType(object):
                                            task["id"])
             data = {"state": state}
 
-            def post_update(url, data, delay=0.0):
+            def post_update(url, data):
                 post_func = partial(
                     post,
                     url,
@@ -802,7 +801,7 @@ class JobType(object):
                     callback=lambda x: result_callback(url, data, task["id"],
                                                        state, x),
                     errback=lambda x: error_callback(url, data, x))
-                reactor.callLater(delay, post_func)
+                reactor.callLater(http_retry_delay(), post_func)
 
             def result_callback(url, data, task_id, state, response):
                 if response.code >= 500 and response.code < 600:
@@ -810,7 +809,7 @@ class JobType(object):
                                  "to %s, return code is %s, retrying",
                                  task_id, state, response.code)
                     # TODO: Configurable delay
-                    post_update(url, data, 10 * random())
+                    post_update(url, data)
                 elif response.code != OK:
                     # Nothing else we could do about that
                     logger.error("Could not set state for task %s to %s, server "
@@ -823,7 +822,7 @@ class JobType(object):
                 logger.error("Error while posting state update for task, "
                              "retrying")
                 # TODO: Configurable delay
-                post_update(url, data, 10 * random())
+                post_update(url, data)
 
             post_update(url, data)
 
