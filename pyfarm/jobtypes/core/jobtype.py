@@ -182,7 +182,7 @@ class JobType(object):
         assert isinstance(assignment, dict)
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
-        self.any_process_failed = False
+        self.failed_processes = []
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -849,7 +849,7 @@ class JobType(object):
                 STDOUT, "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
-            self.any_process_failed = True
+            self.failed_processes.append((protocol, reason))
             thread.put(
                 STDOUT, "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
@@ -860,8 +860,9 @@ class JobType(object):
 
     def process_stopped(self, protocol, reason):
         # If this was the last process running
+        # TODO: sequential processes
         if not self.protocols:
-            if not self.any_process_failed:
+            if not self.failed_processes:
                 for task in self.assignment["tasks"]:
                     self.set_state(task, WorkState.DONE)
             else:
