@@ -16,7 +16,11 @@
 
 import os
 import json
-from httplib import OK, CREATED
+
+try:
+    from httplib import OK, CREATED
+except ImportError:  # pragma: no cover
+    from http.client import OK, CREATED
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -26,7 +30,6 @@ from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.agent.service import Agent
-
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
@@ -40,17 +43,6 @@ class TestAgentBasicMethods(TestCase):
     def test_agent_api_url_keyerror(self):
         agent = Agent()
         self.assertIsNone(agent.agent_api())
-
-    def test_http_retry_delay(self):
-        config["http-retry-delay"] = 1
-        agent = Agent()
-        self.assertEqual(agent.http_retry_delay(uniform=True), 1)
-
-    def test_http_retry_delay_custom_delay(self):
-        config["http-retry-delay"] = 1
-        agent = Agent()
-        self.assertEqual(
-            agent.http_retry_delay(uniform=False, get_delay=lambda: 1), 2)
 
     def test_system_data(self):
         expected = {

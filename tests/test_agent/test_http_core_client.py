@@ -31,7 +31,8 @@ from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import (
-    Request, Response, request, head, get, post, put, patch, delete, build_url)
+    Request, Response, request, head, get, post, put, patch, delete, build_url,
+    http_retry_delay)
 
 
 # fake object we use for triggering Response.connectionLost
@@ -182,6 +183,31 @@ class TestClientErrors(RequestTestCase):
             callback=lambda _: None,
             errback=lambda failure:
                 self.assertIs(failure.type, DNSLookupError))
+
+
+class TestRetryDelay(TestCase):
+    def test_default(self):
+        config["http-retry-delay"] = 1
+        self.assertEqual(
+            http_retry_delay(uniform=True), config["http-retry-delay"])
+
+    def test_custom_delay_multiplier(self):
+        self.assertEqual(
+            http_retry_delay(initial=1, uniform=False, get_delay=lambda: 2), 2)
+
+    def test_minimum(self):
+        self.assertEqual(
+            http_retry_delay(
+                initial=5, uniform=True, get_delay=lambda: 1, minimum=3), 5)
+        self.assertEqual(
+            http_retry_delay(
+                initial=0, uniform=True, get_delay=lambda: 1, minimum=10), 10)
+
+    def test_invalid_types(self):
+        self.assertRaises(
+            AssertionError, lambda: http_retry_delay(initial=""))
+        self.assertRaises(
+            AssertionError, lambda: http_retry_delay(minimum=""))
 
 
 class TestClientFunctions(RequestTestCase):

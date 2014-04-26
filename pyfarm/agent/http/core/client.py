@@ -25,9 +25,18 @@ the master server.
 import json
 from collections import namedtuple
 from functools import partial
-from httplib import responses
-from urllib import quote
-from UserDict import UserDict
+from random import random
+from urllib import quote  # TODO: need the Python 3.x replacement
+
+try:
+    from httplib import responses
+except ImportError:  # pragma: no cover
+    from http.client import responses
+
+try:
+    from UserDict import UserDict
+except ImportError:  # pragma: no cover
+    from collections import UserDict
 
 import treq
 try:
@@ -42,7 +51,7 @@ from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
 from pyfarm.core.config import read_env
-from pyfarm.core.enums import STRING_TYPES, NOTSET
+from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
@@ -57,6 +66,7 @@ else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
 
 USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
+DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
 
 
 def build_url(url, params=None, quoted=False):
@@ -97,6 +107,47 @@ def build_url(url, params=None, quoted=False):
         url = quote(url)
 
     return url
+
+
+def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
+    """
+    Returns a floating point value that can be used to delay
+    an http request.  The main purpose of this is to ensure that not all
+    requests are run with the same interval between then.  This helps to
+    ensure that if the same request, such as agents coming online, is being
+    run on multiple systems they should be staggered a little more than
+    they would be without the non-uniform delay.
+
+    :param int initial:
+        The initial delay value to start off with before any extra
+        calculations are done.  If this value is not provided the value
+        provided to ``--http-retry-delay`` at startup will be used.
+
+    :param bool uniform:
+        If True then use the value produced by :param:`get_delay` as
+        a multiplier.
+
+    :param callable get_delay:
+        A function which should produce a number to multiply ``delay``
+        by.  By default this uses :func:`random.random`
+
+    :param minimum:
+        Ensures that the value returned from this function is greater than
+        or equal to a minimum value.
+    """
+    delay = initial
+    if initial is None:
+        # TODO: provide command line flags for jitter
+        delay = config["http-retry-delay"]
+
+    assert isinstance(delay, DELAY_NUMBER_TYPES)  # expect integer or float
+    assert isinstance(minimum, DELAY_NUMBER_TYPES)  # expect integer or float
+    assert minimum >= 0
+
+    if not uniform:
+        delay *= get_delay()
+
+    return max(minimum, delay)
 
 
 class Request(namedtuple("Request", ("method", "url", "kwargs"))):

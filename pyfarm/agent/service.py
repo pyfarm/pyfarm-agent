@@ -41,7 +41,7 @@ from pyfarm.core.sysinfo import memory
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.log import LogQuery
-from pyfarm.agent.http.core.client import post, get
+from pyfarm.agent.http.core.client import post, get, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
@@ -87,22 +87,6 @@ class Agent(object):
             svclog.error(
                 "The `agent-id` configuration value has not been set yet")
             return None
-
-    @classmethod
-    def http_retry_delay(cls, uniform=False, get_delay=random):
-        """
-        Returns a floating point value that can be used to delay
-        an http request.  The main purpose of this is to ensure that not all
-        requests are run with the same interval between then.  This helps to
-        ensure that if the same request, such as agents coming online, is being
-        run on multiple systems they should be staggered a little more than
-        they would be without the non-uniform delay.
-        """
-        # TODO: provide command line flags for jitter
-        delay = config["http-retry-delay"]
-        if not uniform:
-            delay += get_delay()
-        return delay
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -283,7 +267,7 @@ class Agent(object):
                 reactor.callLater(delay, response.request.retry)
 
         def error_while_posting(failure):
-            delay = self.http_retry_delay()
+            delay = http_retry_delay()
             svclog.warning(
                 "State update failed due to unhandled error: %s.  "
                 "Retrying in %s seconds",
@@ -347,7 +331,7 @@ class Agent(object):
             svclog.info("Agent is now online (created on master)")
             self.agent_created.callback(CREATED)
         else:
-            delay = self.http_retry_delay()
+            delay = http_retry_delay()
             svclog.warning(
                 "We expected to receive an CREATED response code but instead"
                 "we got %s. Retrying in %s seconds.",
@@ -360,7 +344,7 @@ class Agent(object):
         to create the agent on the master.  The failed request will be
         retried.
         """
-        delay = self.http_retry_delay()
+        delay = http_retry_delay()
         svclog.warning(
             "There was a problem creating the agent: %s.  Retrying "
             "in %r seconds.", failure, delay)
@@ -388,7 +372,7 @@ class Agent(object):
             svclog.info("Agent is now online (updated on master)")
             self.agent_created.callback(OK)
         else:
-            delay = self.http_retry_delay()
+            delay = http_retry_delay()
             svclog.warning(
                 "We expected to receive an OK response code but instead"
                 "we got %s.  Retrying in %s.", responses[response.code], delay)
@@ -399,7 +383,7 @@ class Agent(object):
         Error handler which is called if we fail to post an update
         to an existing agent for some reason.
         """
-        delay = self.http_retry_delay()
+        delay = http_retry_delay()
         svclog.warning(
             "There was error updating an existing agent: %s.  Retrying "
             "in %r seconds", failure, delay)
@@ -411,7 +395,7 @@ class Agent(object):
         search occurs at startup and after this callback finishes we
         we'll either post updates to an existing agent or
         """
-        delay = self.http_retry_delay()
+        delay = http_retry_delay()
 
         if response.code == OK:
             system_data = self.system_data()
@@ -480,7 +464,7 @@ class Agent(object):
         Callback that gets called when we fail to search for the agent
         due to an exception (not a response code).
         """
-        delay = self.http_retry_delay()
+        delay = http_retry_delay()
         if failure.type is ConnectionRefusedError:
             agents_api = "%(master-api)s/agents/" % config
             svclog.warning(
@@ -560,7 +544,7 @@ class Agent(object):
         Error handler which is called if we fail to post a cpu count update
         to an existing agent for some reason.
         """
-        delay = self.http_retry_delay()
+        delay = http_retry_delay()
         svclog.warning(
             "There was error updating an existing agent: %s.  Retrying "
             "in %r seconds", failure, delay)
@@ -573,7 +557,7 @@ class Agent(object):
         if response.code == OK:
             svclog.info("CPU count change POSTed to %s", self.agent_api())
         else:
-            delay = self.http_retry_delay()
+            delay = http_retry_delay()
             svclog.warning(
                 "We expected to receive an OK response code but instead"
                 "we got %s.  Retrying in %s.", responses[response.code], delay)
