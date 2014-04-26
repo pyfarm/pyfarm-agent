@@ -808,12 +808,14 @@ class JobType(object):
                     logger.error("Error while posting state update for task %s "
                                  "to %s, return code is %s, retrying",
                                  task_id, state, response.code)
-                    # TODO: Configurable delay
                     post_update(url, data)
+
                 elif response.code != OK:
                     # Nothing else we could do about that
-                    logger.error("Could not set state for task %s to %s, server "
-                        "response code was %s" % (task_id, state, response.code))
+                    logger.error(
+                        "Could not set state for task %s to %s, server "
+                        "response code was %s", task_id, state, response.code)
+
                 else:
                     logger.info("Set state of task %s to %s on master",
                                 task_id, state)
@@ -821,9 +823,8 @@ class JobType(object):
             def error_callback(url, data, failure):
                 logger.error("Error while posting state update for task, "
                              "retrying")
-                # TODO: Configurable delay
-                post_update(url, data)
 
+                post_update(url, data)
             post_update(url, data)
 
         # TODO: if new state is the equiv. of 'stopped', stop the process
