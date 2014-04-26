@@ -24,6 +24,8 @@ from datetime import datetime
 from string import Template
 from os.path import join, dirname, isfile
 from Queue import Queue, Empty
+from functools import partial
+from random import random
 
 try:
     from httplib import OK
@@ -48,7 +50,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import get
+from pyfarm.agent.http.core.client import get, post
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
@@ -181,6 +183,7 @@ class JobType(object):
         assert isinstance(assignment, dict)
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
+        self.any_process_failed = False
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -475,7 +478,7 @@ class JobType(object):
         before and after each process and so that each process can't modify
         the original environment.
         """
-        if isinstance(dict, env):
+        if isinstance(env, dict):
             return env
 
         elif env is not None:
@@ -666,7 +669,7 @@ class JobType(object):
         kwargs = {
             "args": commands[1:],
             "env": environment,
-            "chdir": self.get_chdir(
+            "path": self.get_chdir(
                 process_inputs.chdir,
                 environment=environment, expandvars=process_inputs.expandvars)}
 
@@ -680,7 +683,7 @@ class JobType(object):
         # call into this class
         protocol = self.build_process_protocol(
             self, process_inputs, commands[0], kwargs["args"], kwargs["env"],
-            kwargs["chdir"], uid, gid)
+            kwargs["path"], uid, gid)
 
         # Internal data setup
         logfile = self.get_csvlog_path(process_inputs.task)
@@ -751,6 +754,7 @@ class JobType(object):
             passed to this keyword will be passed through
             :meth:`format_exception` first to format it.
         """
+
         if state not in WorkState:
             logger.error(
                 "Cannot set state for task %r to %r, %r is an invalid "
@@ -770,24 +774,61 @@ class JobType(object):
                 "job type's assignments", task)
 
         else:
-            if state != WorkState.ERROR and error:
+            if state != WorkState.FAILED and error:
                 logger.warning(
-                    "Resetting `error` to None, state is not being "
-                    "WorkState.ERROR")
+                    "Resetting `error` to None, state is not WorkState.FAILED")
                 error = None
 
             job_id = self.assignment["job"]["id"]
             task_id = task["id"]
 
             # TODO: POST change
-            if state == WorkState.ERROR:
+            if state == WorkState.FAILED:
                 if isinstance(error, Exception):
                     error = self.format_exception(error)
 
                 logger.error("Task %r failed: %r", task, error)
 
-            # TODO: if new state is the equiv. of 'stopped', stop the process
-            # and POST the change
+            url = "%s/jobs/%s/tasks/%s" % (config["master-api"],
+                                           self.assignment["job"]["id"],
+                                           task["id"])
+            data = {"state": state}
+
+            def post_update(url, data, delay=0.0):
+                post_func = partial(
+                    post,
+                    url,
+                    data=data,
+                    callback=lambda x: result_callback(url, data, task["id"],
+                                                       state, x),
+                    errback=lambda x: error_callback(url, data, x))
+                reactor.callLater(delay, post_func)
+
+            def result_callback(url, data, task_id, state, response):
+                if response.code >= 500 and response.code < 600:
+                    logger.error("Error while posting state update for task %s "
+                                 "to %s, return code is %s, retrying",
+                                 task_id, state, response.code)
+                    # TODO: Configurable delay
+                    post_update(url, data, 10 * random())
+                elif response.code != OK:
+                    # Nothing else we could do about that
+                    logger.error("Could not set state for task %s to %s, server "
+                        "response code was %s" % (task_id, state, response.code))
+                else:
+                    logger.info("Set state of task %s to %s on master",
+                                task_id, state)
+
+            def error_callback(url, data, failure):
+                logger.error("Error while posting state update for task, "
+                             "retrying")
+                # TODO: Configurable delay
+                post_update(url, data, 10 * random())
+
+            post_update(url, data)
+
+        # TODO: if new state is the equiv. of 'stopped', stop the process
+        # and POST the change
 
     # TODO: check other exit types
     def is_successful(self, reason):
@@ -797,7 +838,7 @@ class JobType(object):
 
     # TODO: documentation
     # TODO: POST status
-    def process_stopped(self, protocol, reason):
+    def _process_stopped(self, protocol, reason):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
         self.protocols.pop(protocol.id, None)
@@ -808,11 +849,24 @@ class JobType(object):
                 STDOUT, "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
+            self.any_process_failed = True
             thread.put(
                 STDOUT, "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
         thread.stop()
+
+        self.process_stopped(protocol, reason)
+
+    def process_stopped(self, protocol, reason):
+        # If this was the last process running
+        if not self.protocols:
+            if not self.any_process_failed:
+                for task in self.assignment["tasks"]:
+                    self.set_state(task, WorkState.DONE)
+            else:
+                for task in self.assignment["tasks"]:
+                    self.set_state(task, WorkState.FAILED)
 
     # TODO: documentation
     def process_started(self, protocol):

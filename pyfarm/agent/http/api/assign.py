@@ -138,6 +138,7 @@ class Assign(APIResource):
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
         else:
+            # TODO Mark this agent as running on the master
             request.setResponseCode(ACCEPTED)
             request.finish()
 
