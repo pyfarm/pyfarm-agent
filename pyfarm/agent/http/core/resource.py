@@ -208,7 +208,7 @@ class Resource(_Resource):
 
                             # Remove any empty values from the request
                             # because it will make processing later on
-                            # faster
+                            # faster and simpler.
                             pop_keys = set()
                             for key, value in items():
                                 if value is None:
