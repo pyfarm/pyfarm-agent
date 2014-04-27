@@ -93,7 +93,7 @@ class ProcessInputs(object):
         if env is not None and not isinstance(env, dict):
             raise TypeError("Expected `env` to be a dictionary")
 
-        if not isinstance(path, STRING_TYPES):
+        if path is not None and not isinstance(path, STRING_TYPES):
             raise TypeError("Expected `path` to be a string")
 
         if user is not None and not isinstance(user, STRING_TYPES):
@@ -101,6 +101,10 @@ class ProcessInputs(object):
 
         if group is not None and not isinstance(group, STRING_TYPES):
             raise TypeError("Expected `group` to be a string")
+
+        # needed for modification below
+        if isinstance(command, tuple):
+            command = list(command)
 
         # Iterate over all entries in `command` and convert any
         # numeric values to a string.  Anything that's neither
@@ -117,7 +121,7 @@ class ProcessInputs(object):
                     "Expected a string or number of entry command[%s]" % index)
 
         self.task = task
-        self.command = command
+        self.command = tuple(command)
         self.env = env
         self.path = path
         self.user = user
