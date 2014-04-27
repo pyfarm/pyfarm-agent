@@ -420,8 +420,8 @@ class JobType(object):
         return self.assignment["tasks"]
 
     def build_process_protocol(
-            self, jobtype, process_inputs, command, arguments,
-            environment, chdir, uid, gid):
+            self, jobtype, process_inputs, command, arguments, environment,
+            path, uid, gid):
         """
         Returns the process protocol object used to connect a job type
         to a running process.  By default this instances
@@ -433,7 +433,7 @@ class JobType(object):
         """
         instance = self.process_protocol(
             jobtype, process_inputs, command, arguments, environment,
-            chdir, uid, gid)
+            path, uid, gid)
 
         if not isinstance(instance, ProcessProtocol):
             raise TypeError(
@@ -489,40 +489,40 @@ class JobType(object):
             list(DEFAULT_ENVIRONMENT.items()) +
             list(self.assignment["job"].get("environ", {}).items()))
 
-    def get_chdir(self, chdir, environment=None, expandvars=None, task=None):
+    def get_path(self, path, environment=None, expandvars=None, task=None):
         """
         Returns the directory a process should change into before
         running.
 
-        :param string chdir:
+        :param string path:
             The directory we need to resolve or validate
 
         :param dict environment:
             The environment to use when expanding environment
-            variables in ``chdir``
+            variables in ``path``
 
         :param bool expandvars:
             If True, use the environment to expand any environment
-            variables in ``chdir``
+            variables in ``path``
 
         :param dict task:
             If provided this task will be set to ``FAILED`` if the
             directory does not exist
 
         :returns:
-            Returns ``None`` if we failed to resolve ``chdir`` or the
+            Returns ``None`` if we failed to resolve ``path`` or the
             directory to change into
         """
         if expandvars is None:
             expandvars = self.expand_path_vars
 
-        if isinstance(chdir, STRING_TYPES) and expandvars:
+        if isinstance(path, STRING_TYPES) and expandvars:
             if environment is None:
                 environment = self.get_environment()
 
-            # Convert chdir to a template first so we  can resolve
+            # Convert path to a template first so we  can resolve
             # any environment variables it may contain
-            return self.expandvars(chdir, environment)
+            return self.expandvars(path, environment)
 
         return config["chroot"]
 
@@ -668,8 +668,8 @@ class JobType(object):
         kwargs = {
             "args": commands[1:],
             "env": environment,
-            "path": self.get_chdir(
-                process_inputs.chdir,
+            "path": self.get_path(
+                process_inputs.path,
                 environment=environment, expandvars=process_inputs.expandvars)}
 
         # Add uid/gid into kwargs
@@ -696,7 +696,7 @@ class JobType(object):
 
         # TODO: do validation of **kwargs here so we don't do it in one location
         # * environment (dict, strings only)
-        # * chdir exists (see previous setup for this in the history)
+        # * path exists (see previous setup for this in the history)
         #
 
         # reactor.spawnProcess does different things with the environment

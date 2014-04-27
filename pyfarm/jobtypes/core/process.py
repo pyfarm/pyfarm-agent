@@ -46,13 +46,14 @@ class ProcessInputs(object):
     :param dict env:
         The environment to pass along to the process.  Any value other than
         ``None`` will fully replace the environment.  A value of ``None`` will
-        use the job type's ``get_default_environment``.
+        use the job type's ``get_environment``.
 
-    :param string chdir:
-        The directory the process should run in.  If no directory is provided
+    :param string path:
+        The path the process should run in.  If no path is provided
         then this will use the agent's ``--chroot`` flag to determine the
         location change into.  If this flag was not present when the agent
-        was launched then the current working directory will be used instead.
+        was launched then the directory the agent was launched in will be used
+        as a fallback.
 
     :param string user:
         The user name the process should run as when its launched.
@@ -73,7 +74,7 @@ class ProcessInputs(object):
             will run the process.
 
     :param bool expandvars:
-        If ``True`` then environment variables in ``command``, ``chdir`` and
+        If ``True`` then environment variables in ``command``, ``path`` and
         ``group`` will be expanded before the process is launched.
 
     :raises TypeError:
@@ -81,7 +82,7 @@ class ProcessInputs(object):
         if we got a type we couldn't convert in :param:`command` to a string.
     """
     def __init__(
-            self, task, command, env=None, chdir=None, user=None, group=None,
+            self, task, command, env=None, path=None, user=None, group=None,
             expandvars=True):
         if not isinstance(task, dict):
             raise TypeError("Expected a dictionary for `task`")
@@ -92,8 +93,8 @@ class ProcessInputs(object):
         if env is not None and not isinstance(env, dict):
             raise TypeError("Expected `env` to be a dictionary")
 
-        if not isinstance(chdir, STRING_TYPES):
-            raise TypeError("Expected `chdir` to be a string")
+        if not isinstance(path, STRING_TYPES):
+            raise TypeError("Expected `path` to be a string")
 
         if user is not None and not isinstance(user, STRING_TYPES):
             raise TypeError("Expected `user` to be a string")
@@ -118,7 +119,7 @@ class ProcessInputs(object):
         self.task = task
         self.command = command
         self.env = env
-        self.chdir = chdir
+        self.path = path
         self.user = user
         self.group = group
         self.expandvars = expandvars
@@ -168,13 +169,13 @@ class ProcessProtocol(_ProcessProtocol):
     to act as plumbing between the process being run and the job type.
     """
     def __init__(self, jobtype, process_inputs, command, arguments, env,
-                 chdir, uid, gid, protocol_id=None):
+                 path, uid, gid, protocol_id=None):
         self.jobtype = jobtype
         self.inputs = process_inputs
         self.command = command
         self.args = arguments
         self.env = env
-        self.chdir = chdir
+        self.path = path
         self.uid = uid
         self.gid = gid
 
@@ -184,10 +185,10 @@ class ProcessProtocol(_ProcessProtocol):
         self.id = protocol_id
 
     def __repr__(self):
-        return "Process(task=%r, pid=%r, command=%r, args=%r, chdir=%r, " \
+        return "Process(task=%r, pid=%r, command=%r, args=%r, path=%r, " \
                "uid=%r, gid=%r)" % (
             self.id, self.pid, self.command, self.args,
-            self.chdir, self.uid, self.gid)
+            self.path, self.uid, self.gid)
 
     @property
     def pid(self):
