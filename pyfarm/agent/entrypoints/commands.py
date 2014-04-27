@@ -24,13 +24,14 @@ The main module which constructs the entrypoint(s) for the agent.
 from __future__ import division
 
 import argparse
+import ctypes
 import hashlib
 import os
 import sys
 import time
 from collections import namedtuple
 from functools import partial
-from random import choice, randint
+from random import choice, randint, random
 from os.path import abspath, dirname, isfile, join, isdir
 
 # Platform specific imports.  These should either all fail or
@@ -652,11 +653,17 @@ def fake_render():
              "that this will disable the code which is consuming extra CPU "
              "cycles.  Also, use this option with care as it can generate "
              "several gigabytes of data per frame.")
+    parser.add_argument(
+        "--segfault", default=False, action="store_true",
+        help="If provided then there's a 25% chance of causing a segmentation "
+             "fault."
+    )
     args = parser.parse_args()
 
     if args.end is None:
         args.end = args.start
 
+    args.ram_jitter = min(args.ram, args.ram_jitter)
     assert args.end >= args.start and args.by >= 1
 
     if args.spew:
@@ -680,13 +687,12 @@ def fake_render():
 
         # Consume the requested memory (or close to)
         # TODO: this is unrealistic, majority of renders don't eat ram like this
-        big_string = None
         memory_to_consume = int(ram_usage - memory_usage())
+        big_string = " " * 1048576  # ~ 1MB of memory usage
         if memory_to_consume > 0:
             start = time.time()
             logger.debug(
                 "Consuming %s megabytes of memory", memory_to_consume)
-            big_string = " " * 1048576  # ~ 1MB of memory usage
             try:
                 big_string += big_string * memory_to_consume
 
@@ -699,6 +705,17 @@ def fake_render():
                 "Finished consumption of memory in %s seconds.  Off from "
                 "target memory usage by %sMB.",
                 time.time() - start, memory_usage() - ram_usage)
+
+        # Decently guaranteed to cause a segmentation fault.  Originally from:
+        #   https://wiki.python.org/moin/CrashingPython#ctypes
+        if args.segfault and random() > .25:
+            i = ctypes.c_char('a')
+            j = ctypes.pointer(i)
+            c = 0
+            while True:
+                j[c] = 'a'
+                c += 1
+            j
 
         # Continually hash a part of big_string to consume
         # cpu cycles
@@ -716,7 +733,7 @@ def fake_render():
                 last_percent = percent
                 logger.info("Progress %03d%%", progress)
 
-        if last_percent is None or last_percent != 100:
+        if last_percent is None:
             logger.info("Progress 100%%")
 
         logger.info("Finished frame %04d in %s seconds", frame, duration)
