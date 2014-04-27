@@ -645,19 +645,31 @@ def fake_render():
         "-e", "--end", type=getint, help="The end frame")
     parser.add_argument(
         "-b", "--by", type=getint, help="The by frame", default=1)
+    parser.add_argument(
+        "--spew", default=False, action="store_true",
+        help="Spews lots of random output to stdout which is generally "
+             "a decent stress test for log processing issues.  Do note however "
+             "that this will disable the code which is consuming extra CPU "
+             "cycles.  Also, use this option with care as it can generate "
+             "several gigabytes of data per frame.")
     args = parser.parse_args()
 
     if args.end is None:
         args.end = args.start
 
     assert args.end >= args.start and args.by >= 1
-    assert args.ram_jitter <= args.ram
+
+    if args.spew:
+        random_output = list(os.urandom(1024).encode("hex") for _ in xrange(15))
+    else:
+        random_output = None
 
     errors = 0
     for frame in xrange(args.start, args.end + 1, args.by):
         duration = args.duration + randint(
             -args.duration_jitter, args.duration_jitter)
-        ram_usage = args.ram + randint(-args.ram_jitter, args.ram_jitter)
+        ram_usage = min(
+            0, args.ram + randint(-args.ram_jitter, args.ram_jitter))
         logger.info("Starting frame %04d", frame)
 
         # Warn if we're already using more memory
@@ -686,14 +698,17 @@ def fake_render():
             logger.debug(
                 "Finished consumption of memory in %s seconds.  Off from "
                 "target memory usage by %sMB.",
-                time.time()-start, memory_usage() - ram_usage)
+                time.time() - start, memory_usage() - ram_usage)
 
         # Continually hash a part of big_string to consume
         # cpu cycles
         end_time = time.time() + duration
         last_percent = None
         while time.time() < end_time:
-            hashlib.sha1(big_string[:4096])  # consume CPU cycles
+            if args.spew:
+                print >> sys.stdout, choice(random_output)
+            else:
+                hashlib.sha1(big_string[:4096])  # consume CPU cycles
 
             progress = (1 - (end_time - time.time()) / duration) * 100
             percent, _ = divmod(progress, 5)
