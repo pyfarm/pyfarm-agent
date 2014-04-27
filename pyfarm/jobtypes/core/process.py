@@ -26,7 +26,8 @@ are useful in starting or managing a process.
 import os
 
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
-from twisted.internet.process import Process
+
+from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES
 
 
 class ProcessInputs(object):
@@ -74,10 +75,44 @@ class ProcessInputs(object):
     :param bool expandvars:
         If ``True`` then environment variables in ``command``, ``chdir`` and
         ``group`` will be expanded before the process is launched.
+
+    :raises TypeError:
+        Raised if we got an unexpected type for one of the input arguments or
+        if we got a type we couldn't convert in :param:`command` to a string.
     """
     def __init__(
             self, task, command, env=None, chdir=None, user=None, group=None,
             expandvars=True):
+        if not isinstance(task, dict):
+            raise TypeError("Expected a dictionary for `task`")
+
+        if not isinstance(command, (list, tuple)):
+            raise TypeError("Expected a list or tuple for `command`")
+
+        if env is not None and not isinstance(env, dict):
+            raise TypeError("Expected `env` to be a dictionary")
+
+        if not isinstance(chdir, STRING_TYPES):
+            raise TypeError("Expected `chdir` to be a string")
+
+        if user is not None and not isinstance(user, STRING_TYPES):
+            raise TypeError("Expected `user` to be a string")
+
+        if group is not None and not isinstance(group, STRING_TYPES):
+            raise TypeError("Expected `group` to be a string")
+
+        # Iterate over all entries in `command` and convert any
+        # numeric values to a string.  Anything that's neither
+        # string or number will raise TypeError because str(value)
+        # will likely be wrong.
+        for index, value in enumerate(command[:]):
+            if isinstance(value, NUMERIC_TYPES):
+                command[index] = str(value)
+
+            elif not isinstance(value, STRING_TYPES):
+                raise TypeError(
+                    "Expected a string or number of entry command[%s]" % index)
+
         self.task = task
         self.command = command
         self.env = env
