@@ -24,9 +24,9 @@ The main module which constructs the entrypoint(s) for the agent.
 from __future__ import division
 
 import argparse
-import gc
-import logging
+import hashlib
 import os
+import sys
 import time
 from collections import namedtuple
 from functools import partial
@@ -609,11 +609,6 @@ class AgentEntryPoint(object):
 
 
 def fake_render():
-    # Because we're trying to get the process to consume
-    # some relatively specific amount of memory we don't
-    # want garbage collection kicking in.
-    gc.disable()
-
     process = psutil.Process()
     memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
     memory_used_at_start = memory_usage()
@@ -640,64 +635,80 @@ def fake_render():
         "--duration-jitter", type=getint, default=5,
         help="Randomly add or subtract this amount to the total duration")
     parser.add_argument(
-        "frame", type=getint,
-        help="The current frame being 'rendered'")
+        "--ram-jitter", type=getint, default=100,
+        help="Randomly add or subtract this amount to the ram")
     parser.add_argument(
-        "output_file",
-        help="Write out a file to the provided location with some "
-             "information about the fake render.  The frame number will "
-             "replaced using Python style string formatting (ex. out%%04d.out)")
+        "-s", "--start", type=getint, required=True,
+        help="The start frame.  If no other flags are provided this will also "
+             "be the end frame.")
+    parser.add_argument(
+        "-e", "--end", type=getint, help="The end frame")
+    parser.add_argument(
+        "-b", "--by", type=getint, help="The by frame", default=1)
     args = parser.parse_args()
-    try:
-        args.output_file = abspath(args.output_file % args.frame)
-    except TypeError:
-        logger.warning("Frame number not provided in file name")
-        args.output_file = abspath(args.output_file)
 
-    parent_dir = dirname(args.output_file)
-    if not isdir(parent_dir):
-        os.makedirs(parent_dir)
+    if args.end is None:
+        args.end = args.start
 
-    # Setup PyFarm's root logger with an output handler in
-    # a manner that suits our needs for this script.
-    root_logger = logging.getLogger("pf")
-    output_handler = logging.FileHandler(args.output_file)
-    root_logger.addHandler(output_handler)
+    assert args.end >= args.start and args.by >= 1
+    assert args.ram_jitter <= args.ram
 
-    # warn if we're already using more memory
-    if args.ram < memory_used_at_start:
-        logger.warning(
-            "Memory usage starting up is higher than the value provided, "
-            "defaulting --ram to %s", memory_used_at_start)
-        args.ram = memory_used_at_start
+    errors = 0
+    for frame in xrange(args.start, args.end + 1, args.by):
+        duration = args.duration + randint(
+            -args.duration_jitter, args.duration_jitter)
+        ram_usage = args.ram + randint(-args.ram_jitter, args.ram_jitter)
+        logger.info("Starting frame %04d", frame)
 
-    # adjust the arguments a little to account for all the options
-    duration = args.duration + randint(-args.duration, args.duration)
-    args.duration = 0 if duration < 0 else duration
-    args.return_code = choice(args.return_code)
+        # Warn if we're already using more memory
+        if ram_usage < memory_used_at_start:
+            logger.warning(
+                "Memory usage starting up is higher than the value provided, "
+                "defaulting --ram to %s", memory_used_at_start)
 
-    logger.info("Fake Render Specification:")
-    logger.info("            duration: %s seconds", args.duration)
-    logger.info("         return code: %s", args.return_code)
-    logger.info("              output: %s", args.output_file)
-    logger.info(" requested ram usage: %sMB", args.ram)
+        # Consume the requested memory (or close to)
+        # TODO: this is unrealistic, majority of renders don't eat ram like this
+        big_string = None
+        memory_to_consume = int(ram_usage - memory_usage())
+        if memory_to_consume > 0:
+            start = time.time()
+            logger.debug(
+                "Consuming %s megabytes of memory", memory_to_consume)
+            big_string = " " * 1048576  # ~ 1MB of memory usage
+            try:
+                big_string += big_string * memory_to_consume
 
-    # Consume the requested memory (or close to)
-    # TODO: this is unrealistic, majority of renders don't eat ram like this
-    memory_to_consume = int(args.ram - memory_usage())
-    if memory_to_consume > 0:
-        start = time.time()
-        logger.debug("Consuming %s more megabytes of memory", memory_to_consume)
-        one_meg_string = " " * 1048576
-        one_meg_string += one_meg_string * memory_to_consume
-        logger.debug(
-            "Finished consumption of memory in %s seconds.  Off from target "
-            "memory usage by %sMB.",
-            time.time()-start, memory_usage() - args.ram)
+            except MemoryError:
+                logger.error("Cannot render, not enough memory")
+                errors += 1
+                continue
 
-    step_size = args.duration / 100
-    for i in xrange(1, 101):
-        logger.info("Progress %02d%%", i)
-        time.sleep(step_size)
-    logger.info("Finished.")
-    logger.info("Wrote %s" % args.output_file)
+            logger.debug(
+                "Finished consumption of memory in %s seconds.  Off from "
+                "target memory usage by %sMB.",
+                time.time()-start, memory_usage() - ram_usage)
+
+        # Continually hash a part of big_string to consume
+        # cpu cycles
+        end_time = time.time() + duration
+        last_percent = None
+        while time.time() < end_time:
+            hashlib.sha1(big_string[:4096])  # consume CPU cycles
+
+            progress = (1 - (end_time - time.time()) / duration) * 100
+            percent, _ = divmod(progress, 5)
+            if percent != last_percent:
+                last_percent = percent
+                logger.info("Progress %03d%%", progress)
+
+        if last_percent is None or last_percent != 100:
+            logger.info("Progress 100%%")
+
+        logger.info("Finished frame %04d in %s seconds", frame, duration)
+
+    if errors:
+        logger.error("Render finished with errors")
+        sys.exit(1)
+    else:
+        return_code = choice(args.return_code)
+        logger.info("exit %s", return_code)
