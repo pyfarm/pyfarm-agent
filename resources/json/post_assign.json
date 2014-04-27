@@ -19,7 +19,7 @@
         "title": "test job"
     },
     "jobtype": {
-        "name": "TestJobType",
+        "name": "FakeRender",
         "version": 1
     },
     "tasks": [

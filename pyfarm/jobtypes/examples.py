@@ -26,13 +26,11 @@ from pyfarm.jobtypes.core.jobtype import JobType
 from pyfarm.jobtypes.core.process import ProcessInputs
 
 
-class ListFiles(JobType):
+class FakeRender(JobType):
     def build_process_inputs(self):
+        fakerender = which("pyfarm-dev-fakerender")
+
         for task in self.assignments():
-            path = "/tmp/foo%s" % task["frame"]
-
-            # generate the test file
-            with open(path, "w") as stream:
-                pass
-
-            yield ProcessInputs(task, (which("ls"), path))
+            yield ProcessInputs(
+                task,
+                (fakerender, "-s", task["frame"], "-e", task["frame"]))
