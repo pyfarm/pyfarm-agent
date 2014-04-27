@@ -109,6 +109,8 @@ class ProcessInputs(object):
             if isinstance(value, NUMERIC_TYPES):
                 command[index] = str(value)
 
+            # This is neither a string or a number, fail because
+            # str() is probably going to return the wrong thing.
             elif not isinstance(value, STRING_TYPES):
                 raise TypeError(
                     "Expected a string or number of entry command[%s]" % index)
