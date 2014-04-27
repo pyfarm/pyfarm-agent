@@ -71,7 +71,7 @@ class Assign(APIResource):
     # Schemas used for validating the request before
     # the target function will handle it.  These make
     # assertions about what kind of input data is required
-    # or not based on the agent's internal cod.
+    # or not based on the agent's internal code.
     SCHEMAS = {
         "POST": Schema({
             Required("job"): Schema({
