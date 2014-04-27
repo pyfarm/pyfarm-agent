@@ -663,7 +663,7 @@ def fake_render():
         args.end = args.start
 
     if args.ram_jitter is None:
-        args.ram_jitter = args.ram / 2
+        args.ram_jitter = int(args.ram / 2)
 
     assert args.end >= args.start and args.by >= 1
 
