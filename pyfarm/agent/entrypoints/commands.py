@@ -21,10 +21,16 @@ Commands
 The main module which constructs the entrypoint(s) for the agent.
 """
 
+from __future__ import division
+
 import argparse
+import gc
+import logging
 import os
 import time
+from collections import namedtuple
 from functools import partial
+from random import choice, randint
 from os.path import abspath, dirname, isfile, join, isdir
 
 # Platform specific imports.  These should either all fail or
@@ -48,6 +54,7 @@ from requests import ConnectionError
 
 from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
 from pyfarm.core.sysinfo import user, network, memory, cpu
+from pyfarm.core.utility import convert
 
 # start logging before doing anything else
 from pyfarm.agent.logger import getLogger, start_logging
@@ -600,3 +607,97 @@ class AgentEntryPoint(object):
         else:
             return False
 
+
+def fake_render():
+    # Because we're trying to get the process to consume
+    # some relatively specific amount of memory we don't
+    # want garbage collection kicking in.
+    gc.disable()
+
+    process = psutil.Process()
+    memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
+    memory_used_at_start = memory_usage()
+    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
+
+    # build parser
+    parser = argparse.ArgumentParser(
+        description="Very basic command line tool which vaguely simulates a "
+                    "render.")
+    getint = partial(
+        integer, instance=FakeInstance(parser=parser, args=None),
+        allow_inf=False, min_=0)
+    parser.add_argument(
+        "--ram", type=getint, default=25,
+        help="How much ram in megabytes the fake command should consume")
+    parser.add_argument(
+        "--duration", type=getint, default=5,
+        help="How many seconds it should take to run this command")
+    parser.add_argument(
+        "--return-code", type=getint, action="append", default=[0],
+        help="The return code to return, declaring this flag multiple times "
+             "will result in a random return code.  [default: %(default)s]")
+    parser.add_argument(
+        "--duration-jitter", type=getint, default=5,
+        help="Randomly add or subtract this amount to the total duration")
+    parser.add_argument(
+        "frame", type=getint,
+        help="The current frame being 'rendered'")
+    parser.add_argument(
+        "output_file",
+        help="Write out a file to the provided location with some "
+             "information about the fake render.  The frame number will "
+             "replaced using Python style string formatting (ex. out%%04d.out)")
+    args = parser.parse_args()
+    try:
+        args.output_file = abspath(args.output_file % args.frame)
+    except TypeError:
+        logger.warning("Frame number not provided in file name")
+        args.output_file = abspath(args.output_file)
+
+    parent_dir = dirname(args.output_file)
+    if not isdir(parent_dir):
+        os.makedirs(parent_dir)
+
+    # Setup PyFarm's root logger with an output handler in
+    # a manner that suits our needs for this script.
+    root_logger = logging.getLogger("pf")
+    output_handler = logging.FileHandler(args.output_file)
+    root_logger.addHandler(output_handler)
+
+    # warn if we're already using more memory
+    if args.ram < memory_used_at_start:
+        logger.warning(
+            "Memory usage starting up is higher than the value provided, "
+            "defaulting --ram to %s", memory_used_at_start)
+        args.ram = memory_used_at_start
+
+    # adjust the arguments a little to account for all the options
+    duration = args.duration + randint(-args.duration, args.duration)
+    args.duration = 0 if duration < 0 else duration
+    args.return_code = choice(args.return_code)
+
+    logger.info("Fake Render Specification:")
+    logger.info("            duration: %s seconds", args.duration)
+    logger.info("         return code: %s", args.return_code)
+    logger.info("              output: %s", args.output_file)
+    logger.info(" requested ram usage: %sMB", args.ram)
+
+    # Consume the requested memory (or close to)
+    # TODO: this is unrealistic, majority of renders don't eat ram like this
+    memory_to_consume = int(args.ram - memory_usage())
+    if memory_to_consume > 0:
+        start = time.time()
+        logger.debug("Consuming %s more megabytes of memory", memory_to_consume)
+        one_meg_string = " " * 1048576
+        one_meg_string += one_meg_string * memory_to_consume
+        logger.debug(
+            "Finished consumption of memory in %s seconds.  Off from target "
+            "memory usage by %sMB.",
+            time.time()-start, memory_usage() - args.ram)
+
+    step_size = args.duration / 100
+    for i in xrange(1, 101):
+        logger.info("Progress %02d%%", i)
+        time.sleep(step_size)
+    logger.info("Finished.")
+    logger.info("Wrote %s" % args.output_file)

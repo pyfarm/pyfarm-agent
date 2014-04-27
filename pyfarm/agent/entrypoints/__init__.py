@@ -21,7 +21,14 @@ Entry Points
 This module contains
 """
 
-from pyfarm.agent.entrypoints.commands import AgentEntryPoint
+from pyfarm.agent.entrypoints.commands import AgentEntryPoint, fake_render
 
 # the entrypoint used in setup.py
 agent = AgentEntryPoint()
+
+
+# Normally this shouldn't be included in source code but we're
+# doing so here so a job type types not have to have the virtual
+# environment loaded.
+if __name__ == "__main__":
+    fake_render()
