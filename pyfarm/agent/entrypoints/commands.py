@@ -636,7 +636,7 @@ def fake_render():
         "--duration-jitter", type=getint, default=5,
         help="Randomly add or subtract this amount to the total duration")
     parser.add_argument(
-        "--ram-jitter", type=getint, default=100,
+        "--ram-jitter", type=getint, default=None,
         help="Randomly add or subtract this amount to the ram")
     parser.add_argument(
         "-s", "--start", type=getint, required=True,
@@ -656,26 +656,26 @@ def fake_render():
     parser.add_argument(
         "--segfault", default=False, action="store_true",
         help="If provided then there's a 25% chance of causing a segmentation "
-             "fault."
-    )
+             "fault.")
     args = parser.parse_args()
 
     if args.end is None:
         args.end = args.start
 
-    args.ram_jitter = min(args.ram, args.ram_jitter)
+    if args.ram_jitter is None:
+        args.ram_jitter = args.ram / 2
+
     assert args.end >= args.start and args.by >= 1
 
+    random_output = None
     if args.spew:
         random_output = list(os.urandom(1024).encode("hex") for _ in xrange(15))
-    else:
-        random_output = None
 
     errors = 0
     for frame in xrange(args.start, args.end + 1, args.by):
         duration = args.duration + randint(
             -args.duration_jitter, args.duration_jitter)
-        ram_usage = min(
+        ram_usage = max(
             0, args.ram + randint(-args.ram_jitter, args.ram_jitter))
         logger.info("Starting frame %04d", frame)
 
