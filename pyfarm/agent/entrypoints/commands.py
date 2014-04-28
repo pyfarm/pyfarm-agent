@@ -55,7 +55,8 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
+from pyfarm.core.enums import (
+    OS, WINDOWS, UseAgentAddress, AgentState, NUMERIC_TYPES)
 from pyfarm.core.sysinfo import user, network, memory, cpu
 from pyfarm.core.utility import convert
 
@@ -621,33 +622,34 @@ def fake_render():
     parser = argparse.ArgumentParser(
         description="Very basic command line tool which vaguely simulates a "
                     "render.")
-    getint = partial(
-        integer, instance=FakeInstance(parser=parser, args=None),
+    getnum = partial(
+        number, instance=FakeInstance(parser=parser, args=None),
+        types=NUMERIC_TYPES,
         allow_inf=False, min_=0)
     parser.add_argument(
-        "--ram", type=getint, default=25,
+        "--ram", type=getnum, default=25,
         help="How much ram in megabytes the fake command should consume")
     parser.add_argument(
-        "--duration", type=getint, default=5,
+        "--duration", type=getnum, default=5,
         help="How many seconds it should take to run this command")
     parser.add_argument(
-        "--return-code", type=getint, action="append", default=[0],
+        "--return-code", type=getnum, action="append", default=[0],
         help="The return code to return, declaring this flag multiple times "
              "will result in a random return code.  [default: %(default)s]")
     parser.add_argument(
-        "--duration-jitter", type=getint, default=5,
+        "--duration-jitter", type=getnum, default=5,
         help="Randomly add or subtract this amount to the total duration")
     parser.add_argument(
-        "--ram-jitter", type=getint, default=None,
+        "--ram-jitter", type=getnum, default=None,
         help="Randomly add or subtract this amount to the ram")
     parser.add_argument(
-        "-s", "--start", type=getint, required=True,
+        "-s", "--start", type=getnum, required=True,
         help="The start frame.  If no other flags are provided this will also "
              "be the end frame.")
     parser.add_argument(
-        "-e", "--end", type=getint, help="The end frame")
+        "-e", "--end", type=getnum, help="The end frame")
     parser.add_argument(
-        "-b", "--by", type=getint, help="The by frame", default=1)
+        "-b", "--by", type=getnum, help="The by frame", default=1)
     parser.add_argument(
         "--spew", default=False, action="store_true",
         help="Spews lots of random output to stdout which is generally "
@@ -674,6 +676,21 @@ def fake_render():
         random_output = list(os.urandom(1024).encode("hex") for _ in xrange(15))
 
     errors = 0
+    if isinstance(args.start, float):
+        logger.warning(
+            "Truncating `start` to an integer (float not yet supported)")
+        args.start = int(args.start)
+
+    if isinstance(args.end, float):
+        logger.warning(
+            "Truncating `end` to an integer (float not yet supported)")
+        args.end = int(args.end)
+
+    if isinstance(args.by, float):
+        logger.warning(
+            "Truncating `by` to an integer (float not yet supported)")
+        args.by = int(args.by)
+
     for frame in xrange(args.start, args.end + 1, args.by):
         duration = args.duration + randint(
             -args.duration_jitter, args.duration_jitter)
