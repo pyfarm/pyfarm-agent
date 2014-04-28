@@ -207,7 +207,7 @@ class ProcessProtocol(_ProcessProtocol):
         Called when the process first starts and the file descriptors
         have opened.
         """
-        self.jobtype.process_started(self)
+        self.jobtype._process_started(self)
 
     def processEnded(self, reason):
         """

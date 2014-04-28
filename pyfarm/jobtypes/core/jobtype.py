@@ -869,9 +869,24 @@ class JobType(object):
                 for task in self.assignment["tasks"]:
                     self.set_state(task, WorkState.FAILED)
 
+    def _process_started(self, protocol):
+        """
+        Underlying implementation which is called when the process
+        is started by the process protocol.
+        """
+        logger.info("%r started", protocol)
+        log = self.logging[protocol.id]
+        log.put(STDOUT, "Started %r" % protocol)
+        self.process_started(protocol)
+
+
     # TODO: documentation
     def process_started(self, protocol):
-        logger.info("%r started", protocol)
+        """
+        Called when the process protocol implementation is started.  By
+        default this method does nothing and is called by
+        :meth:`.process_started`
+        """
         # TODO: POST status
 
     # TODO: documentation
