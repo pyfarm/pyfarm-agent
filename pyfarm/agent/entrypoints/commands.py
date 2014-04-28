@@ -656,8 +656,8 @@ def fake_render():
              "cycles.  Also, use this option with care as it can generate "
              "several gigabytes of data per frame.")
     parser.add_argument(
-        "--segfault", default=False, action="store_true",
-        help="If provided then there's a 25% chance of causing a segmentation "
+        "--segfault", action="store_true",
+        help="If provided then there's a 25%% chance of causing a segmentation "
              "fault.")
     args = parser.parse_args()
 
