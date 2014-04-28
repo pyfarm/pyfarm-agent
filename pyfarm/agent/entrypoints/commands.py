@@ -31,7 +31,9 @@ import sys
 import time
 from collections import namedtuple
 from functools import partial
+from json import dumps
 from random import choice, randint, random
+from textwrap import dedent
 from os.path import abspath, dirname, isfile, join, isdir
 
 # Platform specific imports.  These should either all fail or
@@ -439,7 +441,7 @@ class AgentEntryPoint(object):
                 "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
-                "api_endpoint_prefix": "/api/v1",
+                "api-endpoint-prefix": "/api/v1",
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir}
@@ -744,3 +746,138 @@ def fake_render():
     else:
         return_code = choice(args.return_code)
         logger.info("exit %s", return_code)
+
+
+def fake_work():
+    parser = argparse.ArgumentParser(
+        description="Quick and dirty script to create a job type, a job, and "
+                    "some tasks which are then posted directly to the "
+                    "agent.  The primary purpose of this script is to test "
+                    "the internal of the job types")
+    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
+    getint = partial(
+        integer, instance=FakeInstance(parser=parser, args=None),
+        allow_inf=False, min_=0)
+    parser.add_argument(
+        "--master-api", default="http://127.0.0.1/api/v1",
+        help="The url to the master's api [default: %(default)s]")
+    parser.add_argument(
+        "--agent-api", default="http://127.0.0.1:50000/api/v1",
+        help="The url to the agent's api [default: %(default)s]")
+    parser.add_argument(
+        "--jobtype", default="FakeRender",
+        help="The job type to use [default: %(default)s]")
+    parser.add_argument(
+        "--job", type=getint,
+        help="If provided then this will be the job we pull tasks from "
+             "and assign to the agent.  Please note we'll only be pulling "
+             "tasks that aren't running or assigned.")
+    args = parser.parse_args()
+    logger.info("Master args.master_api: %s", args.master_api)
+    logger.info("Agent args.master_api: %s", args.agent_api)
+    assert not args.agent_api.endswith("/")
+    assert not args.master_api.endswith("/")
+    
+    # session to make requests with
+    session = requests.Session()
+    session.headers.update({"content-type": "application/json"})
+
+    existing_jobtype = session.get(
+        args.master_api + "/jobtypes/%s" % args.jobtype)
+
+    # Create a FakeRender job type if one does not exist
+    if not existing_jobtype.ok:
+        sourcecode = dedent("""
+        from pyfarm.jobtypes.examples import %s as _%s
+        class %s(_%s):
+            pass""" % (args.jobtype, args.jobtype, args.jobtype, args.jobtype))
+        response = session.post(
+            args.master_api + "/jobtypes/",
+            data=dumps({
+                "name": args.jobtype,
+                "classname": args.jobtype,
+                "code": sourcecode,
+                "max_batch": 1}))
+        assert response.ok, response.json()
+        jobtype_data = response.json()
+        logger.info(
+            "Created job type %r, id %r", args.jobtype, jobtype_data["id"])
+
+    else:
+        jobtype_data = existing_jobtype.json()
+        logger.info(
+            "Job type %r already exists, id %r",
+            args.jobtype, jobtype_data["id"])
+
+    jobtype_version = jobtype_data["version"]
+
+    if args.job is None:
+        job = session.post(
+            args.master_api + "/jobs/",
+            data=dumps({
+                "start": 1,
+                "end": 3,
+                "title": "Fake Job - %s" % int(time.time()),
+                "jobtype": args.jobtype}))
+        assert job.ok, job.json()
+        job = job.json()
+        logger.info("Job %r created", job["id"])
+    else:
+        job = session.get(args.master_api + "/jobs/%s" % args.job)
+        if not job.ok:
+            logger.error("No such job with id %r", args.job)
+            return
+        else:
+            job = job.json()
+            logger.info("Job %r exists", job["id"])
+
+    tasks = session.get(args.master_api + "/jobs/%s/tasks/" % job["id"])
+    assert tasks.ok
+
+    job_tasks = []
+    for task in tasks.json():
+        if task["state"] not in ("queued", "failed"):
+            logger.info(
+                "Can't use task %s, it's state is not 'queued' or 'failed'",
+                task["id"])
+            continue
+
+        if task["agent_id"] is not None:
+            logger.info(
+                "Can't use task %s, it already has an agent assigned",
+                task["id"])
+
+        job_tasks.append({"id": task["id"], "frame": task["frame"]})
+
+    if not job_tasks:
+        logger.error("Could not find any tasks to send for job %s", job["id"])
+        return
+
+    logger.info(
+        "Found %s tasks from job %s to assign to %r",
+        len(job_tasks), job["id"], args.agent_api)
+
+    assignment_data = {
+        "job": {
+            "id": job["id"],
+            "by": job["by"],
+            "ram": job["ram"],
+            "ram_warning": job["ram_warning"],
+            "ram_max": job["ram_max"],
+            "cpus": job["cpus"],
+            "batch": job["batch"],
+            "user": job["user"],
+            "data": job["data"],
+            "environ": job["environ"],
+            "title": job["title"]},
+        "jobtype": {
+            "name": args.jobtype,
+            "version": jobtype_version},
+        "tasks": job_tasks}
+
+    response = session.post(
+        args.agent_api + "/assign",
+        data=dumps(assignment_data))
+    assert response.ok, response.json()
+    logger.info("Tasks posted to agent")
+

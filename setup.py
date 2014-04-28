@@ -73,7 +73,9 @@ setup(
     entry_points={
         "console_scripts": [
             "pyfarm-agent = pyfarm.agent.entrypoints:agent",
-            "pyfarm-dev-fakerender = pyfarm.agent.entrypoints:fake_render"]},
+            "pyfarm-dev-fakerender = pyfarm.agent.entrypoints:fake_render",
+            "pyfarm-dev-fakework = "
+            "   pyfarm.agent.entrypoints.commands:fake_work"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-agent",
