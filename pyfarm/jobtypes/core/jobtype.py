@@ -41,6 +41,7 @@ except ImportError:  # pragma: no cover
 from twisted.internet import threads, reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
+from twisted.python.failure import Failure
 
 from pyfarm.core.config import (
     read_env, read_env_float, read_env_int, read_env_bool)
@@ -726,14 +727,33 @@ class JobType(object):
         # work with this
         # return DeferredList(tasks)
 
-    def format_exception(self, exception):
+    def format_error(self, error):
         """
-        Takes an :class:`.Exception` instance and formats it so it could
-        be used as an error message.  By default this simply runs the
-        exception through :func:`str` but this could be overridden to
-        do something more complex.
+        Takes some kind of object, typically an instance of
+        :class:`.Exception` or :class`.Failure` and produces a human readable
+        string.  If we don't know how to format the request object an error
+        will be logged and nothing will be returned
         """
-        return str(exception)
+        # It's likely that the process has terminated abnormally without
+        # generating a trace back.  Modify the reason a little to better
+        # reflect this.
+        if isinstance(error, Failure):
+            if error.type is ProcessTerminated and error.value.exitCode > 0:
+                return "Process may have terminated abnormally, please check " \
+                       "the logs.  Message from error " \
+                       "was %r" % error.value.message
+
+            # TODO: there are other types of errors from Twisted we should
+            # format here
+
+        elif isinstance(error, Exception):
+            return str(error)
+
+        elif error is None:
+            logger.error("No error was defined for this failure.")
+
+        else:
+            logger.error("Don't know how format %r as a string", error)
 
     def set_state(self, task, state, error=None):
         """
@@ -781,19 +801,33 @@ class JobType(object):
             job_id = self.assignment["job"]["id"]
             task_id = task["id"]
 
-            # TODO: POST change
-            if state == WorkState.FAILED:
-                if isinstance(error, Exception):
-                    error = self.format_exception(error)
-                elif error is None:
-                    error = "undefined error"
 
+            # The task has failed
+            if state == WorkState.FAILED:
+                error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
+
+
+            # `error` shouldn't be set if the state is not a failure
+            elif error is not None:
+                logger.warning(
+                    "`set_state` only allows `error` to be set if `state` is "
+                    "'failed'.  Discarding error.")
+                error = None
+
 
             url = "%s/jobs/%s/tasks/%s" % (config["master-api"],
                                            self.assignment["job"]["id"],
                                            task["id"])
             data = {"state": state}
+
+            # If the error has been set then update the data we're
+            # going to POST
+            if isinstance(error, STRING_TYPES):
+                data.update(last_error=error)
+
+            elif error is not None:
+                logger.error("Expected a string for `error`")
 
             def post_update(url, data):
                 post_func = partial(
@@ -857,15 +891,6 @@ class JobType(object):
                 reason.value.exitCode)
 
         thread.stop()
-
-        # It's likely that the process has terminated abnormally without
-        # generating a trace back.  Modify the reason a little to better
-        # reflect this.
-        if reason.type is ProcessTerminated and reason.value.exitCode > 0:
-            reason = "Process may have terminated abnormally, please check " \
-                     "the logs.  Message from error " \
-                     "was %r" % reason.value.message
-
         self.process_stopped(protocol, reason)
 
     def process_stopped(self, protocol, reason):
