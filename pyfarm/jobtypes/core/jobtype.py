@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet import threads, reactor
 from twisted.internet.defer import Deferred
-from twisted.internet.error import ProcessDone
+from twisted.internet.error import ProcessDone, ProcessTerminated
 
 from pyfarm.core.config import (
     read_env, read_env_float, read_env_int, read_env_bool)
@@ -785,6 +785,8 @@ class JobType(object):
             if state == WorkState.FAILED:
                 if isinstance(error, Exception):
                     error = self.format_exception(error)
+                elif error is None:
+                    error = "undefined error"
 
                 logger.error("Task %r failed: %r", task, error)
 
@@ -856,6 +858,14 @@ class JobType(object):
 
         thread.stop()
 
+        # It's likely that the process has terminated abnormally without
+        # generating a trace back.  Modify the reason a little to better
+        # reflect this.
+        if reason.type is ProcessTerminated and reason.value.exitCode > 0:
+            reason = "Process may have terminated abnormally, please check " \
+                     "the logs.  Message from error " \
+                     "was %r" % reason.value.message
+
         self.process_stopped(protocol, reason)
 
     def process_stopped(self, protocol, reason):
@@ -864,10 +874,10 @@ class JobType(object):
         if not self.protocols:
             if not self.failed_processes:
                 for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.DONE)
+                    self.set_state(task, WorkState.DONE, reason)
             else:
                 for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.FAILED)
+                    self.set_state(task, WorkState.FAILED, reason)
 
     def _process_started(self, protocol):
         """
@@ -878,7 +888,6 @@ class JobType(object):
         log = self.logging[protocol.id]
         log.put(STDOUT, "Started %r" % protocol)
         self.process_started(protocol)
-
 
     # TODO: documentation
     def process_started(self, protocol):
