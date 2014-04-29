@@ -773,7 +773,6 @@ class JobType(object):
             passed to this keyword will be passed through
             :meth:`format_exception` first to format it.
         """
-
         if state not in WorkState:
             logger.error(
                 "Cannot set state for task %r to %r, %r is an invalid "
@@ -823,7 +822,7 @@ class JobType(object):
             elif error is not None:
                 logger.error("Expected a string for `error`")
 
-            def post_update(url, data, delay=0.0):
+            def post_update(url, data, delay=0):
                 post_func = partial(
                     post,
                     url,
@@ -838,7 +837,7 @@ class JobType(object):
                     logger.error("Error while posting state update for task %s "
                                  "to %s, return code is %s, retrying",
                                  task_id, state, response.code)
-                    post_update(url, data)
+                    post_update(url, data, delay=http_retry_delay())
 
                 elif response.code != OK:
                     # Nothing else we could do about that
@@ -853,9 +852,11 @@ class JobType(object):
             def error_callback(url, data, failure):
                 logger.error("Error while posting state update for task, "
                              "retrying")
+                post_update(url, data, delay=http_retry_delay())
 
-                post_update(url, data)
-            post_update(url, data)
+            # Initial attempt to make an update with an explicit zero
+            # delay.
+            post_update(url, data, delay=0)
 
         # TODO: if new state is the equiv. of 'stopped', stop the process
         # and POST the change
