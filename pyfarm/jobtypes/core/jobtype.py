@@ -778,6 +778,7 @@ class JobType(object):
             logger.error(
                 "Cannot set state for task %r to %r, %r is an invalid "
                 "state", task, state, state)
+
         elif not isinstance(task, dict):
             logger.error(
                 "Expected a dictionary for `task`, cannot change state")
@@ -798,15 +799,10 @@ class JobType(object):
                     "Resetting `error` to None, state is not WorkState.FAILED")
                 error = None
 
-            job_id = self.assignment["job"]["id"]
-            task_id = task["id"]
-
-
             # The task has failed
             if state == WorkState.FAILED:
                 error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
-
 
             # `error` shouldn't be set if the state is not a failure
             elif error is not None:
@@ -815,10 +811,8 @@ class JobType(object):
                     "'failed'.  Discarding error.")
                 error = None
 
-
-            url = "%s/jobs/%s/tasks/%s" % (config["master-api"],
-                                           self.assignment["job"]["id"],
-                                           task["id"])
+            url = "%s/jobs/%s/tasks/%s" % (
+                config["master-api"], self.assignment["job"]["id"], task["id"])
             data = {"state": state}
 
             # If the error has been set then update the data we're
