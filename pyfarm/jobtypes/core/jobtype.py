@@ -666,8 +666,11 @@ class JobType(object):
         commands = self.get_command_list(
             process_inputs.command,
             environment=environment, expandvars=process_inputs.expandvars)
+
+        # NOTE: The full command list must be included for `args` below.  This
+        # is required by Twisted in order for the command to execute properly.
         kwargs = {
-            "args": commands[1:],
+            "args": commands,
             "env": environment,
             "path": self.get_path(
                 process_inputs.path,
