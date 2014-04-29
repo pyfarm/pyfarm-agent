@@ -823,7 +823,7 @@ class JobType(object):
             elif error is not None:
                 logger.error("Expected a string for `error`")
 
-            def post_update(url, data):
+            def post_update(url, data, delay=0.0):
                 post_func = partial(
                     post,
                     url,
@@ -831,7 +831,7 @@ class JobType(object):
                     callback=lambda x: result_callback(url, data, task["id"],
                                                        state, x),
                     errback=lambda x: error_callback(url, data, x))
-                reactor.callLater(http_retry_delay(), post_func)
+                reactor.callLater(delay, post_func)
 
             def result_callback(url, data, task_id, state, response):
                 if response.code >= 500 and response.code < 600:
