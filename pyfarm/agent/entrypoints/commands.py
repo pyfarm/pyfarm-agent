@@ -618,6 +618,8 @@ def fake_render():
     memory_used_at_start = memory_usage()
     FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
 
+    logger.info("sys.argv: %r", sys.argv)
+
     # build parser
     parser = argparse.ArgumentParser(
         description="Very basic command line tool which vaguely simulates a "
