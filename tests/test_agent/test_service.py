@@ -26,7 +26,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from pyfarm.core.enums import AgentState
 
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, PYFARM_AGENT_MASTER
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
 from pyfarm.agent.service import Agent
@@ -38,7 +38,8 @@ class TestAgentBasicMethods(TestCase):
         config["agent-id"] = 1
         agent = Agent()
         self.assertEqual(
-            agent.agent_api(), "http://127.0.0.1:80/api/v1/agents/1")
+            agent.agent_api(),
+            "http://%s/api/v1/agents/1" % PYFARM_AGENT_MASTER)
 
     def test_agent_api_url_keyerror(self):
         agent = Agent()
