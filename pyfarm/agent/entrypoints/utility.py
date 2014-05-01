@@ -120,12 +120,15 @@ def get_process(pidfile):
         process_name = process.name.lower()
         logger.debug("%s is named '%s'" % (pid, process_name))
 
+        if "PYFARM_AGENT_TEST_RUNNING" in os.environ:
+            pid = int(os.environ["PYFARM_AGENT_TEST_RUNNING"])
+            return pid, psutil.Process(pid)
+
         # Be careful, we don't want to return a pid or process object
         # for something which might not be a PyFarm process.
         if not any([
                 process_name in ("python", "coverage"),
-                process_name.startswith("pyfarm"),
-                process_name.startswith("trial")]):  # pragma: no cover
+                process_name.startswith("pyfarm")]):  # pragma: no cover
             raise OSError(
                 "%s contains pid %s with the name %s.  This seems to be "
                 "a process this script does not know about so we're stopping "

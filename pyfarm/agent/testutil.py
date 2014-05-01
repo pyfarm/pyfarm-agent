@@ -34,6 +34,8 @@ PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
+os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
+
 
 def safe_repr(obj, short=False):
     try:
