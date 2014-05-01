@@ -120,9 +120,9 @@ class RequestTestCase(TestCase):
     try:
         urlopen(base_url)
     except IOError:
-        HTTP_REQUEST_SUCCESS = True
-    else:
         HTTP_REQUEST_SUCCESS = False
+    else:
+        HTTP_REQUEST_SUCCESS = True
 
     def setUp(self):
         if not self.RESOLVED_DNS_NAME:
