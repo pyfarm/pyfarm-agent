@@ -917,9 +917,8 @@ class JobType(object):
         """
         Called when the process protocol implementation is started.  By
         default this method does nothing and is called by
-        :meth:`.process_started`
+        :meth:`_process_started`
         """
-        # TODO: POST status
 
     # TODO: documentation
     def received_stdout(self, protocol, data):
