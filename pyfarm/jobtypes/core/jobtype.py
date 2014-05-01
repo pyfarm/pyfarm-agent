@@ -200,6 +200,18 @@ class JobType(object):
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
+   def _log_in_thread(self, protocol, stream_type, data):
+        """
+        Internal implementation called several methods including
+        :meth:`_received_stdout`, :meth:`_received_stderr`,
+        :meth:`_process_started` and others.
+
+        This method takes the incoming protocol object and retrieves the thread
+        which is handling logging for a given process.  Each message will then
+        be queued and written to disk at the next opportunity.
+        """
+        self.logging[protocol.id].put(stream_type, data)
+
     def _get_uidgid(self, value, value_name, func_name, module, module_name):
         """
         Internal function which handles both user name and group conversion.
@@ -949,18 +961,6 @@ class JobType(object):
         started running.
         """
         self._process_started(protocol)
-
-    def _log_in_thread(self, protocol, stream_type, data):
-        """
-        Internal implementation called several methods including
-        :meth:`_received_stdout`, :meth:`_received_stderr`,
-        :meth:`_process_started` and others.
-
-        This method takes the incoming protocol object and retrieves the thread
-        which is handling logging for a given process.  Each message will then
-        be queued and written to disk at the next opportunity.
-        """
-        self.logging[protocol.id].put(stream_type, data)
 
     def _received_stdout(self, protocol, stdout):
         """
