@@ -921,21 +921,41 @@ class JobType(object):
         self._process_started(protocol)
 
     def _received_stdout(self, protocol, data):
+        """
+        Internal implementation for :meth:`received_stdout.  If
+        ``--capture-process-output`` was set when the agent was launched
+        all standard output from the process will be sent to the stdout
+        of the agent itself.  In all other cases we send the data to a thread
+        so we can log it to a file.
+        """
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, data)
         else:
             self.logging[protocol.id].put(STDOUT, data)
 
-    # TODO: documentation
     def received_stdout(self, protocol, stdout):
+        """
+        Called when we receive output from the standard output (stdout)
+        of a process.
+        """
         self._received_stdout(protocol, stdout)
 
     def _received_stderr(self, protocol, stderr):
+        """
+        Internal implementation for :meth:`received_stderr.  If
+        ``--capture-process-output`` was set when the agent was launched
+        all stderr output will be sent to the stdout of the agent itself.
+        In all other cases we send the data to a thread for output to a log
+        file.
+        """
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
             self.logging[protocol.id].put(STDERR, stderr)
 
-    # TODO: documentation
     def received_stderr(self, protocol, stderr):
+        """
+        Called when we receive output from the standard error (stderr)
+        of a process.
+        """
         self._received_stderr(protocol, stderr)
