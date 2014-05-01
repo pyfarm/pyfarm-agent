@@ -886,9 +886,16 @@ class JobType(object):
             reason.type is ProcessDone and
             reason.value.exitCode in self.success_codes)
 
-    # TODO: documentation
-    # TODO: break up method into smaller pieces
     def _process_stopped(self, protocol, reason):
+        """
+        Internal implementation for :meth:`process_stopped`.
+
+        If ``--capture-process-output`` was set when the agent was launched
+        all standard output from the process will be sent to the stdout
+        of the agent itself.  In all other cases we send the data to
+        :meth:`_log_in_thread` so it can be stored in a file without
+        blocking the event loop.
+        """
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
         if self.is_successful(reason):
@@ -919,6 +926,11 @@ class JobType(object):
                     self.set_state(task, WorkState.FAILED, reason)
 
     def process_stopped(self, protocol, reason):
+        """
+        Method called by
+        :meth:`pyfarm.jobtypes.core.process.ProcessProtocol.processEnded` when
+        a proess stopped running.
+        """
         self._process_stopped(protocol, reason)
 
     def _process_started(self, protocol):
