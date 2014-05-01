@@ -875,7 +875,7 @@ class JobType(object):
     def _process_stopped(self, protocol, reason):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
-        self.protocols.pop(protocol.id, None)
+        protocol = self.protocols.pop(protocol.id)
         thread = self.logging.pop(protocol.id)
 
         if self.is_successful(reason):
