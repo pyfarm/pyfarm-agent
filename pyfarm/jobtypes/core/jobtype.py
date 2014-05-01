@@ -22,7 +22,7 @@ import threading
 import sys
 from datetime import datetime
 from string import Template
-from os.path import join, dirname, isfile
+from os.path import join, dirname, isfile, basename
 from Queue import Queue, Empty
 from functools import partial
 
@@ -682,10 +682,9 @@ class JobType(object):
             process_inputs.command,
             environment=environment, expandvars=process_inputs.expandvars)
 
-        # NOTE: The full command list must be included for `args` below.  This
-        # is required by Twisted in order for the command to execute properly.
+        # args - name of command being run + input arguments
         kwargs = {
-            "args": commands,
+            "args": [basename(commands[0])] + list(commands[1:]),
             "env": environment,
             "path": self.get_path(
                 process_inputs.path,
