@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from pyfarm.agent.testutil import TestCase
-from pyfarm.jobtypes.core.process import ProcessInputs
+from pyfarm.jobtypes.core.process import ProcessInputs, ReplaceEnvironment
 
 
 class TestProcessInputs(TestCase):
@@ -49,3 +51,42 @@ class TestProcessInputs(TestCase):
 
     def test_convert_numeric_command_values(self):
         self.assertEqual(ProcessInputs({}, [1]).command, ("1", ))
+
+
+class TestReplaceEnvironment(TestCase):
+    original_environment = os.environ.copy()
+
+    def tearDown(self):
+        super(TestReplaceEnvironment, self).tearDown()
+        os.environ.clear()
+        os.environ.update(self.original_environment)
+
+    def test_uses_os_environ(self):
+        os.environ.clear()
+        os.environ.update(
+            {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")})
+        env = ReplaceEnvironment(None)
+        self.assertEqual(env.environment, os.environ)
+        self.assertIs(env.environment, os.environ)
+
+    def test_enter(self):
+        original = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+        frozen = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+        os.environ.clear()
+        os.environ.update(original)
+
+        with ReplaceEnvironment(frozen, os.environ) as env:
+            self.assertEqual(env.original_environment, original)
+            self.assertEqual(os.environ, frozen)
+
+    def test_exit(self):
+        original = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+        original_copy = original.copy()
+        frozen = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+        os.environ.clear()
+        os.environ.update(original)
+
+        with ReplaceEnvironment(frozen, os.environ) as env:
+            pass
+
+        self.assertEqual(os.environ, original_copy)

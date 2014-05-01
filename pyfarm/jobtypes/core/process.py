@@ -160,6 +160,7 @@ class ReplaceEnvironment(object):
         self.original_environment = self.environment.copy()
         self.environment.clear()
         self.environment.update(self.frozen_environment)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.environment.clear()
