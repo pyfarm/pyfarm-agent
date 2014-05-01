@@ -927,39 +927,46 @@ class JobType(object):
 
     def process_stopped(self, protocol, reason):
         """
-        Method called by
-        :meth:`pyfarm.jobtypes.core.process.ProcessProtocol.processEnded` when
-        a proess stopped running.
+        Called by :meth:`.ProcessProtocol.processEnded` when a process
+        stopped running.
         """
         self._process_stopped(protocol, reason)
 
+    # TODO: set state
     def _process_started(self, protocol):
         """
-        Underlying implementation which is called when the process
-        is started by the process protocol.
+        Internal implementation for :meth:`process_started`.
+
+        This method logs the start of a process and informs the master of
+        the state change.
         """
         logger.info("%r started", protocol)
         self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
 
     def process_started(self, protocol):
         """
-        Called when the process protocol implementation is started.  By
-        default this method does nothing and is called by
-        :meth:`_process_started`
+        Called by :meth:`.ProcessProtocol.connectionMade` when a process has
+        started running.
         """
         self._process_started(protocol)
 
     def _log_in_thread(self, protocol, stream_type, data):
         """
-        Logs standard output and standard error to a thread for the given
-        protocol object.
+        Internal implementation called several methods including
+        :meth:`_received_stdout`, :meth:`_received_stderr`,
+        :meth:`_process_started` and others.
+
+        This method takes the incoming protocol object and retrieves the thread
+        which is handling logging for a given process.  Each message will then
+        be queued and written to disk at the next opportunity.
         """
         self.logging[protocol.id].put(stream_type, data)
 
     def _received_stdout(self, protocol, stdout):
         """
-        Internal implementation for :meth:`received_stdout.  If
-        ``--capture-process-output`` was set when the agent was launched
+        Internal implementation for :meth:`received_stdout`.
+
+        If ``--capture-process-output`` was set when the agent was launched
         all standard output from the process will be sent to the stdout
         of the agent itself.  In all other cases we send the data to
         :meth:`_log_in_thread` so it can be stored in a file without
@@ -973,15 +980,16 @@ class JobType(object):
 
     def received_stdout(self, protocol, stdout):
         """
-        Called when we receive output from the standard output (stdout)
-        of a process.
+        Called by :meth:`.ProcessProtocol.outReceived` when
+        we receive output on standard output (stdout) from a process.
         """
         self._received_stdout(protocol, stdout)
 
     def _received_stderr(self, protocol, stderr):
         """
-        Internal implementation for :meth:`received_stderr.  If
-        ``--capture-process-output`` was set when the agent was launched
+        Internal implementation for :meth:`received_stderr`.
+
+        If ``--capture-process-output`` was set when the agent was launched
         all stderr output will be sent to the stdout of the agent itself.
         In all other cases we send the data to to :meth:`_log_in_thread`
         so it can be stored in a file without blocking the event loop.
@@ -994,7 +1002,7 @@ class JobType(object):
 
     def received_stderr(self, protocol, stderr):
         """
-        Called when we receive output from the standard error (stderr)
-        of a process.
+        Called by :meth:`.ProcessProtocol.errReceived` when
+        we receive output on standard error (stderr) from a process.
         """
         self._received_stderr(protocol, stderr)
