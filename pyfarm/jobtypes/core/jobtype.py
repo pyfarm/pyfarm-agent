@@ -912,7 +912,6 @@ class JobType(object):
         log.put(STDOUT, "Started %r" % protocol)
         self.process_started(protocol)
 
-    # TODO: documentation
     def process_started(self, protocol):
         """
         Called when the process protocol implementation is started.  By
@@ -920,16 +919,28 @@ class JobType(object):
         :meth:`_process_started`
         """
 
-    # TODO: documentation
-    def received_stdout(self, protocol, data):
+    def _received_stdout(self, protocol, data):
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, data)
         else:
             self.logging[protocol.id].put(STDOUT, data)
 
+        self.received_stdout(protocol, data)
+
+
     # TODO: documentation
-    def received_stderr(self, protocol, data):
+    def received_stdout(self, protocol, stdout):
+        pass
+
+
+    def _received_stderr(self, protocol, stderr):
         if config["capture-process-output"]:
-            process_stderr.info("task %r: %s", protocol.id, data)
+            process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
-            self.logging[protocol.id].put(STDERR, data)
+            self.logging[protocol.id].put(STDERR, stderr)
+
+        self.received_stderr(protocol, stderr)
+
+    # TODO: documentation
+    def received_stderr(self, protocol, stderr):
+        pass

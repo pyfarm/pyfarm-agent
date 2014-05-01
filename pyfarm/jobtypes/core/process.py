@@ -220,8 +220,8 @@ class ProcessProtocol(_ProcessProtocol):
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
-        self.jobtype.received_stdout(self, data)
+        self.jobtype._received_stdout(self, data)
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
-        self.jobtype.received_stderr(self, data)
+        self.jobtype._received_stderr(self, data)
