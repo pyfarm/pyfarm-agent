@@ -733,6 +733,19 @@ class JobType(object):
         # work with this
         # return DeferredList(tasks)
 
+    def format_log_message(self, message, stream_type=None):
+        """
+        This method may be overridden to format a log message coming from
+        a process before we write out out to stdout or to disk.  By default
+        this method does nothing except return the original message.
+
+        :param int stream_type:
+            When not ``None`` this specifies if the message is from stderr
+            or stdout.  This value comes from :const:`.STDOUT` or
+            :const:`.STDERR`
+        """
+        return message
+
     def format_error(self, error):
         """
         Takes some kind of object, typically an instance of
@@ -940,6 +953,7 @@ class JobType(object):
         :meth:`_log_in_thread` so it can be stored in a file without
         blocking the event loop.
         """
+        stdout = self.format_log_message(stdout, stream_type=STDOUT)
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
@@ -960,6 +974,7 @@ class JobType(object):
         In all other cases we send the data to to :meth:`_log_in_thread`
         so it can be stored in a file without blocking the event loop.
         """
+        stderr = self.format_log_message(stderr, stream_type=STDERR)
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
