@@ -207,7 +207,7 @@ class ProcessProtocol(_ProcessProtocol):
         Called when the process first starts and the file descriptors
         have opened.
         """
-        self.jobtype._process_started(self)
+        self.jobtype.process_started(self)
 
     def processEnded(self, reason):
         """
@@ -216,12 +216,12 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self.jobtype._process_stopped(self, reason)
+        self.jobtype.process_stopped(self, reason)
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
-        self.jobtype._received_stdout(self, data)
+        self.jobtype.received_stdout(self, data)
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
-        self.jobtype._received_stderr(self, data)
+        self.jobtype.received_stderr(self, data)

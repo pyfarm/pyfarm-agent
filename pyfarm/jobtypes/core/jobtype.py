@@ -871,7 +871,7 @@ class JobType(object):
             reason.value.exitCode in self.success_codes)
 
     # TODO: documentation
-    # TODO: POST status
+    # TODO: break up method into smaller pieces
     def _process_stopped(self, protocol, reason):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
@@ -889,9 +889,7 @@ class JobType(object):
                 reason.value.exitCode)
 
         thread.stop()
-        self.process_stopped(protocol, reason)
 
-    def process_stopped(self, protocol, reason):
         # If this was the last process running
         # TODO: sequential processes
         if not self.protocols:
@@ -902,6 +900,9 @@ class JobType(object):
                 for task in self.assignment["tasks"]:
                     self.set_state(task, WorkState.FAILED, reason)
 
+    def process_stopped(self, protocol, reason):
+        self._process_stopped(protocol, reason)
+
     def _process_started(self, protocol):
         """
         Underlying implementation which is called when the process
@@ -910,7 +911,6 @@ class JobType(object):
         logger.info("%r started", protocol)
         log = self.logging[protocol.id]
         log.put(STDOUT, "Started %r" % protocol)
-        self.process_started(protocol)
 
     def process_started(self, protocol):
         """
@@ -918,6 +918,7 @@ class JobType(object):
         default this method does nothing and is called by
         :meth:`_process_started`
         """
+        self._process_started(protocol)
 
     def _received_stdout(self, protocol, data):
         if config["capture-process-output"]:
@@ -925,13 +926,9 @@ class JobType(object):
         else:
             self.logging[protocol.id].put(STDOUT, data)
 
-        self.received_stdout(protocol, data)
-
-
     # TODO: documentation
     def received_stdout(self, protocol, stdout):
-        pass
-
+        self._received_stdout(protocol, stdout)
 
     def _received_stderr(self, protocol, stderr):
         if config["capture-process-output"]:
@@ -939,8 +936,6 @@ class JobType(object):
         else:
             self.logging[protocol.id].put(STDERR, stderr)
 
-        self.received_stderr(protocol, stderr)
-
     # TODO: documentation
     def received_stderr(self, protocol, stderr):
-        pass
+        self._received_stderr(protocol, stderr)
