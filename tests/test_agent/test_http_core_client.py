@@ -29,7 +29,7 @@ from twisted.web.client import Response as TWResponse, Headers, ResponseDone
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, BaseRequestTestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import (
     Request, Response, request, head, get, post, put, patch, delete, build_url,
@@ -97,43 +97,8 @@ class TestRequestAssertions(TestCase):
                               headers={"foo": None}))
 
 
-class RequestTestCase(TestCase):
-    HTTP_SCHEME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    HOSTNAME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_HOSTNAME", "httpbin.org")
-    BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "%(scheme)s://%(hostname)s")
-    REDIRECT_TARGET = read_env(
-        "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
-    base_url = BASE_URL % {"scheme": HTTP_SCHEME, "hostname": HOSTNAME}
-
-    # DNS working?
-    try:
-        socket.gethostbyname(HOSTNAME)
-    except socket.gaierror:
-        RESOLVED_DNS_NAME = False
-    else:
-        RESOLVED_DNS_NAME = True
-
-    # Basic http request working?
-    try:
-        urlopen(base_url)
-    except IOError:
-        HTTP_REQUEST_SUCCESS = False
-    else:
-        HTTP_REQUEST_SUCCESS = True
-
+class RequestTestCase(BaseRequestTestCase):
     def setUp(self):
-        if not self.RESOLVED_DNS_NAME:
-            self.skipTest("Could not resolve hostname %s" % self.HOSTNAME)
-            return
-
-        if not self.HTTP_REQUEST_SUCCESS:
-            self.skipTest(
-                "Failed to send an http request to %s" % self.base_url)
-            return
-
         super(RequestTestCase, self).setUp()
         config["persistent-http-connections"] = False
 

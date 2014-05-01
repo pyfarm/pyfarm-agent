@@ -20,20 +20,13 @@ from os.path import abspath, isfile, join, dirname
 
 import psutil
 
-from pyfarm.core.config import read_env
 from pyfarm.core.sysinfo import network
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, BaseRequestTestCase
 from pyfarm.agent.entrypoints.utility import (
     get_json, get_default_ip, write_pid_file, get_process)
 
 
-class TestGetJson(TestCase):
-    HTTP_SCHEME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "%(scheme)s://httpbin.org")
-    base_url = BASE_URL % {"scheme": HTTP_SCHEME}
-
+class TestGetJson(BaseRequestTestCase):
     def test_connection_error(self):
         self.assertIsNone(get_json("http://%s" % os.urandom(16).encode("hex")))
 
