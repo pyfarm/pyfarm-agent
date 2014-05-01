@@ -79,6 +79,7 @@ DEFAULT_CACHE_DIRECTORY = read_env(
     "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
 STDOUT = 0
 STDERR = 1
+STREAMS = set([STDOUT, STDERR])
 
 
 # TODO: if we get fail the task if we have errors
@@ -106,6 +107,8 @@ class LoggingThread(threading.Thread):
     def put(self, streamno, message):
         """Put a message in the queue for the thread to pickup"""
         assert self.stopped is False, "Cannot put(), thread is stopped"
+        assert streamno in STREAMS
+        assert isinstance(message, STRING_TYPES)
         now = datetime.utcnow()
         self.queue.put_nowait(
             (now.isoformat(), streamno, self.lineno, message))
@@ -875,19 +878,21 @@ class JobType(object):
     def _process_stopped(self, protocol, reason):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
-        protocol = self.protocols.pop(protocol.id)
-        thread = self.logging.pop(protocol.id)
-
         if self.is_successful(reason):
-            thread.put(
-                STDOUT, "Process has terminated successfully, code %s" %
+            self._log_in_thread(
+                protocol, STDOUT,
+                "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
             self.failed_processes.append((protocol, reason))
-            thread.put(
-                STDOUT, "Process has not terminated successfully, code %s" %
+            self._log_in_thread(
+                protocol, STDOUT,
+                "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
+        # pop off the protocol and thread since the process has terminated
+        protocol = self.protocols.pop(protocol.id)
+        thread = self.logging.pop(protocol.id)
         thread.stop()
 
         # If this was the last process running
@@ -909,8 +914,7 @@ class JobType(object):
         is started by the process protocol.
         """
         logger.info("%r started", protocol)
-        log = self.logging[protocol.id]
-        log.put(STDOUT, "Started %r" % protocol)
+        self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
 
     def process_started(self, protocol):
         """
@@ -920,18 +924,26 @@ class JobType(object):
         """
         self._process_started(protocol)
 
-    def _received_stdout(self, protocol, data):
+    def _log_in_thread(self, protocol, stream_type, data):
+        """
+        Logs standard output and standard error to a thread for the given
+        protocol object.
+        """
+        self.logging[protocol.id].put(stream_type, data)
+
+    def _received_stdout(self, protocol, stdout):
         """
         Internal implementation for :meth:`received_stdout.  If
         ``--capture-process-output`` was set when the agent was launched
         all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to a thread
-        so we can log it to a file.
+        of the agent itself.  In all other cases we send the data to
+        :meth:`_log_in_thread` so it can be stored in a file without
+        blocking the event loop.
         """
         if config["capture-process-output"]:
-            process_stdout.info("task %r: %s", protocol.id, data)
+            process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
-            self.logging[protocol.id].put(STDOUT, data)
+            self._log_in_thread(protocol, STDOUT, stdout)
 
     def received_stdout(self, protocol, stdout):
         """
@@ -945,13 +957,13 @@ class JobType(object):
         Internal implementation for :meth:`received_stderr.  If
         ``--capture-process-output`` was set when the agent was launched
         all stderr output will be sent to the stdout of the agent itself.
-        In all other cases we send the data to a thread for output to a log
-        file.
+        In all other cases we send the data to to :meth:`_log_in_thread`
+        so it can be stored in a file without blocking the event loop.
         """
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
-            self.logging[protocol.id].put(STDERR, stderr)
+            self._log_in_thread(protocol, STDERR, stderr)
 
     def received_stderr(self, protocol, stderr):
         """
