@@ -15,9 +15,13 @@
 # limitations under the License.
 
 import os
+from collections import namedtuple
 
 from pyfarm.agent.testutil import TestCase
-from pyfarm.jobtypes.core.process import ProcessInputs, ReplaceEnvironment
+from pyfarm.jobtypes.core.process import (
+    ProcessInputs, ReplaceEnvironment, ProcessProtocol)
+
+DummyInputs = namedtuple("DummyInputs", ("task", ))
 
 
 class TestProcessInputs(TestCase):
@@ -90,3 +94,11 @@ class TestReplaceEnvironment(TestCase):
             pass
 
         self.assertEqual(os.environ, original_copy)
+
+
+class TestProcessProtocol(TestCase):
+    def test_process_id_from_task(self):
+        pass
+        # protocol = ProcessProtocol(
+        #     None, None, DummyInputs(task=42), None, None, None, None, None,
+        #     None)
