@@ -200,7 +200,7 @@ class JobType(object):
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
-   def _log_in_thread(self, protocol, stream_type, data):
+    def _log_in_thread(self, protocol, stream_type, data):
         """
         Internal implementation called several methods including
         :meth:`_received_stdout`, :meth:`_received_stderr`,
