@@ -54,7 +54,7 @@ else:
 
 setup(
     name="pyfarm.core",
-    version="0.7.17",
+    version="0.7.18",
     packages=["pyfarm",
               "pyfarm.core",
               "pyfarm.core.sysinfo"],
