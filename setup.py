@@ -23,7 +23,7 @@ from os.path import isfile
 from setuptools import setup
 
 install_requires = [
-    "psutil==1.2.1", "netifaces", "netaddr",
+    "psutil>=2.1.0", "netifaces>=0.10.2", "netaddr",
     "colorama", "logutils"]
 
 
