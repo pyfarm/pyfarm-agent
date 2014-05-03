@@ -22,6 +22,8 @@ Contains information about the cpu and its relation to the operating
 system such as load, processing times, etc.
 """
 
+from __future__ import division
+
 import psutil
 
 
@@ -37,12 +39,12 @@ def total_cpus(physical_only=False):
     return psutil.cpu_count(logical=physical_only)
 
 
-def load(self, iterval=1):
+def load(interval=1):
     """
     Returns the load across all cpus value from zero to one.  A value
     of 1.0 means the average load across all cpus is 100%.
     """
-    return psutil.cpu_percent(iterval) / self.NUM_CPUS  # pragma: no cover
+    return psutil.cpu_percent(interval) / total_cpus()
 
 
 def user_time():
