@@ -24,13 +24,17 @@ system such as load, processing times, etc.
 
 import psutil
 
-# TODO: add 'logical' option to get only the real core count
-# TODO: use new psutil function
-# TODO: add normalized keyword (since hyperthreading/etc is
-# not 100% the same as a real core)
-def total_cpus():
-    """Returns the total number of cpus installed on the system."""
-    return psutil.NUM_CPUS
+
+def total_cpus(physical_only=False):
+    """
+    Returns the total number of cpus installed on the system.
+
+    :param bool physical_only:
+        If True then only return the number of physical cpus.  Otherwise
+        return both the number of physical cpus and the number of
+        logical cpus too.
+    """
+    return psutil.cpu_count(logical=physical_only)
 
 
 def load(self, iterval=1):
