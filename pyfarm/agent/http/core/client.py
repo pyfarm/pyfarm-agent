@@ -26,7 +26,6 @@ import json
 from collections import namedtuple
 from functools import partial
 from random import random
-from urllib import quote  # TODO: need the Python 3.x replacement
 
 try:
     from httplib import responses
@@ -55,6 +54,7 @@ from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
+from pyfarm.agent.utility import quote_url
 
 logger = getLogger("agent.http")
 
@@ -69,17 +69,15 @@ USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
 
 
-def build_url(url, params=None, quoted=False):
+def build_url(url, params=None):
     """
     Builds the full url when provided the base ``url`` and some
     url parameters:
 
     >>> build_url("/foobar", {"first": "foo", "second": "bar"})
     '/foobar?first=foo&second=bar'
-    >>> build_url("/foobar")
-    '/foobar'
-    >>> build_url("/foobar", {"first": "foo", "second": "bar"}, quoted=True)
-    '/foobar%3Ffirst%3Dfoo%26second%3Dbar'
+    >>> build_url("/foobar bar/")
+    ''/foobar%20bar/'
 
     :param str url:
         The url to build off of.
@@ -89,11 +87,6 @@ def build_url(url, params=None, quoted=False):
         this value is not provided ``url`` will be returned by itself.
         Arguments to a url are unordered by default however they will be
         sorted alphabetically so the results are repeatable from call to call.
-
-    :param bool quoted:
-        If True then run the result through :func:`.quote`.  By default
-        this keyword is set to False because :func:`.build_url` is typically
-        used for debugging.
     """
     assert isinstance(url, STRING_TYPES)
 
@@ -102,11 +95,7 @@ def build_url(url, params=None, quoted=False):
         url += "?" + "&".join([
             "%s=%s" % (key, value)for key, value in sorted(params.items())])
 
-    # properly quote the url if requested
-    if quoted:
-        url = quote(url)
-
-    return url
+    return quote_url(url)
 
 
 def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
@@ -394,7 +383,7 @@ def request(method, url, **kwargs):
     debug_url = build_url(url, debug_kwargs.pop("params", None))
     logger.debug(
         "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
-    deferred = treq.request(method, url, **kwargs)
+    deferred = treq.request(method, quote_url(url), **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
 
