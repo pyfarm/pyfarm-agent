@@ -27,16 +27,16 @@ from __future__ import division
 import psutil
 
 
-def total_cpus(physical_only=False):
+def total_cpus(logical=True):
     """
     Returns the total number of cpus installed on the system.
 
-    :param bool physical_only:
-        If True then only return the number of physical cpus.  Otherwise
-        return both the number of physical cpus and the number of
-        logical cpus too.
+    :param bool logical:
+        If True the return the number of cores the system has.  Setting
+        this value to False will instead return the number of physical
+        cpus present on the system.
     """
-    return psutil.cpu_count(logical=physical_only)
+    return psutil.cpu_count(logical=logical)
 
 
 def load(interval=1):
