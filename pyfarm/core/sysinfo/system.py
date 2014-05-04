@@ -111,7 +111,7 @@ def uptime():
     Returns the amount of time the system has been running in
     seconds.
     """
-    return time.time() - psutil.BOOT_TIME
+    return time.time() - psutil.boot_time()
 
 
 def operating_system(plat=sys.platform):
