@@ -31,10 +31,16 @@ from json import dumps as _dumps
 from UserDict import UserDict
 
 try:
+    from urlparse import urlsplit
+    from urllib import quote
+except ImportError:  # pragma: no cover
+    from http.client import urlsplit
+    from urllib.parse import quote
+
+try:
     from httplib import OK
 except ImportError:  # pragma: no cover
     from http.client import OK
-
 
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
@@ -47,6 +53,31 @@ def default_json_encoder(obj):
         return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
+
+
+def quote_url(source_url):
+    """
+    This function serves as a wrapper around :func:`.urlsplit`
+    and :func:`.quote` and a url that has the path quoted.
+    """
+    url = urlsplit(source_url)
+
+    # If a url is just "/" then we don't want to add ://
+    # since a scheme was not included.
+    if url.scheme:
+        result = "{scheme}://".format(scheme=url.scheme)
+    else:
+        result = ""
+
+    result += url.netloc + quote(url.path, safe="/?&=")
+
+    if url.query:
+        result += "?" + url.query
+
+    if url.fragment:
+        result += "#" + url.fragment
+
+    return result
 
 
 def dumps(*args, **kwargs):
