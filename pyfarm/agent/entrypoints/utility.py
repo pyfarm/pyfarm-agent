@@ -117,7 +117,7 @@ def get_process(pidfile):
             pass
 
     else:
-        process_name = process.name.lower()
+        process_name = process.name().lower()
         logger.debug("%s is named '%s'" % (pid, process_name))
 
         if "PYFARM_AGENT_TEST_RUNNING" in os.environ:
