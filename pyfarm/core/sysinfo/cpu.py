@@ -22,23 +22,29 @@ Contains information about the cpu and its relation to the operating
 system such as load, processing times, etc.
 """
 
+from __future__ import division
+
 import psutil
 
-# TODO: add 'logical' option to get only the real core count
-# TODO: use new psutil function
-# TODO: add normalized keyword (since hyperthreading/etc is
-# not 100% the same as a real core)
-def total_cpus():
-    """Returns the total number of cpus installed on the system."""
-    return psutil.NUM_CPUS
+
+def total_cpus(logical=True):
+    """
+    Returns the total number of cpus installed on the system.
+
+    :param bool logical:
+        If True the return the number of cores the system has.  Setting
+        this value to False will instead return the number of physical
+        cpus present on the system.
+    """
+    return psutil.cpu_count(logical=logical)
 
 
-def load(self, iterval=1):
+def load(interval=1):
     """
     Returns the load across all cpus value from zero to one.  A value
     of 1.0 means the average load across all cpus is 100%.
     """
-    return psutil.cpu_percent(iterval) / self.NUM_CPUS  # pragma: no cover
+    return psutil.cpu_percent(interval) / total_cpus()
 
 
 def user_time():
