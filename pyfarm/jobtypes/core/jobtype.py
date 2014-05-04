@@ -27,9 +27,9 @@ from Queue import Queue, Empty
 from functools import partial
 
 try:
-    from httplib import OK
+    from httplib import OK, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
-    from http.client import OK
+    from http.client import OK, INTERNAL_SERVER_ERROR
 
 try:
     import pwd
@@ -413,7 +413,9 @@ class JobType(object):
 
         if config["jobtype-no-cache"] or cache_key not in cls.cache:
             def download_complete(response):
-                if response.code != OK:
+                # Server is offline or experiencing issues right
+                # now so we should retry the request.
+                if response.code >= INTERNAL_SERVER_ERROR:
                     return response.request.retry()
 
                 if config["jobtype-no-cache"]:
