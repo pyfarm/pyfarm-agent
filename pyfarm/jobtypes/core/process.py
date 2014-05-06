@@ -29,7 +29,38 @@ from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES
 
-PROTOCOL_ID_TYPES = set(list(NUMERIC_TYPES) + [list, tuple])
+
+class ReplaceEnvironment(object):
+    """
+    A context manager which will replace ``os.environ``'s, or dictionary of
+    your choosing, for a short period of time.  After exiting the
+    context manager the original environment will be restored.
+
+    This is useful if you have something like a process that's using
+    global environment and you want to ensure that global environment is
+    always consistent.
+
+    :param dict environment:
+        If provided, use this as the environment dictionary instead
+        of ``os.environ``
+    """
+    def __init__(self, frozen_environment, environment=None):
+        if environment is None:
+            environment = os.environ
+
+        self.environment = environment
+        self.original_environment = None
+        self.frozen_environment = frozen_environment
+
+    def __enter__(self):
+        self.original_environment = self.environment.copy()
+        self.environment.clear()
+        self.environment.update(self.frozen_environment)
+        return self
+
+    def __exit__(self, *_):
+        self.environment.clear()
+        self.environment.update(self.original_environment)
 
 
 class ProcessInputs(object):
@@ -134,39 +165,6 @@ class ProcessInputs(object):
         return "%s(tasks=%r, command=%r, env=%r, user=%r, group=%r)" % (
             self.__class__.__name__,
             self.tasks, self.command, self.env, self.user, self.group)
-
-
-class ReplaceEnvironment(object):
-    """
-    A context manager which will replace ``os.environ``'s, or dictionary of
-    your choosing, for a short period of time.  After exiting the
-    context manager the original environment will be restored.
-
-    This is useful if you have something like a process that's using
-    global environment and you want to ensure that global environment is
-    always consistent.
-
-    :param dict environment:
-        If provided, use this as the environment dictionary instead
-        of ``os.environ``
-    """
-    def __init__(self, frozen_environment, environment=None):
-        if environment is None:
-            environment = os.environ
-
-        self.environment = environment
-        self.original_environment = None
-        self.frozen_environment = frozen_environment
-
-    def __enter__(self):
-        self.original_environment = self.environment.copy()
-        self.environment.clear()
-        self.environment.update(self.frozen_environment)
-        return self
-
-    def __exit__(self, *_):
-        self.environment.clear()
-        self.environment.update(self.original_environment)
 
 
 class ProcessProtocol(_ProcessProtocol):
