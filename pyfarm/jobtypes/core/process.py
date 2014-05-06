@@ -29,6 +29,8 @@ from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES
 
+PROTOCOL_ID_TYPES = set(list(NUMERIC_TYPES) + [list, tuple])
+
 
 class ProcessInputs(object):
     """
@@ -36,8 +38,8 @@ class ProcessInputs(object):
     class does not handle data so refer to the documentation below to
     ensure your job type does not fail.
 
-    :param dict task:
-        The task these process inputs correspond to.
+    :param list tasks:
+        The task or tasks that this instance is running for.
 
     :param list command:
         The list which contains the absolute path to the command to run
@@ -82,10 +84,10 @@ class ProcessInputs(object):
         if we got a type we couldn't convert in :param:`command` to a string.
     """
     def __init__(
-            self, task, command, env=None, path=None, user=None, group=None,
+            self, tasks, command, env=None, path=None, user=None, group=None,
             expandvars=True):
-        if not isinstance(task, dict):
-            raise TypeError("Expected a dictionary for `task`")
+        if not isinstance(tasks, (list, tuple)):
+            raise TypeError("Expected a list for `tasks`")
 
         if not isinstance(command, (list, tuple)):
             raise TypeError("Expected a list or tuple for `command`")
@@ -120,7 +122,7 @@ class ProcessInputs(object):
                 raise TypeError(
                     "Expected a string or number of entry command[%s]" % index)
 
-        self.task = task
+        self.tasks = tuple(tasks)
         self.command = tuple(command)
         self.env = env
         self.path = path
@@ -129,9 +131,9 @@ class ProcessInputs(object):
         self.expandvars = expandvars
 
     def __repr__(self):
-        return "%s(task=%r, command=%r, env=%r, user=%r, group=%r)" % (
+        return "%s(tasks=%r, command=%r, env=%r, user=%r, group=%r)" % (
             self.__class__.__name__,
-            self.task, self.command, self.env, self.user, self.group)
+            self.tasks, self.command, self.env, self.user, self.group)
 
 
 class ReplaceEnvironment(object):
@@ -174,7 +176,7 @@ class ProcessProtocol(_ProcessProtocol):
     to act as plumbing between the process being run and the job type.
     """
     def __init__(self, jobtype, process_inputs, command, arguments, env,
-                 path, uid, gid, protocol_id=None):
+                 path, uid, gid):
         self.jobtype = jobtype
         self.inputs = process_inputs
         self.command = command
@@ -183,17 +185,13 @@ class ProcessProtocol(_ProcessProtocol):
         self.path = path
         self.uid = uid
         self.gid = gid
-
-        if protocol_id is None:
-            protocol_id = self.inputs.task["id"]
-
-        self.id = protocol_id
+        self.id = tuple(task["id"] for task in process_inputs.tasks)
 
     def __repr__(self):
-        return "Process(task=%r, pid=%r, command=%r, args=%r, path=%r, " \
+        return "Process(id=%r, pid=%r, command=%r, args=%r, path=%r, " \
                "uid=%r, gid=%r)" % (
-            self.id, self.pid, self.command, self.args,
-            self.path, self.uid, self.gid)
+                   self.tasks, self.pid, self.command, self.args,
+                   self.path, self.uid, self.gid)
 
     @property
     def pid(self):
