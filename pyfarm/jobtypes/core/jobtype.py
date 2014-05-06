@@ -307,7 +307,10 @@ class JobType(object):
             assignment["jobtype"]["version"])
 
         def download(*_):
-            get(url, callback=result.callback, errback=download)
+            get(
+                url,
+                callback=result.callback,
+                errback=lambda: reactor.callLater(http_retry_delay(), download))
 
         download()
         return result
@@ -416,7 +419,9 @@ class JobType(object):
                 # Server is offline or experiencing issues right
                 # now so we should retry the request.
                 if response.code >= INTERNAL_SERVER_ERROR:
-                    return response.request.retry()
+                    return reactor.callLater(
+                        http_retry_delay(),
+                        response.request.retry)
 
                 if config["jobtype-no-cache"]:
                     return load_jobtype((response.json(), None))
