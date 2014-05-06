@@ -602,7 +602,7 @@ class JobType(object):
         >>> def build_process_inputs(self):
         ...     for task in self.assignments():
         ...         yield ProcessInputs(
-        ...             task,
+        ...             [task],
         ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
         ...             environ={"FOO": "1"},
         ...             user="foo",
@@ -631,18 +631,18 @@ class JobType(object):
         assert isinstance(process_inputs, ProcessInputs)
 
         # assert `task` is a valid type
-        if not isinstance(process_inputs.task, dict):
-            self.set_state(
-                process_inputs.task, WorkState.FAILED,
+        if not isinstance(process_inputs.tasks, list):
+            self.set_states(
+                process_inputs.tasks, WorkState.FAILED,
                 "`task` must be a dictionary, got %s instead.  Check "
                 "the output produced by `build_process_inputs`" % type(
-                    process_inputs.task))
+                    process_inputs.tasks))
             return
 
         # assert `command` is a valid type
         if not isinstance(process_inputs.command, (list, tuple)):
-            self.set_state(
-                process_inputs.task, WorkState.FAILED,
+            self.set_states(
+                process_inputs.tasks, WorkState.FAILED,
                 "`command` must be a list or tuple, got %s instead.  Check "
                 "the output produced by `build_process_inputs`" % type(
                     process_inputs.command))
@@ -663,8 +663,8 @@ class JobType(object):
                 try:
                     uid = self.get_uid(process_inputs.user)
                 except (ValueError, KeyError):
-                    self.set_state(
-                        process_inputs.task, WorkState.FAILED,
+                    self.set_states(
+                        process_inputs.tasks, WorkState.FAILED,
                         "Failed to or verify user %r" % process_inputs.user)
                     return
 
@@ -673,7 +673,7 @@ class JobType(object):
                     gid = self.get_uid(process_inputs.group)
                 except (ValueError, KeyError):
                     self.set_state(
-                        process_inputs.task, WorkState.FAILED,
+                        process_inputs.tasks, WorkState.FAILED,
                         "Failed to or verify group %r" % process_inputs.group)
                     return
 
@@ -786,11 +786,24 @@ class JobType(object):
         elif isinstance(error, Exception):
             return str(error)
 
+        elif isinstance(error, STRING_TYPES):
+            return error
+
         elif error is None:
             logger.error("No error was defined for this failure.")
 
         else:
             logger.error("Don't know how format %r as a string", error)
+
+    # TODO: modify this function to support batch updates
+    def set_states(self, tasks, state, error=None):
+        """
+        Wrapper around :meth:`set_state` that that allows you to
+        the state on the master for multiple tasks at once.
+        """
+        assert isinstance(tasks, (tuple, list))
+        for task in tasks:
+            self.set_state(task, state, error=error)
 
     def set_state(self, task, state, error=None):
         """
