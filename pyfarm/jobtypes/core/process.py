@@ -188,7 +188,7 @@ class ProcessProtocol(_ProcessProtocol):
     def __repr__(self):
         return "Process(id=%r, pid=%r, command=%r, args=%r, path=%r, " \
                "uid=%r, gid=%r)" % (
-                   self.tasks, self.pid, self.command, self.args,
+                   self.id, self.pid, self.command, self.args,
                    self.path, self.uid, self.gid)
 
     @property
