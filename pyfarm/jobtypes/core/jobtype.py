@@ -898,8 +898,13 @@ class JobType(object):
         # TODO: if new state is the equiv. of 'stopped', stop the process
         # and POST the change
 
-    # TODO: check other exit types
     def is_successful(self, reason):
+        """
+        Returns True if we should consider ``reason`` to be
+        successful.  This function is called by :meth:`_process_stopped`
+        to determine if the object returned by a process is an indication
+        of failure.
+        """
         return (
             reason.type is ProcessDone and
             reason.value.exitCode in self.success_codes)
