@@ -54,7 +54,7 @@ class TestProcessInputs(TestCase):
             lambda: ProcessInputs({}, [None]))
 
     def test_convert_numeric_command_values(self):
-        self.assertEqual(ProcessInputs({}, [1]).command, ("1", ))
+        self.assertEqual(ProcessInputs([], [1]).command, ("1", ))
 
 
 class TestReplaceEnvironment(TestCase):
