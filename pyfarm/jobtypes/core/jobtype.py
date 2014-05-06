@@ -575,14 +575,15 @@ class JobType(object):
         return tuple(cmdlist)  # read-only copy (also takes less memory)
 
     # TODO: This needs more command line arguments and configuration options
-    def get_csvlog_path(self, task, now=None):
+    def get_csvlog_path(self, tasks, now=None):
         """
         Returns the path to the comma separated value (csv) log file.
         The agent stores logs from processes in a csv format so we can store
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        assert isinstance(task, dict)
+        assert isinstance(tasks, (list, tuple))
+
         if now is None:
             now = datetime.utcnow()
 
@@ -590,7 +591,8 @@ class JobType(object):
             config["task-log-dir"],
             "%s_%s_%s.csv" % (
                 now.strftime("%G%m%d%H%M%S"),
-                self.assignment["job"]["id"], task["id"]))
+                self.assignment["job"]["id"],
+                "-".join(map(str, list(task["id"]for task in tasks)))))
 
     def build_process_inputs(self):
         """
@@ -631,7 +633,7 @@ class JobType(object):
         assert isinstance(process_inputs, ProcessInputs)
 
         # assert `task` is a valid type
-        if not isinstance(process_inputs.tasks, list):
+        if not isinstance(process_inputs.tasks, (list, tuple)):
             self.set_states(
                 process_inputs.tasks, WorkState.FAILED,
                 "`task` must be a dictionary, got %s instead.  Check "
@@ -710,7 +712,7 @@ class JobType(object):
             kwargs["path"], uid, gid)
 
         # Internal data setup
-        logfile = self.get_csvlog_path(process_inputs.task)
+        logfile = self.get_csvlog_path(process_inputs.tasks)
         self.protocols[protocol.id] = protocol
 
         # Start the logging thread
