@@ -32,5 +32,5 @@ class FakeRender(JobType):
 
         for task in self.assignments():
             yield ProcessInputs(
-                task,
+                [task],
                 (fakerender, "-s", task["frame"], "-e", task["frame"]))
