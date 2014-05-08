@@ -65,7 +65,7 @@ if TQResponse is not NotImplemented:
 else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
 
-USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
+USERAGENT = "PyFarm/1.0 (agent)"
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
 
 
