@@ -357,6 +357,7 @@ class Agent(object):
         Either executes the code necessary to post system data to
         an existing agent or returns a callable to do so.
         """
+        config.master_made_contact()
         def run_post():
             return post(self.agent_api(),
                 data=self.system_data(),

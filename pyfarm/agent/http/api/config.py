@@ -40,6 +40,6 @@ class Config(APIResource):
         request = kwargs.get("request")
 
         if request is not None and request_from_master(request):
-            config.master_contact()
+            config.master_made_contact()
 
         return dumps(dict(config))

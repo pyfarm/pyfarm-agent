@@ -161,7 +161,7 @@ class LoggingConfiguration(dict):
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
 
-    def master_contact(self, update=True):
+    def master_contacted(self, update=True):
         """
         Simple method that will update the ``last-master-contact`` and then
         return the result.
