@@ -573,8 +573,8 @@ class TestBuildUrl(TestCase):
     def test_quoted_url(self):
         self.assertEqual(
             build_url("/foobar",
-                      {"first": "foo", "second": "bar"}, quoted=True),
-            "/foobar%3Ffirst%3Dfoo%26second%3Dbar")
+                      {"first": "foo", "second": "bar"}),
+            "/foobar?first=foo&second=bar")
 
     def test_large_random_parameters(self):
         params = {}
@@ -583,9 +583,6 @@ class TestBuildUrl(TestCase):
 
         expected = "/foobar?" + "&".join([
             "%s=%s" % (key, value)for key, value in sorted(params.items())])
-        expected_quoted = quote(expected)
 
         self.assertEqual(
             build_url("/foobar", params), expected)
-        self.assertEqual(
-            build_url("/foobar", params, quoted=True), expected_quoted)
