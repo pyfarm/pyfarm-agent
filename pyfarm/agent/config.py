@@ -159,12 +159,19 @@ class LoggingConfiguration(dict):
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
 
-    def master_contact(self):
+    def master_contact(self, update=True):
         """
-        Simple method that will update the ``last-master-contact`` key
-        in the dictionary with the current time.
+        Simple method that will update the ``last-master-contact`` and then
+        return the result.
+
+        :param bool update:
+            Setting this value to False will just return the current value
+            instead of updating the value too.
         """
-        self["last-master-contact"] = datetime.utcnow()
+        if update:
+            self["last-master-contact"] = datetime.utcnow()
+
+        return self["last-master-contact"]
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
