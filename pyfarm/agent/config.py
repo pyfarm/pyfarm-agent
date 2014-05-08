@@ -30,6 +30,8 @@ module to be used:
     >>> from pyfarm.agent.config import config
 """
 
+from datetime import datetime
+
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.logger import getLogger
 
@@ -58,9 +60,9 @@ class LoggingConfiguration(dict):
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
-        # Create the initial internal structure for storing
-        # job types
+        # Setup some standard entries
         self["jobtypes"] = {}
+        self["last-master-contact"] = None
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -156,6 +158,13 @@ class LoggingConfiguration(dict):
         else:
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
+
+    def master_contact(self):
+        """
+        Simple method that will update the ``last-master-contact`` key
+        in the dictionary with the current time.
+        """
+        self["last-master-contact"] = datetime.utcnow()
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
