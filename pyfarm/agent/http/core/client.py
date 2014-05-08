@@ -395,3 +395,104 @@ post = partial(request, "POST")
 put = partial(request, "PUT")
 patch = partial(request, "PATCH")
 delete = partial(request, "DELETE")
+
+
+class RateLimitedRequest(object):
+    """
+    Wrapper class around one of the request methods and a url which
+    can ensure request to a specific url do not occur more often than
+    necessary.
+
+    :param str url:
+        The url to rate limit
+    """
+    def __init__(self, url):
+        self.url = url
+
+    def rate_limited(self, *args, **kwargs):
+        """
+        You must override this method to return True or False.  A value
+        of ``True`` will allow a request to be made while ``False`` will
+        prevent the request from going out.
+
+        ``*args`` and ``**kwargs`` are passed in from the calling method
+        and will contain arguments that will eventually be sent to the
+        underlying client method.
+        """
+        raise NotImplementedError(
+            "You must implement re-implement `rate_limited`")
+
+    def head(self, *args, **kwargs):
+        """
+        A wrapper around :func:`head` which checks :meth:`rate_limited`
+        before running.
+        """
+        if not self.rate_limited(*args, **kwargs):
+            return head(self.url, *args, **kwargs)
+        else:
+            logger.debug("Skipping HEAD %s (rate limited)", self.url)
+
+    def get(self, *args, **kwargs):
+        """
+        A wrapper around :func:`get` which checks :meth:`rate_limited`
+        before running.
+        """
+        if not self.rate_limited(*args, **kwargs):
+            return get(self.url, *args, **kwargs)
+        else:
+            logger.debug("Skipping GET %s (rate limited)", self.url)
+
+    def post(self, *args, **kwargs):
+        """
+        A wrapper around :func:`post` which checks :meth:`rate_limited`
+        before running.
+        """
+        if not self.rate_limited(*args, **kwargs):
+            return post(self.url, *args, **kwargs)
+        else:
+            logger.debug("Skipping POST %s (rate limited)", self.url)
+
+    def put(self, *args, **kwargs):
+        """
+        A wrapper around :func:`put` which checks :meth:`rate_limited`
+        before running.
+        """
+        if not self.rate_limited(*args, **kwargs):
+            return put(self.url, *args, **kwargs)
+        else:
+            logger.debug("Skipping PUT %s (rate limited)", self.url)
+
+    def delete(self, *args, **kwargs):
+        """
+        A wrapper around :func:`delete` which checks :meth:`rate_limited`
+        before running.
+        """
+        if not self.rate_limited(*args, **kwargs):
+            return delete(self.url, *args, **kwargs)
+        else:
+            logger.debug("Skipping DELETE %s (rate limited)", self.url)
+
+
+def rate_limited(url, rate_limiter):
+    """
+    A simple factory function which can produce instances of the
+    :class:`RateLimitedRequest` class.  For example the below will only
+    send a POST request around half the time to the given url:
+
+    >>> from random import random
+    >>> request = rate_limited("http://127.0.0.1", lambda _: random() > .5)
+    >>> request.post(data={"foo": True}, callback=lambda: None)
+
+    :param str url:
+        The url to rate limit
+
+    :param callable rate_limiter:
+        The function which should return True or False to rate limit
+        access to the given url.  Please note that the function provided
+        here should have at least one argument as this function will be
+        used as part of a class instance.
+    """
+    class_type = type(
+        "RateLimitedRequest", (RateLimitedRequest, ),
+        {"rate_limited": rate_limiter})
+    return class_type(url)
