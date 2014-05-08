@@ -64,7 +64,7 @@ class LoggingConfiguration(dict):
         # starting out
         self.update({
             "jobtypes": {},
-            "last-master-contact": None})
+            "last-master-contact": datetime(1970, 1, 1)})
 
     def __setitem__(self, key, value):
         if key not in self:
