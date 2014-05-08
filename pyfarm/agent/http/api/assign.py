@@ -29,6 +29,7 @@ from pyfarm.core.sysinfo.memory import ram_free
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.utility import request_from_master
 from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")
@@ -97,6 +98,9 @@ class Assign(APIResource):
     def post(self, **kwargs):
         request = kwargs["request"]
         data = kwargs["data"]
+
+        if request_from_master(request):
+            config.master_contact()
 
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
