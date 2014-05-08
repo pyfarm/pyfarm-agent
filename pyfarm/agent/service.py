@@ -607,8 +607,8 @@ class Agent(object):
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
 
+            config.master_contacted()
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
             self.scheduled_tasks.start()
-            config.master_contacted()
