@@ -76,6 +76,11 @@ class Agent(object):
         # a method returns a DeferredList
         self.agent_created = Deferred()
 
+        # Setup scheduled tasks
+        # TODO: register re-announcement task with master
+        # self.scheduled_tasks.register()
+
+
     @classmethod
     def agent_api(cls):
         """
