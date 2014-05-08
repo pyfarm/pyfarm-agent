@@ -736,6 +736,9 @@ class JobType(object):
 
         return protocol
 
+    def _start(self):
+        self.start()
+
     def start(self):
         """
         This method is called when the job type should start
