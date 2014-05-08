@@ -61,11 +61,6 @@ def validate_environment(values):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
 
 
-class HandlePost(object):
-    def __init__(self, data):
-        self.data = data
-
-
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
 
