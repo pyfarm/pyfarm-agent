@@ -60,9 +60,11 @@ class LoggingConfiguration(dict):
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
-        # Setup some standard entries
-        self["jobtypes"] = {}
-        self["last-master-contact"] = None
+        # Setup some standard entries which we need
+        # starting out
+        self.update({
+            "jobtypes": {},
+            "last-master-contact": None})
 
     def __setitem__(self, key, value):
         if key not in self:
