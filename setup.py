@@ -64,7 +64,6 @@ setup(
         "pyfarm.agent.http",
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
-        "pyfarm.agent.process",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
     package_data={
