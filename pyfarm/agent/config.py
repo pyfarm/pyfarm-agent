@@ -61,6 +61,8 @@ class LoggingConfiguration(dict):
         # Create the initial internal structure for storing
         # job types
         self["jobtypes"] = {}
+        # The assignments this node still has to work on
+        self["current_assignments"] = {}
 
     def __setitem__(self, key, value):
         if key not in self:
