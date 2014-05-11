@@ -25,11 +25,11 @@ from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional, Any
 
 from pyfarm.core.enums import STRING_TYPES
-from pyfarm.core.sysinfo.memory import ram_free
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.utility import request_from_master
+from pyfarm.agent.sysinfo.memory import ram_free
 from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")

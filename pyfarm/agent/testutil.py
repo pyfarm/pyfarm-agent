@@ -28,9 +28,9 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
-from pyfarm.core.sysinfo import memory, cpu
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
+from pyfarm.agent.sysinfo import memory, cpu
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")

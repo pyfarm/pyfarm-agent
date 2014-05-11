@@ -47,7 +47,7 @@ except ImportError:  # pragma: no cover
     getpass = NotImplemented
 
 
-from pyfarm.core.sysinfo.system import operating_system
+from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.core.enums import WINDOWS, LINUX, MAC
 
 

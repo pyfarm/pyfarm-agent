@@ -41,7 +41,7 @@ from requests import ConnectionError
 from pyfarm.core.enums import OS
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.core.sysinfo import network
+from pyfarm.agent.sysinfo import network
 
 logger = getLogger("agent")
 
