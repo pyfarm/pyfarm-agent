@@ -40,7 +40,7 @@ except NameError:  # pragma: no cover
 
 from pyfarm.agent.logger import getLogger
 
-logger = getLogger("core.system")
+logger = getLogger("agent.sysinfo")
 
 
 def filesystem_is_case_sensitive():  # pragma: no cover
