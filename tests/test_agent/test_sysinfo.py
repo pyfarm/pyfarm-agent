@@ -15,42 +15,39 @@
 # limitations under the License.
 
 import os
-import time
 import socket
-import psutil
 import tempfile
+import time
+import psutil
 import uuid
-import netifaces
-import logging
 from os.path import isfile
 
 try:
-    from unittest import skipIf
+    import pwd
 except ImportError:
-    from unittest2 import skipIf
+    import getpass
+    pwd = NotImplemented
 
-from pyfarm.core.testutil import TestCase, skip_on_ci
+import netifaces
+
 from pyfarm.core.utility import convert
-from pyfarm.core.sysinfo import system, network, cpu, memory, user
-from pyfarm.core.sysinfo.network import logger
 from pyfarm.core.enums import LINUX, WINDOWS
+from pyfarm.agent.testutil import TestCase, skip_on_ci, skip_if
+from pyfarm.agent.sysinfo import system, network, cpu, memory, user
 
 
 class BaseSystem(TestCase):
     def test_user(self):
-        try:
-            import pwd
-            sysuser = pwd.getpwuid(os.getuid())[0]
+        if pwd is not NotImplemented:
+            username = pwd.getpwuid(os.getuid())[0]
+        else:
+            username = getpass.getuser()
 
-        except ImportError:
-            import getpass
-            sysuser = getpass.getuser()
-
-        self.assertEqual(user.username(), sysuser)
+        self.assertEqual(user.username(), username)
 
     def test_uptime(self):
         t1 = system.uptime()
-        t2 = time.time() - psutil.BOOT_TIME
+        t2 = time.time() - psutil.boot_time()
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_case_sensitive_filesystem(self):
@@ -58,7 +55,7 @@ class BaseSystem(TestCase):
         self.assertEqual(
             not all(map(isfile, [path, path.lower(), path.upper()])),
             system.filesystem_is_case_sensitive())
-        self.remove(path)
+        self.add_cleanup_path(path)
 
     def test_case_sensitive_environment(self):
         envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
@@ -87,83 +84,82 @@ class BaseSystem(TestCase):
         for arch in ("i386", "i686", "x86"):
             self.assertEqual(system.machine_architecture(arch), 32)
 
-        with self.assertRaises(NotImplementedError):
-            system.machine_architecture("")
-
-        with self.assertRaises(NotImplementedError):
-            system.machine_architecture("foobar")
+        self.assertRaises(
+            NotImplementedError, lambda: system.machine_architecture(""))
+        self.assertRaises(
+            NotImplementedError, lambda: system.machine_architecture("foobar"))
 
 
 class Network(TestCase):
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_packets_sent_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_sent
         self.assertEqual(network.packets_sent() >= v, True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_packets_recv_posix(self):
         v = psutil.net_io_counters(
             pernic=True)[network.interface()].packets_recv
         self.assertEqual(network.packets_received() >= v, True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_data_sent_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_sent)
         self.assertEqual(network.data_sent() >= v, True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_data_recv_posix(self):
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[network.interface()].bytes_recv)
         self.assertEqual(network.data_received() >= v, True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_error_incoming_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errin
         self.assertEqual(network.incoming_error_count() >= v, True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_error_outgoing_posix(self):
         v = psutil.net_io_counters(pernic=True)[network.interface()].errout
         self.assertEqual(network.outgoing_error_count() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_packets_sent_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = psutil.net_io_counters(
             pernic=True)[interface].packets_sent
         self.assertEqual(network.packets_sent() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_packets_recv_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = psutil.net_io_counters(
             pernic=True)[interface].packets_recv
         self.assertEqual(network.packets_received() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_data_sent_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[interface].bytes_sent)
         self.assertEqual(network.data_sent() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_data_recv_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = convert.bytetomb(psutil.net_io_counters(
             pernic=True)[interface].bytes_recv)
         self.assertEqual(network.data_received() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_error_incoming_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = psutil.net_io_counters(pernic=True)[interface].errin
         self.assertEqual(network.incoming_error_count() >= v, True)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_error_outgoing_windows(self):
         interface = network.interface_guid_to_nicename(network.interface())
         v = psutil.net_io_counters(pernic=True)[interface].errout
@@ -192,20 +188,6 @@ class Network(TestCase):
         self.assertEqual(
             network.hostname(name="foo", fqdn="foo"), "foo.")
 
-    def test_mac_warn_appends_local(self):
-        class Filter(logging.Filter):
-            emitted = False
-
-            def filter(self, record):
-                if "OS X appended '.local'" in record.msg:
-                    Filter.emitted = True
-
-        logging_filter = Filter()
-        logger.addFilter(logging_filter)
-        network.hostname(name="foo", fqdn="foo.local", is_mac=True)
-        logger.removeFilter(logging_filter)
-        self.assertTrue(Filter.emitted)
-
     def test_addresses(self):
         self.assertEqual(len(list(network.addresses())) >= 1, True)
         self.assertEqual(isinstance(list(network.addresses()), list), True)
@@ -227,23 +209,24 @@ class Network(TestCase):
             for i in netifaces.ifaddresses(
             network.interface()).get(socket.AF_INET, [])), True)
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_interface_guid_to_nicename_windows_only(self):
-        with self.assertRaises(NotImplementedError):
-            network.interface_guid_to_nicename(None)
+        self.assertRaises(
+            NotImplementedError,
+            lambda: network.interface_guid_to_nicename(None))
 
-    @skipIf(WINDOWS, "Not POSIX")
+    @skip_if(WINDOWS, "Not POSIX")
     def test_wmi_import_not_imported(self):
         self.assertIs(network.wmi, NotImplemented)
 
-    @skipIf(not WINDOWS, "Not Windows")
+    @skip_if(not WINDOWS, "Not Windows")
     def test_wmi_imported(self):
         self.assertIsNot(network.wmi, NotImplemented)
 
 
 class Processor(TestCase):
     def test_count(self):
-        self.assertEqual(psutil.NUM_CPUS, cpu.total_cpus())
+        self.assertEqual(psutil.cpu_count(), cpu.total_cpus())
 
     def test_usertime(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
@@ -264,7 +247,7 @@ class Processor(TestCase):
 class Memory(TestCase):
     def test_totalram(self):
         self.assertEqual(memory.total_ram(),
-                         convert.bytetomb(psutil.TOTAL_PHYMEM))
+                         convert.bytetomb(psutil.virtual_memory().total))
 
     def test_totalswap(self):
         self.assertEqual(memory.total_swap(),
