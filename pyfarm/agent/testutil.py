@@ -20,6 +20,7 @@ import logging
 import shutil
 import socket
 import tempfile
+from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
@@ -28,15 +29,27 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
 from pyfarm.core.sysinfo import memory, cpu
-from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
+
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
+
+
+def rm(path):
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        shutil.rmtree(path)
+    except Exception:
+        pass
 
 
 def safe_repr(obj, short=False):
@@ -47,6 +60,30 @@ def safe_repr(obj, short=False):
     if not short or len(result) < 80:
         return result
     return result[:80] + ' [truncated]...'
+
+
+class skip_if(object):
+    def __init__(self, true, reason):
+        self.true = true
+        self.reason = reason
+
+    def __call__(self, method):
+        @wraps(method)
+        def wrapped(*args, **kwargs):
+            if (callable(self.true) and self.true()) or self.true:
+                args[0].skipTest(self.reason)
+
+            return method(*args, **kwargs)
+        return wrapped
+
+
+def skip_on_ci(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if "BUILDBOT_UUID" in os.environ or "TRAVIS" in os.environ:
+            raise SkipTest
+        return func(*args, **kwargs)
+    return wrapper
 
 
 class TestCase(_TestCase):
@@ -151,16 +188,6 @@ class TestCase(_TestCase):
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
-        def rm(path):
-            try:
-                os.remove(path)
-            except Exception:
-                pass
-            try:
-                shutil.rmtree(path)
-            except Exception:
-                pass
-
         self.addCleanup(rm, path)
 
     def create_test_file(self, content="Hello, World!"):

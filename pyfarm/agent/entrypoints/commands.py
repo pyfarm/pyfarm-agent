@@ -57,7 +57,6 @@ from requests import ConnectionError
 
 from pyfarm.core.enums import (
     OS, WINDOWS, UseAgentAddress, AgentState, NUMERIC_TYPES)
-from pyfarm.core.sysinfo import user, network, memory, cpu
 from pyfarm.core.utility import convert
 
 # start logging before doing anything else
@@ -69,6 +68,7 @@ from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number)
 from pyfarm.agent.entrypoints.utility import (
     get_pids, start_daemon_posix, write_pid_file, get_default_ip)
+from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
 logger = getLogger("agent.cmd")

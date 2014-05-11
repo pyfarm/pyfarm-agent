@@ -28,7 +28,27 @@ install_requires = [
     "pyfarm.core",
     "PyOpenSSL",  # required for https support
     "netaddr", "twisted", "ntplib", "requests", "treq",
-    "voluptuous", "netifaces-merged", "jinja2"]
+    "voluptuous", "jinja2", "psutil>=2.1.0",
+    "netifaces>=0.10.2"]
+
+
+# Windows is a little special because we have to have pywin32
+# installed.  pyfarm.core uses it and certain components of
+# other libraries use it too, such as twisted, so we check for
+# it here.  Unfortunately, we can't use PyPi for this.
+if sys.platform.startswith("win"):
+    try:
+        import win32api
+    except ImportError:
+        raise ImportError(
+            "On Windows, you must manually install pywin32 before running "
+            "pyfarm.core's setup.py.  This is required because there's not "
+            "a package that we can pull down and reliably install from "
+            "Python package repository.  Please visit "
+            "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
+            "download and install this package.")
+    else:
+        install_requires.append("wmi")
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
@@ -64,6 +84,7 @@ setup(
         "pyfarm.agent.http",
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
+        "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
     package_data={
