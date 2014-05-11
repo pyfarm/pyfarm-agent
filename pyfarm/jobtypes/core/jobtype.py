@@ -47,10 +47,10 @@ from pyfarm.core.config import (
     read_env, read_env_float, read_env_int, read_env_bool)
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.logger import getLogger
-from pyfarm.core.sysinfo.user import is_administrator
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
+from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
