@@ -22,10 +22,9 @@ import psutil
 from twisted.web.server import NOT_DONE_YET
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import AgentState
-from pyfarm.core.sysinfo import cpu, memory, network
-
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
+from pyfarm.agent.sysinfo import cpu, memory, network
 
 
 def mb(value):

@@ -37,7 +37,7 @@ from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
-from pyfarm.core.sysinfo import memory
+from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.log import LogQuery
@@ -47,7 +47,7 @@ from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
-from pyfarm.agent.config import config
+from pyfarm.agent.sysinfo import memory
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")

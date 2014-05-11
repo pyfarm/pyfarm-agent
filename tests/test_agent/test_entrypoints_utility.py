@@ -21,10 +21,10 @@ from os.path import abspath, isfile, join, dirname
 import psutil
 
 from pyfarm.core.config import read_env
-from pyfarm.core.sysinfo import network
-from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.entrypoints.utility import (
     get_json, get_default_ip, write_pid_file, get_process)
+from pyfarm.agent.sysinfo import network
+from pyfarm.agent.testutil import TestCase
 
 
 class TestGetJson(TestCase):
