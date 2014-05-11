@@ -74,9 +74,9 @@ try:
 except ImportError:
     wmi = NotImplemented
 
-from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import MAC, WINDOWS
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("core.network")
 

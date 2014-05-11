@@ -38,7 +38,7 @@ try:
 except NameError:  # pragma: no cover
     WindowsError = OSError
 
-from pyfarm.core.logger import getLogger
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("core.system")
 
