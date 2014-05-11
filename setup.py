@@ -28,7 +28,7 @@ install_requires = [
     "pyfarm.core",
     "PyOpenSSL",  # required for https support
     "netaddr", "twisted", "ntplib", "requests", "treq",
-    "voluptuous", "jinja2", "psutil>=2.1.0", "
+    "voluptuous", "jinja2", "psutil>=2.1.0",
     "netifaces>=0.10.2"]
 
 
@@ -85,6 +85,7 @@ setup(
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
         "pyfarm.agent.process",
+        "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
     package_data={
