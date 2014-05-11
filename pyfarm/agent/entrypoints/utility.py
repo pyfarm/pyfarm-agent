@@ -117,7 +117,7 @@ def get_process(pidfile):
             pass
 
     else:
-        process_name = process.name.lower()
+        process_name = process.name()
         logger.debug("%s is named '%s'" % (pid, process_name))
 
         # Be careful, we don't want to return a pid or process object
