@@ -19,6 +19,7 @@ import re
 import logging
 import shutil
 import tempfile
+from functools import wraps
 from random import randint, choice
 
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
@@ -43,6 +44,30 @@ def safe_repr(obj, short=False):
     if not short or len(result) < 80:
         return result
     return result[:80] + ' [truncated]...'
+
+
+class skip_if(object):
+    def __init__(self, true, reason):
+        self.true = true
+        self.reason = reason
+
+    def __call__(self, method):
+        @wraps(method)
+        def wrapped(*args, **kwargs):
+            if (callable(self.true) and self.true()) or self.true:
+                args[0].skipTest(self.reason)
+
+            return method(*args, **kwargs)
+        return wrapped
+
+
+def skip_on_ci(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if "BUILDBOT_UUID" in os.environ or "TRAVIS" in os.environ:
+            raise SkipTest
+        return func(*args, **kwargs)
+    return wrapper
 
 
 class TestCase(_TestCase):
