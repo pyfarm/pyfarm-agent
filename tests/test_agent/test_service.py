@@ -28,7 +28,6 @@ from pyfarm.agent.http.core.client import get
 from pyfarm.agent.service import Agent
 
 
-
 # TODO: need better tests, these are a little rudimentary at the moment
 class TestAgentBasicMethods(TestCase):
     def test_agent_api_url(self):
