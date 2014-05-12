@@ -38,6 +38,7 @@ from twisted.internet.error import ConnectionRefusedError
 from pyfarm.core.enums import AgentState
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
+from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
@@ -171,6 +172,7 @@ class Agent(object):
         api.putChild("versions", Versions())
         v1 = api.putChild("v1", APIRoot())
         v1.putChild("assign", Assign())
+        v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
 
