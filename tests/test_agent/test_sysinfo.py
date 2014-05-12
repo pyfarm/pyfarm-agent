@@ -165,28 +165,49 @@ class Network(TestCase):
         v = psutil.net_io_counters(pernic=True)[interface].errout
         self.assertEqual(network.outgoing_error_count() >= v, True)
 
-    def test_hostname(self):
-        _hostname = socket.gethostname()
-        hostnames = set([
-            _hostname, _hostname + ".", socket.getfqdn(),
-            socket.getfqdn(_hostname + ".")])
-        for hostname in hostnames:
-            if hostname == network.hostname():
-                break
+    def test_hostname_ignore_dns_mappings(self):
+        reverse_hostnames = set()
+        for address in network.addresses():
+            try:
+                dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
+            except socket.herror:
+                pass
+            else:
+                if address in dns_addresses:
+                    reverse_hostnames.add(dns_name)
+
+        local_hostname = socket.gethostname()
+        local_fqdn_query = socket.getfqdn()
+
+        if local_fqdn_query in reverse_hostnames:
+            hostname = local_fqdn_query
+        elif local_hostname in reverse_hostnames:
+            hostname = local_hostname
         else:
-            self.fail("failed to get hostname")
+            hostname = socket.getfqdn(local_hostname)
 
-    def test_hostname_localhost(self):
         self.assertEqual(
-            network.hostname(name="localhost", fqdn="foo"), "foo")
+            network.hostname(trust_name_from_ips=False),
+            hostname)
 
-    def test_fqdn_localhost(self):
-        self.assertEqual(
-            network.hostname(name="foo", fqdn="localhost"), "localhost")
+    def test_hostname_trust_dns_mappings(self):
+        reverse_hostnames = set()
+        for address in network.addresses():
+            try:
+                dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
+            except socket.herror:
+                pass
+            else:
+                if address in dns_addresses:
+                    reverse_hostnames.add(dns_name)
 
-    def test_fqdn_and_hostname_match(self):
-        self.assertEqual(
-            network.hostname(name="foo", fqdn="foo"), "foo.")
+        if len(reverse_hostnames) == 1:
+            self.assertEqual(
+                network.hostname(trust_name_from_ips=True),
+                reverse_hostnames.pop())
+        else:
+            self.skipTest(
+                "This host's addresses resolve to more than one hostname")
 
     def test_addresses(self):
         self.assertEqual(len(list(network.addresses())) >= 1, True)
