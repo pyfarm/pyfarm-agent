@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from json import dumps
+
 from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.agent.config import config
@@ -27,6 +29,4 @@ class Tasks(APIResource):
         for assignment in config["current_assignments"].itervalues():
             tasks += assignment["tasks"]
 
-        request.write(tasks)
-        request.finish()
-        return NOT_DONE_YET
+        return dumps(data)
