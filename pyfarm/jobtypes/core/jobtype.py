@@ -187,6 +187,7 @@ class JobType(object):
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
         self.failed_processes = []
+        self.stdout_line_fragments = []
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -1000,24 +1001,12 @@ class JobType(object):
         Called by :meth:`.ProcessProtocol.outReceived` when
         we receive output on standard output (stdout) from a process.
         Not to be overridden.
-
-        If ``--capture-process-output`` was set when the agent was launched
-        all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to
-        :meth:`_log_in_thread` so it can be stored in a file without
-        blocking the event loop.
         """
         new_stdout = self.preprocess_stdout(protocol, stdout)
         if new_stdout is not None:
             stdout = new_stdout
 
-        stdout = self.format_log_message(stdout, stream_type=STDOUT)
-        if config["capture-process-output"]:
-            process_stdout.info("task %r: %s", protocol.id, stdout)
-        else:
-            self._log_in_thread(protocol, STDOUT, stdout)
-
-        self.process_stdout(stdout, protocol, stdout)
+        self.process_stdout(protocol, stdout)
 
     def preprocess_stdout(self, protocol, stdout):
         pass
@@ -1026,6 +1015,67 @@ class JobType(object):
         """
         Overridable function called when we receive data from a child process'
         stdout.
+        The default implementation will split the output into lines and forward
+        those to received_stdout_line(), which will eventually forward it to
+        process_stdout_line()
+        """
+        if "\n" in stdout:
+            ends_on_fragment = True
+            if stdout[-1] == "\n":
+                ends_on_fragment = False
+            lines = stdout.split("\n")
+            if ends_on_fragment:
+                dangling_fragment = lines.pop(-1)
+            for line in lines:
+                if protocol.id in self.stdout_line_fragments:
+                    l = self.stdout_line_fragments[protocol.id] + line
+                    del self.stdout_line_fragments[protocol.id]
+                    if len(l) > 0 and l[-1] == "\r":
+                        l = l[:-1]
+                    self.received_stdout_line(protocol, l)
+                else:
+                    if len(line) > 0 and line[-1] == "\r":
+                        line = line[:-1]
+                    self.received_stdout_line(protocol, line)
+            if ends_on_fragment:
+                self.stdout_line_fragments[protocol.id] = dangling_fragment
+        else:
+            if protocol.id in self.stdout_line_fragments:
+                self.stdout_line_fragments[protocol.id] += stdout
+            else:
+                self.stdout_line_fragments[protocol.id] = stdout
+
+    def received_stdout_line(self, protocol, line):
+        """
+        Called when we receive a new line from stdout, and possibly stderr if
+        those methods have not been overridden as well.
+
+        If ``--capture-process-output`` was set when the agent was launched
+        all standard output from the process will be sent to the stdout
+        of the agent itself.  In all other cases we send the data to
+        :meth:`_log_in_thread` so it can be stored in a file without
+        blocking the event loop.
+        """
+        new_line = self.preprocess_stdout_line(protocol, line)
+        if new_line is not None:
+            line = new_line
+
+        line = self.format_log_message(line, stream_type=STDOUT)
+        if config["capture-process-output"]:
+            process_stdout.info("task %r: %s", protocol.id, line)
+        else:
+            self._log_in_thread(protocol, STDOUT, line)
+
+        self.process_stdout_line(protocol, line)
+
+    def preprocess_stdout_line(self, protocol, line):
+        pass
+
+    def process_stdout_line(self, protocol, line):
+        """
+        Overridable function called whenever we receive a new line from a child
+        process' stdout.
+        Default implementation does nothing.
         """
         pass
 
