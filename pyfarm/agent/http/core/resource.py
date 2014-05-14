@@ -161,7 +161,8 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         # make sure that the requested content type is supported
-        content_type = self.content_types(request, default="text/html")
+        content_type = self.content_types(request, default=["text/html",
+                                                            "application/json"])
         if not self.CONTENT_TYPES & content_type:
             self.error(
                 request, UNSUPPORTED_MEDIA_TYPE,

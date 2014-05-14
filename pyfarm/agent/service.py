@@ -42,6 +42,7 @@ from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.log import LogQuery
+from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.core.client import post, get, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
@@ -171,6 +172,7 @@ class Agent(object):
         api.putChild("versions", Versions())
         v1 = api.putChild("v1", APIRoot())
         v1.putChild("assign", Assign())
+        v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
 

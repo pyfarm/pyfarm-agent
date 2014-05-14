@@ -736,12 +736,18 @@ class JobType(object):
 
         return protocol
 
+    def _start(self):
+        return self.start()
+
     def start(self):
         """
         This method is called when the job type should start
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
+        # Make sure start() is not called twice
+        assert not hasattr(self, "deferred")
+
         # TODO: add deferred handlers
         # TODO: collect all tasks and depending on the relationship
         # between tasks and processes we have to change how we notify
@@ -749,9 +755,8 @@ class JobType(object):
         for process_inputs in self.build_process_inputs():
             self.spawn_process(process_inputs)
 
-        # TODO: verify this does the right thing since `spawned` might not
-        # work with this
-        # return DeferredList(tasks)
+        self.deferred = Deferred()
+        return self.deferred
 
     def format_log_message(self, message, stream_type=None):
         """
@@ -795,7 +800,7 @@ class JobType(object):
             logger.error("No error was defined for this failure.")
 
         else:
-            logger.error("Don't know how format %r as a string", error)
+            logger.error("Don't know how to format %r as a string", error)
 
     # TODO: modify this function to support batch updates
     def set_states(self, tasks, state, error=None):
@@ -957,9 +962,11 @@ class JobType(object):
         # TODO: sequential processes
         if not self.protocols:
             if not self.failed_processes:
+                self.deferred.callback(reason)
                 for task in self.assignment["tasks"]:
                     self.set_state(task, WorkState.DONE, reason)
             else:
+                self.deferred.errback()
                 for task in self.assignment["tasks"]:
                     self.set_state(task, WorkState.FAILED, reason)
 
