@@ -995,9 +995,11 @@ class JobType(object):
         """
         self._process_started(protocol)
 
-    def _received_stdout(self, protocol, stdout):
+    def received_stdout(self, protocol, stdout):
         """
-        Internal implementation for :meth:`received_stdout`.
+        Called by :meth:`.ProcessProtocol.outReceived` when
+        we receive output on standard output (stdout) from a process.
+        Not to be overridden.
 
         If ``--capture-process-output`` was set when the agent was launched
         all standard output from the process will be sent to the stdout
@@ -1005,18 +1007,27 @@ class JobType(object):
         :meth:`_log_in_thread` so it can be stored in a file without
         blocking the event loop.
         """
+        new_stdout = self.preprocess_stdout(protocol, stdout)
+        if new_stdout is not None:
+            stdout = new_stdout
+
         stdout = self.format_log_message(stdout, stream_type=STDOUT)
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
             self._log_in_thread(protocol, STDOUT, stdout)
 
-    def received_stdout(self, protocol, stdout):
+        self.process_stdout(stdout, protocol, stdout)
+
+    def preprocess_stdout(self, protocol, stdout):
+        pass
+
+    def process_stdout(self, protocol, stdout):
         """
-        Called by :meth:`.ProcessProtocol.outReceived` when
-        we receive output on standard output (stdout) from a process.
+        Overridable function called when we receive data from a child process'
+        stdout.
         """
-        self._received_stdout(protocol, stdout)
+        pass
 
     def _received_stderr(self, protocol, stderr):
         """
