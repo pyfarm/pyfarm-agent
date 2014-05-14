@@ -29,4 +29,4 @@ class Tasks(APIResource):
         for assignment in config["current_assignments"].itervalues():
             tasks += assignment["tasks"]
 
-        return dumps(data)
+        return dumps(tasks)
