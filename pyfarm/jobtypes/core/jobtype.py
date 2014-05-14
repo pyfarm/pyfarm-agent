@@ -745,6 +745,9 @@ class JobType(object):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
+        # Make sure start() is not called twice
+        assert not hasattr(self, "deferred")
+
         # TODO: add deferred handlers
         # TODO: collect all tasks and depending on the relationship
         # between tasks and processes we have to change how we notify
