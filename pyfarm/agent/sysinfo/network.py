@@ -74,11 +74,11 @@ try:
 except ImportError:
     wmi = NotImplemented
 
-from pyfarm.core.utility import convert
 from pyfarm.core.enums import MAC, WINDOWS
-from pyfarm.agent.logger import getLogger
+from pyfarm.core.logger import getLogger
+from pyfarm.core.utility import convert
 
-logger = getLogger("agent.netinfo")
+logger = getLogger("agent.dns")
 
 IP_SPECIAL_USE = netaddr.IPNetwork("0.0.0.0/8")
 IP_LINK_LOCAL = netaddr.IPNetwork("169.254.0.0/16")
@@ -156,39 +156,76 @@ def outgoing_error_count():
     return iocounter().errout
 
 
-def hostname(name=None, fqdn=None, is_mac=MAC):
+def hostname(trust_name_from_ips=True):
     """
-    Returns the the best guess hostname of this machine by comparing the
-    hostname, fqdn, and reverse lookup of the ip address.
+    Returns the hostname which the agent should send to the master.
+
+    :param bool trust_resolved_name:
+        If True and all addresses provided by :func:`addresses` resolve
+        to a single hostname then just return that name as it's the most
+        likely hostname to be accessible by the rest of the network.
     """
-    hostname_is_local = False
-    if name is None:
-        name = socket.gethostname()
+    logger.debug("Attempting to discover the hostname")
 
-    if fqdn is None:
-        fqdn = socket.getfqdn()
+    # For every address retrieve the hostname we can resolve it
+    # to.  We'll use this set later to compare again what the system
+    # is telling is the hostname should be.
+    reverse_hostnames = set()
+    for address in addresses():
+        try:
+            dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
 
-    # we might get the proper fqdn if we finish the hostname
-    if fqdn == name:
-        fqdn = socket.getfqdn(name + ".")
+        except socket.herror:  # pragma: no cover
+            logger.warning(
+                "Could not resolve %s to a hostname using DNS.", address)
+        else:
+            if address in dns_addresses:
+                reverse_hostnames.add(dns_name)
+                logger.debug(
+                    "Lookup of %s resolved to %s", address, dns_name)
+
+    # If all the addresses we know about map to a single
+    # hostname then just return that instead of continuing
+    # on.  We do this because the DNS system should know better
+    # than the local system will what the fully qualified
+    # hostname would be.  This is especially true on some
+    # platforms where the local DNS implementation seems to
+    # produce the wrong information when resolving the local
+    # hostname.
+    if len(reverse_hostnames) == 1 and trust_name_from_ips:
+        return reverse_hostnames.pop()
+
+    if not reverse_hostnames:
+        logger.warning(
+            "DNS failed to resolve %s to hostnames", list(addresses()))
+
+    local_hostname = socket.gethostname()
+    local_fqdn_query = socket.getfqdn()
+
+    if local_fqdn_query in reverse_hostnames:
+        name = local_fqdn_query
+
+    elif local_hostname in reverse_hostnames:
+        name = local_hostname
+
+    else:
+        # If neither local_hostname or local_fqdn_query seemed
+        # to map to a known hostname from an IP address then
+        # get the FQDN of the locally provided hostname as
+        # a fallback.
+        name = socket.getfqdn(local_hostname)
 
     if name.startswith("localhost"):
         logger.warning("Hostname resolved to or contains 'localhost'")
-        hostname_is_local = True
 
-    if fqdn.startswith("localhost"):
+    if name.endswith(".local"):
         logger.warning(
-            "Fully qualified host name resolved to or contains 'localhost'")
+            "Operating system '.local' to hostname.  In some cases, most "
+            "often on OS X, this may cause unexpected problems reaching this "
+            "host by name on the network.  Manually setting the hostname "
+            "with --hostname may be advisable.")
 
-    if is_mac and fqdn.endswith(".local"):
-        logger.warning(
-            "OS X appended '.local' to hostname, this may cause unexpected "
-            "problems with DNS on the network")
-
-    if hostname_is_local or fqdn != name:
-        return fqdn
-
-    return name  # pragma: no cover
+    return name
 
 
 def addresses():
