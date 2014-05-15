@@ -1,6 +1,6 @@
 # No shebang line, this module is meant to be imported
 #
-# Copyright 2013 Oliver Palmer
+# Copyright 2014 Oliver Palmer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Process
--------
-
-Module responsible for launching and managing processes on
-the agent.
-"""

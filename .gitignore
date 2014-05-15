@@ -7,6 +7,7 @@
 *.swp
 *~
 *egg*
+logs*
 .coverage
 .profile
 .idea
@@ -17,3 +18,4 @@ MANIFEST
 _trial_temp
 *.orig
 htmlcov
+*jobtype*

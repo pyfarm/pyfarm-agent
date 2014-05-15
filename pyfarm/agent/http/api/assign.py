@@ -29,6 +29,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.sysinfo.memory import ram_free
+from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")
 
@@ -70,7 +71,7 @@ class Assign(APIResource):
     # Schemas used for validating the request before
     # the target function will handle it.  These make
     # assertions about what kind of input data is required
-    # or not based on the agent's internal cod.
+    # or not based on the agent's internal code.
     SCHEMAS = {
         "POST": Schema({
             Required("job"): Schema({
@@ -105,8 +106,18 @@ class Assign(APIResource):
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")
 
+        if "agent-id" not in config:
+            logger.error(
+                "Agent has not yet connected to the master or `agent-id` "
+                "has not been set yet.")
+            request.write(
+                {"error": "agent-id has not been set in the config"})
+            request.setResponseCode(BAD_REQUEST)
+            request.finish()
+            return NOT_DONE_YET
+
         # Do we have enough ram?
-        if requires_ram is not None and requires_ram > memory_free:
+        elif requires_ram is not None and requires_ram > memory_free:
             logger.error(
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",
@@ -120,6 +131,7 @@ class Assign(APIResource):
 
             # touch the config
             config["free_ram"] = memory_free
+            return NOT_DONE_YET
 
         # Do we have enough cpus (count wise)?
         elif requires_cpus is not None and requires_cpus > cpus:
@@ -133,24 +145,34 @@ class Assign(APIResource):
                  "requires_cpus": requires_cpus})
             request.setResponseCode(BAD_REQUEST)
             request.finish()
+            return NOT_DONE_YET
+
+        # TODO Check for double assignments
+        # Seems inefficient, but the assignments dict is unlikely to be large
+        index = 0
+        while index in config["current_assignments"]:
+            index += 1
+        config["current_assignments"][index] = data
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
-        else:
-            request.setResponseCode(ACCEPTED)
-            request.finish()
+        # TODO Mark this agent as running on the master
+        request.setResponseCode(ACCEPTED)
+        request.finish()
 
-        # TODO: Next steps as deferreds.  Some of these are done in the queue,
-        #       or will be, but the information the agent has available may be
-        #       more up to date and these checks are fast anyway.
-        #   - ensure we have enough ram left to serve the optional requirements
-        #   - check for number of cpus currently required by other jobs + this
-        #     job to see if we've hit a limit
-        #   - get job type (and cache if not already)
-        #   - instance the job type with env, user, resource requirements, etc
-        #   - execute the job type
-        #   - (done) - workload handed off to job type including
-        #     ram_max/ram_warning check, user -> uid conversion (or warning, on
-        #     windows), etc
+        def remove_assignment(index):
+            del config["current_assignments"][index]
+
+        def loaded_jobtype(jobtype_class):
+            instance = jobtype_class(data)
+            deferred = instance._start()
+            deferred.addCallback(lambda _: remove_assignment(index))
+            deferred.addErrback(lambda _: remove_assignment(index))
+
+        # Load the job type then pass the class along to the
+        # callback.  No errback here because all the errors
+        # are handled internally in this case.
+        jobtype_loader = JobType.load(data)
+        jobtype_loader.addCallback(loaded_jobtype)
 
         return NOT_DONE_YET

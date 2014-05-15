@@ -18,9 +18,11 @@ import os
 import re
 import logging
 import shutil
+import socket
 import tempfile
 from functools import wraps
 from random import randint, choice
+from urllib import urlopen
 
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
@@ -35,6 +37,8 @@ PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
 
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
+
+os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
 def rm(path):
@@ -201,3 +205,39 @@ class TestCase(_TestCase):
             fd, tmpfile = tempfile.mkstemp(dir=directory)
             files.append(tmpfile)
         return directory, files
+
+
+class BaseRequestTestCase(TestCase):
+    HTTP_SCHEME = read_env(
+        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
+    HOSTNAME = read_env(
+        "PYFARM_AGENT_TEST_HTTP_HOSTNAME", "httpbin.org")
+    BASE_URL = read_env(
+        "PYFARM_AGENT_TEST_URL", "%(scheme)s://%(hostname)s")
+    REDIRECT_TARGET = read_env(
+        "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
+    base_url = BASE_URL % {"scheme": HTTP_SCHEME, "hostname": HOSTNAME}
+
+    # DNS working?
+    try:
+        socket.gethostbyname(HOSTNAME)
+    except socket.gaierror:
+        RESOLVED_DNS_NAME = False
+    else:
+        RESOLVED_DNS_NAME = True
+
+    # Basic http request working?
+    try:
+        urlopen(base_url)
+    except IOError:
+        HTTP_REQUEST_SUCCESS = False
+    else:
+        HTTP_REQUEST_SUCCESS = True
+
+    def setUp(self):
+        if not self.RESOLVED_DNS_NAME:
+            self.skipTest("Could not resolve hostname %s" % self.HOSTNAME)
+
+        if not self.HTTP_REQUEST_SUCCESS:
+            self.skipTest(
+                "Failed to send an http request to %s" % self.base_url)

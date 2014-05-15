@@ -14,21 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """
-Entry Points
-------------
+Config
+++++++
 
-This module contains
+Contains the endpoint for viewing and working with the configuration
+on the agent.
 """
 
-from pyfarm.agent.entrypoints.commands import AgentEntryPoint, fake_render
+# NOTE: This module is named 'config' instead of 'configuration' like
+# in the web ui to match the underlying object name and to differentiate
+# the names a little more.
 
-# the entrypoint used in setup.py
-agent = AgentEntryPoint()
+from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.config import config
+from pyfarm.agent.utility import dumps
 
 
-# Normally this shouldn't be included in source code but we're
-# doing so here so a job type types not have to have the virtual
-# environment loaded.
-if __name__ == "__main__":
-    fake_render()
+# TODO: add POST to modify keys
+class Config(APIResource):
+    isLeaf = False  # this is not really a collection of things
+
+    def get(self, **kwargs):
+        return dumps(dict(config))

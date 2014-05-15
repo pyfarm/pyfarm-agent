@@ -84,7 +84,6 @@ setup(
         "pyfarm.agent.http",
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
-        "pyfarm.agent.process",
         "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
@@ -93,7 +92,10 @@ setup(
     namespace_packages=["pyfarm"],
     entry_points={
         "console_scripts": [
-            "pyfarm-agent = pyfarm.agent.entrypoints:agent"]},
+            "pyfarm-agent = pyfarm.agent.entrypoints:agent",
+            "pyfarm-dev-fakerender = pyfarm.agent.entrypoints:fake_render",
+            "pyfarm-dev-fakework = "
+            "   pyfarm.agent.entrypoints.commands:fake_work"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-agent",

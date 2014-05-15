@@ -19,8 +19,8 @@
         "title": "test job"
     },
     "jobtype": {
-        "name": "TestJobType",
-        "version": 0
+        "name": "FakeRender",
+        "version": 1
     },
     "tasks": [
         {"id": 1, "frame": 1},

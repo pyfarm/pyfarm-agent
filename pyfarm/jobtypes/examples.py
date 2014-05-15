@@ -1,6 +1,6 @@
 # No shebang line, this module is meant to be imported
 #
-# Copyright 2013 Oliver Palmer
+# Copyright 2014 Oliver Palmer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,22 @@
 # limitations under the License.
 
 """
-Job Types
-=========
+Examples
+--------
 
-This package, :mod:`pyfarm.jobtypes`, contains the code which
-executes a task on an agent.
+This module contains some basic example job type implementations.
 """
+
+from pyfarm.core.files import which
+from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.jobtypes.core.process import ProcessInputs
+
+
+class FakeRender(JobType):
+    def build_process_inputs(self):
+        fakerender = which("pyfarm-dev-fakerender")
+
+        for task in self.assignments():
+            yield ProcessInputs(
+                [task],
+                (fakerender, "-s", task["frame"], "-e", task["frame"]))

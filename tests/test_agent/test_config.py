@@ -43,6 +43,8 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
 class TestLoggingConfiguration(TestCase):
     def get_data(self):
         return {
+            "jobtypes": {},
+            "current_assignments": [],
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}
 

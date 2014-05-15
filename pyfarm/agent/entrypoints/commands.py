@@ -21,11 +21,20 @@ Commands
 The main module which constructs the entrypoint(s) for the agent.
 """
 
+from __future__ import division
+
 import argparse
+import ctypes
+import hashlib
 import os
+import sys
 import time
+from collections import namedtuple
 from functools import partial
-from os.path import abspath, dirname, isfile, join
+from json import dumps
+from random import choice, randint, random
+from textwrap import dedent
+from os.path import abspath, dirname, isfile, join, isdir
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -46,7 +55,9 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.enums import OS, WINDOWS, UseAgentAddress, AgentState
+from pyfarm.core.enums import (
+    OS, WINDOWS, UseAgentAddress, AgentState, NUMERIC_TYPES)
+from pyfarm.core.utility import convert
 
 # start logging before doing anything else
 from pyfarm.agent.logger import getLogger, start_logging
@@ -261,14 +272,13 @@ class AgentEntryPoint(object):
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
 
-
         # start logging options
         logging_group = start.add_argument_group(
             "Logging Options",
             description="Settings which control logging of the agent's parent "
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
-            "--log", default="pyfarm-agent.log",
+            "--log", default=join("logs", "pyfarm-agent.log"),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
@@ -276,6 +286,13 @@ class AgentEntryPoint(object):
             "--logerr",
             help="If provided then split any output from stderr into this file "
                  "path, otherwise send it to the same file as --log.")
+        logging_group.add_argument(
+            "--capture-process-output", default=False, action="store_true",
+            help="If provided then all log output from each process launched "
+                 "by the agent will be sent through agent's loggers.")
+        logging_group.add_argument(
+            "--task-log-dir", default=join("logs", "tasks"),
+            help="The directory tasks should log to.")
 
         # network options for the agent when start is called
         start_network = start.add_argument_group(
@@ -325,12 +342,17 @@ class AgentEntryPoint(object):
             help="The max number of times to retry a request to the master "
                  "after it has failed.  [default: %(default)s]")
         start_http_group.add_argument(
-            "--http-retry-delay", default=3,
+            "--http-retry-delay", default=5,
             type=partial(number, instance=self),
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 
-        # start_ram_group = start.add_argument_group("Memory")
+        jobtype_group = start.add_argument_group("Job Types")
+        jobtype_group.add_argument(
+            "--jobtype-no-cache", default=False, action="store_true",
+            help="If provided then do not cache job types, always directly "
+                 "retrieve them.  This is beneficial if you're testing the "
+                 "agent or a new job type class.")
 
         # options when stopping the agent
         stop_process_group = stop.add_argument_group(
@@ -399,6 +421,7 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
+                "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
                 "ip": self.args.ip,
@@ -419,7 +442,10 @@ class AgentEntryPoint(object):
                 "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
-                "api_endpoint_prefix": "/api/v1"}
+                "api-endpoint-prefix": "/api/v1",
+                "jobtype-no-cache": self.args.jobtype_no_cache,
+                "capture-process-output": self.args.capture_process_output,
+                "task-log-dir": self.args.task_log_dir}
 
             config.update(config_flags)
 
@@ -433,6 +459,10 @@ class AgentEntryPoint(object):
             return
 
         logger.info("starting agent")
+
+        if not isdir(self.args.task_log_dir):
+            logger.debug("Creating %s", self.args.task_log_dir)
+            os.makedirs(self.args.task_log_dir)
 
         # create the directory for the stdout log
         if not self.args.no_daemon and not isfile(self.args.log):
@@ -580,4 +610,293 @@ class AgentEntryPoint(object):
             return True
         else:
             return False
+
+
+def fake_render():
+    process = psutil.Process()
+    memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
+    memory_used_at_start = memory_usage()
+    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
+
+    logger.info("sys.argv: %r", sys.argv)
+
+    # build parser
+    parser = argparse.ArgumentParser(
+        description="Very basic command line tool which vaguely simulates a "
+                    "render.")
+    getnum = partial(
+        number, instance=FakeInstance(parser=parser, args=None),
+        types=NUMERIC_TYPES,
+        allow_inf=False, min_=0)
+    parser.add_argument(
+        "--ram", type=getnum, default=25,
+        help="How much ram in megabytes the fake command should consume")
+    parser.add_argument(
+        "--duration", type=getnum, default=5,
+        help="How many seconds it should take to run this command")
+    parser.add_argument(
+        "--return-code", type=getnum, action="append", default=[0],
+        help="The return code to return, declaring this flag multiple times "
+             "will result in a random return code.  [default: %(default)s]")
+    parser.add_argument(
+        "--duration-jitter", type=getnum, default=5,
+        help="Randomly add or subtract this amount to the total duration")
+    parser.add_argument(
+        "--ram-jitter", type=getnum, default=None,
+        help="Randomly add or subtract this amount to the ram")
+    parser.add_argument(
+        "-s", "--start", type=getnum, required=True,
+        help="The start frame.  If no other flags are provided this will also "
+             "be the end frame.")
+    parser.add_argument(
+        "-e", "--end", type=getnum, help="The end frame")
+    parser.add_argument(
+        "-b", "--by", type=getnum, help="The by frame", default=1)
+    parser.add_argument(
+        "--spew", default=False, action="store_true",
+        help="Spews lots of random output to stdout which is generally "
+             "a decent stress test for log processing issues.  Do note however "
+             "that this will disable the code which is consuming extra CPU "
+             "cycles.  Also, use this option with care as it can generate "
+             "several gigabytes of data per frame.")
+    parser.add_argument(
+        "--segfault", action="store_true",
+        help="If provided then there's a 25%% chance of causing a segmentation "
+             "fault.")
+    args = parser.parse_args()
+
+    if args.end is None:
+        args.end = args.start
+
+    if args.ram_jitter is None:
+        args.ram_jitter = int(args.ram / 2)
+
+    assert args.end >= args.start and args.by >= 1
+
+    random_output = None
+    if args.spew:
+        random_output = list(os.urandom(1024).encode("hex") for _ in xrange(15))
+
+    errors = 0
+    if isinstance(args.start, float):
+        logger.warning(
+            "Truncating `start` to an integer (float not yet supported)")
+        args.start = int(args.start)
+
+    if isinstance(args.end, float):
+        logger.warning(
+            "Truncating `end` to an integer (float not yet supported)")
+        args.end = int(args.end)
+
+    if isinstance(args.by, float):
+        logger.warning(
+            "Truncating `by` to an integer (float not yet supported)")
+        args.by = int(args.by)
+
+    for frame in xrange(args.start, args.end + 1, args.by):
+        duration = args.duration + randint(
+            -args.duration_jitter, args.duration_jitter)
+        ram_usage = max(
+            0, args.ram + randint(-args.ram_jitter, args.ram_jitter))
+        logger.info("Starting frame %04d", frame)
+
+        # Warn if we're already using more memory
+        if ram_usage < memory_used_at_start:
+            logger.warning(
+                "Memory usage starting up is higher than the value provided, "
+                "defaulting --ram to %s", memory_used_at_start)
+
+        # Consume the requested memory (or close to)
+        # TODO: this is unrealistic, majority of renders don't eat ram like this
+        memory_to_consume = int(ram_usage - memory_usage())
+        big_string = " " * 1048576  # ~ 1MB of memory usage
+        if memory_to_consume > 0:
+            start = time.time()
+            logger.debug(
+                "Consuming %s megabytes of memory", memory_to_consume)
+            try:
+                big_string += big_string * memory_to_consume
+
+            except MemoryError:
+                logger.error("Cannot render, not enough memory")
+                errors += 1
+                continue
+
+            logger.debug(
+                "Finished consumption of memory in %s seconds.  Off from "
+                "target memory usage by %sMB.",
+                time.time() - start, memory_usage() - ram_usage)
+
+        # Decently guaranteed to cause a segmentation fault.  Originally from:
+        #   https://wiki.python.org/moin/CrashingPython#ctypes
+        if args.segfault and random() > .25:
+            i = ctypes.c_char('a')
+            j = ctypes.pointer(i)
+            c = 0
+            while True:
+                j[c] = 'a'
+                c += 1
+            j
+
+        # Continually hash a part of big_string to consume
+        # cpu cycles
+        end_time = time.time() + duration
+        last_percent = None
+        while time.time() < end_time:
+            if args.spew:
+                print >> sys.stdout, choice(random_output)
+            else:
+                hashlib.sha1(big_string[:4096])  # consume CPU cycles
+
+            progress = (1 - (end_time - time.time()) / duration) * 100
+            percent, _ = divmod(progress, 5)
+            if percent != last_percent:
+                last_percent = percent
+                logger.info("Progress %03d%%", progress)
+
+        if last_percent is None:
+            logger.info("Progress 100%%")
+
+        logger.info("Finished frame %04d in %s seconds", frame, duration)
+
+    if errors:
+        logger.error("Render finished with errors")
+        sys.exit(1)
+    else:
+        return_code = choice(args.return_code)
+        logger.info("exit %s", return_code)
+
+
+def fake_work():
+    parser = argparse.ArgumentParser(
+        description="Quick and dirty script to create a job type, a job, and "
+                    "some tasks which are then posted directly to the "
+                    "agent.  The primary purpose of this script is to test "
+                    "the internal of the job types")
+    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
+    getint = partial(
+        integer, instance=FakeInstance(parser=parser, args=None),
+        allow_inf=False, min_=0)
+    parser.add_argument(
+        "--master-api", default="http://127.0.0.1/api/v1",
+        help="The url to the master's api [default: %(default)s]")
+    parser.add_argument(
+        "--agent-api", default="http://127.0.0.1:50000/api/v1",
+        help="The url to the agent's api [default: %(default)s]")
+    parser.add_argument(
+        "--jobtype", default="FakeRender",
+        help="The job type to use [default: %(default)s]")
+    parser.add_argument(
+        "--job", type=getint,
+        help="If provided then this will be the job we pull tasks from "
+             "and assign to the agent.  Please note we'll only be pulling "
+             "tasks that aren't running or assigned.")
+    args = parser.parse_args()
+    logger.info("Master args.master_api: %s", args.master_api)
+    logger.info("Agent args.master_api: %s", args.agent_api)
+    assert not args.agent_api.endswith("/")
+    assert not args.master_api.endswith("/")
+    
+    # session to make requests with
+    session = requests.Session()
+    session.headers.update({"content-type": "application/json"})
+
+    existing_jobtype = session.get(
+        args.master_api + "/jobtypes/%s" % args.jobtype)
+
+    # Create a FakeRender job type if one does not exist
+    if not existing_jobtype.ok:
+        sourcecode = dedent("""
+        from pyfarm.jobtypes.examples import %s as _%s
+        class %s(_%s):
+            pass""" % (args.jobtype, args.jobtype, args.jobtype, args.jobtype))
+        response = session.post(
+            args.master_api + "/jobtypes/",
+            data=dumps({
+                "name": args.jobtype,
+                "classname": args.jobtype,
+                "code": sourcecode,
+                "max_batch": 1}))
+        assert response.ok, response.json()
+        jobtype_data = response.json()
+        logger.info(
+            "Created job type %r, id %r", args.jobtype, jobtype_data["id"])
+
+    else:
+        jobtype_data = existing_jobtype.json()
+        logger.info(
+            "Job type %r already exists, id %r",
+            args.jobtype, jobtype_data["id"])
+
+    jobtype_version = jobtype_data["version"]
+
+    if args.job is None:
+        job = session.post(
+            args.master_api + "/jobs/",
+            data=dumps({
+                "start": 1,
+                "end": 3,
+                "title": "Fake Job - %s" % int(time.time()),
+                "jobtype": args.jobtype}))
+        assert job.ok, job.json()
+        job = job.json()
+        logger.info("Job %r created", job["id"])
+    else:
+        job = session.get(args.master_api + "/jobs/%s" % args.job)
+        if not job.ok:
+            logger.error("No such job with id %r", args.job)
+            return
+        else:
+            job = job.json()
+            logger.info("Job %r exists", job["id"])
+
+    tasks = session.get(args.master_api + "/jobs/%s/tasks/" % job["id"])
+    assert tasks.ok
+
+    job_tasks = []
+    for task in tasks.json():
+        if task["state"] not in ("queued", "failed"):
+            logger.info(
+                "Can't use task %s, it's state is not 'queued' or 'failed'",
+                task["id"])
+            continue
+
+        if task["agent_id"] is not None:
+            logger.info(
+                "Can't use task %s, it already has an agent assigned",
+                task["id"])
+
+        job_tasks.append({"id": task["id"], "frame": task["frame"]})
+
+    if not job_tasks:
+        logger.error("Could not find any tasks to send for job %s", job["id"])
+        return
+
+    logger.info(
+        "Found %s tasks from job %s to assign to %r",
+        len(job_tasks), job["id"], args.agent_api)
+
+    assignment_data = {
+        "job": {
+            "id": job["id"],
+            "by": job["by"],
+            "ram": job["ram"],
+            "ram_warning": job["ram_warning"],
+            "ram_max": job["ram_max"],
+            "cpus": job["cpus"],
+            "batch": job["batch"],
+            "user": job["user"],
+            "data": job["data"],
+            "environ": job["environ"],
+            "title": job["title"]},
+        "jobtype": {
+            "name": args.jobtype,
+            "version": jobtype_version},
+        "tasks": job_tasks}
+
+    response = session.post(
+        args.agent_api + "/assign",
+        data=dumps(assignment_data))
+    assert response.ok, response.json()
+    logger.info("Tasks posted to agent")
 
