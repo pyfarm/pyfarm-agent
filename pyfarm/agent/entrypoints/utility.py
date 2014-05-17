@@ -260,7 +260,7 @@ def get_system_identifier(cache=None):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
-    integer and then XORed together into hexadecimal
+    integer then XORed together into a hexadecimal
     value no greater than 0xffffffffffff.
 
     This value is used to help identify the agent to the
