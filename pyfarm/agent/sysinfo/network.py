@@ -175,7 +175,7 @@ def addresses(private_only=True):
 
 def interfaces():
     """Returns the names of all valid network interface names"""
-    results = []
+    results = set()
 
     for name in netifaces.interfaces():
         # only add network interfaces which have IPv4
@@ -185,9 +185,10 @@ def interfaces():
             continue
 
         if any(addr.get("addr") for addr in addresses[socket.AF_INET]):
-            yield name
-            results.append(name)
+            results.add(name)
 
     if not results:  # pragma: no cover
         logger.warning("Failed to find any interfaces")
+
+    return tuple(results)
 
