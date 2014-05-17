@@ -26,6 +26,7 @@ import atexit
 import os
 import sys
 from os.path import isfile, isdir, dirname
+from random import randint
 
 try:
     from os import setuid, setgid, fork
@@ -41,6 +42,7 @@ from requests import ConnectionError
 from pyfarm.core.enums import OS
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
+from pyfarm.agent.sysinfo import network
 
 logger = getLogger("agent")
 
@@ -252,3 +254,58 @@ def write_pid_file(path, pid):
             logger.warning("failed to remove %s: %s" % (pidfile, e))
 
     atexit.register(remove_pid_file, path)
+
+
+def get_system_identifier(cache=None):
+    """
+    Generate a system identifier based on the mac addresses
+    of this system.  Each mac address is converted to an
+    integer and then XORed together into hexadecimal
+    value no greater than 0xffffffffffff.
+
+    This value is used to help identify the agent to the
+    master more reliably than by other means alone.  In general
+    we only create this value once so even if the mac addresses
+    should change the return value should not.
+
+    :param string cache:
+        If provided then the value will be retrieved from this
+        location if it exists.  If the location does not exist
+        however this function will generate the value and then
+        store it for future use.
+    """
+    # read from cache if a file was provided
+    if cache is not None and isfile(cache):
+        with open(cache, "rb") as cache_file:
+            data = cache_file.read()
+            logger.debug("Read system identifier %r from %r", data, cache)
+            return data
+
+    result = 0
+    for mac in network.mac_addresses():
+        result ^= int("0x" + mac.replace(":", ""), 0)
+
+    # Under rare conditions we could end up not generating
+    # anything.  In these cases produce a warning then
+    # generate something random.
+    if result == 0:
+        logger.warning(
+            "Failed to generate a system identifier.  One will be "
+            "generated randomly and then cached for future use.")
+
+        result = randint(0, 281474976710655)
+
+    result = hex(result)[2:]
+
+    if cache is not None:
+        try:
+            with open(cache, "wb") as cache_file:
+                cache_file.write(result)
+        except (IOError, OSError) as e:
+            logger.warning(
+                "Failed to write system identifier to %r: %s", cache, e)
+        else:
+            logger.debug(
+                "Cached system identifier %r to %r", result, cache_file.name)
+
+    return result
