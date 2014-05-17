@@ -67,7 +67,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_default_ip)
+    get_pids, start_daemon_posix, write_pid_file)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -111,10 +111,6 @@ class AgentEntryPoint(object):
             "Agent Network Service",
             description="Main flags which control the network services running "
                         "on the agent.")
-        global_network.add_argument(
-            "--ip", default=get_default_ip(), type=partial(ip, instance=self),
-            help="The IPv4 address which the agent will report to the "
-                 "master [default: %(default)s]")
         global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
@@ -424,7 +420,6 @@ class AgentEntryPoint(object):
                 "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
-                "ip": self.args.ip,
                 "port": self.args.port,
                 "use-address": self.args.use_address,
                 "state": self.args.state,

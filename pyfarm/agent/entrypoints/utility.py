@@ -41,7 +41,6 @@ from requests import ConnectionError
 from pyfarm.core.enums import OS
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.agent.sysinfo import network
 
 logger = getLogger("agent")
 
@@ -253,17 +252,3 @@ def write_pid_file(path, pid):
             logger.warning("failed to remove %s: %s" % (pidfile, e))
 
     atexit.register(remove_pid_file, path)
-
-
-def get_default_ip():
-    """returns the default ip address to use"""
-    try:
-        return network.ip()
-
-    # Not testing because this is difficult to replicate under the most
-    # circumstances depending on the network.  The test case for this
-    # does cover the results here however in the event we do find
-    # a case.
-    except ValueError:  # pragma: no cover
-        logger.error("failed to find network ip address")
-        return "127.0.0.1"
