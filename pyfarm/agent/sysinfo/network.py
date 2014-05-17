@@ -146,9 +146,9 @@ def hostname(trust_name_from_ips=True):
     return name
 
 
-def addresses():
-    """Returns a list of all non-local ip addresses."""
-    addresses = []
+def addresses(private_only=True):
+    """Returns a tuple of all non-local ip addresses."""
+    results = set()
 
     for interface in interfaces():
         addrinfo = netifaces.ifaddresses(interface)
@@ -156,18 +156,21 @@ def addresses():
             addr = address.get("addr")
 
             if addr is not None:
+                # Make sure that what we're getting out of
+                # netifaces is something we can use.
                 try:
                     ip = IPAddress(addr)
                 except ValueError:  # pragma: no cover
                     logger.error(
                         "Could not convert %s to a valid IP object" % addr)
                 else:
-                    if ip in IP_PRIVATE:
-                        yield addr
-                        addresses.append(addr)
+                    if ip in IP_PRIVATE or not private_only:
+                        results.add(addr)
 
     if not addresses:  # pragma: no cover
         logger.error("No addresses could be found")
+
+    return tuple(results)
 
 
 def interfaces():
