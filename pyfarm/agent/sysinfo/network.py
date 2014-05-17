@@ -89,7 +89,8 @@ def hostname(trust_name_from_ips=True):
     # to.  We'll use this set later to compare again what the system
     # is telling is the hostname should be.
     reverse_hostnames = set()
-    for address in addresses():
+    ip_addresses = addresses()
+    for address in ip_addresses:
         try:
             dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
 
@@ -115,7 +116,7 @@ def hostname(trust_name_from_ips=True):
 
     if not reverse_hostnames:
         logger.warning(
-            "DNS failed to resolve %s to hostnames", list(addresses()))
+            "DNS failed to resolve %s to hostnames", ip_addresses)
 
     local_hostname = socket.gethostname()
     local_fqdn_query = socket.getfqdn()
