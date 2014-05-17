@@ -52,10 +52,26 @@ IP_NONNETWORK = IPSet([
     IPNetwork("127.0.0.0/8"),       # loopback
     IPNetwork("224.0.0.0/4"),       # multicast
     IPNetwork("255.255.255.255")])  # broadcast
-HEX_CHARS = (
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    "a", "b", "c", "d", "e", "f")
 
+
+def mac_addresses(exclude=("00:00:00:00:00:00", )):
+    """
+    Returns a tuple of all mac addresses on the system
+
+    :param tuple exclude:
+        Specific mac mac addresses that should not be returned from
+        this function.  By default this is '00:00:00:00:00:00'.
+    """
+    results = set()
+    for interface in map(netifaces.ifaddresses, netifaces.interfaces()):
+        for address in interface.get(netifaces.AF_LINK, []):
+            mac = address.get("addr")
+            if mac is None or mac in exclude:
+                continue
+
+            results.add(mac)
+
+    return tuple(results)
 
 
 def hostname(trust_name_from_ips=True):
