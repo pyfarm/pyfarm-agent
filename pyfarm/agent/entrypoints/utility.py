@@ -299,11 +299,18 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     """
     remove_cache = False
 
-    if isinstance(systemid, INTEGER_TYPES) and not (
-            0 < systemid <= SYSTEM_IDENT_MAX):
-        raise ValueError("systemid's range is 0 to %s" % SYSTEM_IDENT_MAX)
+    if isinstance(systemid, INTEGER_TYPES):
+        if not 0 < systemid <= SYSTEM_IDENT_MAX:
+            raise ValueError("systemid's range is 0 to %s" % SYSTEM_IDENT_MAX)
 
-    elif systemid is not None:
+        # We don't want to cache custom values because the default behavior
+        # is to read the correct system id from disk
+        logger.warning(
+            "Specific system identifier has been provided, this value will "
+            "not be cached.")
+        return systemid
+
+    if systemid is not None:
         raise TypeError("Expected ``systemid`` to be an integer")
 
     if cache_path is not None and not isinstance(cache_path, STRING_TYPES):
