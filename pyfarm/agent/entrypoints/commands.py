@@ -56,7 +56,7 @@ import requests
 from requests import ConnectionError
 
 from pyfarm.core.enums import (
-    OS, WINDOWS, UseAgentAddress, AgentState, NUMERIC_TYPES)
+    OS, WINDOWS, AgentState, NUMERIC_TYPES)
 from pyfarm.core.utility import convert
 
 # start logging before doing anything else
@@ -67,7 +67,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file)
+    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -420,6 +420,9 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
+                "systemid": get_system_identifier(
+                    systemid=self.args.systemid,
+                    cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
