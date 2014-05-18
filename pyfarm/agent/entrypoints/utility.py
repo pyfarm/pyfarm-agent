@@ -289,10 +289,25 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     :param bool overwrite:
         If ``True`` then overwrite the cache instead of reading
         from it
+
+    :raises ValueError:
+        Raised if ``systemid`` is provided and it's outside the value
+        range of input (0 to :const:`SYSTEM_IDENT_MAX`)
+
+    :raises TypeError:
+        Raised if we receive an unexpected type for one of the inputs
     """
-    assert systemid is None or isinstance(systemid, INTEGER_TYPES)
-    assert cache_path is None or isinstance(cache_path, STRING_TYPES)
     remove_cache = False
+
+    if isinstance(systemid, INTEGER_TYPES) and not (
+            0 < systemid <= SYSTEM_IDENT_MAX):
+        raise ValueError("systemid's range is 0 to %s" % SYSTEM_IDENT_MAX)
+
+    elif systemid is not None:
+        raise TypeError("Expected ``systemid`` to be an integer")
+
+    if cache_path is not None and not isinstance(cache_path, STRING_TYPES):
+        raise TypeError("Expected a string for ``cache_path``")
 
     # read from cache if a file was provided
     if cache_path is not None and (overwrite or isfile(cache_path)):
