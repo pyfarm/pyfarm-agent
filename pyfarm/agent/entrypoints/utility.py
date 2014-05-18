@@ -46,6 +46,8 @@ from pyfarm.agent.sysinfo import network
 
 logger = getLogger("agent")
 
+SYSTEM_IDENT_MAX = 281474976710655
+
 
 def get_json(url):
     """retrieve the json data from the given url or returns None"""
@@ -260,13 +262,18 @@ def get_system_identifier(cache=None):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
-    integer then XORed together into a hexadecimal
-    value no greater than 0xffffffffffff.
+    integer then XORed together into an integer value
+    no greater than 281474976710655.
 
     This value is used to help identify the agent to the
     master more reliably than by other means alone.  In general
     we only create this value once so even if the mac addresses
     should change the return value should not.
+
+    For reference, this function builds a system identifier in
+    exactly the same way :func:`uuid.getnode` does.  The main
+    differences are that we can handle multiple addresses and
+    cache the value between invocations.
 
     :param string cache:
         If provided then the value will be retrieved from this
@@ -274,12 +281,50 @@ def get_system_identifier(cache=None):
         however this function will generate the value and then
         store it for future use.
     """
+    cached_value = None
+    remove_cache = False
+
     # read from cache if a file was provided
     if cache is not None and isfile(cache):
         with open(cache, "rb") as cache_file:
             data = cache_file.read()
-            logger.debug("Read system identifier %r from %r", data, cache)
-            return data
+
+        # Convert the data in the cache file back to an integer
+        try:
+            cached_value = int(data)
+
+        # If we can't convert it
+        except ValueError as e:
+            remove_cache = True
+            logger.warning(
+                "System identifier in %r could not be converted to "
+                "an integer: %r", cache, e)
+
+        # Be sure that the cached value is smaller than then
+        # max we expect.
+        if cached_value is not None and cached_value > SYSTEM_IDENT_MAX:
+            remove_cache = True
+            logger.warning(
+                "The system identifier found in %r cannot be "
+                "larger than %s.", cache, SYSTEM_IDENT_MAX)
+
+        # Somewhere above we determined that the cache file
+        # contains invalid information and must be removed.
+        if remove_cache:
+            try:
+                os.remove(cache)
+            except (IOError, OSError):
+                logger.fatal(
+                    "Failed to remove invalid cache file %r", cache)
+                raise
+            else:
+                logger.debug(
+                    "Removed invalid system identifier cache %r", cache)
+
+        if cached_value is not None and not remove_cache:
+            logger.debug(
+                "Read system identifier %r from %r", cached_value, cache)
+            return cached_value
 
     result = 0
     for mac in network.mac_addresses():
@@ -293,14 +338,12 @@ def get_system_identifier(cache=None):
             "Failed to generate a system identifier.  One will be "
             "generated randomly and then cached for future use.")
 
-        result = randint(0, 281474976710655)
-
-    result = hex(result)[2:]  # strip off 0x
+        result = randint(0, SYSTEM_IDENT_MAX)
 
     if cache is not None:
         try:
             with open(cache, "wb") as cache_file:
-                cache_file.write(result)
+                cache_file.write(str(result))
         except (IOError, OSError) as e:
             logger.warning(
                 "Failed to write system identifier to %r: %s", cache, e)
