@@ -312,14 +312,6 @@ class AgentEntryPoint(object):
                  "agent is behind a firewall this value will typically be "
                  "different.")
         start_network.add_argument(
-            "--use-address", default=UseAgentAddress.REMOTE,
-            type=partial(
-                enum, instance=self, flag="use-address",
-                enum=UseAgentAddress),
-            help="The default way the master should contact the agent.  The "
-                 "default is '%(default)s' but it could be any "
-                 "of " + str(list(UseAgentAddress)))
-        start_network.add_argument(
             "--hostname", default=network.hostname(),
             help="The agent's hostname to send to the master "
                  "[default: %(default)s]")
@@ -432,7 +424,6 @@ class AgentEntryPoint(object):
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
                 "port": self.args.port,
-                "use-address": self.args.use_address,
                 "state": self.args.state,
                 "ram": self.args.ram,
                 "cpus": self.args.cpus,
