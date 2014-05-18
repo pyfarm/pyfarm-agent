@@ -90,6 +90,22 @@ class TestSystemIdentifier(TestCase):
 
         self.assertEqual(42, get_system_identifier(cache_path=path))
 
+    def test_invalid_systemid_range(self):
+        self.assertRaises(
+            ValueError,
+            lambda: get_system_identifier(systemid=SYSTEM_IDENT_MAX + 1))
+
+    def test_invalid_systemid_type(self):
+        self.assertRaises(
+            TypeError,
+            lambda: get_system_identifier(systemid=""))
+
+    def test_invalid_cache_path_type(self):
+        self.assertRaises(
+            TypeError,
+            lambda: get_system_identifier(cache_path=1))
+
+
 
 class PidFile(TestCase):
     filenames = set()

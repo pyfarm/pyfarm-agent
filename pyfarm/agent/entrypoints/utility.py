@@ -305,7 +305,7 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
 
         # We don't want to cache custom values because the default behavior
         # is to read the correct system id from disk
-        logger.warning(
+        logger.warning(  # pragma: no cover
             "Specific system identifier has been provided, this value will "
             "not be cached.")
         return systemid
