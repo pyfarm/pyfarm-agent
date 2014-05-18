@@ -172,7 +172,7 @@ class TestRunAgent(TestCase):
                 finished.errback(e)
 
             # callbacks can't be called twice so we reset the callback
-            self.agent.agent_created = agent_created_two
+            self.agent.master_contacted = agent_created_two
 
             deferred = self.agent.start_search_for_agent()
             deferred.addCallbacks(
