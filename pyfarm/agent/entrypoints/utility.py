@@ -39,7 +39,7 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.enums import OS, STRING_TYPES
+from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.agent.sysinfo import network
@@ -258,7 +258,7 @@ def write_pid_file(path, pid):
     atexit.register(remove_pid_file, path)
 
 
-def get_system_identifier(cache=None, overwrite=False):
+def get_system_identifier(systemid=None, cache=None, overwrite=False):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
@@ -275,6 +275,10 @@ def get_system_identifier(cache=None, overwrite=False):
     differences are that we can handle multiple addresses and
     cache the value between invocations.
 
+    :param int systemid:
+        If provided then user this value directly instead of trying
+        to generate one.
+
     :param string cache:
         If provided then the value will be retrieved from this
         location if it exists.  If the location does not exist
@@ -285,6 +289,7 @@ def get_system_identifier(cache=None, overwrite=False):
         If ``True`` then overwrite the cache instead of reading
         from it
     """
+    assert systemid is None or isinstance(systemid, INTEGER_TYPES)
     assert cache is None or isinstance(cache, STRING_TYPES)
     cached_value = None
     remove_cache = False
@@ -331,19 +336,22 @@ def get_system_identifier(cache=None, overwrite=False):
                 "Read system identifier %r from %r", cached_value, cache)
             return cached_value
 
-    result = 0
-    for mac in network.mac_addresses():
-        result ^= int("0x" + mac.replace(":", ""), 0)
+    if systemid is None:
+        result = 0
+        for mac in network.mac_addresses():
+            result ^= int("0x" + mac.replace(":", ""), 0)
 
-    # Under rare conditions we could end up not generating
-    # anything.  In these cases produce a warning then
-    # generate something random.
-    if result == 0:  # pragma: no cover
-        logger.warning(
-            "Failed to generate a system identifier.  One will be "
-            "generated randomly and then cached for future use.")
+        # Under rare conditions we could end up not generating
+        # anything.  In these cases produce a warning then
+        # generate something random.
+        if result == 0:  # pragma: no cover
+            logger.warning(
+                "Failed to generate a system identifier.  One will be "
+                "generated randomly and then cached for future use.")
 
-        result = randint(0, SYSTEM_IDENT_MAX)
+            result = randint(0, SYSTEM_IDENT_MAX)
+    else:
+        result = systemid
 
     if cache is not None:
         try:
