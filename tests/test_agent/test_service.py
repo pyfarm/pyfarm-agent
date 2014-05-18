@@ -48,7 +48,6 @@ class TestAgentBasicMethods(TestCase):
     def test_system_data(self):
         expected = {
             "hostname": config["hostname"],
-            "ip": config["ip"],
             "use_address": config["use-address"],
             "ram": config["ram"],
             "cpus": config["cpus"],
