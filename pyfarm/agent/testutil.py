@@ -172,8 +172,6 @@ class TestCase(_TestCase):
             "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
             "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
-            "ip": "10.%s.%s.%s" % (
-                randint(1, 255), randint(1, 255), randint(1, 255)),
             "use-address": choice(UseAgentAddress),
             "ram": int(memory.total_ram()),
             "cpus": cpu.total_cpus(),
