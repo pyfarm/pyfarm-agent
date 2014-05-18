@@ -78,7 +78,7 @@ class Agent(object):
         been set
         """
         try:
-            return cls.agents_endpoint() + config["agent-id"]
+            return cls.agents_endpoint() + str(config["agent-id"])
         except KeyError:
             svclog.error(
                 "The `agent-id` configuration value has not been set yet")
@@ -90,7 +90,7 @@ class Agent(object):
         Returns the API endpoint for used for updating or creating
         agents on the master
         """
-        return "%(master-api)s/agents/" % config
+        return config["master-api"] + "/agents/"
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -335,14 +335,14 @@ class Agent(object):
 
             if response.code == OK:
                 svclog.info(
-                    "POST to %s was successful. Agent was "
-                    "updated", self.agents_endpoint())
+                    "POST to %s was successful. Agent %s was updated.",
+                    self.agents_endpoint(), config["agent-id"])
 
             elif response.code == CREATED:
                 svclog.info(
                     "POST to %s was successful.  A new agent "
-                    "with an id of %(agent-id)s was created.",
-                    self.agents_endpoint())
+                    "with an id of %s was created.",
+                    self.agents_endpoint(), config["agent-id"])
 
     def post_agent_to_master(self):
         """
