@@ -65,7 +65,7 @@ start_logging()
 
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
-    ip, port, uidgid, direxists, enum, integer, number)
+    ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
     get_pids, start_daemon_posix, write_pid_file)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
@@ -125,6 +125,17 @@ class AgentEntryPoint(object):
             "--agent-api-password", default="agent",
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
+        global_network.add_argument(
+            "--systemid",
+            type=partial(system_identifier, instance=self),
+            help="The system identification value.  This is used to help "
+                 "identify the system itself to the master when the agent "
+                 "connects.")
+        global_network.add_argument(
+            "--systemid-cache",
+            default=join(".agent", "systemid"),
+            help="The location to cache the value for --systemid. "
+                 "[default: %(default)s")
 
         # defaults for a couple of the command line flags below
         self.master_api_default = "http://%(master)s/api/v1"
@@ -274,7 +285,7 @@ class AgentEntryPoint(object):
             description="Settings which control logging of the agent's parent "
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
-            "--log", default=join("logs", "pyfarm-agent.log"),
+            "--log", default=join(".agent", "logs", "pyfarm-agent.log"),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
@@ -287,7 +298,7 @@ class AgentEntryPoint(object):
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", default=join("logs", "tasks"),
+            "--task-log-dir", default=join(".agent", "logs", "tasks"),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -444,7 +455,7 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
+        self.agent_api = "http://%s:%s/" % (self.args.hostname, self.args.port)
         self.args.target_func()
 
     def start(self):
