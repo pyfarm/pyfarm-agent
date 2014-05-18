@@ -126,7 +126,6 @@ class Agent(object):
 
         data = {
             "hostname": config["hostname"],
-            "ip": config["ip"],
             "use_address": config["use-address"],
             "ram": int(config["ram"]),
             "cpus": config["cpus"],
