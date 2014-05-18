@@ -39,7 +39,7 @@ import psutil
 import requests
 from requests import ConnectionError
 
-from pyfarm.core.enums import OS
+from pyfarm.core.enums import OS, STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.agent.sysinfo import network
@@ -285,6 +285,7 @@ def get_system_identifier(cache=None, overwrite=False):
         If ``True`` then overwrite the cache instead of reading
         from it
     """
+    assert cache is None or isinstance(cache, STRING_TYPES)
     cached_value = None
     remove_cache = False
 
@@ -317,7 +318,7 @@ def get_system_identifier(cache=None, overwrite=False):
         if remove_cache:
             try:
                 os.remove(cache)
-            except (IOError, OSError):
+            except (IOError, OSError):  # pragma: no cover
                 logger.fatal(
                     "Failed to remove invalid cache file %r", cache)
                 raise
@@ -337,7 +338,7 @@ def get_system_identifier(cache=None, overwrite=False):
     # Under rare conditions we could end up not generating
     # anything.  In these cases produce a warning then
     # generate something random.
-    if result == 0:
+    if result == 0:  # pragma: no cover
         logger.warning(
             "Failed to generate a system identifier.  One will be "
             "generated randomly and then cached for future use.")
@@ -348,7 +349,7 @@ def get_system_identifier(cache=None, overwrite=False):
         try:
             with open(cache, "wb") as cache_file:
                 cache_file.write(str(result))
-        except (IOError, OSError) as e:
+        except (IOError, OSError) as e:  # pragma: no cover
             logger.warning(
                 "Failed to write system identifier to %r: %s", cache, e)
         else:
