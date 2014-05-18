@@ -276,8 +276,9 @@ def get_system_identifier(systemid=None, cache=None, overwrite=False):
     cache the value between invocations.
 
     :param int systemid:
-        If provided then user this value directly instead of trying
-        to generate one.
+        If provided then use this value directly instead of trying
+        to generate one.  This is useful if you want to use a
+        specific value and provide caching at the same time.
 
     :param string cache:
         If provided then the value will be retrieved from this
