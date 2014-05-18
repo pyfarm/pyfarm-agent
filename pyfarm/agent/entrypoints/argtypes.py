@@ -80,6 +80,18 @@ def port(value, instance=None):
 
         return value
 
+@assert_instance
+def system_identifier(value, instance=None):
+    """validates a --systemid value"""
+    if value is None:
+        raise NotImplementedError("TODO")
+    try:
+        value = convert.ston(value)
+    except (ValueError, SyntaxError):
+        instance.parser.error("failed to convert --systemid to a number")
+    else:
+        pass
+
 # Function is not currently tested because uid/gid mapping is system specific,
 # may require access to external network resources, and internally is
 # covered for the most part by other tests.
