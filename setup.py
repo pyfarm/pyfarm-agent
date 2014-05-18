@@ -47,8 +47,7 @@ if sys.platform.startswith("win"):
             "Python package repository.  Please visit "
             "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
             "download and install this package.")
-    else:
-        install_requires.append("wmi")
+
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
