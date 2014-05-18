@@ -6,6 +6,7 @@
 *.pyo
 *.swp
 *~
+.*
 *egg*
 .coverage
 .profile
