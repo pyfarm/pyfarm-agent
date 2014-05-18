@@ -258,7 +258,7 @@ def write_pid_file(path, pid):
     atexit.register(remove_pid_file, path)
 
 
-def get_system_identifier(systemid=None, cache=None, overwrite=False):
+def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
@@ -280,7 +280,7 @@ def get_system_identifier(systemid=None, cache=None, overwrite=False):
         to generate one.  This is useful if you want to use a
         specific value and provide caching at the same time.
 
-    :param string cache:
+    :param string cache_path:
         If provided then the value will be retrieved from this
         location if it exists.  If the location does not exist
         however this function will generate the value and then
@@ -291,78 +291,80 @@ def get_system_identifier(systemid=None, cache=None, overwrite=False):
         from it
     """
     assert systemid is None or isinstance(systemid, INTEGER_TYPES)
-    assert cache is None or isinstance(cache, STRING_TYPES)
-    cached_value = None
+    assert cache_path is None or isinstance(cache_path, STRING_TYPES)
     remove_cache = False
 
     # read from cache if a file was provided
-    if cache is not None and (overwrite or isfile(cache)):
-        with open(cache, "rb") as cache_file:
-            data = cache_file.read()
+    if cache_path is not None and (overwrite or isfile(cache_path)):
+        with open(cache_path, "rb") as cache_file:
+            cache_data = cache_file.read()
 
         # Convert the data in the cache file back to an integer
         try:
-            cached_value = int(data)
+            systemid = int(cache_data)
 
-        # If we can't convert it
         except ValueError as e:
             remove_cache = True
             logger.warning(
                 "System identifier in %r could not be converted to "
-                "an integer: %r", cache, e)
+                "an integer: %r", cache_path, e)
 
         # Be sure that the cached value is smaller than then
         # max we expect.
-        if cached_value is not None and cached_value > SYSTEM_IDENT_MAX:
+        if systemid is not None and systemid > SYSTEM_IDENT_MAX:
+            systemid = None
             remove_cache = True
             logger.warning(
                 "The system identifier found in %r cannot be "
-                "larger than %s.", cache, SYSTEM_IDENT_MAX)
+                "larger than %s.", cache_path, SYSTEM_IDENT_MAX)
 
         # Somewhere above we determined that the cache file
         # contains invalid information and must be removed.
         if remove_cache:
             try:
-                os.remove(cache)
+                os.remove(cache_path)
             except (IOError, OSError):  # pragma: no cover
                 logger.fatal(
-                    "Failed to remove invalid cache file %r", cache)
+                    "Failed to remove invalid cache file %r", cache_path)
                 raise
             else:
                 logger.debug(
-                    "Removed invalid system identifier cache %r", cache)
+                    "Removed invalid system identifier cache %r", cache_path)
 
-        if cached_value is not None and not remove_cache:
+        # We have a systemid value already and the cache file itself
+        # is not invalid.
+        if systemid is not None and not remove_cache:
             logger.debug(
-                "Read system identifier %r from %r", cached_value, cache)
-            return cached_value
+                "Read system identifier %r from %r", systemid, cache_path)
+            return systemid
 
+    # If the system id has not been set, or we invalidated it
+    # above, generate it.
     if systemid is None:
-        result = 0
+        systemid = 0
         for mac in network.mac_addresses():
-            result ^= int("0x" + mac.replace(":", ""), 0)
+            systemid ^= int("0x" + mac.replace(":", ""), 0)
 
         # Under rare conditions we could end up not generating
         # anything.  In these cases produce a warning then
         # generate something random.
-        if result == 0:  # pragma: no cover
+        if systemid == 0:  # pragma: no cover
             logger.warning(
                 "Failed to generate a system identifier.  One will be "
                 "generated randomly and then cached for future use.")
 
-            result = randint(0, SYSTEM_IDENT_MAX)
-    else:
-        result = systemid
+            systemid = randint(0, SYSTEM_IDENT_MAX)
 
-    if cache is not None:
+    # Try to cache the value
+    if cache_path is not None:
         try:
-            with open(cache, "wb") as cache_file:
-                cache_file.write(str(result))
+            with open(cache_path, "wb") as cache_file:
+                cache_file.write(str(systemid))
         except (IOError, OSError) as e:  # pragma: no cover
             logger.warning(
-                "Failed to write system identifier to %r: %s", cache, e)
+                "Failed to write system identifier to %r: %s", cache_path, e)
         else:
             logger.debug(
-                "Cached system identifier %r to %r", result, cache_file.name)
+                "Cached system identifier %r to %r", systemid, cache_file.name)
 
-    return result
+    return systemid

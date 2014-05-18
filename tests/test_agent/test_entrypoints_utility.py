@@ -66,7 +66,7 @@ class TestSystemIdentifier(TestCase):
         _, path = tempfile.mkstemp()
         self.add_cleanup_path(path)
 
-        value = get_system_identifier(cache=path, overwrite=True)
+        value = get_system_identifier(cache_path=path, overwrite=True)
         with open(path, "rb") as cache_file:
             cached_value = cache_file.read()
 
@@ -79,7 +79,7 @@ class TestSystemIdentifier(TestCase):
         with open(path, "wb") as cache_file:
             cache_file.write(str(SYSTEM_IDENT_MAX + 10))
 
-        self.assertEqual(self.sysident, get_system_identifier(cache=path))
+        self.assertEqual(self.sysident, get_system_identifier(cache_path=path))
 
     def test_retrieves_stored_value(self):
         _, path = tempfile.mkstemp()
@@ -88,7 +88,7 @@ class TestSystemIdentifier(TestCase):
         with open(path, "wb") as cache_file:
             cache_file.write(str(42))
 
-        self.assertEqual(42, get_system_identifier(cache=path))
+        self.assertEqual(42, get_system_identifier(cache_path=path))
 
 
 class PidFile(TestCase):
