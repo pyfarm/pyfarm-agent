@@ -289,7 +289,7 @@ def get_system_identifier(cache=None, overwrite=False):
     remove_cache = False
 
     # read from cache if a file was provided
-    if cache is not None and overwrite or isfile(cache):
+    if cache is not None and (overwrite or isfile(cache)):
         with open(cache, "rb") as cache_file:
             data = cache_file.read()
 
