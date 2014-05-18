@@ -26,13 +26,13 @@ import time
 from datetime import datetime
 from functools import partial
 from httplib import (
-    responses, BAD_REQUEST, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+    responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 from os.path import join
 from random import random
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -71,12 +71,6 @@ class Agent(object):
         self.scheduled_tasks = ScheduledTaskManager()
         self.last_free_ram_post = time.time()
 
-        # Some 'success' callbacks that get hit whenever
-        # certain events happen.  We don't use these much
-        # internally but they are/can be used externally when
-        # a method returns a DeferredList
-        self.master_contacted = Deferred()
-
     @classmethod
     def agent_api(cls):
         """
@@ -84,11 +78,19 @@ class Agent(object):
         been set
         """
         try:
-            return "%(master-api)s/agents/%(agent-id)s" % config
+            return cls.agents_endpoint() + config["agent-id"]
         except KeyError:
             svclog.error(
                 "The `agent-id` configuration value has not been set yet")
             return None
+
+    @classmethod
+    def agents_endpoint(cls):
+        """
+        Returns the API endpoint for used for updating or creating
+        agents on the master
+        """
+        return "%(master-api)s/agents/" % config
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -283,56 +285,76 @@ class Agent(object):
         post_update()
         return finished
 
-    def posted_to_master(self, response):
+    def errback_post_agent_to_master(self, failure):
+        """
+        Called when there's a failure trying to post the agent to the
+        master.  This is often because of some lower level issue but it
+        may be recoverable to we retry the request.
+        """
+        delay = http_retry_delay()
+
+        if failure.type is ConnectionRefusedError:
+            svclog.error(
+                "Failed to POST agent to master, the connection was refused. "
+                "Retrying in %s seconds", delay)
+        else:
+            svclog.error(
+                "Unhandled error when trying to POST the agent to the master. "
+                "The error was %s.  Retrying in %s seconds.", failure, delay)
+
+        return reactor.callLater(
+            http_retry_delay(), self.post_agent_to_master)
+
+    def callback_post_agent_to_master(self, response):
+        """
+        Called when we get a response after POSTing the agent to the
+        master.
+        """
+        # Master might be down or some other internal problem
+        # that might eventually be fixed.  Retry the request.
         if response.code >= 500:
             delay = http_retry_delay()
             svclog.warning(
                 "Failed to post to master due to a server side error "
-                "error, retrying in %s seconds", delay)
+                "error %s, retrying in %s seconds", response.code, delay)
             reactor.callLater(delay, self.post_agent_to_master)
-            return
 
-        data = response.json()
-        config["agent-id"] = data["id"]
+        # Master is up but is rejecting our request because there's something
+        # wrong with it.  Do not retry the request.
+        elif response.code >= 400:
+            svclog.error(
+                "%s accepted our POST request but responded with code %s "
+                "which is a client side error.  The message the server "
+                "responded with was %r.  Sorry, but we cannot retry this "
+                "request as it's an issue with the agent's request.",
+                self.agents_endpoint(), response.code, response.data())
 
-        if response.code == OK:
-            svclog.info(
-                "POST to %(master-api)s/agents/ was successful. Agent was "
-                "updated", config)
-
-        if response.code == CREATED:
-            svclog.info(
-                "POST to %(master-api)s/agents/ was successful.  A new agent "
-                "with an id of %(agent-id)s was created.", config)
-
-        self.master_contacted.callback(response)
-        return self.master_contacted
-
-    def post_agent_to_master(self, run=True):
-        """
-        Produces a callable object which will initiate the process
-        necessary to search for this agent.  This is a method on the class
-        itself so we can repeat the search from any location.
-        """
-        system_data = self.system_data()
-
-        def post_agent():
-            return post(
-                "%(master-api)s/agents/" % config,
-                callback=self.posted_to_master,
-                # errback=self.errback_search_for_agent,
-                data=system_data)
-
-        if run:
-            # Returns a DeferredList because we have to wait
-            # for the search to complete which will then fire
-            # the deferred object on self.agent_created.  This
-            # ensures that any callbacks attached to this return
-            # value won't do anything until we're finished search
-            # for the agent in the database.
-            return DeferredList([post_agent(), self.master_contacted])
         else:
-            return post_agent
+            data = response.json()
+            config["agent-id"] = data["id"]
+
+            if response.code == OK:
+                svclog.info(
+                    "POST to %s was successful. Agent was "
+                    "updated", self.agents_endpoint())
+
+            elif response.code == CREATED:
+                svclog.info(
+                    "POST to %s was successful.  A new agent "
+                    "with an id of %(agent-id)s was created.",
+                    self.agents_endpoint())
+
+    def post_agent_to_master(self):
+        """
+        Runs the POST request to contact the master.  Running this method
+        multiple times should be considered safe but is generally something
+        that should be avoided.
+        """
+        return post(
+            self.agents_endpoint(),
+            callback=self.callback_post_agent_to_master,
+            errback=self.errback_post_agent_to_master,
+            data=self.system_data())
 
     def callback_post_free_ram(self, response):
         """
