@@ -295,7 +295,7 @@ def get_system_identifier(cache=None):
 
         result = randint(0, 281474976710655)
 
-    result = hex(result)[2:]
+    result = hex(result)[2:]  # strip off 0x
 
     if cache is not None:
         try:
