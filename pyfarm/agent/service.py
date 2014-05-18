@@ -75,7 +75,7 @@ class Agent(object):
         # certain events happen.  We don't use these much
         # internally but they are/can be used externally when
         # a method returns a DeferredList
-        self.agent_created = Deferred()
+        self.master_contacted = Deferred()
 
     @classmethod
     def agent_api(cls):
@@ -203,7 +203,7 @@ class Agent(object):
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
         config.register_callback("free_ram", self.callback_free_ram_changed)
         config.register_callback("cpus", self.callback_cpu_count_changed)
-        return self.start_search_for_agent()
+        return self.post_agent_to_master()
 
     def shutdown_task_manager(self):
         """
@@ -283,20 +283,45 @@ class Agent(object):
         post_update()
         return finished
 
-    def start_search_for_agent(self, run=True):
+    def posted_to_master(self, response):
+        if response.code >= 500:
+            delay = http_retry_delay()
+            svclog.warning(
+                "Failed to post to master due to a server side error "
+                "error, retrying in %s seconds", delay)
+            reactor.callLater(delay, self.post_agent_to_master)
+            return
+
+        data = response.json()
+        config["agent-id"] = data["id"]
+
+        if response.code == OK:
+            svclog.info(
+                "POST to %(master-api)s/agents/ was successful. Agent was "
+                "updated", config)
+
+        if response.code == CREATED:
+            svclog.info(
+                "POST to %(master-api)s/agents/ was successful.  A new agent "
+                "with an id of %(agent-id)s was created.", config)
+
+        self.master_contacted.callback(response)
+        return self.master_contacted
+
+    def post_agent_to_master(self, run=True):
         """
         Produces a callable object which will initiate the process
         necessary to search for this agent.  This is a method on the class
         itself so we can repeat the search from any location.
         """
-        def search():
-            system_data = self.system_data()
-            return get(
+        system_data = self.system_data()
+
+        def post_agent():
+            return post(
                 "%(master-api)s/agents/" % config,
-                callback=self.callback_search_for_agent,
-                errback=self.errback_search_for_agent,
-                params={
-                    "hostname": system_data["hostname"]})
+                callback=self.posted_to_master,
+                # errback=self.errback_search_for_agent,
+                data=system_data)
 
         if run:
             # Returns a DeferredList because we have to wait
@@ -305,181 +330,9 @@ class Agent(object):
             # ensures that any callbacks attached to this return
             # value won't do anything until we're finished search
             # for the agent in the database.
-            return DeferredList([search(), self.agent_created])
+            return DeferredList([post_agent(), self.master_contacted])
         else:
-            return search
-
-    def create_agent(self, run=True):
-        """Creates a new agent on the master"""
-        def create():
-            svclog.info("Registering this agent with the master")
-            return post(
-                "%(master-api)s/agents/" % config,
-                callback=self.callback_agent_created,
-                errback=self.errback_agent_created,
-                data=self.system_data())
-
-        return create() if run else create
-
-    def callback_agent_created(self, response):
-        """
-        Callback run when we're able to create the agent on the master.  This
-        method will retry the original request of the
-        """
-        if response.code == CREATED:
-            data = response.json()
-            config["agent-id"] = data["id"]
-            svclog.info("Agent is now online (created on master)")
-            self.agent_created.callback(CREATED)
-        else:
-            delay = http_retry_delay()
-            svclog.warning(
-                "We expected to receive an CREATED response code but instead"
-                "we got %s. Retrying in %s seconds.",
-                responses[response.code], delay)
-            reactor.callLater(delay, self.create_agent(run=False))
-
-    def errback_agent_created(self, failure):
-        """
-        Error handler run whenever an error is raised while trying
-        to create the agent on the master.  The failed request will be
-        retried.
-        """
-        delay = http_retry_delay()
-        svclog.warning(
-            "There was a problem creating the agent: %s.  Retrying "
-            "in %r seconds.", failure, delay)
-        reactor.callLater(delay, self.create_agent(run=False))
-
-    def post_to_existing_agent(self, run=True):
-        """
-        Either executes the code necessary to post system data to
-        an existing agent or returns a callable to do so.
-        """
-        def run_post():
-            return post(self.agent_api(),
-                data=self.system_data(),
-                callback=self.callback_post_existing_agent,
-                errback=self.errback_post_existing_agent)
-        return run_post() if run else run_post
-
-    def callback_post_existing_agent(self, response):
-        """
-        Called when we got a response back while trying to post updated
-        information to an existing agent.  This should happen as a result
-        of other callbacks being run at startup.
-        """
-        if response.code == OK:
-            svclog.info("Agent is now online (updated on master)")
-            self.agent_created.callback(OK)
-        else:
-            delay = http_retry_delay()
-            svclog.warning(
-                "We expected to receive an OK response code but instead"
-                "we got %s.  Retrying in %s.", responses[response.code], delay)
-            reactor.callLater(delay, self.post_to_existing_agent(run=False))
-
-    def errback_post_existing_agent(self, failure):
-        """
-        Error handler which is called if we fail to post an update
-        to an existing agent for some reason.
-        """
-        delay = http_retry_delay()
-        svclog.warning(
-            "There was error updating an existing agent: %s.  Retrying "
-            "in %r seconds", failure, delay)
-        reactor.callLater(delay, self.post_to_existing_agent(run=False))
-
-    def callback_search_for_agent(self, response):
-        """
-        Callback that gets called whenever we search for the agent.  This
-        search occurs at startup and after this callback finishes we
-        we'll either post updates to an existing agent or
-        """
-        delay = http_retry_delay()
-
-        if response.code == OK:
-            system_data = self.system_data()
-            agents_found = response.json()
-
-            if agents_found:
-                svclog.debug(
-                    "This agent may already be registered with the master")
-
-                # see if there's an agent which is the exact same as
-                # this agent
-                similar_agents = []
-                if isinstance(agents_found, list):
-                    for agent in agents_found:
-                        match_ip = \
-                            agent["ip"] == system_data["ip"]
-                        match_hostname = \
-                            agent["hostname"] == system_data["hostname"]
-                        match_port = agent["port"] == config["port"]
-
-                        # this agent matches exactly, setup the configuration
-                        if match_ip and match_hostname and match_port:
-                            svclog.info(
-                                "This agent is registered with the master, its "
-                                "id is %r.", agent["id"])
-                            config["agent-id"] = agent["id"]
-
-                            # now that we've found the agent,
-                            # post out date to the master
-                            self.post_to_existing_agent()
-                            break
-
-                        # close but it's the wrong port
-                        elif match_ip and match_hostname:
-                            similar_agents.append(agent)
-
-                    else:
-                        if similar_agents:
-                            svclog.info(
-                                "There are similar agents registered with the "
-                                "master but this agent is not.")
-                            self.create_agent()
-            else:
-                svclog.debug(
-                    "This agent is not currently registered with the master.")
-                self.create_agent()
-
-        elif config >= BAD_REQUEST:
-            svclog.warning(
-                "Something was either wrong with our request or the "
-                "server cannot handle it at this time: %s.  Retrying in "
-                "%s seconds.", response.data(), delay)
-            reactor.callLater(delay, lambda: response.request.retry())
-
-        # Retry anyway otherwise we could end up with the agent doing
-        # nothing.
-        else:
-            svclog.error(
-                "Unhandled case while attempting to find registered "
-                "agent: %s (code: %s).  Retrying in %s seconds.",
-                response.data(), response.code, delay)
-            reactor.callLater(delay, lambda: response.request.retry())
-
-    def errback_search_for_agent(self, failure):
-        """
-        Callback that gets called when we fail to search for the agent
-        due to an exception (not a response code).
-        """
-        delay = http_retry_delay()
-        if failure.type is ConnectionRefusedError:
-            agents_api = "%(master-api)s/agents/" % config
-            svclog.warning(
-                "Connection refused to %s: %s. Retrying in %s seconds.",
-                agents_api, failure, delay)
-
-        else:
-            # TODO: need a better way of making these errors visible
-            svclog.critical(
-                "Unhandled exception: %s.  Retrying in %s seconds.",
-                failure, delay)
-            svclog.exception(failure)
-
-        reactor.callLater(delay, self.start_search_for_agent(run=False))
+            return post_agent
 
     def callback_post_free_ram(self, response):
         """
