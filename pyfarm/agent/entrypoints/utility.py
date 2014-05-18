@@ -258,7 +258,7 @@ def write_pid_file(path, pid):
     atexit.register(remove_pid_file, path)
 
 
-def get_system_identifier(cache=None):
+def get_system_identifier(cache=None, overwrite=False):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
@@ -280,12 +280,16 @@ def get_system_identifier(cache=None):
         location if it exists.  If the location does not exist
         however this function will generate the value and then
         store it for future use.
+
+    :param bool overwrite:
+        If ``True`` then overwrite the cache instead of reading
+        from it
     """
     cached_value = None
     remove_cache = False
 
     # read from cache if a file was provided
-    if cache is not None and isfile(cache):
+    if cache is not None and overwrite or isfile(cache):
         with open(cache, "rb") as cache_file:
             data = cache_file.read()
 
