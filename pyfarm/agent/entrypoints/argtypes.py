@@ -32,6 +32,7 @@ from netaddr import AddrFormatError, IPAddress
 from pyfarm.core.enums import OS, NUMERIC_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
+from pyfarm.agent.entrypoints.utility import SYSTEM_IDENT_MAX
 
 INFINITE = set(["inf", "infinite", "unlimited"])
 logger = getLogger("agent")
@@ -76,21 +77,24 @@ def port(value, instance=None):
 
         if low_port > value or value > high_port:
             instance.parser.error(
-                "valid port range is %s-%s" % (low_port, high_port))
+                "valid port range is %s to %s" % (low_port, high_port))
 
         return value
 
 @assert_instance
 def system_identifier(value, instance=None):
     """validates a --systemid value"""
-    if value is None:
-        raise NotImplementedError("TODO")
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
-        instance.parser.error("failed to convert --systemid to a number")
+        instance.parser.error(
+            "failed to convert value provided to --systemid to an integer")
     else:
-        pass
+        if 0 > value or value > SYSTEM_IDENT_MAX:
+            instance.parser.error(
+                "valid range for --systemid is 0 to %s" % SYSTEM_IDENT_MAX)
+
+        return value
 
 # Function is not currently tested because uid/gid mapping is system specific,
 # may require access to external network resources, and internally is
