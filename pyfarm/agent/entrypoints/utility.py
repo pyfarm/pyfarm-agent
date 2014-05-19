@@ -161,7 +161,7 @@ def get_pids(pidfile, index_url):
 # This is a Linux specific test and will be hard to get due to the nature
 # of how the tests are run, for now we're excluding it.
 # TODO: figure out a reliable way to test  start_daemon_posix
-def start_daemon_posix(log, logerr, chroot, uid, gid):  # pragma: no cover
+def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
     """
     Runs the agent process via a double fork.  This basically a duplicate
     of Marcechal's original code with some adjustments:
@@ -205,11 +205,10 @@ def start_daemon_posix(log, logerr, chroot, uid, gid):  # pragma: no cover
 
     # open up file descriptors for the new process
     stdin = open(os.devnull, "r")
-    stdout = open(log, "a+")
-    stderr = open(logerr, "a+", 0)
+    logout = open(log, "a+", 0)
     os.dup2(stdin.fileno(), sys.stdin.fileno())
-    os.dup2(stdout.fileno(), sys.stdout.fileno())
-    os.dup2(stderr.fileno(), sys.stderr.fileno())
+    os.dup2(logout.fileno(), sys.stdout.fileno())
+    os.dup2(logout.fileno(), sys.stderr.fileno())
 
     # if requested, set the user id of this process
     if uid is not None and setuid is not NotImplemented:
