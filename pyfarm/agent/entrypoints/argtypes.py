@@ -32,7 +32,7 @@ from netaddr import AddrFormatError, IPAddress
 from pyfarm.core.enums import OS, NUMERIC_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.agent.entrypoints.utility import SYSTEM_IDENT_MAX
+from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 
 INFINITE = set(["inf", "infinite", "unlimited"])
 logger = getLogger("agent")
@@ -90,9 +90,9 @@ def system_identifier(value, instance=None):
         instance.parser.error(
             "failed to convert value provided to --systemid to an integer")
     else:
-        if 0 > value or value > SYSTEM_IDENT_MAX:
+        if 0 > value or value > SYSTEMID_MAX:
             instance.parser.error(
-                "valid range for --systemid is 0 to %s" % SYSTEM_IDENT_MAX)
+                "valid range for --systemid is 0 to %s" % SYSTEMID_MAX)
 
         return value
 

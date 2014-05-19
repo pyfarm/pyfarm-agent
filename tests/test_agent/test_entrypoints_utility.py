@@ -24,7 +24,7 @@ import psutil
 from pyfarm.core.config import read_env
 from pyfarm.agent.entrypoints.utility import (
     get_json, get_system_identifier, write_pid_file, get_process,
-    SYSTEM_IDENT_MAX)
+    SYSTEMID_MAX)
 from pyfarm.agent.sysinfo import network
 from pyfarm.agent.testutil import TestCase
 
@@ -77,7 +77,7 @@ class TestSystemIdentifier(TestCase):
         self.add_cleanup_path(path)
 
         with open(path, "wb") as cache_file:
-            cache_file.write(str(SYSTEM_IDENT_MAX + 10))
+            cache_file.write(str(SYSTEMID_MAX + 10))
 
         self.assertEqual(self.sysident, get_system_identifier(cache_path=path))
 
@@ -93,7 +93,7 @@ class TestSystemIdentifier(TestCase):
     def test_invalid_systemid_range(self):
         self.assertRaises(
             ValueError,
-            lambda: get_system_identifier(systemid=SYSTEM_IDENT_MAX + 1))
+            lambda: get_system_identifier(systemid=SYSTEMID_MAX + 1))
 
     def test_invalid_systemid_type(self):
         self.assertRaises(

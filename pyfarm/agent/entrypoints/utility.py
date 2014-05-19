@@ -46,7 +46,7 @@ from pyfarm.agent.sysinfo import network
 
 logger = getLogger("agent")
 
-SYSTEM_IDENT_MAX = 281474976710655
+SYSTEMID_MAX = 281474976710655
 
 
 def get_json(url):
@@ -292,7 +292,7 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
 
     :raises ValueError:
         Raised if ``systemid`` is provided and it's outside the value
-        range of input (0 to :const:`SYSTEM_IDENT_MAX`)
+        range of input (0 to :const:`SYSTEMID_MAX`)
 
     :raises TypeError:
         Raised if we receive an unexpected type for one of the inputs
@@ -300,8 +300,8 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     remove_cache = False
 
     if isinstance(systemid, INTEGER_TYPES):
-        if not 0 < systemid <= SYSTEM_IDENT_MAX:
-            raise ValueError("systemid's range is 0 to %s" % SYSTEM_IDENT_MAX)
+        if not 0 < systemid <= SYSTEMID_MAX:
+            raise ValueError("systemid's range is 0 to %s" % SYSTEMID_MAX)
 
         # We don't want to cache custom values because the default behavior
         # is to read the correct system id from disk
@@ -333,12 +333,12 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
 
         # Be sure that the cached value is smaller than then
         # max we expect.
-        if systemid is not None and systemid > SYSTEM_IDENT_MAX:
+        if systemid is not None and systemid > SYSTEMID_MAX:
             systemid = None
             remove_cache = True
             logger.warning(
                 "The system identifier found in %r cannot be "
-                "larger than %s.", cache_path, SYSTEM_IDENT_MAX)
+                "larger than %s.", cache_path, SYSTEMID_MAX)
 
         # Somewhere above we determined that the cache file
         # contains invalid information and must be removed.
@@ -375,7 +375,7 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
                 "Failed to generate a system identifier.  One will be "
                 "generated randomly and then cached for future use.")
 
-            systemid = randint(0, SYSTEM_IDENT_MAX)
+            systemid = randint(0, SYSTEMID_MAX)
 
     # Try to cache the value
     if cache_path is not None:
