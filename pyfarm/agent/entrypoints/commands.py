@@ -402,15 +402,9 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            # if --logerr was not set then we have to set it
-            # to --log's value here
-            if self.args.logerr is None:
-                self.args.logerr = self.args.log
-
             # since the agent process could fork we must make
             # sure the log file paths are fully specified
             self.args.log = abspath(self.args.log)
-            self.args.logerr = abspath(self.args.logerr)
             self.args.pidfile = abspath(self.args.pidfile)
             self.args.static_files = abspath(self.args.static_files)
 
