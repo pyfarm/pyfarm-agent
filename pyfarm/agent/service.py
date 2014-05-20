@@ -43,7 +43,7 @@ from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
-from pyfarm.agent.http.core.client import post, get, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
@@ -127,6 +127,7 @@ class Agent(object):
                         config["time-offset"], config["ntp-server"])
 
         data = {
+            "systemid": config["systemid"],
             "hostname": config["hostname"],
             "ram": int(config["ram"]),
             "cpus": config["cpus"],
