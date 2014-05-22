@@ -42,7 +42,7 @@ from requests import ConnectionError
 from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
-from pyfarm.agent.sysinfo import network
+from pyfarm.agent.sysinfo import system
 
 logger = getLogger("agent")
 
@@ -362,9 +362,7 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     # If the system id has not been set, or we invalidated it
     # above, generate it.
     if systemid is None:
-        systemid = 0
-        for mac in network.mac_addresses():
-            systemid ^= int("0x" + mac.replace(":", ""), 0)
+        systemid = system.system_identifier()
 
         # Under rare conditions we could end up not generating
         # anything.  In these cases produce a warning then
