@@ -54,22 +54,28 @@ IP_NONNETWORK = IPSet([
     IPNetwork("255.255.255.255")])  # broadcast
 
 
-def mac_addresses(exclude=("00:00:00:00:00:00", )):
+def mac_addresses(long_addresses=False, as_integers=False):
     """
-    Returns a tuple of all mac addresses on the system
+    Returns a tuple of all mac addresses on the system.
 
-    :param tuple exclude:
-        Specific mac mac addresses that should not be returned from
-        this function.  By default this is '00:00:00:00:00:00'.
+    :param bool standard_length_only:
+        Some adapters will specify a mac address which is longer
+        than the standard value of six pairs.  Setting this value
+        to False will allow these to be displayed.
+
+    :param bool as_integers:
+        When ``True`` convert all mac addresses to integers.
     """
     results = set()
-    for interface in map(netifaces.ifaddresses, netifaces.interfaces()):
-        for address in interface.get(netifaces.AF_LINK, []):
-            mac = address.get("addr")
-            if mac is None or mac in exclude:
-                continue
+    for ifaces in map(netifaces.ifaddresses, netifaces.interfaces()):
+        for entry in ifaces.get(netifaces.AF_LINK, []):
+            mac = entry.get("addr", "")
 
-            results.add(mac)
+            if all([mac, not long_addresses, len(mac) == 17]) \
+                    or not all([not long_addresses, mac]):
+                if as_integers:
+                    mac = int("0x" + mac.replace(":", ""), 0)
+                results.add(mac)
 
     return tuple(results)
 
@@ -151,7 +157,7 @@ def addresses(private_only=True):
     """Returns a tuple of all non-local ip addresses."""
     results = set()
 
-    for interface in interfaces():
+    for interface in netifaces.interfaces():
         addrinfo = netifaces.ifaddresses(interface)
         for address in addrinfo.get(socket.AF_INET, []):
             addr = address.get("addr")
