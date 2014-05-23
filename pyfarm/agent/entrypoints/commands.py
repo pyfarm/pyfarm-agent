@@ -53,7 +53,9 @@ except ImportError:  # pragma: no cover
 
 import psutil
 import requests
+import signal
 from requests import ConnectionError
+from twisted.internet import reactor
 
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import (
@@ -235,6 +237,12 @@ class AgentEntryPoint(object):
             dest="pretty_json",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
+        start_general_group.add_argument(
+            "--terminate-on-sigint", default=False, action="store_true",
+            help="If provided then sending the SIGINT signal (Ctrl+c) will "
+                 "cause the agent to stop immediately.  The default behavior "
+                 "is to finish operations such as HTTP retries first, this "
+                 "bypasses that behavior.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -438,7 +446,8 @@ class AgentEntryPoint(object):
                 "api-endpoint-prefix": "/api/v1",
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
-                "task-log-dir": self.args.task_log_dir}
+                "task-log-dir": self.args.task_log_dir,
+                "terminate-on-sigint": self.args.terminate_on_sigint}
 
             config.update(config_flags)
 
@@ -488,11 +497,21 @@ class AgentEntryPoint(object):
         if getgid is not NotImplemented:
             logger.info("gid: %s" % getgid())
 
-        from twisted.internet import reactor
         from pyfarm.agent.service import Agent
 
         service = Agent()
         service.run()
+
+        # Explicitly handle sigint (Ctrl-c) so the reactor
+        # won't try to keep rerunning certain bits of code
+        # such as retry requests.
+        def handle_sigint(*_):
+            if config["terminate-on-sigint"]:
+                config["signal"] = signal.SIGINT
+
+            reactor.stop()
+
+        signal.signal(signal.SIGINT, handle_sigint)
 
         reactor.run()
 
