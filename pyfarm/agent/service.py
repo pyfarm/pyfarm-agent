@@ -452,7 +452,6 @@ class Agent(object):
                 "Something was either wrong with our request or the "
                 "server cannot handle it at this time: %s.  Retrying in "
                 "%s seconds.", response.data(), delay)
-            terminate_if_sigint()
             reactor.callLater(delay, lambda: response.request.retry())
 
         # Retry anyway otherwise we could end up with the agent doing
@@ -462,7 +461,6 @@ class Agent(object):
                 "Unhandled case while attempting to find registered "
                 "agent: %s (code: %s).  Retrying in %s seconds.",
                 response.data(), response.code, delay)
-            terminate_if_sigint()
             reactor.callLater(delay, lambda: response.request.retry())
 
     def errback_search_for_agent(self, failure):
@@ -484,7 +482,6 @@ class Agent(object):
                 failure, delay)
             svclog.exception(failure)
 
-        terminate_if_sigint()
         reactor.callLater(delay, self.start_search_for_agent(run=False))
 
     def callback_post_free_ram(self, response):
