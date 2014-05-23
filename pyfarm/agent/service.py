@@ -289,8 +289,9 @@ class Agent(object):
     def errback_post_agent_to_master(self, failure):
         """
         Called when there's a failure trying to post the agent to the
-        master.  This is often because of some lower level issue but it
-        may be recoverable to we retry the request.
+        master.  This is often because of some lower level issues,
+        such as network issue, but it may be recoverable so we retry the
+        request.
         """
         delay = http_retry_delay()
 
