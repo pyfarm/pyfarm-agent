@@ -24,8 +24,9 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
-from pyfarm.core.enums import AgentState
 
+from pyfarm.core.enums import AgentState
+from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, PYFARM_AGENT_MASTER
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get
@@ -47,8 +48,8 @@ class TestAgentBasicMethods(TestCase):
 
     def test_system_data(self):
         expected = {
+            "systemid": system_identifier(),
             "hostname": config["hostname"],
-            "use_address": config["use-address"],
             "ram": config["ram"],
             "cpus": config["cpus"],
             "port": config["port"],
