@@ -126,8 +126,7 @@ class Agent(object):
 
         data = {
             "hostname": config["hostname"],
-            "ip": config["ip"],
-            "use_address": config["use-address"],
+            "systemid": config["systemid"],
             "ram": int(config["ram"]),
             "cpus": config["cpus"],
             "port": config["port"],
@@ -299,7 +298,7 @@ class Agent(object):
                 errback=self.errback_search_for_agent,
                 params={
                     "hostname": system_data["hostname"],
-                    "ip": system_data["ip"]})
+                    "systemid": system_data["systemid"]})
 
         if run:
             # Returns a DeferredList because we have to wait
