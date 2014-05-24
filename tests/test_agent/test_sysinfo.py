@@ -131,7 +131,12 @@ class Network(TestCase):
             self.assertEqual(
                 network.hostname(trust_name_from_ips=True),
                 reverse_hostnames.pop())
-        else:
+
+        if not reverse_hostnames:
+            self.skipTest(
+                "Could not retrieve any DNS names for this host")
+
+        if len(reverse_hostnames) > 1:
             self.skipTest(
                 "This host's addresses resolve to more than one hostname")
 
