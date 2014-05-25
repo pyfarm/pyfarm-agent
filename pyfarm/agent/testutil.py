@@ -31,7 +31,7 @@ from pyfarm.agent.logger import start_logging
 start_logging()
 
 from pyfarm.core.config import read_env, read_env_bool
-from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
+from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
