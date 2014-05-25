@@ -64,7 +64,11 @@ def get_json(url):
             logger.warning("%s's status was %s" % (url, repr(page.reason)))
             return None
         else:
-            return page.json()
+            try:
+                return page.json()
+            except ValueError:
+                logger.warning("Failed to decode response from %s", url)
+                return None
 
 
 # TODO: improve internal coverage
