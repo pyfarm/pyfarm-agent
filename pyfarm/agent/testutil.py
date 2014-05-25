@@ -24,6 +24,7 @@ from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
+from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.agent.logger import start_logging
@@ -165,6 +166,7 @@ class TestCase(_TestCase):
             return _TestCase.assertRaises(self, exception, f, *args, **kwargs)
 
     def setUp(self):
+        DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
