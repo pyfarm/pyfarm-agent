@@ -95,7 +95,7 @@ class TestPort(BaseTestArgTypes):
         self.assertEqual(self.args.port, 49152)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "49151"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 49152-65535"])
+            self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_max(self):
         self.args = DummyArgs(uid=1000)
@@ -104,7 +104,7 @@ class TestPort(BaseTestArgTypes):
         self.assertEqual(self.args.port, 65535)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "65536"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 49152-65535"])
+            self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_root_min(self):
         self.args = DummyArgs(uid=0)
@@ -113,7 +113,7 @@ class TestPort(BaseTestArgTypes):
         self.assertEqual(self.args.port, 1)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "0"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 1-65535"])
+            self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_valid_root_max(self):
         self.args = DummyArgs(uid=0)
@@ -122,7 +122,7 @@ class TestPort(BaseTestArgTypes):
         self.assertEqual(self.args.port, 65535)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "65536"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 1-65535"])
+            self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_port_not_a_number(self):
         self.args = DummyArgs(uid=0)

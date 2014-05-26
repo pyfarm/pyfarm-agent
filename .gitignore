@@ -6,8 +6,8 @@
 *.pyo
 *.swp
 *~
+.*
 *egg*
-logs*
 .coverage
 .profile
 .idea
