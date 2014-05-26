@@ -266,7 +266,9 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
     integer then XORed together into an integer value
-    no greater than 281474976710655.
+    no greater than 0xffffffffffff.  This maximum value is
+    derived from a mac address which has been maxed out
+    ``ff:ff:ff:ff:ff:ff``.
 
     This value is used to help identify the agent to the
     master more reliably than by other means alone.  In general
