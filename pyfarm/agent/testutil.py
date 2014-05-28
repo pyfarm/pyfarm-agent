@@ -24,13 +24,18 @@ from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
+from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
+from pyfarm.agent.logger import start_logging
+
+start_logging()
+
 from pyfarm.core.config import read_env, read_env_bool
-from pyfarm.core.enums import AgentState, UseAgentAddress, PY26, STRING_TYPES
+from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
-from pyfarm.agent.sysinfo import memory, cpu
+from pyfarm.agent.sysinfo import memory, cpu, system
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -161,20 +166,19 @@ class TestCase(_TestCase):
             return _TestCase.assertRaises(self, exception, f, *args, **kwargs)
 
     def setUp(self):
+        DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
         config.clear(callbacks=True)
         config.update({
+            "systemid": system.system_identifier(),
             "ram-report-delta": 100,
             "http-retry-delay": 1,
             "persistent-http-connections": False,
             "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
             "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
-            "ip": "10.%s.%s.%s" % (
-                randint(1, 255), randint(1, 255), randint(1, 255)),
-            "use-address": choice(UseAgentAddress),
             "ram": int(memory.total_ram()),
             "cpus": cpu.total_cpus(),
             "port": randint(10000, 50000),

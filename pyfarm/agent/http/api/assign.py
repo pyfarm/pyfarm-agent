@@ -61,6 +61,11 @@ def validate_environment(values):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
 
 
+class HandlePost(object):
+    def __init__(self, data):
+        self.data = data
+
+
 class Assign(APIResource):
     isLeaf = False  # this is not really a collection of things
 
@@ -146,15 +151,27 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
+        # TODO Check for double assignments
+        # Seems inefficient, but the assignments dict is unlikely to be large
+        index = 0
+        while index in config["current_assignments"]:
+            index += 1
+        config["current_assignments"][index] = data
+
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
         # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
         request.finish()
 
+        def remove_assignment(index):
+            del config["current_assignments"][index]
+
         def loaded_jobtype(jobtype_class):
             instance = jobtype_class(data)
-            instance.start()
+            deferred = instance._start()
+            deferred.addCallback(lambda _: remove_assignment(index))
+            deferred.addErrback(lambda _: remove_assignment(index))
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors

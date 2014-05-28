@@ -17,7 +17,6 @@
 from __future__ import with_statement
 
 import sys
-assert sys.version_info[0] < 3, "Python 3.x is not yet supported"
 assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 from os import walk
@@ -26,7 +25,7 @@ from setuptools import setup
 
 install_requires = [
     "pyfarm.core",
-    "PyOpenSSL",  # required for https support
+    "PyOpenSSL", "service_identity",  # required for full SSL support
     "netaddr", "twisted", "ntplib", "requests", "treq",
     "voluptuous", "jinja2", "psutil>=2.1.0",
     "netifaces>=0.10.2"]
@@ -47,8 +46,7 @@ if sys.platform.startswith("win"):
             "Python package repository.  Please visit "
             "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
             "download and install this package.")
-    else:
-        install_requires.append("wmi")
+
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
@@ -84,7 +82,6 @@ setup(
         "pyfarm.agent.http",
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
-        "pyfarm.agent.process",
         "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],

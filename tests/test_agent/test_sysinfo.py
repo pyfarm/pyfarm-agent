@@ -91,102 +91,54 @@ class BaseSystem(TestCase):
 
 
 class Network(TestCase):
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_packets_sent_posix(self):
-        v = psutil.net_io_counters(
-            pernic=True)[network.interface()].packets_sent
-        self.assertEqual(network.packets_sent() >= v, True)
+    def test_hostname_ignore_dns_mappings(self):
+        reverse_hostnames = set()
+        for address in network.addresses():
+            try:
+                dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
+            except socket.herror:
+                pass
+            else:
+                if address in dns_addresses:
+                    reverse_hostnames.add(dns_name)
 
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_packets_recv_posix(self):
-        v = psutil.net_io_counters(
-            pernic=True)[network.interface()].packets_recv
-        self.assertEqual(network.packets_received() >= v, True)
+        local_hostname = socket.gethostname()
+        local_fqdn_query = socket.getfqdn()
 
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_data_sent_posix(self):
-        v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[network.interface()].bytes_sent)
-        self.assertEqual(network.data_sent() >= v, True)
-
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_data_recv_posix(self):
-        v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[network.interface()].bytes_recv)
-        self.assertEqual(network.data_received() >= v, True)
-
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_error_incoming_posix(self):
-        v = psutil.net_io_counters(pernic=True)[network.interface()].errin
-        self.assertEqual(network.incoming_error_count() >= v, True)
-
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_error_outgoing_posix(self):
-        v = psutil.net_io_counters(pernic=True)[network.interface()].errout
-        self.assertEqual(network.outgoing_error_count() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_packets_sent_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = psutil.net_io_counters(
-            pernic=True)[interface].packets_sent
-        self.assertEqual(network.packets_sent() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_packets_recv_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = psutil.net_io_counters(
-            pernic=True)[interface].packets_recv
-        self.assertEqual(network.packets_received() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_data_sent_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[interface].bytes_sent)
-        self.assertEqual(network.data_sent() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_data_recv_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = convert.bytetomb(psutil.net_io_counters(
-            pernic=True)[interface].bytes_recv)
-        self.assertEqual(network.data_received() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_error_incoming_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = psutil.net_io_counters(pernic=True)[interface].errin
-        self.assertEqual(network.incoming_error_count() >= v, True)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_error_outgoing_windows(self):
-        interface = network.interface_guid_to_nicename(network.interface())
-        v = psutil.net_io_counters(pernic=True)[interface].errout
-        self.assertEqual(network.outgoing_error_count() >= v, True)
-
-    def test_hostname(self):
-        _hostname = socket.gethostname()
-        hostnames = set([
-            _hostname, _hostname + ".", socket.getfqdn(),
-            socket.getfqdn(_hostname + ".")])
-        for hostname in hostnames:
-            if hostname == network.hostname():
-                break
+        if local_fqdn_query in reverse_hostnames:
+            hostname = local_fqdn_query
+        elif local_hostname in reverse_hostnames:
+            hostname = local_hostname
         else:
-            self.fail("failed to get hostname")
+            hostname = socket.getfqdn(local_hostname)
 
-    def test_hostname_localhost(self):
         self.assertEqual(
-            network.hostname(name="localhost", fqdn="foo"), "foo")
+            network.hostname(trust_name_from_ips=False),
+            hostname)
 
-    def test_fqdn_localhost(self):
-        self.assertEqual(
-            network.hostname(name="foo", fqdn="localhost"), "localhost")
+    def test_hostname_trust_dns_mappings(self):
+        reverse_hostnames = set()
+        for address in network.addresses():
+            try:
+                dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
+            except socket.herror:
+                pass
+            else:
+                if address in dns_addresses:
+                    reverse_hostnames.add(dns_name)
 
-    def test_fqdn_and_hostname_match(self):
-        self.assertEqual(
-            network.hostname(name="foo", fqdn="foo"), "foo.")
+        if len(reverse_hostnames) == 1:
+            self.assertEqual(
+                network.hostname(trust_name_from_ips=True),
+                reverse_hostnames.pop())
+
+        if not reverse_hostnames:
+            self.skipTest(
+                "Could not retrieve any DNS names for this host")
+
+        if len(reverse_hostnames) > 1:
+            self.skipTest(
+                "This host's addresses resolve to more than one hostname")
 
     def test_addresses(self):
         self.assertEqual(len(list(network.addresses())) >= 1, True)
@@ -201,27 +153,6 @@ class Network(TestCase):
 
         addresses = map(netifaces.ifaddresses, names)
         self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
-
-    @skip_on_ci
-    def test_interface(self):
-        self.assertEqual(any(
-            i.get("addr") == network.ip()
-            for i in netifaces.ifaddresses(
-            network.interface()).get(socket.AF_INET, [])), True)
-
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_interface_guid_to_nicename_windows_only(self):
-        self.assertRaises(
-            NotImplementedError,
-            lambda: network.interface_guid_to_nicename(None))
-
-    @skip_if(WINDOWS, "Not POSIX")
-    def test_wmi_import_not_imported(self):
-        self.assertIs(network.wmi, NotImplemented)
-
-    @skip_if(not WINDOWS, "Not Windows")
-    def test_wmi_imported(self):
-        self.assertIsNot(network.wmi, NotImplemented)
 
 
 class Processor(TestCase):

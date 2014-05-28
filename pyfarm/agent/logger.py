@@ -26,6 +26,7 @@ import re
 from collections import deque
 from itertools import islice
 from logging import Handler
+from warnings import warn
 
 from logging import (
     DEBUG, INFO, WARNING, ERROR, CRITICAL,
@@ -283,7 +284,7 @@ def getLogger(name):
         been started with :func:`start_logging`
     """
     if not OBSERVER.STARTED:
-        raise RuntimeError("observer not yet started")
+        warn("Observer not yet started")
 
     logger = _getLogger(name)
     OBSERVER.loggers[logger.name] = logger

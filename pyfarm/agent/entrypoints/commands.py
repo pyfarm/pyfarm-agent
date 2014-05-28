@@ -55,8 +55,9 @@ import psutil
 import requests
 from requests import ConnectionError
 
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import (
-    OS, WINDOWS, UseAgentAddress, AgentState, NUMERIC_TYPES)
+    OS, WINDOWS, AgentState, NUMERIC_TYPES)
 from pyfarm.core.utility import convert
 
 # start logging before doing anything else
@@ -65,9 +66,9 @@ start_logging()
 
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
-    ip, port, uidgid, direxists, enum, integer, number)
+    ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_default_ip)
+    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -106,15 +107,14 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
+        default_data_root = read_env(
+            "PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
+
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
             "Agent Network Service",
             description="Main flags which control the network services running "
                         "on the agent.")
-        global_network.add_argument(
-            "--ip", default=get_default_ip(), type=partial(ip, instance=self),
-            help="The IPv4 address which the agent will report to the "
-                 "master [default: %(default)s]")
         global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
@@ -129,6 +129,17 @@ class AgentEntryPoint(object):
             "--agent-api-password", default="agent",
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
+        global_network.add_argument(
+            "--systemid",
+            type=partial(system_identifier, instance=self),
+            help="The system identification value.  This is used to help "
+                 "identify the system itself to the master when the agent "
+                 "connects.")
+        global_network.add_argument(
+            "--systemid-cache",
+            default=join(default_data_root, "systemid"),
+            help="The location to cache the value for --systemid. "
+                 "[default: %(default)s]")
 
         # defaults for a couple of the command line flags below
         self.master_api_default = "http://%(master)s/api/v1"
@@ -157,11 +168,9 @@ class AgentEntryPoint(object):
                         "They also assist in maintaining the 'running state' "
                         "via a process id file.")
         global_process.add_argument(
-            "--pidfile", default="pyfarm-agent.pid",
-            help="The file to store the process id in, defaulting to "
-                 "%(default)s.  Any provided path will be fully resolved "
-                 "using os.path.abspath prior to running an operation such "
-                 "as `start`")
+            "--pidfile",
+            default=join(default_data_root, "agent.pid"),
+            help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
             help="If provided then do not run the process in the background.")
@@ -278,20 +287,17 @@ class AgentEntryPoint(object):
             description="Settings which control logging of the agent's parent "
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
-            "--log", default=join("logs", "pyfarm-agent.log"),
+            "--log",
+            default=join(default_data_root, "agent.log"),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
-        logging_group.add_argument(
-            "--logerr",
-            help="If provided then split any output from stderr into this file "
-                 "path, otherwise send it to the same file as --log.")
         logging_group.add_argument(
             "--capture-process-output", default=False, action="store_true",
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", default=join("logs", "tasks"),
+            "--task-log-dir", default=join(default_data_root, "task_logs"),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -304,14 +310,6 @@ class AgentEntryPoint(object):
             help="The remote IPv4 address to report.  In situation where the "
                  "agent is behind a firewall this value will typically be "
                  "different.")
-        start_network.add_argument(
-            "--use-address", default=UseAgentAddress.REMOTE,
-            type=partial(
-                enum, instance=self, flag="use-address",
-                enum=UseAgentAddress),
-            help="The default way the master should contact the agent.  The "
-                 "default is '%(default)s' but it could be any "
-                 "of " + str(list(UseAgentAddress)))
         start_network.add_argument(
             "--hostname", default=network.hostname(),
             help="The agent's hostname to send to the master "
@@ -404,15 +402,9 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            # if --logerr was not set then we have to set it
-            # to --log's value here
-            if self.args.logerr is None:
-                self.args.logerr = self.args.log
-
             # since the agent process could fork we must make
             # sure the log file paths are fully specified
             self.args.log = abspath(self.args.log)
-            self.args.logerr = abspath(self.args.logerr)
             self.args.pidfile = abspath(self.args.pidfile)
             self.args.static_files = abspath(self.args.static_files)
 
@@ -421,12 +413,13 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
+                "systemid": get_system_identifier(
+                    systemid=self.args.systemid,
+                    cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
                 "hostname": self.args.hostname,
-                "ip": self.args.ip,
                 "port": self.args.port,
-                "use-address": self.args.use_address,
                 "state": self.args.state,
                 "ram": self.args.ram,
                 "cpus": self.args.cpus,
@@ -449,7 +442,7 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        self.agent_api = "http://%s:%s/" % (self.args.ip, self.args.port)
+        self.agent_api = "http://%s:%s/" % (self.args.hostname, self.args.port)
         self.args.target_func()
 
     def start(self):
@@ -464,7 +457,7 @@ class AgentEntryPoint(object):
             logger.debug("Creating %s", self.args.task_log_dir)
             os.makedirs(self.args.task_log_dir)
 
-        # create the directory for the stdout log
+        # create the directory for log
         if not self.args.no_daemon and not isfile(self.args.log):
             try:
                 os.makedirs(dirname(self.args.log))
@@ -472,23 +465,12 @@ class AgentEntryPoint(object):
                 logger.warning(
                     "failed to create %s" % dirname(self.args.log))
 
-        # create the directory for the stderr log
-        if all([not self.args.no_daemon,
-                self.args.logerr != self.args.log,
-                not isfile(self.args.logerr)]):
-            try:
-                os.makedirs(dirname(self.args.logerr))
-            except OSError:
-                logger.warning(
-                    "failed to create %s" % dirname(self.args.logerr))
-
         # so long as fork could be imported and --no-daemon was not set
         # then setup the log files
         if not self.args.no_daemon and fork is not NotImplemented:
-            logger.info("sending stdout to %s" % self.args.log)
-            logger.info("sending stderr to %s" % self.args.logerr)
+            logger.info("sending log output to %s" % self.args.log)
             start_daemon_posix(
-                self.args.log, self.args.logerr, self.args.chroot,
+                self.args.log, self.args.chroot,
                 self.args.uid, self.args.gid)
 
         elif not self.args.no_daemon and fork is NotImplemented:

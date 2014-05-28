@@ -46,6 +46,7 @@ class TestLoggingConfiguration(TestCase):
         return {
             "jobtypes": {},
             "last-master-contact": datetime(1970, 1, 1),
+            "current_assignments": [],
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}
 

@@ -1,6 +1,6 @@
 # No shebang line, this module is meant to be imported
 #
-# Copyright 2013 Oliver Palmer
+# Copyright 2014 Oliver Palmer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Process
--------
+from json import dumps
 
-Module responsible for launching and managing processes on
-the agent.
-"""
+from twisted.web.server import NOT_DONE_YET
+
+from pyfarm.agent.config import config
+from pyfarm.agent.http.api.base import APIResource
+
+class Tasks(APIResource):
+    def get(self, **kwargs):
+        request = kwargs["request"]
+
+        tasks = []
+        for assignment in config["current_assignments"].itervalues():
+            tasks += assignment["tasks"]
+
+        return dumps(tasks)
