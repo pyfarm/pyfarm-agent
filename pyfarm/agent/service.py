@@ -25,10 +25,15 @@ such as log reading, system information gathering, and management of processes.
 import time
 from datetime import datetime
 from functools import partial
-from httplib import (
-    responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 from os.path import join
 from random import random
+
+try:
+    from httplib import (
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+except ImportError:  # pragma: no cover
+    from http.client import (
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -72,7 +77,7 @@ class Agent(object):
 
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
-        self.scheduled_tasks.register()
+        self.scheduled_tasks.register(self.reannounce, 15)
 
     @classmethod
     def agent_api(cls):
@@ -94,6 +99,28 @@ class Agent(object):
         agents on the master
         """
         return config["master-api"] + "/agents/"
+
+    def should_reannounce(self):
+        """Small method which acts as a trigger for :meth:`reannounce`"""
+        contacted = config.master_contacted(update=False)
+        remaining = (datetime.utcnow() - contacted).total_seconds()
+        return remaining > config["master-reannounce"]
+
+    def reannounce(self):
+        """
+        Method which is used to periodically contact the master.  This
+        method is generally called as part of a scheduled task.
+        """
+        if self.should_reannounce():
+            svclog.info("Announcing %s to master", config["hostname"])
+
+        else:
+            contacted = config.master_contacted(update=False)
+            remaining = (datetime.utcnow() - contacted).total_seconds()
+            svclog.debug(
+                "Skipping reannounce to master, %s seconds "
+                "remain till next announce.",
+                config["master-reannounce"] - remaining)
 
     def system_data(self, requery_timeoffset=False):
         """
