@@ -68,13 +68,11 @@ class Agent(object):
         config["agent"] = self
         self.http = None
         self.shutdown_registered = False
-        self.scheduled_tasks = ScheduledTaskManager()
         self.last_free_ram_post = time.time()
 
         # Setup scheduled tasks
-        # TODO: register re-announcement task with master
-        # self.scheduled_tasks.register()
-
+        self.scheduled_tasks = ScheduledTaskManager()
+        self.scheduled_tasks.register()
 
     @classmethod
     def agent_api(cls):
@@ -220,7 +218,6 @@ class Agent(object):
         """
         svclog.info("Stopping tasks")
         self.scheduled_tasks.stop()
-        # TODO: stop tasks
 
     def shutdown_post_update(self):
         """
@@ -338,6 +335,7 @@ class Agent(object):
         else:
             data = response.json()
             config["agent-id"] = data["id"]
+            config.master_contacted()
 
             if response.code == OK:
                 svclog.info(
