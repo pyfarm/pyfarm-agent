@@ -57,10 +57,10 @@ svclog = getLogger("agent.svc")
 
 class Agent(object):
     """
-    Main class associated with getting getting the internals
-    of the internals of the agent's operations up and running including
-    adding or updating itself with the master, starting the periodic
-    task manager, and handling shutdown conditions.
+    Main class associated with getting getting the internals of the
+    agent's operations up and running including adding or updating
+    itself with the master, starting the periodic task manager,
+    and handling shutdown conditions.
     """
     def __init__(self):
         # so parts of this instance are accessible elsewhere
