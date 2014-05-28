@@ -68,6 +68,6 @@ class Versions(APIResource):
         request = kwargs.get("request")
 
         if request is not None and request_from_master(request):
-            config.master_made_contact()
+            config.master_contacted()
 
         return dumps(versions=[1])

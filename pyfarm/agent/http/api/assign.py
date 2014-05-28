@@ -100,7 +100,7 @@ class Assign(APIResource):
         data = kwargs["data"]
 
         if request_from_master(request):
-            config.master_made_contact()
+            config.master_contacted()
 
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
