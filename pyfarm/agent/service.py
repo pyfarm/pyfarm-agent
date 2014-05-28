@@ -48,13 +48,15 @@ from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
-from pyfarm.agent.http.core.client import post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay, rate_limited
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
+
+ANNOUNCING = object()
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
@@ -74,6 +76,13 @@ class Agent(object):
         self.http = None
         self.shutdown_registered = False
         self.last_free_ram_post = time.time()
+
+        # reannounce_client is set when the agent id is
+        # first set. reannounce_client_instance ensures
+        # that once we start the announcement process we
+        # won't try another until we're finished
+        self.reannounce_client = None
+        self.reannounce_client_instance = None
 
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
@@ -102,6 +111,11 @@ class Agent(object):
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
+        # We are already in the process of trying to announce to the
+        # master
+        if self.reannounce_client_instance:
+            return ANNOUNCING
+
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["master-reannounce"]
@@ -111,8 +125,19 @@ class Agent(object):
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
-        if self.should_reannounce():
+        should_reannounce = self.should_reannounce()
+
+        if should_reannounce is True:
             svclog.info("Announcing %s to master", config["hostname"])
+
+            # TODO: set client reannounce_client_instance
+            # TODO: unset reannounce_client_instance once finished
+            # self.reannounce_client.post()
+
+        elif should_reannounce is ANNOUNCING:
+            svclog.debug(
+                "Agent is already in the process of trying to announce to "
+                "the master.")
 
         else:
             contacted = config.master_contacted(update=False)
@@ -511,6 +536,9 @@ class Agent(object):
 
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
+
+            self.reannounce_client = rate_limited(
+                self.agent_api(), self.should_reannounce)
 
             config.master_contacted()
             svclog.debug(
