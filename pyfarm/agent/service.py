@@ -48,7 +48,8 @@ from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
-from pyfarm.agent.http.core.client import post, http_retry_delay, rate_limited
+from pyfarm.agent.http.core.client import (
+    post, http_retry_delay, RateLimitedRequest)
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
@@ -60,6 +61,23 @@ ANNOUNCING = object()
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
+
+
+class AnnouncementClient(RateLimitedRequest):
+    """
+    Basic wrapper around a rate limited request which factors in
+    the agent's API url and the result from
+    :meth:`Agent.should_reannounce`
+    """
+    def __init__(self, agent):
+        self.agent = agent
+
+    @property
+    def url(self):
+        return self.agent.agent_api()
+
+    def rate_limited(self, *args, **kwargs):
+        return self.agent.should_reannounce()
 
 
 class Agent(object):
@@ -81,12 +99,13 @@ class Agent(object):
         # first set. reannounce_client_instance ensures
         # that once we start the announcement process we
         # won't try another until we're finished
-        self.reannounce_client = None
+        self.reannounce_client = AnnouncementClient(self)
         self.reannounce_client_instance = None
 
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
-        self.scheduled_tasks.register(self.reannounce, 15)
+        self.scheduled_tasks.register(
+            self.reannounce, config["master-reannounce"])
 
     @classmethod
     def agent_api(cls):
@@ -537,11 +556,9 @@ class Agent(object):
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
 
-            self.reannounce_client = rate_limited(
-                self.agent_api(), self.should_reannounce)
-
             config.master_contacted()
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
+
             self.scheduled_tasks.start()
