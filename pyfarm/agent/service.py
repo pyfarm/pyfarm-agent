@@ -100,7 +100,7 @@ class Agent(object):
         # that once we start the announcement process we
         # won't try another until we're finished
         self.reannounce_client = AnnouncementClient(self)
-        self.reannounce_client_instance = None
+        self.reannounce_client_request = None
 
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
@@ -132,7 +132,7 @@ class Agent(object):
         """Small method which acts as a trigger for :meth:`reannounce`"""
         # We are already in the process of trying to announce to the
         # master
-        if self.reannounce_client_instance:
+        if self.reannounce_client_request is not None:
             return ANNOUNCING
 
         contacted = config.master_contacted(update=False)
