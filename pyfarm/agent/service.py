@@ -30,10 +30,10 @@ from random import random
 
 try:
     from httplib import (
-        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 except ImportError:  # pragma: no cover
     from http.client import (
-        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUSET)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -77,7 +77,7 @@ class AnnouncementClient(RateLimitedRequest):
         return self.agent.agent_api()
 
     def rate_limited(self, *args, **kwargs):
-        return self.agent.should_reannounce()
+        return self.agent.should_reannounce() in (ANNOUNCING, False)
 
 
 class Agent(object):
@@ -147,16 +147,55 @@ class Agent(object):
         should_reannounce = self.should_reannounce()
 
         if should_reannounce is True:
-            svclog.info("Announcing %s to master", config["hostname"])
+            svclog.debug("Announcing %s to master", config["hostname"])
 
-            # TODO: set client reannounce_client_instance
-            # TODO: unset reannounce_client_instance once finished
-            # self.reannounce_client.post()
+            def callback(response):
+                if response.code == OK:
+                    self.reannounce_client_request = None
+                    svclog.info("Announced self to the master server.")
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = random() + random()
+                    svclog.warning(
+                        "Could not announce self to the master server, "
+                        "internal server error: %s.  Retrying in %s seconds.",
+                        response.data(), delay)
+                    reactor.callLater(delay, response.request.retry)
+
+                # If this is a client problem retrying the request
+                # is unlikely to fix the issue so we stop here
+                elif response.code >= BAD_REQUEST:
+                    self.reannounce_client_request = None
+                    svclog.error(
+                        "Failed to announce self to the master, bad "
+                        "request: %s.  This request will not be retried.",
+                        response.data())
+
+                else:
+                    self.reannounce_client_request = None
+                    svclog.error(
+                        "Unhandled error when posting self to the "
+                        "master: %s (code: %s).  This request will not be "
+                        "retried.", response.data(), response.code)
+
+            # In the event of a hard failure, do not retry because we'll
+            # be rerunning this code soon anyway.
+            def errback(failure):
+                self.reannounce_client_request = None
+                svclog.error(
+                    "Failed to announce self to the master: %s.  This "
+                    "request will not be retried.", failure)
+
+            self.reannounce_client_request = self.reannounce_client.post(
+                callback=callback, errback=errback,
+                data={
+                    "state": config["state"],
+                    "free_ram": int(memory.ram_free())})
 
         elif should_reannounce is ANNOUNCING:
-            svclog.debug(
-                "Agent is already in the process of trying to announce to "
-                "the master.")
+            svclog.warning(
+                "Agent is already in the process of trying to announce itself "
+                "to the master.")
 
         else:
             contacted = config.master_contacted(update=False)
