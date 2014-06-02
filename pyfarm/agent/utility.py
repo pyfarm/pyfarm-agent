@@ -42,8 +42,21 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
+from voluptuous import Any
+
+from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
+
+# Values used by the schema to do type testing
+# of input requests
+STRINGS = Any(*STRING_TYPES)
+try:
+    WHOLE_NUMBERS = Any(*(int, long))
+    NUMBERS = Any(*(int, long, float, Decimal))
+except NameError:  # pragma: no cover
+    WHOLE_NUMBERS = int
+    NUMBERS = Any(*(int, float, Decimal))
 
 logger = getLogger("agent.utility")
 

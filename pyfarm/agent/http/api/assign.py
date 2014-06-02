@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from decimal import Decimal
-
 try:
     from httplib import ACCEPTED, BAD_REQUEST
 except ImportError:  # pragma: no cover
@@ -29,19 +27,10 @@ from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.sysinfo.memory import ram_free
+from pyfarm.agent.utility import STRINGS, WHOLE_NUMBERS, NUMBERS
 from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")
-
-# Values used by the schema to do type testing
-# of input requests
-STRINGS = Any(*STRING_TYPES)
-try:
-    WHOLE_NUMBERS = Any(*(int, long))
-    NUMBERS = Any(*(int, long, float, Decimal))
-except NameError:  # pragma: no cover
-    WHOLE_NUMBERS = int
-    NUMBERS = Any(*(int, float, Decimal))
 
 
 def validate_environment(values):
