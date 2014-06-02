@@ -42,6 +42,7 @@ from twisted.internet import threads, reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
+from voluptuous import Schema, Required, Optional
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
@@ -50,6 +51,8 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.agent.utility import (
+    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA)
 from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
@@ -62,6 +65,7 @@ process_stderr = getLogger("process.stderr")
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment
 # on purpose or by accident.
+# TODO: replace this with a file based configuration
 DEFAULT_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_DEFAULT_ENVIRONMENT", "")
 if isfile(DEFAULT_ENVIRONMENT_CONFIG):
     logger.info(
@@ -84,6 +88,16 @@ class JobType(object):
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
+    :attribute dict assignment:
+        This attribute is a dictionary the keys "job", "jobtype" and "tasks".
+        self.assignment["job"] is itself a dict with keys "id", "title",
+        "data", "environ" and "by".  The most important of those is usually
+        "data", which is the dict specified when submitting the job and
+        contains jobtype specific data. self.assignment["tasks"] is a list of
+        dicts representing the tasks in the current assignment.  Each of
+        these dicts has the keys "id" and "frame".  The
+        list is ordered by frame number.
+
     :attribute bool ignore_uid_gid_mapping_errors:
         If True, then ignore any errors produced by :meth:`usrgrp_to_uidgid`
         and return ``(None, None`)` instead.  If this value is False
@@ -102,6 +116,14 @@ class JobType(object):
         successfully.  This list does not have to be used but is the
         defacto attribute we just inside of :meth:`` to determine success.
     """
+    ASSIGNMENT_SCHEMA = Schema({
+        Required("job"): Schema({
+            Required("id"): WHOLE_NUMBERS,
+            Optional("title"): STRINGS,
+            Optional("data"): dict}),
+        Required("jobtype"): JOBTYPE_SCHEMA,
+        Optional("tasks"): TASKS_SCHEMA})
+
     # TODO: add command line flags for some of these
     expand_path_vars = read_env_bool(
         "PYFARM_JOBTYPE_DEFAULT_EXPANDVARS", True)
@@ -113,9 +135,8 @@ class JobType(object):
     cache = {}
 
     def __init__(self, assignment):
-        assert isinstance(assignment, dict)
         self.protocols = {}
-        self.assignment = ImmutableDict(assignment)
+        self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
         self.failed_processes = []
         self.stdout_line_fragments = []
 
