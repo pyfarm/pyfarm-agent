@@ -20,14 +20,15 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, BAD_REQUEST
 
 from twisted.web.server import NOT_DONE_YET
-from voluptuous import Invalid, Schema, Required, Optional, Any
+from voluptuous import Invalid, Schema, Required, Optional
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.sysinfo.memory import ram_free
-from pyfarm.agent.utility import STRINGS, WHOLE_NUMBERS, NUMBERS
+from pyfarm.agent.utility import (
+    STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
 from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.assign")
@@ -75,13 +76,8 @@ class Assign(APIResource):
                 Optional("data"): dict,
                 Optional("environ"): validate_environment,
                 Optional("title"): STRINGS}),
-            Required("jobtype"): {
-                Required("name"): STRINGS,
-                Required("version"): WHOLE_NUMBERS},
-            Required("tasks"): lambda values: map(
-                Schema({
-                    Required("id"): WHOLE_NUMBERS,
-                    Required("frame"): NUMBERS}), values)})}
+            Required("jobtype"): JOBTYPE_SCHEMA,
+            Required("tasks"): TASKS_SCHEMA})}
 
     def post(self, **kwargs):
         request = kwargs["request"]

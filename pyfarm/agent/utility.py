@@ -42,14 +42,13 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
-from voluptuous import Any
+from voluptuous import Schema, Any, Required
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 
-# Values used by the schema to do type testing
-# of input requests
+# Shared objects for schema validation
 STRINGS = Any(*STRING_TYPES)
 try:
     WHOLE_NUMBERS = Any(*(int, long))
@@ -57,6 +56,15 @@ try:
 except NameError:  # pragma: no cover
     WHOLE_NUMBERS = int
     NUMBERS = Any(*(int, float, Decimal))
+
+# Shared schema declarations
+JOBTYPE_SCHEMA = Schema({
+    Required("name"): STRINGS,
+    Required("version"): WHOLE_NUMBERS})
+TASK_SCHEMA = Schema({
+    Required("id"): WHOLE_NUMBERS,
+    Required("frame"): NUMBERS})
+TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 
 logger = getLogger("agent.utility")
 
