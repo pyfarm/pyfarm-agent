@@ -152,7 +152,9 @@ class Assign(APIResource):
         for assignment in config["current_assignments"].itervalues():
             for task in assignment["tasks"]:
                 existing_task_ids.add(task["id"])
-        new_task_ids = {x["id"] for x in data["tasks"]}
+        new_task_ids = set()
+        for task in data["tasks"]:
+            new_task_ids.add(task["id"])
         if existing_task_ids & new_task_ids:
             request.setResponseCode(CONFLICT)
             request.write(
