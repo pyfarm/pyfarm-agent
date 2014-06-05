@@ -110,9 +110,9 @@ class Assign(APIResource):
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
                 "has not been set yet.")
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "agent-id has not been set in the config"})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
             return NOT_DONE_YET
 
@@ -122,11 +122,11 @@ class Assign(APIResource):
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",
                 data["job"]["id"], requires_ram, memory_free, data["job"]["id"])
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough ram",
                  "agent_ram": memory_free,
                  "requires_ram": requires_ram})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
 
             # touch the config
@@ -139,11 +139,11 @@ class Assign(APIResource):
                 "Task %s requires %s CPUs, this agent has %s CPUs.  "
                 "Rejecting Task %s.",
                 data["job"]["id"], requires_cpus, cpus, data["job"]["id"])
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough cpus",
                  "agent_cpus": cpus,
                  "requires_cpus": requires_cpus})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
             return NOT_DONE_YET
 
