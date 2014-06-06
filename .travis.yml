@@ -36,13 +36,15 @@ before_install:
   - sudo mv -v /tmp/nginx.conf /etc/nginx/nginx.conf
   - sudo adduser travis www-data
   - sudo service nginx restart
+  - curl https://raw.githubusercontent.com/pyfarm/pyfarm/master/misc/retry.sh -o retry.sh
 
 install:
-  - if [[ $TDB_DRIVER != "" ]]; then pip install $TDB_DRIVER; fi
-  - pip install uwsgi coverage python-coveralls
-  - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
-  - pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
-  - pip install .
+  - source retry.sh
+  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER; fi
+  - retry pip install uwsgi coverage python-coveralls
+  - retry pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
+  - retry pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
+  - retry pip install .
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
   - pyfarm-create-tables
