@@ -442,7 +442,13 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        self.agent_api = "http://%s:%s/" % (self.args.hostname, self.args.port)
+        if self.args.target_name in ("start", "stop"):
+            self.agent_api = \
+                "http://%s:%s/" % (self.args.hostname, self.args.port)
+        else:
+            self.agent_api = \
+                "http://localhost:%s/" % self.args.port
+
         return_code = self.args.target_func()
 
         # If a specific return code is provided then use it
