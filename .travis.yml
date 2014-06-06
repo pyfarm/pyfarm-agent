@@ -38,11 +38,11 @@ before_install:
   - sudo service nginx restart
 
 install:
-  - if [[ $TDB_DRIVER != "" ]]; then pip install $TDB_DRIVER --use-mirrors; fi
-  - pip install uwsgi coverage python-coveralls --use-mirrors
-  - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --use-mirrors
-  - pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master --use-mirrors
-  - pip install . --use-mirrors
+  - if [[ $TDB_DRIVER != "" ]]; then pip install $TDB_DRIVER; fi
+  - pip install uwsgi coverage python-coveralls
+  - pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
+  - pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
+  - pip install .
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
   - pyfarm-create-tables
