@@ -185,7 +185,7 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
     except OSError as e:
         logger.error(
             "fork 1 failed (errno: %s): %s" % (e.errno, e.strerror))
-        sys.exit(1)
+        return 1
 
     # decouple from the parent environment
     os.chdir(chroot or "/")
@@ -200,7 +200,7 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
     except OSError as e:
         logger.error(
             "fork 2 failed (errno: %s): %s" % (e.errno, e.strerror))
-        sys.exit(1)
+        return 1
 
     # flush any pending data before we duplicate
     # the file descriptors
