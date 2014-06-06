@@ -15,9 +15,9 @@
 # limitations under the License.
 
 try:
-    from httplib import ACCEPTED, BAD_REQUEST
+    from httplib import ACCEPTED, BAD_REQUEST, CONFLICT
 except ImportError:  # pragma: no cover
-    from http.client import ACCEPTED, BAD_REQUEST
+    from http.client import ACCEPTED, BAD_REQUEST, CONFLICT
 
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional
@@ -95,9 +95,9 @@ class Assign(APIResource):
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
                 "has not been set yet.")
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "agent-id has not been set in the config"})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
             return NOT_DONE_YET
 
@@ -107,11 +107,11 @@ class Assign(APIResource):
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",
                 data["job"]["id"], requires_ram, memory_free, data["job"]["id"])
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough ram",
                  "agent_ram": memory_free,
                  "requires_ram": requires_ram})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
 
             # touch the config
@@ -124,15 +124,30 @@ class Assign(APIResource):
                 "Task %s requires %s CPUs, this agent has %s CPUs.  "
                 "Rejecting Task %s.",
                 data["job"]["id"], requires_cpus, cpus, data["job"]["id"])
+            request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough cpus",
                  "agent_cpus": cpus,
                  "requires_cpus": requires_cpus})
-            request.setResponseCode(BAD_REQUEST)
             request.finish()
             return NOT_DONE_YET
 
-        # TODO Check for double assignments
+        # Check for double assignments
+        existing_task_ids = set()
+        for assignment in config["current_assignments"].itervalues():
+            for task in assignment["tasks"]:
+                existing_task_ids.add(task["id"])
+        new_task_ids = set()
+        for task in data["tasks"]:
+            new_task_ids.add(task["id"])
+        if existing_task_ids & new_task_ids:
+            request.setResponseCode(CONFLICT)
+            request.write(
+                {"error": "Double assignment of tasks",
+                 "duplicate_tasks": list(existing_task_ids & new_task_ids)})
+            request.finish()
+            return NOT_DONE_YET
+
         # Seems inefficient, but the assignments dict is unlikely to be large
         index = 0
         while index in config["current_assignments"]:
