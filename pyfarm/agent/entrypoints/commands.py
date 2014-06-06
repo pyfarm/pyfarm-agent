@@ -380,7 +380,7 @@ class AgentEntryPoint(object):
     def __call__(self):
         self.args = self.parser.parse_args()
 
-        if not self.args.master:
+        if not self.args.master and self.args.target_name in ("start", "stop"):
             self.parser.error(
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
