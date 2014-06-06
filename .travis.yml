@@ -39,11 +39,12 @@ before_install:
   - curl https://raw.githubusercontent.com/pyfarm/pyfarm/master/misc/retry.sh -o retry.sh
 
 install:
-  - if [[ $TDB_DRIVER != "" ]]; then ./retry.sh pip install $TDB_DRIVER; fi
-  - ./retry.sh pip install uwsgi coverage python-coveralls
-  - ./retry.sh pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
-  - ./retry.sh pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
-  - ./retry.sh pip install .
+  - source retry.sh
+  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER; fi
+  - retry pip install uwsgi coverage python-coveralls
+  - retry pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
+  - retry pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
+  - retry pip install .
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
   - pyfarm-create-tables
