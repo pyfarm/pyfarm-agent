@@ -529,18 +529,7 @@ class AgentEntryPoint(object):
 
         service = Agent()
         service.start()
-
-        # Explicitly handle sigint (Ctrl-c) so the reactor
-        # won't try to keep rerunning certain bits of code
-        # such as retry requests.
-        def handle_sigint(*_):
-            if config["terminate-on-sigint"]:
-                config["signal"] = signal.SIGINT
-
-            reactor.stop()
-
-        signal.signal(signal.SIGINT, handle_sigint)
-
+        signal.signal(signal.SIGINT, service.stop)
         reactor.run()
 
     def stop(self):

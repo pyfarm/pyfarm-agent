@@ -23,6 +23,7 @@ such as log reading, system information gathering, and management of processes.
 """
 
 import time
+import signal
 from datetime import datetime
 from functools import partial
 from httplib import (
@@ -69,7 +70,7 @@ class Agent(object):
         assert "agent" not in config
         config["agent"] = self
         self.http = None
-        self.shutdown_registered = False
+        self.register_shutdown_events = False
         self.scheduled_tasks = ScheduledTaskManager()
         self.last_free_ram_post = time.time()
 
@@ -214,13 +215,26 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
-    def stop(self):
+    def stop(self, *_):  # this is the SIGINT handler, hence the *_
         """
         Internal code which stops the agent.  This will terminate any running
         processes, inform the master of the terminated tasks, update the
         state of the agent on the master.
         """
+        svclog.info("Stopping the agent")
+        # Explicitly handle sigint (Ctrl-c) so the reactor
+        # won't try to keep rerunning certain bits of code
+        # such as retry requests.
+        if config["terminate-on-sigint"]:
+            config["signal"] = signal.SIGINT
 
+        if self.register_shutdown_events:
+            reactor.addSystemEventTrigger(
+                "before", "shutdown", self.shutdown_task_manager)
+            reactor.addSystemEventTrigger(
+                "before", "shutdown", self.shutdown_post_update)
+
+        reactor.stop()
 
     def shutdown_task_manager(self):
         """
@@ -493,13 +507,9 @@ class Agent(object):
             * Star the scheduled task manager
         """
         if key == "agent-id" and change_type == config.CREATED \
-                and not self.shutdown_registered:
+                and not self.register_shutdown_events:
             if shutdown_events:
-                reactor.addSystemEventTrigger(
-                    "before", "shutdown", self.shutdown_task_manager)
-                reactor.addSystemEventTrigger(
-                    "before", "shutdown", self.shutdown_post_update)
-                self.shutdown_registered = True
+                self.register_shutdown_events = True
 
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
