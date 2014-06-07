@@ -34,7 +34,7 @@ from random import random
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -221,6 +221,8 @@ class Agent(object):
         processes, inform the master of the terminated tasks, update the
         state of the agent on the master.
         """
+        svclog.info("Stopping the agent")
+
         # If this is the first time we're calling stop() then
         # setup a function call to remove the pidfile when the
         # process exits.
@@ -239,6 +241,24 @@ class Agent(object):
                         config["pidfile"], e)
 
             atexit.register(remove_pidfile)
+            self.scheduled_tasks.stop()
+
+            svclog.debug("Stopping execution of jobtypes")
+            stopping_jobtypes = []
+            for uuid, jobtype in config["jobtypes"].copy().items():
+                stopping = jobtype.stop()
+                if isinstance(stopping, Deferred):
+                    stopping_jobtypes.append(stopping)
+
+            if stopping_jobtypes:
+                wait_on_stopping = DeferredList(stopping_jobtypes)
+                wait_on_stopping.addCallback(self.post_shutdown_to_master)
+
+            else:
+                self.post_shutdown_to_master()
+
+            # TODO: stop running tasks, informing master for each
+            # TODO: chain task stoppage callback to start shutdown_post_update
 
         if self.sigint_signal_count:
             svclog.critical(
@@ -260,16 +280,7 @@ class Agent(object):
         # force terminate the agent
         self.sigint_signal_count += 1
 
-        svclog.info("Stopping the agent")
-        self.scheduled_tasks.stop()
-
-        # TODO: stop running tasks, informing master for each
-        # TODO: chain task stoppage callback to start shutdown_post_update
-
-        master_update_finished = self.shutdown_post_update()
-        master_update_finished.addCallback(lambda *_: reactor.stop())
-
-    def shutdown_post_update(self):
+    def post_shutdown_to_master(self, stop_reactor=True):
         """
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``
@@ -339,6 +350,10 @@ class Agent(object):
         # time the agent starts up.  ram_free would be too but having it
         # here is beneficial in cases where the agent terminated abnormally.
         post_update()
+
+        if stop_reactor:
+            finished.addCallback(lambda *_: reactor.stop())
+
         return finished
 
     def errback_post_agent_to_master(self, failure):
