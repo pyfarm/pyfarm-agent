@@ -25,12 +25,12 @@ are copied over from the master (which we can't import here).
 import csv
 import codecs
 import cStringIO
-import os
-import signal
 from decimal import Decimal
 from datetime import datetime
+from functools import partial
 from json import dumps as _dumps
 from UserDict import UserDict
+from uuid import uuid1
 
 try:
     from urlparse import urlsplit
@@ -48,6 +48,11 @@ from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 
 logger = getLogger("agent.utility")
+
+
+def uuid():
+    """Wrapper around :func:`uuid1` which incorporates our system id"""
+    return uuid1(node=config["systemid"])
 
 
 def default_json_encoder(obj):
