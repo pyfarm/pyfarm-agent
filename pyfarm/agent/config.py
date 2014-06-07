@@ -61,6 +61,7 @@ class LoggingConfiguration(dict):
         # Create the initial internal structure for storing
         # job types
         self["jobtypes"] = {}
+
         # The assignments this node still has to work on
         self["current_assignments"] = {}
 
