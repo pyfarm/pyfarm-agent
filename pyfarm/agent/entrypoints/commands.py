@@ -68,7 +68,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
+    get_pids, start_daemon_posix, write_pid_file, get_system_identifier,
+    get_process, get_agent)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -438,16 +439,19 @@ class AgentEntryPoint(object):
                 "api-endpoint-prefix": "/api/v1",
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
-                "task-log-dir": self.args.task_log_dir}
+                "task-log-dir": self.args.task_log_dir,
+                "pidfile": self.args.pidfile,
+                "pids": {
+                    "parent": os.getpid()}}
 
             config.update(config_flags)
 
         if self.args.target_name == "start":
             self.agent_api = \
-                "http://%s:%s/" % (self.args.hostname, self.args.port)
+                "http://%s:%s/api/v1" % (self.args.hostname, self.args.port)
         else:
             self.agent_api = \
-                "http://localhost:%s/" % self.args.port
+                "http://localhost:%s/api/v1" % self.args.port
 
         return_code = self.args.target_func()
 
