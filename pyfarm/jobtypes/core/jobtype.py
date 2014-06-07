@@ -768,6 +768,28 @@ class JobType(object):
         self.deferred = Deferred()
         return self.deferred
 
+    def _stop(self):
+        return self.stop()
+
+    def stop(self):
+        """
+        This method is called when the job type should stop
+        running.  This will terminate any processes associated with
+        this job type and also inform the master of any state changes
+        to an associated task or tasks.
+        """
+        stopped = Deferred()
+        # TODO: stop all running processes
+        # TODO: notify master of stopped task(s)
+
+        # TODO: chain this callback to the completion of our request to master
+        def finished_processes():
+            stopped.callback(True)
+            config["jobtypes"].pop(self._uuid)
+
+        finished_processes()
+        return stopped
+
     def format_log_message(self, message, stream_type=None):
         """
         This method may be overridden to format a log message coming from
