@@ -101,8 +101,6 @@ class Index(Resource):
 
         network_info = [
             ("Hostname", config["hostname"]),
-            ("IP Address", network.ip()),
-            ("IP Address (reported)", config["ip"]),
             ("Agent Port", config["port"]),
             ("Master API", config["master-api"])]
 
@@ -119,7 +117,7 @@ class Index(Resource):
             ("Logged On User(s)",
              ", ".join(sorted(set(user.name for user in psutil.get_users())))),
             ("Host Uptime",
-             str(timedelta(seconds=time.time() - psutil.get_boot_time()))),
+             str(timedelta(seconds=time.time() - psutil.boot_time()))),
             ("Agent Uptime",
              str(timedelta(seconds=time.time() - config["start"])))]
 
