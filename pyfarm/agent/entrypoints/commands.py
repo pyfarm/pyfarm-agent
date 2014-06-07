@@ -57,7 +57,7 @@ from requests import ConnectionError
 
 from pyfarm.core.config import read_env, read_env_int
 from pyfarm.core.enums import (
-    OS, WINDOWS, AgentState, NUMERIC_TYPES)
+    OS, WINDOWS, AgentState, NUMERIC_TYPES, INTEGER_TYPES)
 from pyfarm.core.utility import convert
 
 # start logging before doing anything else
@@ -389,7 +389,7 @@ class AgentEntryPoint(object):
     def __call__(self):
         self.args = self.parser.parse_args()
 
-        if not self.args.master:
+        if not self.args.master and self.args.target_name == "start":
             self.parser.error(
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
@@ -452,26 +452,42 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        self.agent_api = "http://%s:%s/" % (self.args.hostname, self.args.port)
-        self.args.target_func()
+        if self.args.target_name in ("start", "stop"):
+            self.agent_api = \
+                "http://%s:%s/" % (self.args.hostname, self.args.port)
+        else:
+            self.agent_api = \
+                "http://localhost:%s/" % self.args.port
+
+        return_code = self.args.target_func()
+
+        # If a specific return code is provided then use it
+        # directly in sys.exit
+        if isinstance(return_code, INTEGER_TYPES):
+            sys.exit(return_code)
 
     def start(self):
         # make sure the agent is not already running
         if any(get_pids(self.args.pidfile, self.agent_api)):
             logger.error("agent appears to be running")
-            return
+            return 1
 
         logger.info("starting agent")
 
         if not isdir(self.args.task_log_dir):
             logger.debug("Creating %s", self.args.task_log_dir)
-            os.makedirs(self.args.task_log_dir)
+            try:
+                os.makedirs(self.args.task_log_dir)
+            except OSError:
+                logger.error("Failed to create %s", self.args.task_log_dir)
+                return 1
 
         # create the directory for log
         if not self.args.no_daemon and not isfile(self.args.log):
             try:
                 os.makedirs(dirname(self.args.log))
             except OSError:
+                # Not an error because it could be created later on
                 logger.warning(
                     "failed to create %s" % dirname(self.args.log))
 
@@ -479,9 +495,12 @@ class AgentEntryPoint(object):
         # then setup the log files
         if not self.args.no_daemon and fork is not NotImplemented:
             logger.info("sending log output to %s" % self.args.log)
-            start_daemon_posix(
+            daemon_start_return_code = start_daemon_posix(
                 self.args.log, self.args.chroot,
                 self.args.uid, self.args.gid)
+
+            if isinstance(daemon_start_return_code, INTEGER_TYPES):
+                return daemon_start_return_code
 
         elif not self.args.no_daemon and fork is NotImplemented:
             logger.warning(
@@ -489,7 +508,12 @@ class AgentEntryPoint(object):
                 "foreground" % OS.title())
 
         pid = os.getpid()
-        write_pid_file(self.args.pidfile, pid)
+        try:
+            write_pid_file(self.args.pidfile, pid)
+        except (AssertionError, OSError) as e:
+            logger.error("Failed to create or write pid file: %s", e)
+            return 1
+
         logger.info("pid: %s" % pid)
 
         if getuid is not NotImplemented:
@@ -576,7 +600,7 @@ class AgentEntryPoint(object):
                     "The agent's REST interface is either down or the agent "
                     "did not respond to our request.  If you still wish to "
                     "terminate process %s use --force" % pid)
-                return
+                return 1
 
             logger.warning("using force to terminate process %s" % pid)
 
@@ -599,9 +623,9 @@ class AgentEntryPoint(object):
         logger.info("checking status")
         if any(get_pids(self.args.pidfile, self.agent_api)):
             logger.error("agent appears to be running")
-            return True
+            return 0
         else:
-            return False
+            return 1
 
 
 def fake_render():
