@@ -27,6 +27,7 @@ from datetime import datetime
 from functools import partial
 from httplib import (
     responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
+from os import getpid
 from os.path import join
 from random import random
 
@@ -198,6 +199,10 @@ class Agent(object):
             http_resource = self.build_http_resource()
             self.http = Site(http_resource)
             reactor.listenTCP(config["port"], self.http)
+
+        # Update the configuration with this pid (which may be different
+        # than the original pid).
+        config["pids"].update(child=getpid())
 
         # get ready to 'publish' the agent
         config.register_callback(
