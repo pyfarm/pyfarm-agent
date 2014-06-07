@@ -69,8 +69,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_system_identifier,
-    get_process)
+    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -550,6 +549,14 @@ class AgentEntryPoint(object):
                 logger.debug("    pids: %r", data["pids"])
                 logger.debug("    current_assignments: %s",
                              pformat(data["current_assignments"]))
+
+                # Since we could get in contact with the agent's api
+                # we should ask it nicely to stop running
+                # TODO: this NEEDS to be an authenticated request
+                response = requests.post(
+                    self.agent_api + "/stop",
+                    headers={"Content-Type": "application/json"})
+                print response
 
             else:
                 logger.warning(
