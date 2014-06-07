@@ -520,7 +520,7 @@ class AgentEntryPoint(object):
         from pyfarm.agent.service import Agent
 
         service = Agent()
-        service.run()
+        service.start()
 
         reactor.run()
 
