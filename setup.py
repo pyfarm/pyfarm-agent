@@ -42,11 +42,10 @@ if sys.platform.startswith("win"):
         raise ImportError(
             "On Windows, you must manually install pywin32 before running "
             "pyfarm.core's setup.py.  This is required because there's not "
-            "a package that we can pull down and reliably install from "
+            "a package that we can pull down and reliably install from the "
             "Python package repository.  Please visit "
             "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
             "download and install this package.")
-
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
@@ -111,3 +110,7 @@ setup(
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Topic :: System :: Distributed Computing"])
+
+if sys.platform.startswith("win"):
+    print "WARNING:  Please be sure you've install the OpenSSL Library as " \
+          "some modules may break on Windows without it."
