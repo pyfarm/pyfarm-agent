@@ -442,7 +442,7 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        if self.args.target_name in ("start", "stop"):
+        if self.args.target_name == "start":
             self.agent_api = \
                 "http://%s:%s/" % (self.args.hostname, self.args.port)
         else:
