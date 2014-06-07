@@ -128,6 +128,10 @@ class Agent(object):
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
+        if self.reannounce_client_request is not None:
+            svclog.debug("Agent is already trying to announce itself.")
+            return
+
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["master-reannounce"]
