@@ -215,7 +215,7 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
-    def stop(self, *_):  # this is the SIGINT handler, hence the *_
+    def stop(self, *_):  # this is the SIGINT handler, we ignore the inputs
         """
         Internal code which stops the agent.  This will terminate any running
         processes, inform the master of the terminated tasks, update the
@@ -224,16 +224,21 @@ class Agent(object):
         if self.sigint_signal_count:
             svclog.critical(
                 "!!! Continuing to press Ctrl+C will forcefully terminate the "
-                "agent.  This may not be a safe thing to do.")
+                "agent.  This may not be a safe thing to do !!!")
 
         # If the agent is stuck in a loop, such as with posting itself
         # to the master, we may forcefully terminate the agent by hitting
         # Ctrl+C multiple times
         if self.sigint_signal_count > 2:
-            reactor.stop()
-            svclog.critical("Agent has been forcefully terminated")
+            try:
+                reactor.stop()
+            except Exception:
+                pass
+            svclog.critical("Agent has been forcefully terminated.")
             os._exit(1)
 
+        # Count each time Ctrl+C is pressed, after three tries we will
+        # force terminate the agent
         self.sigint_signal_count += 1
 
         svclog.info("Stopping the agent")

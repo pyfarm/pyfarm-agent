@@ -527,9 +527,11 @@ class AgentEntryPoint(object):
 
         from pyfarm.agent.service import Agent
 
+        # Setup the agent, register stop(), then run the agent
         service = Agent()
-        service.start()
         signal.signal(signal.SIGINT, service.stop)
+        service.start()
+
         reactor.run()
 
     def stop(self):
