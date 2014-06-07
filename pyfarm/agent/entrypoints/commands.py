@@ -32,6 +32,7 @@ import time
 from collections import namedtuple
 from functools import partial
 from json import dumps
+from pprint import pformat
 from random import choice, randint, random
 from textwrap import dedent
 from os.path import abspath, dirname, isfile, join, isdir
@@ -69,7 +70,7 @@ from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
     get_pids, start_daemon_posix, write_pid_file, get_system_identifier,
-    get_process, get_agent)
+    get_process)
 from pyfarm.agent.sysinfo import user, network, memory, cpu
 
 
@@ -525,7 +526,50 @@ class AgentEntryPoint(object):
         reactor.run()
 
     def stop(self):
-        logger.info("stopping agent")
+        logger.info("Stopping the agent")
+        pidfile = None
+        pid = None
+
+        # Before we do anything else, try to do thing the 'nice' way
+        # and get the agent to self terminate
+        try:
+            response = requests.get(
+                self.agent_api + "/config",
+                headers={"Content-Type": "application/json"})
+
+        except ConnectionError:
+            logger.warning("Failed to contact the agent via the REST api")
+
+        else:
+            if response.ok:
+                data = response.json()
+                pidfile = data["pidfile"]
+                pid = data["pids"]["parent"]
+                logger.debug("Received data from the agent via its REST api:")
+                logger.debug("    pidfile: %s", pidfile)
+                logger.debug("    pids: %r", data["pids"])
+                logger.debug("    current_assignments: %s",
+                             pformat(data["current_assignments"]))
+
+            else:
+                logger.warning(
+                    "Received code %s when using the agent's "
+                    "REST api. ", response.status_code)
+        # print response
+
+
+
+
+        # print self.agent_api + "/api/v1/"
+        # requests.get()
+
+        # TODO: look for pid file using config if self.args.pidfile fails
+        # pid, process = get_process(self.args.pidfile)
+
+        return
+
+
+
         file_pid, http_pid = get_pids(self.args.pidfile, self.agent_api)
 
         # the pids, process object, and child jobs were not found
