@@ -48,8 +48,7 @@ from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
-from pyfarm.agent.http.core.client import (
-    post, http_retry_delay, RateLimitedRequest)
+from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
@@ -59,23 +58,6 @@ from pyfarm.agent.sysinfo import memory
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
-
-
-class AnnouncementClient(RateLimitedRequest):
-    """
-    Basic wrapper around a rate limited request which factors in
-    the agent's API url and the result from
-    :meth:`Agent.should_reannounce`
-    """
-    def __init__(self, agent):
-        self.agent = agent
-
-    @property
-    def url(self):
-        return self.agent.agent_api()
-
-    def rate_limited(self, *args, **kwargs):
-        return self.agent.should_reannounce() in (ANNOUNCING, False)
 
 
 class Agent(object):
@@ -97,7 +79,6 @@ class Agent(object):
         # first set. reannounce_client_instance ensures
         # that once we start the announcement process we
         # won't try another until we're finished
-        self.reannounce_client = AnnouncementClient(self)
         self.reannounce_client_request = None
 
         # Setup scheduled tasks
@@ -183,11 +164,13 @@ class Agent(object):
                     "Failed to announce self to the master: %s.  This "
                     "request will not be retried.", failure)
 
-            self.reannounce_client_request = self.reannounce_client.post(
+            self.reannounce_client_request = post(
+                self.agent_api(),
                 callback=callback, errback=errback,
                 data={
                     "state": config["state"],
-                    "current_assignments": config["current_assignments"],
+                    "current_assignments": config.get(
+                        "current_assignments", {}),  # may not be set yet
                     "free_ram": int(memory.ram_free())})
 
         else:
