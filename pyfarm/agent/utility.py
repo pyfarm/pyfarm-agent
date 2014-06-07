@@ -161,18 +161,3 @@ class UnicodeCSVWriter(object):
     def writerows(self, rows):
         for row in rows:
             self.writerow(row)
-
-
-def terminate_if_sigint(code=1):
-    """
-    If ``--terminate-on-sigint`` was set and the appropriate signal has
-    been emitted then terminate the program.  This method was implemented
-    as a result of https://github.com/pyfarm/pyfarm-agent/issues/24.  It's
-    part of the config object so it's globally accessible.
-    """
-    if "signal" not in config:
-        return
-
-    if config["terminate-on-sigint"] and config["signal"] == signal.SIGINT:
-        logger.critical("SIGINT has been set, terminating")
-        os._exit(code)

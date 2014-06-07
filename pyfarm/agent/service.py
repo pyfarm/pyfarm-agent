@@ -22,19 +22,19 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import os
 import time
 import signal
 from datetime import datetime
 from functools import partial
 from httplib import (
     responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
-from os import getpid
 from os.path import join
 from random import random
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -52,7 +52,6 @@ from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.utility import terminate_if_sigint
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
@@ -70,6 +69,7 @@ class Agent(object):
         assert "agent" not in config
         config["agent"] = self
         self.http = None
+        self.sigint_signal_count = 0
         self.register_shutdown_events = False
         self.scheduled_tasks = ScheduledTaskManager()
         self.last_free_ram_post = time.time()
@@ -204,7 +204,7 @@ class Agent(object):
 
         # Update the configuration with this pid (which may be different
         # than the original pid).
-        config["pids"].update(child=getpid())
+        config["pids"].update(child=os.getpid())
 
         # get ready to 'publish' the agent
         config.register_callback(
@@ -221,36 +221,36 @@ class Agent(object):
         processes, inform the master of the terminated tasks, update the
         state of the agent on the master.
         """
+        if self.sigint_signal_count:
+            svclog.critical(
+                "!!! Continuing to press Ctrl+C will forcefully terminate the "
+                "agent.  This may not be a safe thing to do.")
+
+        # If the agent is stuck in a loop, such as with posting itself
+        # to the master, we may forcefully terminate the agent by hitting
+        # Ctrl+C multiple times
+        if self.sigint_signal_count > 2:
+            reactor.stop()
+            svclog.critical("Agent has been forcefully terminated")
+            os._exit(1)
+
+        self.sigint_signal_count += 1
+
         svclog.info("Stopping the agent")
-        # Explicitly handle sigint (Ctrl-c) so the reactor
-        # won't try to keep rerunning certain bits of code
-        # such as retry requests.
-        if config["terminate-on-sigint"]:
-            config["signal"] = signal.SIGINT
-
-        if self.register_shutdown_events:
-            reactor.addSystemEventTrigger(
-                "before", "shutdown", self.shutdown_task_manager)
-            reactor.addSystemEventTrigger(
-                "before", "shutdown", self.shutdown_post_update)
-
-        reactor.stop()
-
-    def shutdown_task_manager(self):
-        """
-        This method is called before the reactor shuts and stops
-        any running tasks.
-        """
-        svclog.info("Stopping tasks")
         self.scheduled_tasks.stop()
-        # TODO: stop tasks
+
+        master_update_finished = self.shutdown_post_update()
+
+        # Once all other deferreds have finished, stop the reactor
+        finished = DeferredList([master_update_finished])
+        finished.addCallback(lambda *_: reactor.stop())
 
     def shutdown_post_update(self):
         """
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``
         """
-        svclog.info("Agent is shutting down")
+        svclog.info("Informing master of shutdown")
 
         # This deferred is fired when we've either been successful
         # or failed to letting the master know we're shutting
@@ -289,7 +289,6 @@ class Agent(object):
                     "State update failed due to server error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
-                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
             else:
@@ -298,7 +297,6 @@ class Agent(object):
                     "State update failed due to unhandled error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
-                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
         def error_while_posting(failure):
@@ -307,7 +305,6 @@ class Agent(object):
                 "State update failed due to unhandled error: %s.  "
                 "Retrying in %s seconds",
                 failure, delay)
-            terminate_if_sigint()
             reactor.callLater(delay, post_update(run=False))
 
         # Post our current state to the master.  We're only posting ram_free
@@ -375,8 +372,6 @@ class Agent(object):
                     "POST to %s was successful.  A new agent "
                     "with an id of %s was created.",
                     self.agents_endpoint(), config["agent-id"])
-            terminate_if_sigint()
-            terminate_if_sigint()
 
     def post_agent_to_master(self):
         """
@@ -389,7 +384,6 @@ class Agent(object):
             callback=self.callback_post_agent_to_master,
             errback=self.errback_post_agent_to_master,
             data=self.system_data())
-        terminate_if_sigint()
 
     def callback_post_free_ram(self, response):
         """
@@ -459,7 +453,6 @@ class Agent(object):
         svclog.warning(
             "There was error updating an existing agent: %s.  Retrying "
             "in %r seconds", failure, delay)
-        terminate_if_sigint()
         reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def callback_post_cpu_count_change(self, response):
@@ -473,7 +466,6 @@ class Agent(object):
             svclog.warning(
                 "We expected to receive an OK response code but instead"
                 "we got %s.  Retrying in %s.", responses[response.code], delay)
-            terminate_if_sigint()
             reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def post_cpu_count(self, run=True):
