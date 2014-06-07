@@ -22,13 +22,14 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import atexit
 import os
 import time
 from datetime import datetime
 from functools import partial
 from httplib import (
     responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
-from os.path import join
+from os.path import join, isfile
 from random import random
 
 from ntplib import NTPClient
@@ -220,6 +221,25 @@ class Agent(object):
         processes, inform the master of the terminated tasks, update the
         state of the agent on the master.
         """
+        # If this is the first time we're calling stop() then
+        # setup a function call to remove the pidfile when the
+        # process exits.
+        if self.sigint_signal_count == 0:
+            def remove_pidfile():
+                if not isfile(config["pidfile"]):
+                    svclog.warning("%s does not exist", config["pidfile"])
+                    return
+
+                try:
+                    os.remove(config["pidfile"])
+                    svclog.debug("Removed pidfile %r", config["pidfile"])
+                except (OSError, IOError) as e:
+                    svclog.error(
+                        "Failed to remove pidfile %r: %s",
+                        config["pidfile"], e)
+
+            atexit.register(remove_pidfile)
+
         if self.sigint_signal_count:
             svclog.critical(
                 "!!! Continuing to press Ctrl+C will forcefully terminate the "

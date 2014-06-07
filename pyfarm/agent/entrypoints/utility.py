@@ -250,16 +250,6 @@ def write_pid_file(path, pid):
 
     logger.debug("wrote %s to %s" % (pid, pidfile.name))
 
-    # Not testing this because it's only run on exist
-    def remove_pid_file(pidfile):  # pragma: no cover
-        try:
-            os.remove(pidfile)
-            logger.debug("removed %s" % pidfile)
-        except OSError as e:
-            logger.warning("failed to remove %s: %s" % (pidfile, e))
-
-    atexit.register(remove_pid_file, path)
-
 
 def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     """
