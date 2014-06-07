@@ -27,7 +27,6 @@ import codecs
 import cStringIO
 from decimal import Decimal
 from datetime import datetime
-from functools import partial
 from json import dumps as _dumps
 from UserDict import UserDict
 from uuid import uuid1
