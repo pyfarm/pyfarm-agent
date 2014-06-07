@@ -24,7 +24,6 @@ such as log reading, system information gathering, and management of processes.
 
 import os
 import time
-import signal
 from datetime import datetime
 from functools import partial
 from httplib import (
@@ -34,7 +33,7 @@ from random import random
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -244,11 +243,11 @@ class Agent(object):
         svclog.info("Stopping the agent")
         self.scheduled_tasks.stop()
 
-        master_update_finished = self.shutdown_post_update()
+        # TODO: stop running tasks, informing master for each
+        # TODO: chain task stoppage callback to start shutdown_post_update
 
-        # Once all other deferreds have finished, stop the reactor
-        finished = DeferredList([master_update_finished])
-        finished.addCallback(lambda *_: reactor.stop())
+        master_update_finished = self.shutdown_post_update()
+        master_update_finished.addCallback(lambda *_: reactor.stop())
 
     def shutdown_post_update(self):
         """
@@ -265,12 +264,15 @@ class Agent(object):
         finished = Deferred()
 
         def post_update(run=True):
+            # NOTE: current_assignments *should* be empty now because the tasks
+            # should shutdown first.  If not then we'll let the master know.
             def perform():
                 return post(
                     self.agent_api(),
                     data={
                         "state": AgentState.OFFLINE,
-                        "free_ram": int(memory.ram_free())},
+                        "free_ram": int(memory.ram_free()),
+                        "current_assignments": config["current_assignments"]},
                     callback=results_from_post,
                     errback=error_while_posting)
 
