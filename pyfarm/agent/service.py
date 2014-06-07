@@ -213,6 +213,14 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
+    def stop(self):
+        """
+        Internal code which stops the agent.  This will terminate any running
+        processes, inform the master of the terminated tasks, update the
+        state of the agent on the master.
+        """
+
+
     def shutdown_task_manager(self):
         """
         This method is called before the reactor shuts and stops
