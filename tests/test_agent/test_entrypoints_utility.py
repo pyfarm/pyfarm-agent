@@ -132,27 +132,6 @@ class PidFile(TestCase):
 
         self.assertEqual(data, str(os.getpid()))
 
-    def test_registers_exit_handler(self):
-        self.test_writes_file()
-
-        func_names = []
-        arguments = []
-        for function, args, kwargs in atexit._exithandlers:
-            func_names.append(getattr(function, "func_name"))
-            if len(args) == 1:
-                arguments.append(args[0])
-
-        self.assertIn("remove_pid_file", func_names)
-
-        # atexit's contents may be recreated between tests but
-        # we should be able to find at least one filename
-        for filename in self.filenames:
-            if filename in arguments:
-                break
-        else:
-            self.fail("None of the file we've created are an argument to an "
-                      "exit handling function")
-
     def test_retrieve_process_id_from_empty(self):
         self.test_writes_file()
         with open(self.filename, "w") as stream:
