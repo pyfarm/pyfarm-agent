@@ -190,6 +190,7 @@ class Agent(object):
                 callback=callback, errback=errback,
                 data={
                     "state": config["state"],
+                    "current_assignments": config["current_assignments"],
                     "free_ram": int(memory.ram_free())})
 
         elif should_reannounce is ANNOUNCING:
