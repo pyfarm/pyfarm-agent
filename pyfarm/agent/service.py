@@ -179,7 +179,7 @@ class Agent(object):
 
         return root
 
-    def run(self, shutdown_events=True, http_server=True):
+    def start(self, shutdown_events=True, http_server=True):
         """
         Internal code which starts the agent, registers it with the master,
         and performs the other steps necessary to get things running.
