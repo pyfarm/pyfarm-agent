@@ -57,8 +57,6 @@ from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
 
-ANNOUNCING = object()
-
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
 
@@ -130,11 +128,6 @@ class Agent(object):
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
-        # We are already in the process of trying to announce to the
-        # master
-        if self.reannounce_client_request is not None:
-            return ANNOUNCING
-
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["master-reannounce"]
@@ -146,7 +139,7 @@ class Agent(object):
         """
         should_reannounce = self.should_reannounce()
 
-        if should_reannounce is True:
+        if should_reannounce:
             svclog.debug("Announcing %s to master", config["hostname"])
 
             def callback(response):
@@ -193,17 +186,12 @@ class Agent(object):
                     "current_assignments": config["current_assignments"],
                     "free_ram": int(memory.ram_free())})
 
-        elif should_reannounce is ANNOUNCING:
-            svclog.warning(
-                "Agent is already in the process of trying to announce itself "
-                "to the master.")
-
         else:
             contacted = config.master_contacted(update=False)
             remaining = (datetime.utcnow() - contacted).total_seconds()
             svclog.debug(
                 "Skipping reannounce to master, %s seconds "
-                "remain till next announce.",
+                "remain till next attempt.",
                 config["master-reannounce"] - remaining)
 
     def system_data(self, requery_timeoffset=False):
