@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+from datetime import timedelta
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
@@ -31,6 +33,11 @@ class Status(APIResource):
     def get(self, **kwargs):
         return dumps(
             {"state": config["state"],
+             "hostname": config["hostname"],
              "free_ram": int(memory.ram_free()),
              "agent_ram": int(memory.process_memory()),
+             "pids": config["pids"],
+             "id": config["agent-id"],
+             "uptime": timedelta(
+                 seconds=time.time() - config["start"]).total_seconds(),
              "jobs": list(config["jobtypes"].keys())})
