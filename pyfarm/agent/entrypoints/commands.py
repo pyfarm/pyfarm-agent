@@ -675,12 +675,36 @@ class AgentEntryPoint(object):
                         "failed to remove %s" % self.args.pidfile)
 
     def status(self):
-        logger.info("checking status")
-        if any(get_pids(self.args.pidfile, self.agent_api)):
-            logger.error("agent appears to be running")
-            return 0
-        else:
+        url = self.agent_api + "/status"
+        logger.debug("Checking agent status via api using 'GET %s'", url)
+        try:
+            response = requests.get(
+                url,
+                headers={"Content-Type": "application/json"})
+
+        except ConnectionError:
+            logger.warning("Failed to contact the agent at %s", url)
+            logger.error("Agent is offline.")
             return 1
+
+        else:
+            data = response.json()
+            pid_parent = data["pids"]["parent"]
+            pid_child = data["pids"]["child"]
+
+            # Print some general information about the agent
+            logger.info("Agent %(hostname)s is %(state)s" % data)
+            logger.info("               Uptime: %(uptime)s seconds" % data)
+            logger.info(
+                "  Last Master Contact: %(last_master_contact)s seconds" % data)
+            logger.info("    Parent Process ID: %(pid_parent)s" % locals())
+            logger.info("           Process ID: %(pid_child)s" % locals())
+            logger.info("          Database ID: %(id)s" % data)
+            logger.info("            System ID: %(systemid)s" % data)
+            logger.info(
+                "      Child Processes: %(child_processes)s "
+                "(+%(grandchild_processes)s grandchildren)" % data)
+            logger.info("   Memory Consumption: %(consumed_ram)sMB" % data)
 
 
 def fake_render():
