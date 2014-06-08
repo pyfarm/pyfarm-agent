@@ -31,8 +31,8 @@ except ImportError:
 import netifaces
 
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import LINUX, WINDOWS
-from pyfarm.agent.testutil import TestCase, skip_on_ci, skip_if
+from pyfarm.core.enums import LINUX
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.sysinfo import system, network, cpu, memory, user
 
 
@@ -206,6 +206,17 @@ class Memory(TestCase):
 
     def test_process_memory(self):
         process = psutil.Process()
-        v1 = convert.bytetomb(process.get_memory_info().rss)
+        v1 = convert.bytetomb(process.memory_info().rss)
         v2 = memory.process_memory()
+        self.assertEqual(v1-v2 < 5, True)
+
+    def test_total_consumption(self):
+        parent = psutil.Process()
+        total = parent.memory_info().rss
+
+        for child_process in parent.children(recursive=True):
+            total += child_process.memory_info().rss
+
+        v1 = convert.bytetomb(total)
+        v2 = memory.total_consumption()
         self.assertEqual(v1-v2 < 5, True)
