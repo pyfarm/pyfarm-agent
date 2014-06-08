@@ -15,9 +15,22 @@
 # limitations under the License.
 
 
+from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.sysinfo import memory
+from pyfarm.agent.utility import dumps
 
 
 class Stop(APIResource):
     isLeaf = False  # this is not really a collection of things
 
+
+class Status(APIResource):
+    isLeaf = False  # this is not really a collection of things
+
+    def get(self, **kwargs):
+        return dumps(
+            {"state": config["state"],
+             "free_ram": int(memory.ram_free()),
+             "agent"
+             "jobs": list(config["jobtypes"].keys())})
