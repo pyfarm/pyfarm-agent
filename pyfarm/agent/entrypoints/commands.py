@@ -588,10 +588,17 @@ class AgentEntryPoint(object):
                             self.args.pidfile)
                         return 1
 
-                if not psutil.pid_exists(pid):
+                try:
+                    process = psutil.Process(pid)
+                except psutil.NoSuchProcess:
                     logger.info("Agent is offline.")
                 else:
-                    logger.info("Agent is online.")
+                    if process.name() == "pyfarm-agent":
+                        logger.info("Agent is online.")
+                    else:
+                        logger.warning(
+                            "Process %s does not appear to be the agent", pid)
+                        logger.info("Agent is offline.")
 
             return
 
