@@ -579,10 +579,6 @@ class AgentEntryPoint(object):
                 logger.info("Agent is offline")
 
             else:
-                # We may not be as accurate so try and give someone a
-                # heads up.
-
-
                 with open(self.args.pidfile, "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
