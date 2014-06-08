@@ -131,10 +131,10 @@ class AgentEntryPoint(object):
                  "when an agent starts. [default: %(default)s]")
         global_network.add_argument(
             "--host", default=None,
-            help="The hostname to use when starting the agent or when "
-                 "trying to communicate with one.  Defaults to %r for the "
-                 "'start' command and 'localhost' for everything "
-                 "else (eg. status/stop)." % self.default_host)
+            help="The host to communicate with or hostname to present to the "
+                 "master when starting.  Defaults to %r for the start "
+                 "command and 'localhost' other targets such as status or "
+                 "stop." % self.default_host)
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
