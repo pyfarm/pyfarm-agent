@@ -203,3 +203,9 @@ class Memory(TestCase):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
         v2 = memory.ram_free()
         self.assertEqual(v1-v2 < 5, True)
+
+    def test_process_memory(self):
+        process = psutil.Process()
+        v1 = convert.bytetomb(process.get_memory_info().rss)
+        v2 = memory.process_memory()
+        self.assertEqual(v1-v2 < 5, True)

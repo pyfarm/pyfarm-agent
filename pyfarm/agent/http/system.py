@@ -60,10 +60,6 @@ class Index(Resource):
         else:
             raise KeyError("failed to find state")
 
-        # Memory usage of the agent's process
-        process = psutil.Process()
-        process_memory = convert.bytetomb(process.get_memory_info().rss)
-
         total_swap = memory.total_swap()
         ram_allocated = (memory.ram_used() / float(config["ram"])) * 100
         swap_allocated = (memory.swap_used() / total_swap) * 100
@@ -97,7 +93,7 @@ class Index(Resource):
                     int(memory.swap_used()), mb((total_swap))), swap_css),
             ("System RAM", mb(memory.total_ram()), None),
             ("System RAM (reported)", mb(config["ram"]), None),
-            ("Agent RAM Usage", mb(process_memory), None)]
+            ("Agent RAM Usage", mb(memory.process_memory()), None)]
 
         network_info = [
             ("Hostname", config["hostname"]),

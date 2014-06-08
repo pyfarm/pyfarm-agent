@@ -54,3 +54,9 @@ def total_ram():
 def total_swap():
     """Total virtual memory (swap) installed on the system"""
     return convert.bytetomb(psutil.swap_memory().total)
+
+
+def process_memory():
+    """Total amount of ram in use by this process"""
+    process = psutil.Process()
+    return convert.bytetomb(process.get_memory_info().rss)
