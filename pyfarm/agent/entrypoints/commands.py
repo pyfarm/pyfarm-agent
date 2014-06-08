@@ -75,8 +75,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
-from pyfarm.agent.sysinfo import user, network, memory, cpu
+    start_daemon_posix, write_pid_file, get_system_identifier)
+from pyfarm.agent.sysinfo import network, memory, cpu
 
 
 logger = getLogger("agent.cmd")

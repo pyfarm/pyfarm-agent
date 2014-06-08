@@ -14,37 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
-import os
 import tempfile
-from os.path import abspath, isfile, join, dirname
 
-import psutil
-
-from pyfarm.core.config import read_env
 from pyfarm.agent.entrypoints.utility import (
-    get_json, get_system_identifier, write_pid_file, get_process,
-    SYSTEMID_MAX)
+    get_system_identifier, SYSTEMID_MAX)
 from pyfarm.agent.sysinfo import network
 from pyfarm.agent.testutil import TestCase
-
-
-class TestGetJson(TestCase):
-    HTTP_SCHEME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "%(scheme)s://httpbin.org")
-    base_url = BASE_URL % {"scheme": HTTP_SCHEME}
-
-    def test_connection_error(self):
-        self.assertIsNone(get_json("http://%s" % os.urandom(16).encode("hex")))
-
-    def test_not_ok(self):
-        self.assertIsNone(get_json(self.base_url + "/status/404"))
-
-    def test_ok(self):
-        data = get_json(self.base_url + "/get")
-        self.assertIsInstance(data, dict)
 
 
 class TestSystemIdentifier(TestCase):
@@ -104,50 +79,3 @@ class TestSystemIdentifier(TestCase):
         self.assertRaises(
             TypeError,
             lambda: get_system_identifier(cache_path=1))
-
-
-
-class PidFile(TestCase):
-    filenames = set()
-
-    def setUp(self):
-        TestCase.setUp(self)
-        self.filename = abspath(join(
-            os.urandom(16).encode("hex"),
-            "%s.pid" % os.urandom(16).encode("hex")))
-        self.filenames.add(self.filename)
-        self.add_cleanup_path(self.filename)
-        self.add_cleanup_path(dirname(self.filename))
-
-    def test_file_should_not_exist(self):
-        path = self.create_test_file()
-        self.assertRaises(
-            AssertionError, lambda: write_pid_file(path, os.getpid()))
-
-    def test_writes_file(self):
-        write_pid_file(self.filename, os.getpid())
-        self.assertTrue(isfile(self.filename))
-        with open(self.filename, "r") as stream:
-            data = stream.read()
-
-        self.assertEqual(data, str(os.getpid()))
-
-    def test_retrieve_process_id_from_empty(self):
-        self.test_writes_file()
-        with open(self.filename, "w") as stream:
-            stream.write("")
-
-        pid, process = get_process(self.filename)
-        self.assertIsNone(pid)
-        self.assertIsNone(process)
-
-    def test_retrieve_from_missing_file(self):
-        pid, process = get_process(os.urandom(16).encode("hex"))
-        self.assertIsNone(pid)
-        self.assertIsNone(process)
-
-    def test_retrieve_process_id(self):
-        self.test_writes_file()
-        pid, process = get_process(self.filename)
-        self.assertIsInstance(pid, int)
-        self.assertIsInstance(process, psutil.Process)
