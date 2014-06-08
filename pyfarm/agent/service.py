@@ -50,6 +50,7 @@ from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
+from pyfarm.agent.utility import terminate_if_sigint
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
@@ -261,6 +262,7 @@ class Agent(object):
                     "State update failed due to server error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
+                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
             else:
@@ -269,6 +271,7 @@ class Agent(object):
                     "State update failed due to unhandled error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
+                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
         def error_while_posting(failure):
@@ -277,6 +280,7 @@ class Agent(object):
                 "State update failed due to unhandled error: %s.  "
                 "Retrying in %s seconds",
                 failure, delay)
+            terminate_if_sigint()
             reactor.callLater(delay, post_update(run=False))
 
         # Post our current state to the master.  We're only posting ram_free
@@ -344,6 +348,8 @@ class Agent(object):
                     "POST to %s was successful.  A new agent "
                     "with an id of %s was created.",
                     self.agents_endpoint(), config["agent-id"])
+            terminate_if_sigint()
+            terminate_if_sigint()
 
     def post_agent_to_master(self):
         """
@@ -356,6 +362,7 @@ class Agent(object):
             callback=self.callback_post_agent_to_master,
             errback=self.errback_post_agent_to_master,
             data=self.system_data())
+        terminate_if_sigint()
 
     def callback_post_free_ram(self, response):
         """
@@ -425,6 +432,7 @@ class Agent(object):
         svclog.warning(
             "There was error updating an existing agent: %s.  Retrying "
             "in %r seconds", failure, delay)
+        terminate_if_sigint()
         reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def callback_post_cpu_count_change(self, response):
@@ -438,6 +446,7 @@ class Agent(object):
             svclog.warning(
                 "We expected to receive an OK response code but instead"
                 "we got %s.  Retrying in %s.", responses[response.code], delay)
+            terminate_if_sigint()
             reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def post_cpu_count(self, run=True):
