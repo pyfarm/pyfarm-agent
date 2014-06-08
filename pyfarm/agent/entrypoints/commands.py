@@ -93,6 +93,7 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
+        self.default_host = network.hostname()
         self.parser = argparse.ArgumentParser(
             usage="%(prog)s [status|start|stop]",
             epilog="%(prog)s is a command line client for working with a "
@@ -128,6 +129,12 @@ class AgentEntryPoint(object):
             help="The port number which the gent is either running on or "
                  "will started on.  This port is also reported the master "
                  "when an agent starts. [default: %(default)s]")
+        global_network.add_argument(
+            "--host", default=None,
+            help="The hostname to use when starting the agent or when "
+                 "trying to communicate with one.  Defaults to %r for the "
+                 "'start' command and 'localhost' for everything "
+                 "else (eg. status/stop)." % self.default_host)
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
@@ -323,10 +330,6 @@ class AgentEntryPoint(object):
             help="The remote IPv4 address to report.  In situation where the "
                  "agent is behind a firewall this value will typically be "
                  "different.")
-        start_network.add_argument(
-            "--hostname", default=network.hostname(),
-            help="The agent's hostname to send to the master "
-                 "[default: %(default)s]")
 
         # various options for how the agent will interact with the
         # master server
@@ -366,10 +369,10 @@ class AgentEntryPoint(object):
                  "agent or a new job type class.")
 
         # options when stopping the agent
-        stop_process_group = stop.add_argument_group(
-            "Process Control",
-            description="Flags that control how the agent is shutdown")
-        stop_process_group.add_argument(
+        stop_group = stop.add_argument_group(
+            "optional flags",
+            description="Flags that control how the agent is stopped")
+        stop_group.add_argument(
             "--no-wait", default=False, action="store_true",
             help="If provided then don't wait on the agent to shut itself "
                  "down.  By default we would want to wait on each task to stop "
@@ -380,6 +383,13 @@ class AgentEntryPoint(object):
 
     def __call__(self):
         self.args = self.parser.parse_args()
+        # Default for 'host' should be 'localhost' for everything
+        # except start.
+        if self.args.host is None:
+            if self.args.target_name == "start":
+                self.args.host = self.default_host
+            else:
+                self.args.host = "localhost"
 
         if not self.args.master and self.args.target_name == "start":
             self.parser.error(
@@ -418,7 +428,7 @@ class AgentEntryPoint(object):
                     cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
-                "hostname": self.args.hostname,
+                "hostname": self.args.host,
                 "port": self.args.port,
                 "state": self.args.state,
                 "ram": self.args.ram,
@@ -447,12 +457,8 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        if self.args.target_name == "start":
-            self.agent_api = \
-                "http://%s:%s/api/v1" % (self.args.hostname, self.args.port)
-        else:
-            self.agent_api = \
-                "http://localhost:%s/api/v1" % self.args.port
+        self.agent_api = \
+            "http://%s:%s/api/v1" % (self.args.host, self.args.port)
 
         return_code = self.args.target_func()
 
