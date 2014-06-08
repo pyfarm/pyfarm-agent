@@ -70,6 +70,7 @@ class Status(APIResource):
              "agent_ram": int(memory.process_memory()),
              "pids": config["pids"],
              "id": config["agent-id"],
+             "pidfile": config["pidfile"],
              "uptime": timedelta(
                  seconds=time.time() - config["start"]).total_seconds(),
              "jobs": list(config["jobtypes"].keys())})
