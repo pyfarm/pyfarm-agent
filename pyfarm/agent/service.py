@@ -181,6 +181,7 @@ class Agent(object):
         # Enpoints which are generally used for status
         # and operations.
         v1.putChild("status", Status())
+        v1.putChild("stop", Stop())
 
         return root
 
