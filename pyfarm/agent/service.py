@@ -43,6 +43,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
+from pyfarm.agent.http.api.state import Status, Stop
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.core.client import post, http_retry_delay
@@ -166,19 +167,20 @@ class Agent(object):
         root.putChild("configuration", Configuration())
         root.putChild("logging", Logging())
 
-        # TODO: renable these once they are working again
-        # resource.putChild("assign", Assign(config))
-        # resource.putChild("processes", Processes(config))
-        # resource.putChild("shutdown", Shutdown(config))
-
         # api endpoints
         api = root.putChild("api", APIRoot())
         api.putChild("versions", Versions())
         v1 = api.putChild("v1", APIRoot())
+
+        # Top level api endpoints
         v1.putChild("assign", Assign())
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
+
+        # Enpoints which are generally used for status
+        # and operations.
+        v1.putChild("status", Status())
 
         return root
 
