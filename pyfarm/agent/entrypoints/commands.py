@@ -456,7 +456,7 @@ class AgentEntryPoint(object):
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
-                "master-reannounce": self.args.master_reannounce}
+                "master-reannounce": self.args.master_reannounce,
                 "terminate-on-sigint": self.args.terminate_on_sigint}
 
             config.update(config_flags)
