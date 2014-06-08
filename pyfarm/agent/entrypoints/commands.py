@@ -383,6 +383,7 @@ class AgentEntryPoint(object):
 
     def __call__(self):
         self.args = self.parser.parse_args()
+
         # Default for 'host' should be 'localhost' for everything
         # except start.
         if self.args.host is None:
