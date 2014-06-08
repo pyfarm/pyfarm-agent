@@ -32,5 +32,5 @@ class Status(APIResource):
         return dumps(
             {"state": config["state"],
              "free_ram": int(memory.ram_free()),
-             "agent"
+             "agent_ram": int(memory.process_memory()),
              "jobs": list(config["jobtypes"].keys())})
