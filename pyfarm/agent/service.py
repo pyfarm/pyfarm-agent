@@ -33,7 +33,7 @@ try:
         responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 except ImportError:  # pragma: no cover
     from http.client import (
-        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUSET)
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
