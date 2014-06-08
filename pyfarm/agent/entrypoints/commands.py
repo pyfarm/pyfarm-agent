@@ -565,29 +565,57 @@ class AgentEntryPoint(object):
                 url,
                 headers={"Content-Type": "application/json"})
 
-        except ConnectionError:
-            logger.warning("Failed to contact the agent at %s", url)
-            logger.error("Agent is offline.")
-            return 1
+        # REST request failed for some reason, try with the pid file
+        except Exception as e:
+            logger.debug(str(e))
+            logger.warning(
+                "Failed to communicate with %s's API.  We can only roughly "
+                "determine if agent is offline or online.", self.args.host)
 
-        else:
-            data = response.json()
-            pid_parent = data["pids"]["parent"]
-            pid_child = data["pids"]["child"]
+            # TODO: use config for pidfile, --pidfile should be an override
+            if not isfile(self.args.pidfile):
+                logger.debug(
+                    "Process ID file %s does not exist", self.args.pidfile)
+                logger.info("Agent is offline")
 
-            # Print some general information about the agent
-            logger.info("Agent %(hostname)s is %(state)s" % data)
-            logger.info("               Uptime: %(uptime)s seconds" % data)
-            logger.info(
-                "  Last Master Contact: %(last_master_contact)s seconds" % data)
-            logger.info("    Parent Process ID: %(pid_parent)s" % locals())
-            logger.info("           Process ID: %(pid_child)s" % locals())
-            logger.info("          Database ID: %(id)s" % data)
-            logger.info("            System ID: %(systemid)s" % data)
-            logger.info(
-                "      Child Processes: %(child_processes)s "
-                "(+%(grandchild_processes)s grandchildren)" % data)
-            logger.info("   Memory Consumption: %(consumed_ram)sMB" % data)
+            else:
+                # We may not be as accurate so try and give someone a
+                # heads up.
+
+
+                with open(self.args.pidfile, "r") as pidfile:
+                    try:
+                        pid = int(pidfile.read().strip())
+                    except ValueError:
+                        logger.error(
+                            "Could not convert pid in %s to an integer.",
+                            self.args.pidfile)
+                        return 1
+
+                if not psutil.pid_exists(pid):
+                    logger.info("Agent is offline.")
+                else:
+                    logger.info("Agent is online.")
+
+            return
+
+        data = response.json()
+        pid_parent = data["pids"]["parent"]
+        pid_child = data["pids"]["child"]
+
+        # Print some general information about the agent
+        logger.info("Agent %(hostname)s is %(state)s" % data)
+        logger.info("               Uptime: %(uptime)s seconds" % data)
+        logger.info(
+            "  Last Master Contact: %(last_master_contact)s seconds" % data)
+        logger.info("    Parent Process ID: %(pid_parent)s" % locals())
+        logger.info("           Process ID: %(pid_child)s" % locals())
+        logger.info("          Database ID: %(id)s" % data)
+        logger.info("            System ID: %(systemid)s" % data)
+        logger.info(
+            "      Child Processes: %(child_processes)s "
+            "(+%(grandchild_processes)s grandchildren)" % data)
+        logger.info("   Memory Consumption: %(consumed_ram)sMB" % data)
 
 
 def fake_render():
