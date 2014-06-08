@@ -37,9 +37,9 @@ from textwrap import dedent
 from os.path import abspath, dirname, isfile, join, isdir
 
 try:
-    from httplib import ACCEPTED, OK
+    from httplib import ACCEPTED, OK, responses
 except ImportError:  # pragma: no cover
-    from http.client import ACCEPTED, OK
+    from http.client import ACCEPTED, OK, responses
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -469,12 +469,48 @@ class AgentEntryPoint(object):
             sys.exit(return_code)
 
     def start(self):
-        # make sure the agent is not already running
-        if any(get_pids(self.args.pidfile, self.agent_api)):
-            logger.error("agent appears to be running")
+        url = self.agent_api + "/status"
+        try:
+            response = requests.get(
+                url, headers={"Content-Type": "application/json"})
+        except ConnectionError:
+            if isfile(self.args.pidfile):
+                logger.debug("Process ID file %s exists", self.args.pidfile)
+                with open(self.args.pidfile, "r") as pidfile:
+                    try:
+                        pid = int(pidfile.read().strip())
+                    except ValueError:
+                        logger.warning(
+                            "Could not convert pid in %s to an integer.",
+                            self.args.pidfile)
+                    else:
+                        try:
+                            process = psutil.Process(pid)
+                        except psutil.NoSuchProcess:
+                            logger.debug(
+                                "Process ID in %s is stale.", self.args.pidfile)
+                        else:
+                            if process.name() == "pyfarm-agent":
+                                logger.error(
+                                    "Agent is already running, pid 5s")
+                                return 1
+                            else:
+                                logger.debug(
+                                    "Process %s does not appear to be the "
+                                    "agent.", pid)
+            else:
+                logger.debug(
+                    "Process ID file %s does not exist", self.args.pidfile)
+        else:
+            code = "%s %s" % (
+                response.status_code, responses[response.status_code])
+            pid = response.json()["pids"]["parent"]
+            logger.error(
+                "Agent at pid %s is already running, got %s from %s.",
+                pid, code, url)
             return 1
 
-        logger.info("starting agent")
+        logger.info("Starting agent")
 
         if not isdir(self.args.task_log_dir):
             logger.debug("Creating %s", self.args.task_log_dir)
@@ -562,8 +598,7 @@ class AgentEntryPoint(object):
         logger.debug("Checking agent status via api using 'GET %s'", url)
         try:
             response = requests.get(
-                url,
-                headers={"Content-Type": "application/json"})
+                url, headers={"Content-Type": "application/json"})
 
         # REST request failed for some reason, try with the pid file
         except Exception as e:
