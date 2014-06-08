@@ -32,10 +32,14 @@ import time
 from collections import namedtuple
 from functools import partial
 from json import dumps
-from pprint import pformat
 from random import choice, randint, random
 from textwrap import dedent
 from os.path import abspath, dirname, isfile, join, isdir
+
+try:
+    from httplib import ACCEPTED, OK
+except ImportError:  # pragma: no cover
+    from http.client import ACCEPTED, OK
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -366,25 +370,13 @@ class AgentEntryPoint(object):
             "Process Control",
             description="Flags that control how the agent is shutdown")
         stop_process_group.add_argument(
-            "--force", default=False, action="store_true",
-            help="Ignore any previous errors not covered by other flags and "
-                 "terminate or restart the process.")
-        stop_process_group.add_argument(
             "--no-wait", default=False, action="store_true",
             help="If provided then don't wait on the agent to shut itself "
                  "down.  By default we would want to wait on each task to stop "
                  "so we can catch any errors and then finally wait on the "
                  "agent to shutdown too.  If you're in a hurry or stopping a "
                  "bunch of agents at once then setting this flag will let the "
-                 "agent continue to stop itself without providing feedback "
-                 "directly.")
-        stop_process_group.add_argument(
-            "--ignore-pid-mismatch", default=False, action="store_true",
-            help="If provided then any discrepancies between the pid reported "
-                 "by the agent process itself and the pid file will be "
-                 "ignored. This will cause stop to only produce a "
-                 "warning and the continue on by trusting the pid provided by "
-                 "the running agent over the value in the pid file.")
+                 "agent continue to stop itself without waiting for each agent")
 
     def __call__(self):
         self.args = self.parser.parse_args()
@@ -536,143 +528,27 @@ class AgentEntryPoint(object):
 
     def stop(self):
         logger.info("Stopping the agent")
-        pidfile = None
-        pid = None
+        url = self.agent_api + "/stop"
 
-        # Before we do anything else, try to do thing the 'nice' way
-        # and get the agent to self terminate
         try:
-            response = requests.get(
-                self.agent_api + "/config",
+            # TODO: this NEEDS to be an authenticated request
+            response = requests.post(
+                url,
+                data=dumps({"wait": not self.args.no_wait}),
                 headers={"Content-Type": "application/json"})
 
-        except ConnectionError:
-            logger.warning("Failed to contact the agent via the REST api")
+        except Exception as e:
+            logger.error("Failed to contact %s: %s", url, e)
+            return 1
 
+        if response.status_code == ACCEPTED:
+            logger.info("Agent is stopping")
+        elif response.status_code == OK:
+            logger.info("Agent has stopped")
         else:
-            if response.ok:
-                data = response.json()
-                pidfile = data["pidfile"]
-                pid = data["pids"]["parent"]
-                logger.debug("Received data from the agent via its REST api:")
-                logger.debug("    pidfile: %s", pidfile)
-                logger.debug("    pids: %r", data["pids"])
-                logger.debug("    current_assignments: %s",
-                             pformat(data["current_assignments"]))
-
-                # Since we could get in contact with the agent's api
-                # we should ask it nicely to stop running
-                # TODO: this NEEDS to be an authenticated request
-                response = requests.post(
-                    self.agent_api + "/stop",
-                    headers={"Content-Type": "application/json"})
-                print response
-
-            else:
-                logger.warning(
-                    "Received code %s when using the agent's "
-                    "REST api. ", response.status_code)
-        # print response
-
-
-
-
-        # print self.agent_api + "/api/v1/"
-        # requests.get()
-
-        # TODO: look for pid file using config if self.args.pidfile fails
-        # pid, process = get_process(self.args.pidfile)
-
-        return
-
-
-
-        file_pid, http_pid = get_pids(self.args.pidfile, self.agent_api)
-
-        # the pids, process object, and child jobs were not found
-        # by any means
-        if file_pid is None and http_pid is None:
-            logger.info("agent is not running")
-            return
-
-        # check to see if the two pids we have are different
-        pid = file_pid
-        if all([file_pid is not None, http_pid is not None,
-                file_pid != http_pid]):
-            message = (
-                "The pid on disk is %s but the pid the agent is reporting "
-                "is %s." % (file_pid, http_pid))
-
-            if not self.args.ignore_pid_mismatch:
-                logger.warning(message)
-                pid = http_pid
-
-            else:
-                message += ("  Normally this is because the pid file is either "
-                            "stale or became outdated for some reason.  If "
-                            "this is the case you may relaunch with the "
-                            "--ignore-pid-mismatch flag.")
-                logger.error(message)
-                return
-
-        # since the http server did give us a pid we assume we can post
-        # the shutdown request directly to it
-        if http_pid:
-            url = self.agent_api + "shutdown?wait=%s" % self.args.no_wait
-            logger.debug("POST %s" % url)
-            logger.info("requesting agent shutdown over REST api")
-
-            try:
-                response = requests.post(
-                    url,
-                    auth=(self.args.api_username, self.args.api_password),
-                    data={"user": user.username(), "time": time.time()},
-                    headers={"Content-Type": "application/json"})
-                logger.debug("text: %s" % response.data)
-
-            except ConnectionError as e:
-                logger.traceback(e)
-                logger.error("failed to POST our request to the agent")
-            else:
-                if not response.ok:
-                    logger.error(
-                        "response to shutdown was %s" % repr(response.reason))
-                else:
-                    if not self.args.no_wait:
-                        logger.info("agent has shutdown")
-
-                    # remove the pid file
-                    try:
-                        os.remove(self.args.pidfile)
-                        logger.debug("removed %s" % self.args.pidfile)
-                    except OSError:
-                        logger.warning(
-                            "failed to remove %s" % self.args.pidfile)
-
-        else:
-            if not self.args.force:
-                logger.error(
-                    "The agent's REST interface is either down or the agent "
-                    "did not respond to our request.  If you still wish to "
-                    "terminate process %s use --force" % pid)
-                return 1
-
-            logger.warning("using force to terminate process %s" % pid)
-
-            try:
-                process = psutil.Process(pid)
-            except psutil.NoSuchProcess:
-                logger.error("no such process %s" % pid)
-            else:
-                process.terminate()
-
-                # remove the pid file
-                try:
-                    os.remove(self.args.pidfile)
-                    logger.debug("removed %s" % self.args.pidfile)
-                except OSError:
-                    logger.warning(
-                        "failed to remove %s" % self.args.pidfile)
+            logger.error(
+                "Received code %s when attempting to access %s: %s",
+                response.status_code, url, response.data())
 
     def status(self):
         url = self.agent_api + "/status"
