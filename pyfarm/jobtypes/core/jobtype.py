@@ -129,7 +129,7 @@ class JobType(object):
     ignore_uid_gid_mapping_errors = read_env_bool(
         "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
     process_protocol = ProcessProtocol
-    success_codes = set([0])
+    success_codes = (0, )
     logging = {}
     cache = {}
 
