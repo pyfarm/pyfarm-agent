@@ -22,7 +22,6 @@ import sys
 from datetime import datetime
 from string import Template
 from os.path import join, dirname, isfile, basename
-from uuid import uuid1
 from functools import partial
 
 try:
@@ -51,7 +50,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.agent.sysinfo import memory, user, system
 from pyfarm.agent.utility import (
-    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA)
+    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
@@ -141,10 +140,13 @@ class JobType(object):
         self.stdout_line_fragments = []
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
-        # Key used for keeping track of this specific instance
-        # and when trying to find the instance externally (such
-        # as with REST
-        self._uuid = uuid1(node=config["systemid"])
+        # JobType objects in the future may or may not have explicit tasks
+        # associated with when them.  The format of tasks could also change
+        # since it's an internal representation so to guard against these
+        # changes we just use a simple uuid to represent ourselves in the
+        # config dictionary.
+        self._uuid = uuid()
+        config["jobtypes"][self._uuid] = self
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -786,6 +788,28 @@ class JobType(object):
 
         self.deferred = Deferred()
         return self.deferred
+
+    def _stop(self):
+         return self.stop()
+
+    def stop(self):
+        """
+        This method is called when the job type should stop
+        running.  This will terminate any processes associated with
+        this job type and also inform the master of any state changes
+        to an associated task or tasks.
+        """
+        stopped = Deferred()
+        # TODO: stop all running processes
+        # TODO: notify master of stopped task(s)
+
+        # TODO: chain this callback to the completion of our request to master
+        def finished_processes():
+             stopped.callback(True)
+             config["jobtypes"].pop(self._uuid)
+
+        finished_processes()
+        return stopped
 
     def format_log_message(self, message, stream_type=None):
         """

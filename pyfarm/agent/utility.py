@@ -31,6 +31,7 @@ from decimal import Decimal
 from datetime import datetime
 from json import dumps as _dumps
 from UserDict import UserDict
+from uuid import uuid1
 
 try:
     from urlparse import urlsplit
@@ -69,6 +70,11 @@ TASK_SCHEMA = Schema({
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 
 logger = getLogger("agent.utility")
+
+
+def uuid():
+    """Wrapper around :func:`uuid1` which incorporates our system id"""
+    return uuid1(node=config["systemid"])
 
 
 def default_json_encoder(obj):
@@ -197,3 +203,4 @@ def terminate_if_sigint(code=1):
     if config["terminate-on-sigint"] and config["signal"] == signal.SIGINT:
         logger.critical("SIGINT has been set, terminating")
         os._exit(code)
+
