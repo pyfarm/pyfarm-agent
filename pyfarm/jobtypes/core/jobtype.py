@@ -18,12 +18,11 @@ import imp
 import json
 import os
 import tempfile
-import threading
 import sys
 from datetime import datetime
 from string import Template
 from os.path import join, dirname, isfile, basename
-from Queue import Queue, Empty
+from uuid import uuid1
 from functools import partial
 
 try:
@@ -50,7 +49,7 @@ from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
-from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.agent.sysinfo import memory, user, system
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA)
 from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
@@ -136,13 +135,89 @@ class JobType(object):
 
     def __init__(self, assignment):
         self.protocols = {}
-        self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
         self.failed_processes = []
         self.stdout_line_fragments = []
+        self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
+
+        # Key used for keeping track of this specific instance
+        # and when trying to find the instance externally (such
+        # as with REST
+        self._uuid = uuid1(node=config["systemid"])
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
         logger.debug("Instanced %r", self)
+
+    def node(self):
+        """
+        Returns live information about this host, the operating system,
+        hardware, and several other pieces of global data which is useful
+        inside of the job type.  Currently data from this method includes:
+
+            * **master_api** - The base url the agent is using to
+              communicate with the master.
+            * **hostname** - The hostname as reported to the master.
+            * **systemid** - The unique identifier used to identify.
+              this agent to the master.
+            * **id** - The database id of the agent as given to us by
+              the master on startup of the agent.
+            * **cpus** - The number of CPUs reported to the master
+            * **ram** - The amount of ram reported to the master.
+            * **total_ram** - The amount of ram, in megabytes,
+              that's installed on the system regardless of what
+              was reported to the master.
+            * **free_ram** - How much ram, in megabytes, is free
+              for the entire system.
+            * **consumed_ram** - How much ram, in megabytes, is
+              being consumed by the agent and any processes it has
+              launched.
+            * **admin** - Set to True if the current user is an
+              administrator or 'root'.
+            * **user** - The username of the current user.
+            * **case_sensitive_files** - True if the file system is
+              case sensitive.
+            * **case_sensitive_env** - True if environment variables
+              are case sensitive.
+            * **machine_architecture** - The architecture of the machine
+              the agent is running on.  This will return 32 or 64.
+            * **operating_system** - The operating system the agent
+              is executing on.  This value will be 'linux', 'mac' or
+              'windows'.  In rare circumstances this could also
+              be 'other'.
+
+        :raises KeyError:
+            Raised if one or more keys are not present in
+            the global configuration object.
+
+            This should rarely if ever be a problem under normal
+            circumstances.  The exception to this rule is in
+            unittests or standalone libraries with the global
+            config object may not be populated.
+        """
+        try:
+            machine_architecture = system.machine_architecture()
+        except NotImplementedError:
+            logger.warning(
+                "Failed to determine machine architecture.  This is a "
+                "bug, please report it.")
+            raise
+
+        return {
+            "master_api": config["master-api"],
+            "hostname": config["hostname"],
+            "systemid": config["systemid"],
+            "id": config["id"],
+            "cpus": config["cpus"],
+            "ram": config["ram"],
+            "total_ram": int(memory.total_ram()),
+            "free_ram": int(memory.ram_free()),
+            "consumed_ram": int(memory.total_consumption()),
+            "admin": user.is_administrator(),
+            "user": user.username(),
+            "case_sensitive_files": system.filesystem_is_case_sensitive(),
+            "case_sensitive_env": system.environment_is_case_sensitive(),
+            "machine_architecture": machine_architecture,
+            "operating_system": system.operating_system()}
 
     def __repr__(self):
         return "JobType(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)" % (
@@ -612,7 +687,7 @@ class JobType(object):
 
             # Regardless of platform, we run a command as
             # another user unless we're an admin
-            if is_administrator():
+            if user.is_administrator():
                 # map user
                 try:
                     uid = self.get_uid(process_inputs.user)
