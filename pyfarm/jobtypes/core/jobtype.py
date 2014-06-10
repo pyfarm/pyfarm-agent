@@ -136,6 +136,7 @@ class JobType(object):
     def __init__(self, assignment):
         self.protocols = {}
         self.failed_processes = []
+        self.finished_tasks = []
         self.stdout_line_fragments = []
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
