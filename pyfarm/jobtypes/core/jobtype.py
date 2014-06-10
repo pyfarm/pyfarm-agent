@@ -137,6 +137,7 @@ class JobType(object):
         self.protocols = {}
         self.failed_processes = []
         self.finished_tasks = []
+        self.failed_tasks = []
         self.stdout_line_fragments = []
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
@@ -840,6 +841,7 @@ class JobType(object):
         for task in tasks:
             self.set_task_state(task, state, error=error)
 
+    # TODO: refactor so `task` is an integer, not a dictionary
     def set_task_state(self, task, state, error=None):
         """
         Sets the state of the given task
@@ -887,6 +889,8 @@ class JobType(object):
             if state == WorkState.FAILED:
                 error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
+                if task not in self.failed_tasks:
+                    self.failed_tasks.append(task)
 
             # `error` shouldn't be set if the state is not a failure
             elif error is not None:
@@ -950,6 +954,19 @@ class JobType(object):
 
         # TODO: if new state is the equiv. of 'stopped', stop the process
         # and POST the change
+
+    def get_local_task_state(self, task_id):
+        """
+        Returns None if the state of this task has not been changed
+        locally since this assignment has started.  This method does
+        not communicate with the master.
+        """
+        if task_id in self.finished_tasks:
+            return WorkState.DONE
+        elif task_id in self.failed_tasks:
+            return WorkState.FAILED
+        else:
+            return None
 
     def is_successful(self, reason):
         """
