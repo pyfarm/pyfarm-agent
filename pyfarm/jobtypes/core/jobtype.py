@@ -702,7 +702,7 @@ class JobType(object):
                 try:
                     gid = self.get_uid(process_inputs.group)
                 except (ValueError, KeyError):
-                    self.set_state(
+                    self.set_task_state(
                         process_inputs.tasks, WorkState.FAILED,
                         "Failed to or verify group %r" % process_inputs.group)
                     return
@@ -838,9 +838,9 @@ class JobType(object):
         """
         assert isinstance(tasks, (tuple, list))
         for task in tasks:
-            self.set_state(task, state, error=error)
+            self.set_task_state(task, state, error=error)
 
-    def set_state(self, task, state, error=None):
+    def set_task_state(self, task, state, error=None):
         """
         Sets the state of the given task
 
@@ -909,34 +909,39 @@ class JobType(object):
 
             def post_update(url, data, delay=0):
                 post_func = partial(
-                    post,
-                    url,
+                    post, url,
                     data=data,
-                    callback=lambda x: result_callback(url, data, task["id"],
-                                                       state, x),
+                    callback=lambda x: result_callback(
+                        url, data, task["id"], state, x),
                     errback=lambda x: error_callback(url, data, x))
                 reactor.callLater(delay, post_func)
 
             def result_callback(url, data, task_id, state, response):
                 if response.code >= 500 and response.code < 600:
-                    logger.error("Error while posting state update for task %s "
-                                 "to %s, return code is %s, retrying",
-                                 task_id, state, response.code)
+                    logger.error(
+                        "Error while posting state update for task %s "
+                        "to %s, return code is %s, retrying",
+                        task_id, state, response.code)
                     post_update(url, data, delay=http_retry_delay())
 
                 elif response.code != OK:
-                    # Nothing else we could do about that
+                    # Nothing else we could do about that, this is
+                    # a problem on our end.  We should only encounter
+                    # this error dueing development
                     logger.error(
                         "Could not set state for task %s to %s, server "
                         "response code was %s", task_id, state, response.code)
 
                 else:
-                    logger.info("Set state of task %s to %s on master",
-                                task_id, state)
+                    logger.info(
+                        "Set state of task %s to %s on master", task_id, state)
+                    if state == WorkState.DONE \
+                            and task_id not in self.finished_tasks:
+                        self.finished_tasks.append(task_id)
 
             def error_callback(url, data, failure):
-                logger.error("Error while posting state update for task, "
-                             "retrying")
+                logger.error(
+                    "Error while posting state update for task, retrying")
                 post_update(url, data, delay=http_retry_delay())
 
             # Initial attempt to make an update with an explicit zero
@@ -992,11 +997,11 @@ class JobType(object):
             if not self.failed_processes:
                 self.deferred.callback(reason)
                 for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.DONE, reason)
+                    self.set_task_state(task, WorkState.DONE, reason)
             else:
                 self.deferred.errback()
                 for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.FAILED, reason)
+                    self.set_task_state(task, WorkState.FAILED, reason)
 
     def process_stopped(self, protocol, reason):
         """
