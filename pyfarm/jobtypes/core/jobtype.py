@@ -63,21 +63,13 @@ process_stderr = getLogger("process.stderr")
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment
 # on purpose or by accident.
-# TODO: replace this with a file based configuration
-DEFAULT_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_DEFAULT_ENVIRONMENT", "")
-if isfile(DEFAULT_ENVIRONMENT_CONFIG):
-    logger.info(
-        "Attempting to load default environment from %r",
-        DEFAULT_ENVIRONMENT_CONFIG)
-    with open(DEFAULT_ENVIRONMENT_CONFIG, "rb") as stream:
-        DEFAULT_ENVIRONMENT = json.load(stream)
-else:
-    DEFAULT_ENVIRONMENT = os.environ.copy()
-
+# TODO: file based configuration
+DEFAULT_ENVIRONMENT = os.environ.copy()
 assert isinstance(DEFAULT_ENVIRONMENT, dict)
 
+# TODO: file based configuration
 DEFAULT_CACHE_DIRECTORY = read_env(
-    "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
+    "PYFARM_JOBTYPE_CACHE_DIRECTORY", join(".pyfarm_agen", ".jobtypes"))
 
 
 class JobType(object):
@@ -122,7 +114,7 @@ class JobType(object):
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
 
-    # TODO: add command line flags for some of these
+    # TODO: command line flags, file based configuration
     expand_path_vars = read_env_bool(
         "PYFARM_JOBTYPE_DEFAULT_EXPANDVARS", True)
     ignore_uid_gid_mapping_errors = read_env_bool(
