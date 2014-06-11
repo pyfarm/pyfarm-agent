@@ -492,7 +492,7 @@ class AgentEntryPoint(object):
                         else:
                             if process.name() == "pyfarm-agent":
                                 logger.error(
-                                    "Agent is already running, pid 5s")
+                                    "Agent is already running, pid %s", pid)
                                 return 1
                             else:
                                 logger.debug(
