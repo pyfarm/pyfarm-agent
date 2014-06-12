@@ -115,24 +115,6 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
             "implemented on %s" % OS.title())
 
 
-def write_pid_file(path, pid):
-    # if this fails is because we've done something wrong somewhere
-    # else in this code
-    assert not isfile(path), "pid file should not exist now!"
-
-    pidfile_dirname = dirname(path)
-    if not isdir(pidfile_dirname):
-        try:
-            os.makedirs(pidfile_dirname)
-        except OSError:  # pragma: no cover
-            logger.warning("failed to create %s" % pidfile_dirname)
-
-    with open(path, "w") as pidfile:
-        pidfile.write(str(pid))
-
-    logger.debug("wrote %s to %s" % (pid, pidfile.name))
-
-
 def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     """
     Generate a system identifier based on the mac addresses

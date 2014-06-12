@@ -75,7 +75,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    start_daemon_posix, write_pid_file, get_system_identifier)
+    start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import network, memory, cpu
 
 
@@ -556,12 +556,35 @@ class AgentEntryPoint(object):
                 "`fork` is not implemented on %s, starting in "
                 "foreground" % OS.title())
 
-        pid = os.getpid()
-        try:
-            write_pid_file(self.args.pidfile, pid)
-        except (AssertionError, OSError) as e:
-            logger.error("Failed to create or write pid file: %s", e)
+        # PID file should not exist now.  Either the last agent instance
+        # should have removed it or we should hae above.
+        if isfile(self.args.pidfile):
+            logger.error("PID file should not exist on disk at this point.")
             return 1
+
+        # Create the directory for the pid file if necessary
+        pid_dirname = dirname(self.args.pidfile)
+        if not isdir(pid_dirname):
+            try:
+                os.makedirs(pid_dirname)
+            except OSError:  # pragma: no cover
+                logger.error(
+                    "Failed to create parent directory for %s",
+                    self.args.pidfile)
+                return 1
+            else:
+                logger.debug("Created directory %s", pid_dirname)
+
+        # Write the PID file
+        try:
+            with open(self.args.pidfile, "w") as pid:
+                pid.write(str(os.getpid()))
+        except OSError as e:
+            logger.error(
+                "Failed to write PID file %s: %s", self.args.pidfile, e)
+            return 1
+        else:
+            logger.debug("Wrote PID to %s", self.args.pidfile)
 
         logger.info("pid: %s" % pid)
 
