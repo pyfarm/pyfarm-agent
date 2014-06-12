@@ -178,14 +178,6 @@ class Agent(object):
                         "current_assignments", {}),  # may not be set yet
                     "free_ram": int(memory.ram_free())})
 
-        else:
-            contacted = config.master_contacted(update=False)
-            remaining = (datetime.utcnow() - contacted).total_seconds()
-            svclog.debug(
-                "Skipping reannounce to master, %s seconds "
-                "remain till next attempt.",
-                config["master-reannounce"] - remaining)
-
     def system_data(self, requery_timeoffset=False):
         """
         Returns a dictionary of data containing information about the
