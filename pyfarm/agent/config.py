@@ -63,7 +63,7 @@ class LoggingConfiguration(dict):
         # Setup some standard entries which we need
         # starting out
         self.update({
-            "jobtypes": {},
+
             "last-master-contact": datetime(1970, 1, 1)})
 
     def __setitem__(self, key, value):

@@ -54,3 +54,24 @@ def total_ram():
 def total_swap():
     """Total virtual memory (swap) installed on the system"""
     return convert.bytetomb(psutil.swap_memory().total)
+
+
+def process_memory():
+    """Total amount of ram in use by this process"""
+    process = psutil.Process()
+    return convert.bytetomb(process.memory_info().rss)
+
+
+def total_consumption():
+    """
+    Total amount of memory consumed by this process and any
+    child process spawned by the parent process.  This includes
+    any grandchild processes.
+    """
+    parent = psutil.Process()
+    total = parent.memory_info().rss
+
+    for child_process in parent.children(recursive=True):
+        total += child_process.memory_info().rss
+
+    return convert.bytetomb(total)

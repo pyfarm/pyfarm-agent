@@ -36,6 +36,11 @@ from random import choice, randint, random
 from textwrap import dedent
 from os.path import abspath, dirname, isfile, join, isdir
 
+try:
+    from httplib import ACCEPTED, OK, responses
+except ImportError:  # pragma: no cover
+    from http.client import ACCEPTED, OK, responses
+
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
 try:
@@ -70,8 +75,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    get_pids, start_daemon_posix, write_pid_file, get_system_identifier)
-from pyfarm.agent.sysinfo import user, network, memory, cpu
+    start_daemon_posix, write_pid_file, get_system_identifier)
+from pyfarm.agent.sysinfo import network, memory, cpu
 
 
 logger = getLogger("agent.cmd")
@@ -88,6 +93,7 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
+        self.default_host = network.hostname()
         self.parser = argparse.ArgumentParser(
             usage="%(prog)s [status|start|stop]",
             epilog="%(prog)s is a command line client for working with a "
@@ -123,6 +129,12 @@ class AgentEntryPoint(object):
             help="The port number which the gent is either running on or "
                  "will started on.  This port is also reported the master "
                  "when an agent starts. [default: %(default)s]")
+        global_network.add_argument(
+            "--host", default=None,
+            help="The host to communicate with or hostname to present to the "
+                 "master when starting.  Defaults to %r for the start "
+                 "command and 'localhost' other targets such as status or "
+                 "stop." % self.default_host)
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
@@ -327,10 +339,6 @@ class AgentEntryPoint(object):
             help="The remote IPv4 address to report.  In situation where the "
                  "agent is behind a firewall this value will typically be "
                  "different.")
-        start_network.add_argument(
-            "--hostname", default=network.hostname(),
-            help="The agent's hostname to send to the master "
-                 "[default: %(default)s]")
 
         # various options for how the agent will interact with the
         # master server
@@ -370,32 +378,28 @@ class AgentEntryPoint(object):
                  "agent or a new job type class.")
 
         # options when stopping the agent
-        stop_process_group = stop.add_argument_group(
-            "Process Control",
-            description="Flags that control how the agent is shutdown")
-        stop_process_group.add_argument(
-            "--force", default=False, action="store_true",
-            help="Ignore any previous errors not covered by other flags and "
-                 "terminate or restart the process.")
-        stop_process_group.add_argument(
+        stop_group = stop.add_argument_group(
+            "optional flags",
+            description="Flags that control how the agent is stopped")
+        stop_group.add_argument(
             "--no-wait", default=False, action="store_true",
             help="If provided then don't wait on the agent to shut itself "
                  "down.  By default we would want to wait on each task to stop "
                  "so we can catch any errors and then finally wait on the "
                  "agent to shutdown too.  If you're in a hurry or stopping a "
                  "bunch of agents at once then setting this flag will let the "
-                 "agent continue to stop itself without providing feedback "
-                 "directly.")
-        stop_process_group.add_argument(
-            "--ignore-pid-mismatch", default=False, action="store_true",
-            help="If provided then any discrepancies between the pid reported "
-                 "by the agent process itself and the pid file will be "
-                 "ignored. This will cause stop to only produce a "
-                 "warning and the continue on by trusting the pid provided by "
-                 "the running agent over the value in the pid file.")
+                 "agent continue to stop itself without waiting for each agent")
 
     def __call__(self):
         self.args = self.parser.parse_args()
+
+        # Default for 'host' should be 'localhost' for everything
+        # except start.
+        if self.args.host is None:
+            if self.args.target_name == "start":
+                self.args.host = self.default_host
+            else:
+                self.args.host = "localhost"
 
         if not self.args.master and self.args.target_name == "start":
             self.parser.error(
@@ -435,7 +439,7 @@ class AgentEntryPoint(object):
                     cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
                 "master-api": self.args.master_api,
-                "hostname": self.args.hostname,
+                "hostname": self.args.host,
                 "port": self.args.port,
                 "state": self.args.state,
                 "ram": self.args.ram,
@@ -457,16 +461,16 @@ class AgentEntryPoint(object):
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
                 "master-reannounce": self.args.master_reannounce,
-                "terminate-on-sigint": self.args.terminate_on_sigint}
+                "terminate-on-sigint": self.args.terminate_on_sigint,
+                "pidfile": self.args.pidfile,
+                "pids": {
+                    "parent": os.getpid()}}
+            # update configuration with values from the command line
 
             config.update(config_flags)
 
-        if self.args.target_name in ("start", "stop"):
-            self.agent_api = \
-                "http://%s:%s/" % (self.args.hostname, self.args.port)
-        else:
-            self.agent_api = \
-                "http://localhost:%s/" % self.args.port
+        self.agent_api = \
+            "http://%s:%s/api/v1" % (self.args.host, self.args.port)
 
         return_code = self.args.target_func()
 
@@ -476,12 +480,48 @@ class AgentEntryPoint(object):
             sys.exit(return_code)
 
     def start(self):
-        # make sure the agent is not already running
-        if any(get_pids(self.args.pidfile, self.agent_api)):
-            logger.error("agent appears to be running")
+        url = self.agent_api + "/status"
+        try:
+            response = requests.get(
+                url, headers={"Content-Type": "application/json"})
+        except ConnectionError:
+            if isfile(self.args.pidfile):
+                logger.debug("Process ID file %s exists", self.args.pidfile)
+                with open(self.args.pidfile, "r") as pidfile:
+                    try:
+                        pid = int(pidfile.read().strip())
+                    except ValueError:
+                        logger.warning(
+                            "Could not convert pid in %s to an integer.",
+                            self.args.pidfile)
+                    else:
+                        try:
+                            process = psutil.Process(pid)
+                        except psutil.NoSuchProcess:
+                            logger.debug(
+                                "Process ID in %s is stale.", self.args.pidfile)
+                        else:
+                            if process.name() == "pyfarm-agent":
+                                logger.error(
+                                    "Agent is already running, pid %s", pid)
+                                return 1
+                            else:
+                                logger.debug(
+                                    "Process %s does not appear to be the "
+                                    "agent.", pid)
+            else:
+                logger.debug(
+                    "Process ID file %s does not exist", self.args.pidfile)
+        else:
+            code = "%s %s" % (
+                response.status_code, responses[response.status_code])
+            pid = response.json()["pids"]["parent"]
+            logger.error(
+                "Agent at pid %s is already running, got %s from %s.",
+                pid, code, url)
             return 1
 
-        logger.info("starting agent")
+        logger.info("Starting agent")
 
         if not isdir(self.args.task_log_dir):
             logger.debug("Creating %s", self.args.task_log_dir)
@@ -533,118 +573,98 @@ class AgentEntryPoint(object):
 
         from pyfarm.agent.service import Agent
 
+        # Setup the agent, register stop(), then run the agent
         service = Agent()
-        service.run()
-
-        # Explicitly handle sigint (Ctrl-c) so the reactor
-        # won't try to keep rerunning certain bits of code
-        # such as retry requests.
-        def handle_sigint(*_):
-            if config["terminate-on-sigint"]:
-                config["signal"] = signal.SIGINT
-
-            reactor.stop()
-
-        signal.signal(signal.SIGINT, handle_sigint)
+        signal.signal(signal.SIGINT, service.stop)
+        service.start()
 
         reactor.run()
 
     def stop(self):
-        logger.info("stopping agent")
-        file_pid, http_pid = get_pids(self.args.pidfile, self.agent_api)
+        logger.info("Stopping the agent")
+        url = self.agent_api + "/stop"
 
-        # the pids, process object, and child jobs were not found
-        # by any means
-        if file_pid is None and http_pid is None:
-            logger.info("agent is not running")
-            return
+        try:
+            # TODO: this NEEDS to be an authenticated request
+            response = requests.post(
+                url,
+                data=dumps({"wait": not self.args.no_wait}),
+                headers={"Content-Type": "application/json"})
 
-        # check to see if the two pids we have are different
-        pid = file_pid
-        if all([file_pid is not None, http_pid is not None,
-                file_pid != http_pid]):
-            message = (
-                "The pid on disk is %s but the pid the agent is reporting "
-                "is %s." % (file_pid, http_pid))
+        except Exception as e:
+            logger.error("Failed to contact %s: %s", url, e)
+            return 1
 
-            if not self.args.ignore_pid_mismatch:
-                logger.warning(message)
-                pid = http_pid
-
-            else:
-                message += ("  Normally this is because the pid file is either "
-                            "stale or became outdated for some reason.  If "
-                            "this is the case you may relaunch with the "
-                            "--ignore-pid-mismatch flag.")
-                logger.error(message)
-                return
-
-        # since the http server did give us a pid we assume we can post
-        # the shutdown request directly to it
-        if http_pid:
-            url = self.agent_api + "shutdown?wait=%s" % self.args.no_wait
-            logger.debug("POST %s" % url)
-            logger.info("requesting agent shutdown over REST api")
-
-            try:
-                response = requests.post(
-                    url,
-                    auth=(self.args.api_username, self.args.api_password),
-                    data={"user": user.username(), "time": time.time()},
-                    headers={"Content-Type": "application/json"})
-                logger.debug("text: %s" % response.data)
-
-            except ConnectionError as e:
-                logger.traceback(e)
-                logger.error("failed to POST our request to the agent")
-            else:
-                if not response.ok:
-                    logger.error(
-                        "response to shutdown was %s" % repr(response.reason))
-                else:
-                    if not self.args.no_wait:
-                        logger.info("agent has shutdown")
-
-                    # remove the pid file
-                    try:
-                        os.remove(self.args.pidfile)
-                        logger.debug("removed %s" % self.args.pidfile)
-                    except OSError:
-                        logger.warning(
-                            "failed to remove %s" % self.args.pidfile)
-
+        if response.status_code == ACCEPTED:
+            logger.info("Agent is stopping")
+        elif response.status_code == OK:
+            logger.info("Agent has stopped")
         else:
-            if not self.args.force:
-                logger.error(
-                    "The agent's REST interface is either down or the agent "
-                    "did not respond to our request.  If you still wish to "
-                    "terminate process %s use --force" % pid)
-                return 1
-
-            logger.warning("using force to terminate process %s" % pid)
-
-            try:
-                process = psutil.Process(pid)
-            except psutil.NoSuchProcess:
-                logger.error("no such process %s" % pid)
-            else:
-                process.terminate()
-
-                # remove the pid file
-                try:
-                    os.remove(self.args.pidfile)
-                    logger.debug("removed %s" % self.args.pidfile)
-                except OSError:
-                    logger.warning(
-                        "failed to remove %s" % self.args.pidfile)
+            logger.error(
+                "Received code %s when attempting to access %s: %s",
+                response.status_code, url, response.data())
 
     def status(self):
-        logger.info("checking status")
-        if any(get_pids(self.args.pidfile, self.agent_api)):
-            logger.error("agent appears to be running")
-            return 0
-        else:
-            return 1
+        url = self.agent_api + "/status"
+        logger.debug("Checking agent status via api using 'GET %s'", url)
+        try:
+            response = requests.get(
+                url, headers={"Content-Type": "application/json"})
+
+        # REST request failed for some reason, try with the pid file
+        except Exception as e:
+            logger.debug(str(e))
+            logger.warning(
+                "Failed to communicate with %s's API.  We can only roughly "
+                "determine if agent is offline or online.", self.args.host)
+
+            # TODO: use config for pidfile, --pidfile should be an override
+            if not isfile(self.args.pidfile):
+                logger.debug(
+                    "Process ID file %s does not exist", self.args.pidfile)
+                logger.info("Agent is offline")
+
+            else:
+                with open(self.args.pidfile, "r") as pidfile:
+                    try:
+                        pid = int(pidfile.read().strip())
+                    except ValueError:
+                        logger.error(
+                            "Could not convert pid in %s to an integer.",
+                            self.args.pidfile)
+                        return 1
+
+                try:
+                    process = psutil.Process(pid)
+                except psutil.NoSuchProcess:
+                    logger.info("Agent is offline.")
+                else:
+                    if process.name() == "pyfarm-agent":
+                        logger.info("Agent is online.")
+                    else:
+                        logger.warning(
+                            "Process %s does not appear to be the agent", pid)
+                        logger.info("Agent is offline.")
+
+            return
+
+        data = response.json()
+        pid_parent = data["pids"]["parent"]
+        pid_child = data["pids"]["child"]
+
+        # Print some general information about the agent
+        logger.info("Agent %(hostname)s is %(state)s" % data)
+        logger.info("               Uptime: %(uptime)s seconds" % data)
+        logger.info(
+            "  Last Master Contact: %(last_master_contact)s seconds" % data)
+        logger.info("    Parent Process ID: %(pid_parent)s" % locals())
+        logger.info("           Process ID: %(pid_child)s" % locals())
+        logger.info("          Database ID: %(id)s" % data)
+        logger.info("            System ID: %(systemid)s" % data)
+        logger.info(
+            "      Child Processes: %(child_processes)s "
+            "(+%(grandchild_processes)s grandchildren)" % data)
+        logger.info("   Memory Consumption: %(consumed_ram)sMB" % data)
 
 
 def fake_render():

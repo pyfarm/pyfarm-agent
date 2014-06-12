@@ -25,12 +25,11 @@ are copied over from the master (which we can't import here).
 import csv
 import codecs
 import cStringIO
-import os
-import signal
 from decimal import Decimal
 from datetime import datetime
 from json import dumps as _dumps
 from UserDict import UserDict
+from uuid import uuid1
 
 try:
     from urlparse import urlsplit
@@ -50,6 +49,11 @@ from pyfarm.agent.config import config
 
 MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
 logger = getLogger("agent.utility")
+
+
+def uuid():
+    """Wrapper around :func:`uuid1` which incorporates our system id"""
+    return uuid1(node=config["systemid"])
 
 
 def default_json_encoder(obj):
@@ -169,17 +173,3 @@ class UnicodeCSVWriter(object):
         for row in rows:
             self.writerow(row)
 
-
-def terminate_if_sigint(code=1):
-    """
-    If ``--terminate-on-sigint`` was set and the appropriate signal has
-    been emitted then terminate the program.  This method was implemented
-    as a result of https://github.com/pyfarm/pyfarm-agent/issues/24.  It's
-    part of the config object so it's globally accessible.
-    """
-    if "signal" not in config:
-        return
-
-    if config["terminate-on-sigint"] and config["signal"] == signal.SIGINT:
-        logger.critical("SIGINT has been set, terminating")
-        os._exit(code)

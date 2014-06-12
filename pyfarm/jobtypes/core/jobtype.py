@@ -51,7 +51,7 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
-from pyfarm.agent.utility import UnicodeCSVWriter
+from pyfarm.agent.utility import UnicodeCSVWriter, uuid
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ProcessInputs, ReplaceEnvironment)
 
@@ -184,6 +184,15 @@ class JobType(object):
 
     def __init__(self, assignment):
         assert isinstance(assignment, dict)
+
+        # JobType objects in the future may or may not have explicit tasks
+        # associated with when them.  The format of tasks could also change
+        # since it's an internal representation so to guard against these
+        # changes we just use a simple uuid to represent ourselves in the
+        # config dictionary.
+        self._uuid = uuid()
+        config["jobtypes"][self._uuid] = self
+
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
         self.failed_processes = []
@@ -758,6 +767,28 @@ class JobType(object):
 
         self.deferred = Deferred()
         return self.deferred
+
+    def _stop(self):
+        return self.stop()
+
+    def stop(self):
+        """
+        This method is called when the job type should stop
+        running.  This will terminate any processes associated with
+        this job type and also inform the master of any state changes
+        to an associated task or tasks.
+        """
+        stopped = Deferred()
+        # TODO: stop all running processes
+        # TODO: notify master of stopped task(s)
+
+        # TODO: chain this callback to the completion of our request to master
+        def finished_processes():
+            stopped.callback(True)
+            config["jobtypes"].pop(self._uuid)
+
+        finished_processes()
+        return stopped
 
     def format_log_message(self, message, stream_type=None):
         """

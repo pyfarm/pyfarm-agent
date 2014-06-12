@@ -22,10 +22,12 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
+import atexit
+import os
 import time
 from datetime import datetime
 from functools import partial
-from os.path import join
+from os.path import join, isfile
 from random import random
 
 try:
@@ -37,7 +39,7 @@ except ImportError:  # pragma: no cover
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -46,6 +48,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
+from pyfarm.agent.http.api.state import Status, Stop
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.core.client import post, http_retry_delay
@@ -55,7 +58,6 @@ from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.utility import terminate_if_sigint
 
 ntplog = getLogger("agent.ntp")
 svclog = getLogger("agent.svc")
@@ -73,7 +75,8 @@ class Agent(object):
         assert "agent" not in config
         config["agent"] = self
         self.http = None
-        self.shutdown_registered = False
+        self.sigint_signal_count = 0
+        self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
 
         # reannounce_client is set when the agent id is
@@ -253,23 +256,25 @@ class Agent(object):
         root.putChild("configuration", Configuration())
         root.putChild("logging", Logging())
 
-        # TODO: renable these once they are working again
-        # resource.putChild("assign", Assign(config))
-        # resource.putChild("processes", Processes(config))
-        # resource.putChild("shutdown", Shutdown(config))
-
         # api endpoints
         api = root.putChild("api", APIRoot())
         api.putChild("versions", Versions())
         v1 = api.putChild("v1", APIRoot())
+
+        # Top level api endpoints
         v1.putChild("assign", Assign())
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
 
+        # Enpoints which are generally used for status
+        # and operations.
+        v1.putChild("status", Status())
+        v1.putChild("stop", Stop())
+
         return root
 
-    def run(self, shutdown_events=True, http_server=True):
+    def start(self, shutdown_events=True, http_server=True):
         """
         Internal code which starts the agent, registers it with the master,
         and performs the other steps necessary to get things running.
@@ -289,6 +294,10 @@ class Agent(object):
             self.http = Site(http_resource)
             reactor.listenTCP(config["port"], self.http)
 
+        # Update the configuration with this pid (which may be different
+        # than the original pid).
+        config["pids"].update(child=os.getpid())
+
         # get ready to 'publish' the agent
         config.register_callback(
             "agent-id",
@@ -298,20 +307,77 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
-    def shutdown_task_manager(self):
+    def stop(self, *_):  # this is the SIGINT handler, we ignore the inputs
         """
-        This method is called before the reactor shuts and stops
-        any running tasks.
+        Internal code which stops the agent.  This will terminate any running
+        processes, inform the master of the terminated tasks, update the
+        state of the agent on the master.
         """
-        svclog.info("Stopping tasks")
-        self.scheduled_tasks.stop()
+        svclog.info("Stopping the agent")
 
-    def shutdown_post_update(self):
+        # If this is the first time we're calling stop() then
+        # setup a function call to remove the pidfile when the
+        # process exits.
+        if self.sigint_signal_count == 0:
+            def remove_pidfile():
+                if not isfile(config["pidfile"]):
+                    svclog.warning("%s does not exist", config["pidfile"])
+                    return
+
+                try:
+                    os.remove(config["pidfile"])
+                    svclog.debug("Removed pidfile %r", config["pidfile"])
+                except (OSError, IOError) as e:
+                    svclog.error(
+                        "Failed to remove pidfile %r: %s",
+                        config["pidfile"], e)
+
+            atexit.register(remove_pidfile)
+            self.scheduled_tasks.stop()
+
+            svclog.debug("Stopping execution of jobtypes")
+            stopping_jobtypes = []
+            for uuid, jobtype in config["jobtypes"].copy().items():
+                stopping = jobtype.stop()
+                if isinstance(stopping, Deferred):
+                    stopping_jobtypes.append(stopping)
+
+            if stopping_jobtypes:
+                wait_on_stopping = DeferredList(stopping_jobtypes)
+                wait_on_stopping.addCallback(self.post_shutdown_to_master)
+
+            else:
+                self.post_shutdown_to_master()
+
+            # TODO: stop running tasks, informing master for each
+            # TODO: chain task stoppage callback to start shutdown_post_update
+
+        if self.sigint_signal_count:
+            svclog.critical(
+                "!!! Continuing to press Ctrl+C will forcefully terminate the "
+                "agent.  This may not be a safe thing to do !!!")
+
+        # If the agent is stuck in a loop, such as with posting itself
+        # to the master, we may forcefully terminate the agent by hitting
+        # Ctrl+C multiple times
+        if self.sigint_signal_count > 2:
+            try:
+                reactor.stop()
+            except Exception:
+                pass
+            svclog.critical("Agent has been forcefully terminated.")
+            os._exit(1)
+
+        # Count each time Ctrl+C is pressed, after three tries we will
+        # force terminate the agent
+        self.sigint_signal_count += 1
+
+    def post_shutdown_to_master(self, stop_reactor=True):
         """
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``
         """
-        svclog.info("Agent is shutting down")
+        svclog.info("Informing master of shutdown")
 
         # This deferred is fired when we've either been successful
         # or failed to letting the master know we're shutting
@@ -321,12 +387,15 @@ class Agent(object):
         finished = Deferred()
 
         def post_update(run=True):
+            # NOTE: current_assignments *should* be empty now because the tasks
+            # should shutdown first.  If not then we'll let the master know.
             def perform():
                 return post(
                     self.agent_api(),
                     data={
                         "state": AgentState.OFFLINE,
-                        "free_ram": int(memory.ram_free())},
+                        "free_ram": int(memory.ram_free()),
+                        "current_assignments": config["current_assignments"]},
                     callback=results_from_post,
                     errback=error_while_posting)
 
@@ -350,7 +419,6 @@ class Agent(object):
                     "State update failed due to server error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
-                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
             else:
@@ -359,7 +427,6 @@ class Agent(object):
                     "State update failed due to unhandled error: %s.  "
                     "Retrying in %s seconds",
                     response.data(), delay)
-                terminate_if_sigint()
                 reactor.callLater(delay, response.request.retry)
 
         def error_while_posting(failure):
@@ -368,7 +435,6 @@ class Agent(object):
                 "State update failed due to unhandled error: %s.  "
                 "Retrying in %s seconds",
                 failure, delay)
-            terminate_if_sigint()
             reactor.callLater(delay, post_update(run=False))
 
         # Post our current state to the master.  We're only posting ram_free
@@ -376,6 +442,10 @@ class Agent(object):
         # time the agent starts up.  ram_free would be too but having it
         # here is beneficial in cases where the agent terminated abnormally.
         post_update()
+
+        if stop_reactor:
+            finished.addCallback(lambda *_: reactor.stop())
+
         return finished
 
     def errback_post_agent_to_master(self, failure):
@@ -437,8 +507,6 @@ class Agent(object):
                     "POST to %s was successful.  A new agent "
                     "with an id of %s was created.",
                     self.agents_endpoint(), config["agent-id"])
-            terminate_if_sigint()
-            terminate_if_sigint()
 
     def post_agent_to_master(self):
         """
@@ -451,7 +519,6 @@ class Agent(object):
             callback=self.callback_post_agent_to_master,
             errback=self.errback_post_agent_to_master,
             data=self.system_data())
-        terminate_if_sigint()
 
     def callback_post_free_ram(self, response):
         """
@@ -521,7 +588,6 @@ class Agent(object):
         svclog.warning(
             "There was error updating an existing agent: %s.  Retrying "
             "in %r seconds", failure, delay)
-        terminate_if_sigint()
         reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def callback_post_cpu_count_change(self, response):
@@ -535,7 +601,6 @@ class Agent(object):
             svclog.warning(
                 "We expected to receive an OK response code but instead"
                 "we got %s.  Retrying in %s.", responses[response.code], delay)
-            terminate_if_sigint()
             reactor.callLater(delay, self.post_cpu_count(run=False))
 
     def post_cpu_count(self, run=True):
@@ -569,13 +634,9 @@ class Agent(object):
             * Star the scheduled task manager
         """
         if key == "agent-id" and change_type == config.CREATED \
-                and not self.shutdown_registered:
+                and not self.register_shutdown_events:
             if shutdown_events:
-                reactor.addSystemEventTrigger(
-                    "before", "shutdown", self.shutdown_task_manager)
-                reactor.addSystemEventTrigger(
-                    "before", "shutdown", self.shutdown_post_update)
-                self.shutdown_registered = True
+                self.register_shutdown_events = True
 
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
