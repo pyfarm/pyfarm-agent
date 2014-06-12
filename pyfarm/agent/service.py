@@ -126,57 +126,57 @@ class Agent(object):
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
-        should_reannounce = self.should_reannounce()
+        if not self.should_reannounce():
+            return
 
-        if should_reannounce:
-            svclog.debug("Announcing %s to master", config["hostname"])
+        svclog.debug("Announcing %s to master", config["hostname"])
 
-            def callback(response):
-                if response.code == OK:
-                    self.reannounce_client_request = None
-                    config.master_contacted()
-                    svclog.info("Announced self to the master server.")
+        def callback(response):
+            if response.code == OK:
+                self.reannounce_client_request = None
+                config.master_contacted()
+                svclog.info("Announced self to the master server.")
 
-                elif response.code >= INTERNAL_SERVER_ERROR:
-                    delay = random() + random()
-                    svclog.warning(
-                        "Could not announce self to the master server, "
-                        "internal server error: %s.  Retrying in %s seconds.",
-                        response.data(), delay)
-                    reactor.callLater(delay, response.request.retry)
+            elif response.code >= INTERNAL_SERVER_ERROR:
+                delay = random() + random()
+                svclog.warning(
+                    "Could not announce self to the master server, "
+                    "internal server error: %s.  Retrying in %s seconds.",
+                    response.data(), delay)
+                reactor.callLater(delay, response.request.retry)
 
-                # If this is a client problem retrying the request
-                # is unlikely to fix the issue so we stop here
-                elif response.code >= BAD_REQUEST:
-                    self.reannounce_client_request = None
-                    svclog.error(
-                        "Failed to announce self to the master, bad "
-                        "request: %s.  This request will not be retried.",
-                        response.data())
-
-                else:
-                    self.reannounce_client_request = None
-                    svclog.error(
-                        "Unhandled error when posting self to the "
-                        "master: %s (code: %s).  This request will not be "
-                        "retried.", response.data(), response.code)
-
-            # In the event of a hard failure, do not retry because we'll
-            # be rerunning this code soon anyway.
-            def errback(failure):
+            # If this is a client problem retrying the request
+            # is unlikely to fix the issue so we stop here
+            elif response.code >= BAD_REQUEST:
                 self.reannounce_client_request = None
                 svclog.error(
-                    "Failed to announce self to the master: %s.  This "
-                    "request will not be retried.", failure)
+                    "Failed to announce self to the master, bad "
+                    "request: %s.  This request will not be retried.",
+                    response.data())
 
-            self.reannounce_client_request = post(
-                self.agent_api(),
-                callback=callback, errback=errback,
-                data={
-                    "state": config["state"],
-                    "current_assignments": config.get(
-                        "current_assignments", {}),  # may not be set yet
-                    "free_ram": int(memory.ram_free())})
+            else:
+                self.reannounce_client_request = None
+                svclog.error(
+                    "Unhandled error when posting self to the "
+                    "master: %s (code: %s).  This request will not be "
+                    "retried.", response.data(), response.code)
+
+        # In the event of a hard failure, do not retry because we'll
+        # be rerunning this code soon anyway.
+        def errback(failure):
+            self.reannounce_client_request = None
+            svclog.error(
+                "Failed to announce self to the master: %s.  This "
+                "request will not be retried.", failure)
+
+        self.reannounce_client_request = post(
+            self.agent_api(),
+            callback=callback, errback=errback,
+            data={
+                "state": config["state"],
+                "current_assignments": config.get(
+                    "current_assignments", {}),  # may not be set yet
+                "free_ram": int(memory.ram_free())})
 
     def system_data(self, requery_timeoffset=False):
         """
