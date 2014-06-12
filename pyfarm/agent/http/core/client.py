@@ -49,7 +49,6 @@ from twisted.python import log
 from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
-from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
@@ -65,7 +64,7 @@ if TQResponse is not NotImplemented:
 else:  # pragma: no cover
     RESPONSE_CLASSES = (TWResponse, TWGzipDecoder)
 
-USERAGENT = read_env("PYFARM_USERAGENT", "PyFarm (agent) 1.0")
+USERAGENT = "PyFarm/1.0 (agent)"
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
 
 

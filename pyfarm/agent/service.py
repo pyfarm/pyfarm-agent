@@ -27,10 +27,15 @@ import os
 import time
 from datetime import datetime
 from functools import partial
-from httplib import (
-    responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR)
 from os.path import join, isfile
 from random import random
+
+try:
+    from httplib import (
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
+except ImportError:  # pragma: no cover
+    from http.client import (
+        responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 
 from ntplib import NTPClient
 from twisted.internet import reactor
@@ -60,10 +65,10 @@ svclog = getLogger("agent.svc")
 
 class Agent(object):
     """
-    Main class associated with getting getting the internals
-    of the internals of the agent's operations up and running including
-    adding or updating itself with the master, starting the periodic
-    task manager, and handling shutdown conditions.
+    Main class associated with getting getting the internals of the
+    agent's operations up and running including adding or updating
+    itself with the master, starting the periodic task manager,
+    and handling shutdown conditions.
     """
     def __init__(self):
         # so parts of this instance are accessible elsewhere
@@ -72,8 +77,18 @@ class Agent(object):
         self.http = None
         self.sigint_signal_count = 0
         self.register_shutdown_events = False
-        self.scheduled_tasks = ScheduledTaskManager()
         self.last_free_ram_post = time.time()
+
+        # reannounce_client is set when the agent id is
+        # first set. reannounce_client_instance ensures
+        # that once we start the announcement process we
+        # won't try another until we're finished
+        self.reannounce_client_request = None
+
+        # Setup scheduled tasks
+        self.scheduled_tasks = ScheduledTaskManager()
+        self.scheduled_tasks.register(
+            self.reannounce, config["master-reannounce"])
 
     @classmethod
     def agent_api(cls):
@@ -95,6 +110,80 @@ class Agent(object):
         agents on the master
         """
         return config["master-api"] + "/agents/"
+
+    def should_reannounce(self):
+        """Small method which acts as a trigger for :meth:`reannounce`"""
+        if self.reannounce_client_request is not None:
+            svclog.debug("Agent is already trying to announce itself.")
+            return
+
+        contacted = config.master_contacted(update=False)
+        remaining = (datetime.utcnow() - contacted).total_seconds()
+        return remaining > config["master-reannounce"]
+
+    def reannounce(self):
+        """
+        Method which is used to periodically contact the master.  This
+        method is generally called as part of a scheduled task.
+        """
+        should_reannounce = self.should_reannounce()
+
+        if should_reannounce:
+            svclog.debug("Announcing %s to master", config["hostname"])
+
+            def callback(response):
+                if response.code == OK:
+                    self.reannounce_client_request = None
+                    svclog.info("Announced self to the master server.")
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = random() + random()
+                    svclog.warning(
+                        "Could not announce self to the master server, "
+                        "internal server error: %s.  Retrying in %s seconds.",
+                        response.data(), delay)
+                    reactor.callLater(delay, response.request.retry)
+
+                # If this is a client problem retrying the request
+                # is unlikely to fix the issue so we stop here
+                elif response.code >= BAD_REQUEST:
+                    self.reannounce_client_request = None
+                    svclog.error(
+                        "Failed to announce self to the master, bad "
+                        "request: %s.  This request will not be retried.",
+                        response.data())
+
+                else:
+                    self.reannounce_client_request = None
+                    svclog.error(
+                        "Unhandled error when posting self to the "
+                        "master: %s (code: %s).  This request will not be "
+                        "retried.", response.data(), response.code)
+
+            # In the event of a hard failure, do not retry because we'll
+            # be rerunning this code soon anyway.
+            def errback(failure):
+                self.reannounce_client_request = None
+                svclog.error(
+                    "Failed to announce self to the master: %s.  This "
+                    "request will not be retried.", failure)
+
+            self.reannounce_client_request = post(
+                self.agent_api(),
+                callback=callback, errback=errback,
+                data={
+                    "state": config["state"],
+                    "current_assignments": config.get(
+                        "current_assignments", {}),  # may not be set yet
+                    "free_ram": int(memory.ram_free())})
+
+        else:
+            contacted = config.master_contacted(update=False)
+            remaining = (datetime.utcnow() - contacted).total_seconds()
+            svclog.debug(
+                "Skipping reannounce to master, %s seconds "
+                "remain till next attempt.",
+                config["master-reannounce"] - remaining)
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -406,6 +495,7 @@ class Agent(object):
         else:
             data = response.json()
             config["agent-id"] = data["id"]
+            config.master_contacted()
 
             if response.code == OK:
                 svclog.info(
@@ -551,7 +641,9 @@ class Agent(object):
             # set the initial free_ram
             config["free_ram"] = int(memory.ram_free())
 
+            config.master_contacted()
             svclog.debug(
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
+
             self.scheduled_tasks.start()
