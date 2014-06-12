@@ -108,8 +108,10 @@ class Index(Resource):
             ("Idle Time", seconds(cpu.idle_time())),
             ("IO Wait", seconds(cpu.iowait()) or "Not Supported")]
 
+        agent_id = config["agent-id"] if "agent_id" in config else None
+
         miscellaneous = [
-            ("Database ID", config["agent-id"]),
+            ("Database ID", agent_id),
             ("Logged On User(s)",
              ", ".join(sorted(set(user.name for user in psutil.get_users())))),
             ("Host Uptime",

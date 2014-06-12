@@ -78,6 +78,8 @@ class Status(APIResource):
         except AttributeError:
             contacted = "UNKNOWN"
 
+        agent_id = config["agent-id"] if "agent_id" in config else None
+
         return dumps(
             {"state": config["state"],
              "hostname": config["hostname"],
@@ -87,7 +89,7 @@ class Status(APIResource):
              "child_processes": direct_child_processes,
              "grandchild_processes": grandchild_processes,
              "pids": config["pids"],
-             "id": config["agent-id"],
+             "id": agent_id,
              "systemid": config["systemid"],
              "last_master_contact": contacted,
              "pidfile": config["pidfile"],
