@@ -134,6 +134,7 @@ class Agent(object):
             def callback(response):
                 if response.code == OK:
                     self.reannounce_client_request = None
+                    config.master_contacted()
                     svclog.info("Announced self to the master server.")
 
                 elif response.code >= INTERNAL_SERVER_ERROR:
