@@ -45,7 +45,7 @@ class TestLoggingConfiguration(TestCase):
     def get_data(self):
         return {
             "jobtypes": {},
-            "last-master-contact": datetime(1970, 1, 1),
+            "last_master_contact": datetime(1970, 1, 1),
             "current_assignments": [],
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}
