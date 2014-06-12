@@ -80,7 +80,7 @@ def supervisor():
                         help="If provided then do not run the process in the "
                              "background.")
     parser.add_argument("--chroot",
-                        help="The directory to chroot the agent do upon launch.")
+                        help="The directory to chroot to upon launch.")
     parser.add_argument("--uid", type=int,
                         help="The user id to run the supervisor as.  "
                              "*This setting is ignored on Windows.*")
