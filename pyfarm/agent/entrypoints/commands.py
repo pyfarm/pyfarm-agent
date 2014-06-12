@@ -500,6 +500,13 @@ class AgentEntryPoint(object):
                         except psutil.NoSuchProcess:
                             logger.debug(
                                 "Process ID in %s is stale.", self.args.pidfile)
+                            try:
+                                os.remove(self.args.pidfile)
+                            except OSError as e:
+                                logger.error(
+                                    "Failed to remove PID file %s: %s",
+                                    self.args.pidfile, e)
+                                return 1
                         else:
                             if process.name() == "pyfarm-agent":
                                 logger.error(
