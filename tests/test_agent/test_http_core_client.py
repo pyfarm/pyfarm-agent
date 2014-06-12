@@ -124,7 +124,7 @@ class RequestTestCase(BaseRequestTestCase):
             content_type = "application/json"
 
         if user_agent is None:
-            user_agent = ["PyFarm (agent) 1.0"]
+            user_agent = ["PyFarm/1.0 (agent)"]
 
         # check some of the attribute we expect
         # against data coming back from the server

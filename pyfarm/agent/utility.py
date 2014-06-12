@@ -44,9 +44,11 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
+from pyfarm.core.config import read_env
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 
+MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
 logger = getLogger("agent.utility")
 
 
@@ -99,9 +101,14 @@ def dumps(*args, **kwargs):
 
     return _dumps(obj, default=default_json_encoder, indent=indent)
 
+
+def request_from_master(request):
+    """Returns True if the request appears to be coming from the master"""
+    return request.getHeader("User-Agent") == MASTER_USERAGENT
+
+
 # Unicode CSV reader/writers from the standard library docs:
 #   https://docs.python.org/2/library/csv.html
-
 
 class UTF8Recoder(object):
     """

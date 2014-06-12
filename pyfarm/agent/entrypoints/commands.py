@@ -57,7 +57,7 @@ import signal
 from requests import ConnectionError
 from twisted.internet import reactor
 
-from pyfarm.core.config import read_env
+from pyfarm.core.config import read_env, read_env_int
 from pyfarm.core.enums import (
     OS, WINDOWS, AgentState, NUMERIC_TYPES, INTEGER_TYPES)
 from pyfarm.core.utility import convert
@@ -288,6 +288,15 @@ class AgentEntryPoint(object):
             type=partial(integer, instance=self, flag="ram-report-delta"),
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
+        start_interval_group.add_argument(
+            "--master-reannounce",
+            default=read_env_int("PYFARM_AGENT_MASTER_REANNOUNCE", 120),
+            type=partial(integer, instance=self, flag="master-reannounce"),
+            help="Controls how often the agent should reannounce itself "
+                 "to the master.  The agent may be in contact with the master "
+                 "more often than this however during long period of "
+                 "inactivity this is how often the agent will 'inform' the "
+                 "master the agent is still online.")
 
         # start logging options
         logging_group = start.add_argument_group(
@@ -447,6 +456,7 @@ class AgentEntryPoint(object):
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
+                "master-reannounce": self.args.master_reannounce,
                 "terminate-on-sigint": self.args.terminate_on_sigint}
 
             config.update(config_flags)

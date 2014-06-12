@@ -22,8 +22,9 @@ Contains the base resources used for building up the root
 of the agent's api.
 """
 
+from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.utility import dumps, request_from_master
 
 
 class APIResource(Resource):
@@ -64,4 +65,9 @@ class Versions(APIResource):
     isLeaf = True
 
     def get(self, **kwargs):
+        request = kwargs.get("request")
+
+        if request is not None and request_from_master(request):
+            config.master_contacted()
+
         return dumps(versions=[1])

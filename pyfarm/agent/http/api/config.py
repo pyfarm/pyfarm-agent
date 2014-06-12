@@ -29,7 +29,7 @@ on the agent.
 
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.config import config
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.utility import dumps, request_from_master
 
 
 # TODO: add POST to modify keys
@@ -37,4 +37,9 @@ class Config(APIResource):
     isLeaf = False  # this is not really a collection of things
 
     def get(self, **kwargs):
+        request = kwargs.get("request")
+
+        if request is not None and request_from_master(request):
+            config.master_contacted()
+
         return dumps(dict(config))
