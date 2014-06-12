@@ -249,12 +249,6 @@ class AgentEntryPoint(object):
             dest="pretty_json",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
-        start_general_group.add_argument(
-            "--terminate-on-sigint", default=False, action="store_true",
-            help="If provided then sending the SIGINT signal (Ctrl+c) will "
-                 "cause the agent to stop immediately.  The default behavior "
-                 "is to finish operations such as HTTP retries first, this "
-                 "bypasses that behavior.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -461,7 +455,6 @@ class AgentEntryPoint(object):
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
                 "master-reannounce": self.args.master_reannounce,
-                "terminate-on-sigint": self.args.terminate_on_sigint,
                 "pidfile": self.args.pidfile,
                 "pids": {
                     "parent": os.getpid()}}
