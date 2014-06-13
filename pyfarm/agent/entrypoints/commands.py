@@ -625,7 +625,7 @@ class AgentEntryPoint(object):
         else:
             logger.error(
                 "Received code %s when attempting to access %s: %s",
-                response.status_code, url, response.data())
+                response.status_code, url, response.text)
 
     def status(self):
         url = self.agent_api + "/status"
