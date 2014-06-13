@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
-from pyfarm.core.config import read_env
+from pyfarm.core.config import read_env, read_env_int
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 
@@ -158,7 +158,7 @@ def supervisor():
                     os.remove(update_file_path)
                 except e:
                     logger.error("Caught exception trying to update agent: %r",e)
- 
+
             logger.info("starting pyfarm-agent now")
             if subprocess.call(["pyfarm-agent"] + agent_args + ["start"]) != 0:
                 logger.error("Could not start pyfarm-agent")
