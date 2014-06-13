@@ -70,13 +70,10 @@ class Status(APIResource):
         all_child_processes = len(process.children(recursive=True))
         grandchild_processes = all_child_processes - direct_child_processes
 
-        # TODO: remove try block once master_reannounce is merged
-        # Calculate the last time we talked to or head from the master
-        try:
-            contacted = datetime.utcnow() - config.master_contacted(
-                update=False)
-        except AttributeError:
-            contacted = "UNKNOWN"
+        # Determine the last time we talked to the master (if ever)
+        contacted = config.master_contacted(update=False)
+        if isinstance(contacted, datetime):
+            contacted = datetime.utcnow() - contacted
 
         return dumps(
             {"state": config["state"],
