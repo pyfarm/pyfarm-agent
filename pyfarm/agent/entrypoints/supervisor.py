@@ -142,6 +142,8 @@ def supervisor():
 
     update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
 
+    loop_interval = read_env_int("PYFARM_AGENT_SUPERVISOR_INTERVAL", 5)
+
     while True:
         if subprocess.call(["pyfarm-agent", "status"]) != 0:
             logger.info("pyfarm-agent is not running")
@@ -157,4 +159,5 @@ def supervisor():
             if subprocess.call(["pyfarm-agent"] + agent_args + ["start"]) != 0:
                 logger.error("Could not start pyfarm")
                 sys.exit(1)
-        time.sleep(5)
+
+        time.sleep(loop_interval)
