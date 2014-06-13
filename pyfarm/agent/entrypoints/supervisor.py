@@ -155,9 +155,9 @@ def supervisor():
                 with zipfile.ZipFile(update_file_path, "r") as archive:
                     archive.extractall(args.agent_package_dir)
                 os.unlink(update_file_path)
-            logger.info("starting pyfarm_agent now")
+            logger.info("starting pyfarm-agent now")
             if subprocess.call(["pyfarm-agent"] + agent_args + ["start"]) != 0:
-                logger.error("Could not start pyfarm")
+                logger.error("Could not start pyfarm-agent")
                 sys.exit(1)
 
         time.sleep(loop_interval)
