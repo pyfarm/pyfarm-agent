@@ -63,7 +63,7 @@ class Stop(APIResource):
 class Status(APIResource):
     isLeaf = False  # this is not really a collection of things
 
-    def get(self, **kwargs):
+    def get(self, **_):
         # Get counts for child processes and grandchild processes
         process = psutil.Process()
         direct_child_processes = len(process.children(recursive=False))
