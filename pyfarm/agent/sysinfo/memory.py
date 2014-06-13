@@ -72,6 +72,6 @@ def total_consumption():
     total = parent.memory_info().rss
 
     for child_process in parent.children(recursive=True):
-        total= child_process.memory_info().rss
+        total += child_process.memory_info().rss
 
     return convert.bytetomb(total)

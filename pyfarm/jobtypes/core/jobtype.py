@@ -125,6 +125,15 @@ class JobType(object):
     cache = {}
 
     def __init__(self, assignment):
+
+        # JobType objects in the future may or may not have explicit tasks
+        # associated with when them.  The format of tasks could also change
+        # since it's an internal representation so to guard against these
+        # changes we just use a simple uuid to represent ourselves in the
+        # config dictionary.
+        self._uuid = uuid()
+        config["jobtypes"][self._uuid] = self
+
         self.protocols = {}
         self.failed_processes = []
         self.finished_tasks = []

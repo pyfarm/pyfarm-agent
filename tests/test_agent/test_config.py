@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from os import urandom
 
 from pyfarm.core.enums import NOTSET
@@ -44,6 +45,7 @@ class TestLoggingConfiguration(TestCase):
     def get_data(self):
         return {
             "jobtypes": {},
+            "last_master_contact": datetime(1970, 1, 1),
             "current_assignments": [],
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}

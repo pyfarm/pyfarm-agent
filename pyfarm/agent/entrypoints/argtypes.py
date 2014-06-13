@@ -72,7 +72,11 @@ def port(value, instance=None):
     except (ValueError, SyntaxError):
         instance.parser.error("failed to convert --port to a number")
     else:
-        low_port = 1 if instance.args.uid == 0 else 49152
+        try:
+            low_port = 1 if instance.args.uid == 0 else 49152
+        except AttributeError:
+            low_port = 49152
+
         high_port = 65535
 
         if low_port > value or value > high_port:

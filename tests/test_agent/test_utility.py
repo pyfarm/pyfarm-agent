@@ -18,10 +18,12 @@ import os
 from decimal import Decimal
 from datetime import datetime
 from json import dumps as dumps_
+from uuid import uuid1
 
 from pyfarm.agent.config import config
+from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility import default_json_encoder, dumps
+from pyfarm.agent.utility import default_json_encoder, dumps, uuid
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -71,3 +73,10 @@ class TestDumpsJson(TestCase):
         data = {"decimal": Decimal("1.2")}
         self.assertEqual(
             dumps(data), dumps_(data, default=default_json_encoder))
+
+
+class TestGeneral(TestCase):
+    def test_uuid(self):
+        internal_uuid = uuid().hex
+        stduuid = uuid1(node=system_identifier()).hex
+        self.assertEqual(internal_uuid[8:16], stduuid[8:16])

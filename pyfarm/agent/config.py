@@ -30,6 +30,8 @@ module to be used:
     >>> from pyfarm.agent.config import config
 """
 
+from datetime import datetime
+
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.logger import getLogger
 
@@ -58,11 +60,16 @@ class LoggingConfiguration(dict):
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
-        # Create the initial internal structure for storing
-        # job types
-        self["jobtypes"] = {}
-        # The assignments this node still has to work on
-        self["current_assignments"] = {}
+        self.update(
+            # A mapping of UUIDs to job type instances.
+            jobtypes={},
+
+            # A mapping of tasks to job type instances.
+            current_assignments={},
+
+            # The last time we were in touch with the master,
+            # or the last time it was in touch with us.
+            last_master_contact=datetime(1970, 1, 1))
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -158,6 +165,20 @@ class LoggingConfiguration(dict):
         else:
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
+
+    def master_contacted(self, update=True):
+        """
+        Simple method that will update the ``last_master_contact`` and then
+        return the result.
+
+        :param bool update:
+            Setting this value to False will just return the current value
+            instead of updating the value too.
+        """
+        if update:
+            self["last_master_contact"] = datetime.utcnow()
+
+        return self["last_master_contact"]
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):

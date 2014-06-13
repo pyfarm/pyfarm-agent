@@ -25,8 +25,6 @@ are copied over from the master (which we can't import here).
 import csv
 import codecs
 import cStringIO
-import os
-import signal
 from decimal import Decimal
 from datetime import datetime
 from json import dumps as _dumps
@@ -45,13 +43,14 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
+from pyfarm.core.config import read_env
 from voluptuous import Schema, Any, Required
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 
-# Shared objects for schema validation
+MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
 STRINGS = Any(*STRING_TYPES)
 try:
     WHOLE_NUMBERS = Any(*(int, long))
@@ -126,9 +125,14 @@ def dumps(*args, **kwargs):
 
     return _dumps(obj, default=default_json_encoder, indent=indent)
 
+
+def request_from_master(request):
+    """Returns True if the request appears to be coming from the master"""
+    return request.getHeader("User-Agent") == MASTER_USERAGENT
+
+
 # Unicode CSV reader/writers from the standard library docs:
 #   https://docs.python.org/2/library/csv.html
-
 
 class UTF8Recoder(object):
     """
@@ -190,17 +194,4 @@ class UnicodeCSVWriter(object):
             self.writerow(row)
 
 
-def terminate_if_sigint(code=1):
-    """
-    If ``--terminate-on-sigint`` was set and the appropriate signal has
-    been emitted then terminate the program.  This method was implemented
-    as a result of https://github.com/pyfarm/pyfarm-agent/issues/24.  It's
-    part of the config object so it's globally accessible.
-    """
-    if "signal" not in config:
-        return
-
-    if config["terminate-on-sigint"] and config["signal"] == signal.SIGINT:
-        logger.critical("SIGINT has been set, terminating")
-        os._exit(code)
 
