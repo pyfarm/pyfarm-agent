@@ -23,7 +23,7 @@ import time
 import zipfile
 import shutil
 
-from os.path import join
+from os.path import join, expanduser
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -68,7 +68,10 @@ def supervisor():
 
     parser = argparse.ArgumentParser(description="Start and monitor the "
                                         "agent process")
-    parser.add_argument("--updates-drop-dir", default="~/agent_updates",
+    parser.add_argument("--updates-drop-dir", default=join(expanduser("~"),
+                                                           ".pyfarm",
+                                                           "agent",
+                                                           "updates"),
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
