@@ -69,7 +69,7 @@ class LoggingConfiguration(dict):
 
             # The last time we were in touch with the master,
             # or the last time it was in touch with us.
-            last_master_contact=datetime(1970, 1, 1))
+            last_master_contact=None)
 
     def __setitem__(self, key, value):
         if key not in self:
