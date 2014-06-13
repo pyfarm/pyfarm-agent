@@ -75,6 +75,12 @@ class Status(APIResource):
         if isinstance(contacted, datetime):
             contacted = datetime.utcnow() - contacted
 
+        # Determine the last time we announced ourselves to the
+        # master (if never)
+        last_announce = config.get("last_announce", None)
+        if isinstance(last_announce, datetime):
+            last_announce = datetime.utcnow() - last_announce
+
         return dumps(
             {"state": config["state"],
              "hostname": config["hostname"],
@@ -87,6 +93,7 @@ class Status(APIResource):
              "id": config.get("agent-id", None),
              "systemid": config["systemid"],
              "last_master_contact": contacted,
+             "last_announce": last_announce,
              "pidfile": config["pidfile"],
              "uptime": timedelta(
                  seconds=time.time() - config["start"]).total_seconds(),
