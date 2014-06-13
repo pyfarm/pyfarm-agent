@@ -87,7 +87,7 @@ class Status(APIResource):
              "child_processes": direct_child_processes,
              "grandchild_processes": grandchild_processes,
              "pids": config["pids"],
-             "id": config["agent-id"],
+             "id": config.get("agent-id", None),
              "systemid": config["systemid"],
              "last_master_contact": contacted,
              "pidfile": config["pidfile"],
