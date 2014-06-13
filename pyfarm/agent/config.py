@@ -69,7 +69,12 @@ class LoggingConfiguration(dict):
 
             # The last time we were in touch with the master,
             # or the last time it was in touch with us.
-            last_master_contact=None)
+            last_master_contact=None,
+
+            # The last time we announced ourselves to the master.  This
+            # may be longer than --master-reannounce if `last_master_contact`
+            # caused us to skip an announcement.
+            last_announce=None)
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -166,7 +171,7 @@ class LoggingConfiguration(dict):
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
 
-    def master_contacted(self, update=True):
+    def master_contacted(self, update=True, annoucement=False):
         """
         Simple method that will update the ``last_master_contact`` and then
         return the result.
@@ -175,6 +180,9 @@ class LoggingConfiguration(dict):
             Setting this value to False will just return the current value
             instead of updating the value too.
         """
+        if annoucement:
+            self["last_announce"] = datetime.utcnow()
+
         if update:
             self["last_master_contact"] = datetime.utcnow()
 
