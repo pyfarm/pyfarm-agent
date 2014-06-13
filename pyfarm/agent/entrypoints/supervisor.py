@@ -150,11 +150,15 @@ def supervisor():
             if (os.path.isfile(update_file_path) and
                 zipfile.is_zipfile(update_file_path)):
                 logger.info("Found an upgrade to pyfarm-agent")
-                shutil.rmtree(args.agent_package_dir)
-                os.makedirs(args.agent_package_dir)
-                with zipfile.ZipFile(update_file_path, "r") as archive:
-                    archive.extractall(args.agent_package_dir)
-                os.unlink(update_file_path)
+                try:
+                    shutil.rmtree(args.agent_package_dir)
+                    os.makedirs(args.agent_package_dir)
+                    with zipfile.ZipFile(update_file_path, "r") as archive:
+                        archive.extractall(args.agent_package_dir)
+                    os.remove(update_file_path)
+                except e:
+                    logger.error("Caught exception trying to update agent: %r",e)
+ 
             logger.info("starting pyfarm-agent now")
             if subprocess.call(["pyfarm-agent"] + agent_args + ["start"]) != 0:
                 logger.error("Could not start pyfarm-agent")
