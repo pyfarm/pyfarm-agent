@@ -140,8 +140,6 @@ def supervisor():
     signal.signal(signal.SIGINT, terminate_handler)
     signal.signal(signal.SIGHUP, restart_handler)
 
-    logger.debug("Set signal handlers")
-
     update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
 
     while True:
