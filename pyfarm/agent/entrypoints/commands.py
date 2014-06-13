@@ -75,7 +75,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    start_daemon_posix, write_pid_file, get_system_identifier)
+    start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import network, memory, cpu
 
 
@@ -249,12 +249,6 @@ class AgentEntryPoint(object):
             dest="pretty_json",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
-        start_general_group.add_argument(
-            "--terminate-on-sigint", default=False, action="store_true",
-            help="If provided then sending the SIGINT signal (Ctrl+c) will "
-                 "cause the agent to stop immediately.  The default behavior "
-                 "is to finish operations such as HTTP retries first, this "
-                 "bypasses that behavior.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -461,7 +455,6 @@ class AgentEntryPoint(object):
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
                 "master-reannounce": self.args.master_reannounce,
-                "terminate-on-sigint": self.args.terminate_on_sigint,
                 "pidfile": self.args.pidfile,
                 "pids": {
                     "parent": os.getpid()}}
@@ -500,6 +493,13 @@ class AgentEntryPoint(object):
                         except psutil.NoSuchProcess:
                             logger.debug(
                                 "Process ID in %s is stale.", self.args.pidfile)
+                            try:
+                                os.remove(self.args.pidfile)
+                            except OSError as e:
+                                logger.error(
+                                    "Failed to remove PID file %s: %s",
+                                    self.args.pidfile, e)
+                                return 1
                         else:
                             if process.name() == "pyfarm-agent":
                                 logger.error(
@@ -556,12 +556,35 @@ class AgentEntryPoint(object):
                 "`fork` is not implemented on %s, starting in "
                 "foreground" % OS.title())
 
-        pid = os.getpid()
-        try:
-            write_pid_file(self.args.pidfile, pid)
-        except (AssertionError, OSError) as e:
-            logger.error("Failed to create or write pid file: %s", e)
+        # PID file should not exist now.  Either the last agent instance
+        # should have removed it or we should hae above.
+        if isfile(self.args.pidfile):
+            logger.error("PID file should not exist on disk at this point.")
             return 1
+
+        # Create the directory for the pid file if necessary
+        pid_dirname = dirname(self.args.pidfile)
+        if not isdir(pid_dirname):
+            try:
+                os.makedirs(pid_dirname)
+            except OSError:  # pragma: no cover
+                logger.error(
+                    "Failed to create parent directory for %s",
+                    self.args.pidfile)
+                return 1
+            else:
+                logger.debug("Created directory %s", pid_dirname)
+
+        # Write the PID file
+        try:
+            with open(self.args.pidfile, "w") as pid:
+                pid.write(str(os.getpid()))
+        except OSError as e:
+            logger.error(
+                "Failed to write PID file %s: %s", self.args.pidfile, e)
+            return 1
+        else:
+            logger.debug("Wrote PID to %s", self.args.pidfile)
 
         logger.info("pid: %s" % pid)
 

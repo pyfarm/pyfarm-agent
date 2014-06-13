@@ -60,11 +60,16 @@ class LoggingConfiguration(dict):
 
         super(LoggingConfiguration, self).__init__(seq, **kwargs)
 
-        # Setup some standard entries which we need
-        # starting out
-        self.update({
+        self.update(
+            # A mapping of UUIDs to job type instances.
+            jobtypes={},
 
-            "last-master-contact": datetime(1970, 1, 1)})
+            # A mapping of tasks to job type instances.
+            current_assignments={},
+
+            # The last time we were in touch with the master,
+            # or the last time it was in touch with us.
+            last_master_contact=datetime(1970, 1, 1))
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -163,7 +168,7 @@ class LoggingConfiguration(dict):
 
     def master_contacted(self, update=True):
         """
-        Simple method that will update the ``last-master-contact`` and then
+        Simple method that will update the ``last_master_contact`` and then
         return the result.
 
         :param bool update:
@@ -171,9 +176,9 @@ class LoggingConfiguration(dict):
             instead of updating the value too.
         """
         if update:
-            self["last-master-contact"] = datetime.utcnow()
+            self["last_master_contact"] = datetime.utcnow()
 
-        return self["last-master-contact"]
+        return self["last_master_contact"]
 
 
 class ConfigurationWithCallbacks(LoggingConfiguration):
