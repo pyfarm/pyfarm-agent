@@ -63,22 +63,23 @@ class Stop(APIResource):
 class Status(APIResource):
     isLeaf = False  # this is not really a collection of things
 
-    def get(self, **kwargs):
+    def get(self, **_):
         # Get counts for child processes and grandchild processes
         process = psutil.Process()
         direct_child_processes = len(process.children(recursive=False))
         all_child_processes = len(process.children(recursive=True))
         grandchild_processes = all_child_processes - direct_child_processes
 
-        # TODO: remove try block once master_reannounce is merged
-        # Calculate the last time we talked to or head from the master
-        try:
-            contacted = datetime.utcnow() - config.master_contacted(
-                update=False)
-        except AttributeError:
-            contacted = "UNKNOWN"
+        # Determine the last time we talked to the master (if ever)
+        contacted = config.master_contacted(update=False)
+        if isinstance(contacted, datetime):
+            contacted = datetime.utcnow() - contacted
 
-        agent_id = config["agent-id"] if "agent_id" in config else None
+        # Determine the last time we announced ourselves to the
+        # master (if never)
+        last_announce = config.get("last_announce", None)
+        if isinstance(last_announce, datetime):
+            last_announce = datetime.utcnow() - last_announce
 
         return dumps(
             {"state": config["state"],
@@ -89,9 +90,10 @@ class Status(APIResource):
              "child_processes": direct_child_processes,
              "grandchild_processes": grandchild_processes,
              "pids": config["pids"],
-             "id": agent_id,
+             "id": config.get("agent-id", None),
              "systemid": config["systemid"],
              "last_master_contact": contacted,
+             "last_announce": last_announce,
              "pidfile": config["pidfile"],
              "uptime": timedelta(
                  seconds=time.time() - config["start"]).total_seconds(),
