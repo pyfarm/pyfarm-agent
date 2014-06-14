@@ -12,7 +12,7 @@ env:
     - VIRTUALENV_MASTER=$VIRTUALENV_ROOT/pyfarm-master
     - VIRTUALENV_AGENT=$VIRTUALENV_ROOT/pyfarm-agent
     - PIP_DOWNLOAD_CACHE=/tmp/pip_download_cache
-    - MASTER_PYTHON_VERSION=3.3
+    - MASTER_PYTHON_VERSION=3.4
     - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
     - PYFARM_AGENT_TEST_HTTP_SCHEME=https  # test with https to ensure there's not any obvious problems handling ssl
 
