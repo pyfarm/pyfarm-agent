@@ -37,8 +37,7 @@ import socket
 import netifaces
 from netaddr import IPSet, IPNetwork, IPAddress
 
-
-from pyfarm.core.logger import getLogger
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.dns")
 

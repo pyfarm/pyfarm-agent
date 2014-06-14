@@ -30,12 +30,12 @@ from os.path import isdir
 from netaddr import AddrFormatError, IPAddress
 
 from pyfarm.core.enums import OS, NUMERIC_TYPES
-from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import convert
 from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
+from pyfarm.agent.logger import getLogger
 
 INFINITE = set(["inf", "infinite", "unlimited"])
-logger = getLogger("agent")
+logger = getLogger("agent.cmd.args")
 
 
 def assert_instance(func):

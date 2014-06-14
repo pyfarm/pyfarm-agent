@@ -25,13 +25,13 @@ except ImportError:
 import psutil
 from twisted.web.server import NOT_DONE_YET
 
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory
 from pyfarm.agent.utility import dumps
 
-logger = getLogger("agent.state")
+logger = getLogger("agent.http.state")
 
 
 class Stop(APIResource):

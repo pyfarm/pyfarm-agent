@@ -36,10 +36,10 @@ except ImportError:  # pragma: no cover
 
 
 from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
-from pyfarm.core.logger import getLogger
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
 
-logger = getLogger("agent")
+logger = getLogger("agent.cmd.util")
 
 SYSTEMID_MAX = 281474976710655
 
