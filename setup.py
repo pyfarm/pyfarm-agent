@@ -90,6 +90,7 @@ setup(
     entry_points={
         "console_scripts": [
             "pyfarm-agent = pyfarm.agent.entrypoints:agent",
+            "pyfarm-supervisor = pyfarm.agent.entrypoints.supervisor:supervisor",
             "pyfarm-dev-fakerender = pyfarm.agent.entrypoints:fake_render",
             "pyfarm-dev-fakework = "
             "   pyfarm.agent.entrypoints.commands:fake_work"]},
