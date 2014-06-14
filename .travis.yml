@@ -8,22 +8,17 @@ services:
 
 env:
   global:
+    - VIRTUALENV_ROOT=/tmp/virtualenv
+    - VIRTUALENV_MASTER=$VIRTUALENV_ROOT/pyfarm-master
+    - VIRTUALENV_AGENT=$VIRTUALENV_ROOT/pyfarm-agent
+    - PIP_DOWNLOAD_CACHE=/tmp/pip_download_cache
+    - MASTER_PYTHON_VERSION=3.4
     - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
     - PYFARM_AGENT_TEST_HTTP_SCHEME=https  # test with https to ensure there's not any obvious problems handling ssl
 
-  # WARNING: Do *not* use sqlite here.  It will fail, part of the time, and succeed in others.  This is because we're
-  # using nginx/uwsgi here instead of a single process like we do over in pyfarm-master's tests.
+  # TODO: test the agent against multiple configurations, independent of DB configuration.
+  # NOTE: Do not use sqlite here as it breaks because of concurrency issues
   matrix:
-    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
-    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
-    - TDB_TYPE=postgres TDB_DRIVER=pg8000 PYFARM_DATABASE_URI="postgresql+pg8000://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
-    - TDB_TYPE=postgres TDB_DRIVER=pg8000 PYFARM_DATABASE_URI="postgresql+pg8000://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
-    - TDB_TYPE=mysql TDB_DRIVER=mysql-python PYFARM_DATABASE_URI="mysql+mysqldb://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
-    - TDB_TYPE=mysql TDB_DRIVER=mysql-python PYFARM_DATABASE_URI="mysql+mysqldb://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
-    - TDB_TYPE=mysql TDB_DRIVER=pymysql PYFARM_DATABASE_URI="mysql+pymysql://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
-    - TDB_TYPE=mysql TDB_DRIVER=pymysql PYFARM_DATABASE_URI="mysql+pymysql://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
-    - TDB_TYPE=mysql TDB_DRIVER="mysql-connector-python --allow-external mysql-connector-python" PYFARM_DATABASE_URI="mysql+mysqlconnector://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
-    - TDB_TYPE=mysql TDB_DRIVER="mysql-connector-python --allow-external mysql-connector-python" PYFARM_DATABASE_URI="mysql+mysqlconnector://travis:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="debug"
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
 
@@ -31,27 +26,41 @@ matrix:
   fast_finish: true
 
 before_install:
-  - sudo apt-get -y install nginx
-  - sed -e s/PYTHON_VERSION/$TRAVIS_PYTHON_VERSION/g resources/travis/nginx.conf.template > /tmp/nginx.conf
-  - sudo mv -v /tmp/nginx.conf /etc/nginx/nginx.conf
-  - sudo adduser travis www-data
-  - sudo service nginx restart
   - curl https://raw.githubusercontent.com/pyfarm/pyfarm/master/misc/retry.sh -o retry.sh
+  - source retry.sh
+  - mkdir -p $PIP_DOWNLOAD_CACHE
+  - retry sudo apt-get -y install nginx
+  - sudo adduser travis www-data
+  - sudo cp resources/travis/nginx.conf /etc/nginx/nginx.conf
+  - sudo service nginx restart
+
+  # Create virtual environments for agent and master
+  - deactivate  # travis virtualenv
+  - virtualenv -p python$TRAVIS_PYTHON_VERSION $VIRTUALENV_AGENT
+  - virtualenv -p python$MASTER_PYTHON_VERSION $VIRTUALENV_MASTER
 
 install:
-  - source retry.sh
-  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER; fi
-  - retry pip install uwsgi coverage python-coveralls
-  - retry pip install git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core
-  - retry pip install git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master
-  - retry pip install .
+  # Master installation
+  - . $VIRTUALENV_MASTER/bin/activate
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
+  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER --quiet; fi
+  - retry pip install uwsgi --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master --egg --quiet
   - pyfarm-create-tables
   - uwsgi resources/travis/uwsgi.ini
+  - pip freeze
+  - deactivate  # master virtualenv
+
+  # Agent installation
+  - . $VIRTUALENV_AGENT/bin/activate
+  - retry pip install coverage python-coveralls --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
+  - retry pip install -e . --egg --quiet
+  - pip freeze
 
 script:
-  - pip freeze
   - coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
   - mv -v .coverage .coverage.1
   - coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
