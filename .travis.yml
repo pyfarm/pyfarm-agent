@@ -44,10 +44,10 @@ install:
   - . $VIRTUALENV_MASTER/bin/activate
   - if [[ $TDB_TYPE == "postgres" ]]; then psql -c "create database pyfarm;" -U postgres; fi
   - if [[ $TDB_TYPE == "mysql" ]]; then mysql -e "create database pyfarm;"; fi
-  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER; fi
-  - retry pip install uwsgi
-  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg
-  - retry pip install -e git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master --egg
+  - if [[ $TDB_DRIVER != "" ]]; then retry pip install $TDB_DRIVER --quiet; fi
+  - retry pip install uwsgi --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master --egg --quiet
   - pyfarm-create-tables
   - uwsgi resources/travis/uwsgi.ini
   - pip freeze
@@ -55,14 +55,16 @@ install:
 
   # Agent installation
   - . $VIRTUALENV_AGENT/bin/activate
-  - retry pip install coverage python-coveralls
-  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg
-  - retry pip install -e . --egg
+  - retry pip install coverage python-coveralls --quiet
+  - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
+  - retry pip install -e . --egg --quiet
   - pip freeze
 
 script:
-  - coverage run --branch `which trial` --reporter=bwverbose tests/test_agent && mv -v .coverage .coverage.1
-  - coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes && mv -v .coverage .coverage.2
+  - coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
+  - mv -v .coverage .coverage.1
+  - coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
+  - mv -v .coverage .coverage.2
   - coverage combine
 
 after_success:
