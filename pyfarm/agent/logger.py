@@ -285,6 +285,8 @@ def getLogger(name):
     if not OBSERVER.STARTED:
         warn("Observer not yet started")
 
+    assert name.split(".")[0] in ("agent", "jobtypes")
+
     logger = _getLogger(name)
     OBSERVER.loggers[logger.name] = logger
     OBSERVER.event_system_names[logger.name] = logger.name
