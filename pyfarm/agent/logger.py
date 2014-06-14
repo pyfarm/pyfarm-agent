@@ -137,8 +137,7 @@ class PythonLoggingObserver(TwistedLogObserver):
         "Uninitialized": "twisted",
         "-": "twisted",
         "pyfarm.agent.http.server.Site": "pf.agent.http",
-        "pyfarm.agent.http.core.server.Site": "pf.agent.http",
-        "pf.agent.cmd": "pf.agent.cmd"}
+        "pyfarm.agent.http.core.server.Site": "pf.agent.http"}
 
     # For any system even we don't a default name for, because
     # it's not given above, we use these regular expressions to
@@ -288,4 +287,5 @@ def getLogger(name):
 
     logger = _getLogger(name)
     OBSERVER.loggers[logger.name] = logger
+    OBSERVER.event_system_names[logger.name] = logger.name
     return Logger(logger.name, logger)
