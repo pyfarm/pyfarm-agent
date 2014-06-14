@@ -33,7 +33,7 @@ module to be used:
 from datetime import datetime
 
 from pyfarm.core.enums import NOTSET
-from pyfarm.core.logger import getLogger
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.config")
 

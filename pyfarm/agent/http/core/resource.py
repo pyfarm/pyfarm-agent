@@ -48,10 +48,10 @@ from twisted.web.resource import Resource as _Resource
 from voluptuous import Invalid, Schema
 
 from pyfarm.core.enums import STRING_TYPES
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.http.core import template
+from pyfarm.agent.logger import getLogger
 
-logger = getLogger("agent.http")
+logger = getLogger("agent.http.resource")
 
 
 class Resource(_Resource):

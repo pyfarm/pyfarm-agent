@@ -46,10 +46,10 @@ from twisted.python.failure import Failure
 from pyfarm.core.config import (
     read_env, read_env_float, read_env_int, read_env_bool)
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
-from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.agent.utility import UnicodeCSVWriter, uuid
 from pyfarm.jobtypes.core.process import (
@@ -57,8 +57,8 @@ from pyfarm.jobtypes.core.process import (
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
-process_stdout = getLogger("process.stdout")
-process_stderr = getLogger("process.stderr")
+process_stdout = getLogger("jobtypes.process.stdout")
+process_stderr = getLogger("jobtypes.process.stderr")
 
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment

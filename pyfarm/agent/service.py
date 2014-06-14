@@ -43,7 +43,6 @@ from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
@@ -56,11 +55,12 @@ from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
 
-ntplog = getLogger("agent.ntp")
-svclog = getLogger("agent.svc")
+svclog = getLogger("agent.service")
+ntplog = getLogger("agent.service.ntp")
 
 
 class Agent(object):

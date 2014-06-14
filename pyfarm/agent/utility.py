@@ -44,11 +44,11 @@ except ImportError:  # pragma: no cover
     from http.client import OK
 
 from pyfarm.core.config import read_env
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
+from pyfarm.agent.logger import getLogger
 
 MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
-logger = getLogger("agent.utility")
+logger = getLogger("agent.util")
 
 
 def uuid():
