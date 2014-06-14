@@ -45,8 +45,9 @@ class TestLoggingConfiguration(TestCase):
     def get_data(self):
         return {
             "jobtypes": {},
-            "last_master_contact": datetime(1970, 1, 1),
             "current_assignments": [],
+            "last_master_contact": None,
+            "last_announce": None,
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}
 
@@ -66,7 +67,7 @@ class TestLoggingConfiguration(TestCase):
         self.assertEqual(set(config.created), set(data))
 
         for key in data:
-            config[key] = None
+            config[key] = urandom(16)
 
         self.assertEqual(set(config.modified), set(data))
 
@@ -105,7 +106,8 @@ class TestLoggingConfiguration(TestCase):
         self.assertEqual(dict(config), all_data)
         self.assertEqual(set(config.created), set(all_data))
         for key in all_data.keys():
-            config[key] = None
+            config[key] = urandom(16)
+
         self.assertEqual(set(config.modified), set(all_data.keys()))
 
     def test_update_kwargs(self):
@@ -117,7 +119,8 @@ class TestLoggingConfiguration(TestCase):
         self.assertEqual(dict(config), all_data)
         self.assertEqual(set(config.created), set(all_data))
         for key in all_data.keys():
-            config[key] = None
+            config[key] = urandom(16)
+
         self.assertEqual(set(config.modified), set(all_data.keys()))
 
     def test_raises_type_error(self):
@@ -128,7 +131,7 @@ class TestLoggingConfiguration(TestCase):
         config = ChangedLoggingConfiguration()
         config.update(data)
         for key, value in config.items():
-            config.update({key: True})
+            config.update({key: urandom(16)})
 
         self.assertEqual(set(config.modified), set(data.keys()))
 

@@ -134,7 +134,7 @@ class Agent(object):
         def callback(response):
             if response.code == OK:
                 self.reannounce_client_request = None
-                config.master_contacted()
+                config.master_contacted(annoucement=True)
                 svclog.info("Announced self to the master server.")
 
             elif response.code >= INTERNAL_SERVER_ERROR:
@@ -339,7 +339,7 @@ class Agent(object):
                 wait_on_stopping = DeferredList(stopping_jobtypes)
                 wait_on_stopping.addCallback(self.post_shutdown_to_master)
 
-            else:
+            elif "agent-id" in config:
                 self.post_shutdown_to_master()
 
             # TODO: stop running tasks, informing master for each
