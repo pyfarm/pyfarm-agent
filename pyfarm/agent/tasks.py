@@ -26,7 +26,7 @@ Simple tasks which are run at a scheduled interval by
 
 from twisted.internet.task import LoopingCall
 
-from pyfarm.core.logger import getLogger
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.tasks")
 

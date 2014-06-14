@@ -23,16 +23,16 @@ from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional
 
 from pyfarm.core.enums import STRING_TYPES
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master
 from pyfarm.agent.sysinfo.memory import ram_free
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
 from pyfarm.jobtypes.core.jobtype import JobType
 
-logger = getLogger("agent.assign")
+logger = getLogger("agent.http.assign")
 
 
 def validate_environment(values):

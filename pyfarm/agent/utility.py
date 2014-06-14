@@ -47,11 +47,11 @@ from pyfarm.core.config import read_env
 from voluptuous import Schema, Any, Required
 
 from pyfarm.core.enums import STRING_TYPES
-from pyfarm.core.logger import getLogger
 from pyfarm.agent.config import config
+from pyfarm.agent.logger import getLogger
 
 MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
-STRINGS = Any(*STRING_TYPES)
+logger = getLogger("agent.util")
 try:
     WHOLE_NUMBERS = Any(*(int, long))
     NUMBERS = Any(*(int, long, float, Decimal))
@@ -68,7 +68,6 @@ TASK_SCHEMA = Schema({
     Required("frame"): NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 
-logger = getLogger("agent.utility")
 
 
 def uuid():

@@ -50,12 +50,12 @@ from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
-from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import quote_url
 
-logger = getLogger("agent.http")
+logger = getLogger("agent.http.client")
 
 # response classes which are allowed to the `response` argument
 # to Response.__init__

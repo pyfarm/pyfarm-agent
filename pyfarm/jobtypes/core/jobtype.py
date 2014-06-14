@@ -44,11 +44,10 @@ from voluptuous import Schema, Required, Optional
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
-from pyfarm.core.logger import getLogger
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
-from pyfarm.agent.sysinfo import memory, user, system
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
@@ -57,8 +56,8 @@ from pyfarm.jobtypes.core.process import (
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
-process_stdout = getLogger("process.stdout")
-process_stderr = getLogger("process.stderr")
+process_stdout = getLogger("jobtypes.process.stdout")
+process_stderr = getLogger("jobtypes.process.stderr")
 
 # Construct the base environment that all job types will use.  We do this
 # once per process so a job type can't modify the running environment
