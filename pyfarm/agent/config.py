@@ -50,8 +50,10 @@ class LoggingConfiguration(Configuration):
     CREATED = "created"
     DELETED = "deleted"
 
-    def __init__(self, environment=None):
+    def __init__(self, data=None, environment=None):
         super(LoggingConfiguration, self).__init__("pyfarm.agent")
+        assert data is None or isinstance(data, dict)
+        assert environment is None or isinstance(environment, dict)
 
         if environment is None:
             environment = os.environ
@@ -72,6 +74,9 @@ class LoggingConfiguration(Configuration):
             # may be longer than --master-reannounce if `last_master_contact`
             # caused us to skip an announcement.
             last_announce=None)
+
+        if data is not None:
+            self.update(data)
 
     def __setitem__(self, key, value):
         if key not in self:
