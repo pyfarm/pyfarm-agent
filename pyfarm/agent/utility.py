@@ -52,6 +52,7 @@ from pyfarm.agent.logger import getLogger
 
 MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
 logger = getLogger("agent.util")
+STRINGS = Any(*STRING_TYPES)
 try:
     WHOLE_NUMBERS = Any(*(int, long))
     NUMBERS = Any(*(int, long, float, Decimal))
@@ -67,7 +68,6 @@ TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("frame"): NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
-
 
 
 def uuid():
