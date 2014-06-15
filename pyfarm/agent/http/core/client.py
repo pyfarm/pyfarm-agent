@@ -382,7 +382,16 @@ def request(method, url, **kwargs):
     debug_url = build_url(url, debug_kwargs.pop("params", None))
     logger.debug(
         "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
-    deferred = treq.request(method, quote_url(url), **kwargs)
+
+    try:
+        deferred = treq.request(method, quote_url(url), **kwargs)
+    except NotImplementedError:
+        logger.error(
+            "Attempting to access a url over SSL but you don't have the "
+            "proper libraries installed.  Please install the PyOpenSSL and "
+            "service_identity Python packages.")
+        raise
+
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
 
