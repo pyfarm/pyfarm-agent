@@ -78,6 +78,12 @@ class LoggingConfiguration(Configuration):
         if data is not None:
             self.update(data)
 
+        # Load configuration file(s) for jobtypes and then
+        # update the local instance
+        jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
+        jobtypes_config.load(environment=environment)
+        self.update(jobtypes_config)
+
     def __setitem__(self, key, value):
         if key not in self:
             self.changed(self.CREATED, key, value, NOTSET)
