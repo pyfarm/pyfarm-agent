@@ -60,6 +60,7 @@ else:
 def get_package_data():
     master_root = join("pyfarm", "agent")
     packge_data_roots = (
+        join("pyfarm", "agent", "etc"),
         join("pyfarm", "agent", "http", "static"),
         join("pyfarm", "agent", "http", "templates"))
 
