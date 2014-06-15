@@ -60,7 +60,7 @@ class TestLoggingConfiguration(TestCase):
         data = self.get_data()
         config = ChangedLoggingConfiguration()
 
-        for k,v in data.items():
+        for k, v in data.items():
             config[k] = v
 
         self.assertEqual(dict(config), data)
