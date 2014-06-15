@@ -30,15 +30,17 @@ module to be used:
     >>> from pyfarm.agent.config import config
 """
 
+import os
 from datetime import datetime
 
 from pyfarm.core.enums import NOTSET
+from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.config")
 
 
-class LoggingConfiguration(dict):
+class LoggingConfiguration(Configuration):
     """
     Special configuration object which logs when a key is changed in
     a dictionary.  If the reactor is not running then log messages will
@@ -48,18 +50,15 @@ class LoggingConfiguration(dict):
     CREATED = "created"
     DELETED = "deleted"
 
-    def __init__(self, seq=None, **kwargs):
-        if seq is None:
-            seq = {}
+    def __init__(self, data=None, environment=None):
+        super(LoggingConfiguration, self).__init__("pyfarm.agent")
+        assert data is None or isinstance(data, dict)
+        assert environment is None or isinstance(environment, dict)
 
-        elif seq is not None and not isinstance(seq, dict):
-            raise TypeError("Expected None or dict for `seq`")
+        if environment is None:
+            environment = os.environ
 
-        for key, value in dict(seq.items() + kwargs.items()).items():
-            self.changed(self.CREATED, key, value, NOTSET)
-
-        super(LoggingConfiguration, self).__init__(seq, **kwargs)
-
+        self.load(environment=environment)
         self.update(
             # A mapping of UUIDs to job type instances.
             jobtypes={},
@@ -75,6 +74,15 @@ class LoggingConfiguration(dict):
             # may be longer than --master-reannounce if `last_master_contact`
             # caused us to skip an announcement.
             last_announce=None)
+
+        if data is not None:
+            self.update(data)
+
+        # Load configuration file(s) for jobtypes and then
+        # update the local instance
+        jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
+        jobtypes_config.load(environment=environment)
+        self.update(jobtypes_config)
 
     def __setitem__(self, key, value):
         if key not in self:
@@ -171,7 +179,7 @@ class LoggingConfiguration(dict):
             raise NotImplementedError(
                 "Don't know how to handle change_type %r" % change_type)
 
-    def master_contacted(self, update=True, annoucement=False):
+    def master_contacted(self, update=True, announcement=False):
         """
         Simple method that will update the ``last_master_contact`` and then
         return the result.
@@ -180,7 +188,7 @@ class LoggingConfiguration(dict):
             Setting this value to False will just return the current value
             instead of updating the value too.
         """
-        if annoucement:
+        if announcement:
             self["last_announce"] = datetime.utcnow()
 
         if update:

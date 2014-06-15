@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 from os import urandom
 
 from pyfarm.core.enums import NOTSET
@@ -60,7 +59,7 @@ class TestLoggingConfiguration(TestCase):
         data = self.get_data()
         config = ChangedLoggingConfiguration()
 
-        for k,v in data.items():
+        for k, v in data.items():
             config[k] = v
 
         self.assertEqual(dict(config), data)

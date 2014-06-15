@@ -57,19 +57,24 @@ else:
     long_description = ""
 
 
-def get_package_data():
-    master_root = join("pyfarm", "agent")
-    packge_data_roots = (
-        join("pyfarm", "agent", "http", "static"),
-        join("pyfarm", "agent", "http", "templates"))
-
+def get_package_data(parent, roots):
     output = []
-    for top in packge_data_roots:
+    for top in roots:
         for root, dirs, files in walk(top):
             for filename in files:
-                output.append(join(root, filename).split(master_root)[-1][1:])
+                output.append(join(root, filename).split(parent)[-1][1:])
 
     return output
+
+agent_root = join("pyfarm", "agent")
+agent_package_data_roots = (
+    join(agent_root, "etc"),
+    join(agent_root, "http", "static"),
+    join(agent_root, "http", "templates"))
+
+jobtype_root = join("pyfarm", "jobtypes")
+jobtype_root_package_data_roots = (
+    join(jobtype_root, "etc"))
 
 setup(
     name="pyfarm.agent",
@@ -85,7 +90,10 @@ setup(
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
     package_data={
-        "pyfarm.agent": get_package_data()},
+        "pyfarm.agent": get_package_data(
+            agent_root, agent_package_data_roots),
+        "pyfarm.jobtypes": get_package_data(
+            jobtype_root, jobtype_root_package_data_roots)},
     namespace_packages=["pyfarm"],
     entry_points={
         "console_scripts": [
