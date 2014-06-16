@@ -19,3 +19,6 @@ jobtype_default_environment: {}
 # it will be created.  Leaving this value blank will
 # disable job type caching.
 jobtype_cache_directory: $temp/pyfarm/jobtypes/cache
+
+# If True then expand environment variables in file paths.
+jobtype_expandvars: True

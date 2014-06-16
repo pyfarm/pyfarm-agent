@@ -19,7 +19,7 @@ import os
 import sys
 from datetime import datetime
 from string import Template
-from os.path import join, basename
+from os.path import join, basename, expanduser
 from functools import partial
 
 try:
@@ -100,8 +100,6 @@ class JobType(Cache):
         Optional("tasks"): TASKS_SCHEMA})
 
     # TODO: command line flags, file based configuration
-    expand_path_vars = read_env_bool(
-        "PYFARM_JOBTYPE_DEFAULT_EXPANDVARS", True)
     ignore_uid_gid_mapping_errors = read_env_bool(
         "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
     process_protocol = ProcessProtocol
@@ -418,67 +416,12 @@ class JobType(Cache):
 
         return environment
 
-    def get_path(self, path, environment=None, expandvars=None, task=None):
-        """
-        Returns the directory a process should change into before
-        running.
-
-        :param string path:
-            The directory we need to resolve or validate
-
-        :param dict environment:
-            The environment to use when expanding environment
-            variables in ``path``
-
-        :param bool expandvars:
-            If True, use the environment to expand any environment
-            variables in ``path``
-
-        :param dict task:
-            If provided this task will be set to ``FAILED`` if the
-            directory does not exist
-
-        :returns:
-            Returns ``None`` if we failed to resolve ``path`` or the
-            directory to change into
-        """
-        if expandvars is None:
-            expandvars = self.expand_path_vars
-
-        if isinstance(path, STRING_TYPES) and expandvars:
-            if environment is None:
-                environment = self.get_environment()
-
-            # Convert path to a template first so we  can resolve
-            # any environment variables it may contain
-            return self.expandvars(path, environment)
-
-        return config["chroot"]
-
-    def get_command_list(self, cmdlist, environment=None, expandvars=None):
+    def get_command_list(self, cmdlist):
         """
         Return a list of command to be used when running the process
         as a read-only tuple.
-
-        :param dict environment:
-            If provided this will be used to perform environment variable
-            expansion for each entry in ``cmdlist``
-
-        :param bool expandvars:
-            If True then use ``environment`` to expand any environment
-            variables in ``cmdlist``
         """
-        if expandvars is None:
-            expandvars = self.expand_path_vars
-
-        if expandvars and environment is None:
-            environment = self.get_environment()
-
-        if expandvars and environment:
-            cmdlist = map(
-                lambda value: self.expandvars(value, environment), cmdlist)
-
-        return tuple(cmdlist)  # read-only copy (also takes less memory)
+        return tuple(map(self.expandvars, cmdlist))
 
     # TODO: This needs more command line arguments and configuration options
     def get_csvlog_path(self, tasks, now=None):
@@ -522,14 +465,37 @@ class JobType(Cache):
         """
         raise NotImplementedError("`build_process_inputs` must be implemented")
 
-    def expandvars(self, value, environment):
-        """Expands variables inside of a string using an environment"""
-        if isinstance(value, STRING_TYPES):
-            template = Template(value)
-            return template.safe_substitute(**environment)
+    def expandvars(self, value, environment=None, expand=None):
+        """
+        Expands variables inside of a string using an environment.  Exp
 
-        logger.warning("Expected a string for `value` to expandvars()")
-        return value
+        :param string value:
+            The path to expand
+
+        :param dict environment:
+            The environment to use for expanding ``value``.  If this
+            value is None (the default) then we'll use :meth:`get_environment`
+            to build this value.
+
+        :param bool expand:
+            When not provided we use the ``jobtype_expandvars`` configuration
+            value to set the default.  When this value is True we'll
+            perform environment variable expansion otherwise we return
+            ``value`` untouched.
+        """
+        assert isinstance(value, STRING_TYPES)
+        assert environment is None or isinstance(environment, dict)
+
+        if expand is None:
+            expand = config.get("jobtype_expandvars")
+
+        if not expand:
+            return value
+
+        if environment is None:
+            environment = self.get_environment()
+
+        return Template(expanduser(value)).safe_substitute(**environment)
 
     def spawn_process(self, process_inputs):
         """
@@ -562,7 +528,7 @@ class JobType(Cache):
                 pwd is not NotImplemented,
                 grp is not NotImplemented,
                 process_inputs.user is not None or
-                    process_inputs.group is not None]):
+                                process_inputs.group is not None]):
 
             # Regardless of platform, we run a command as
             # another user unless we're an admin
@@ -593,17 +559,13 @@ class JobType(Cache):
 
         # Prepare the arguments for the spawnProcess call
         environment = self.get_environment()
-        commands = self.get_command_list(
-            process_inputs.command,
-            environment=environment, expandvars=process_inputs.expandvars)
+        commands = self.get_command_list(process_inputs.command)
 
         # args - name of command being run + input arguments
         kwargs = {
             "args": [basename(commands[0])] + list(commands[1:]),
             "env": environment,
-            "path": self.get_path(
-                process_inputs.path,
-                environment=environment, expandvars=process_inputs.expandvars)}
+            "path": self.expandvars(process_inputs.path)}
 
         # Add uid/gid into kwargs
         if uid is not None:
@@ -665,7 +627,7 @@ class JobType(Cache):
         return self.deferred
 
     def _stop(self):
-         return self.stop()
+        return self.stop()
 
     def stop(self):
         """
@@ -680,8 +642,8 @@ class JobType(Cache):
 
         # TODO: chain this callback to the completion of our request to master
         def finished_processes():
-             stopped.callback(True)
-             config["jobtypes"].pop(self._uuid)
+            stopped.callback(True)
+            config["jobtypes"].pop(self._uuid)
 
         finished_processes()
         return stopped
@@ -715,8 +677,8 @@ class JobType(Cache):
                        "the logs.  Message from error " \
                        "was %r" % error.value.message
 
-            # TODO: there are other types of errors from Twisted we should
-            # format here
+                # TODO: there are other types of errors from Twisted we should
+                # format here
 
         elif isinstance(error, Exception):
             return str(error)
@@ -851,8 +813,8 @@ class JobType(Cache):
             # delay.
             post_update(url, data, delay=0)
 
-        # TODO: if new state is the equiv. of 'stopped', stop the process
-        # and POST the change
+            # TODO: if new state is the equiv. of 'stopped', stop the process
+            # and POST the change
 
     def get_local_task_state(self, task_id):
         """
