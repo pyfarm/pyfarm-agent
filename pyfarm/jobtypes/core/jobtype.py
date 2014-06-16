@@ -94,11 +94,6 @@ class JobType(object):
     :attribute process_protocol:
         The protocol object used to communicate between the process
         and the job type.
-
-    :attribute list success_codes:
-        A list of exit codes which indicate the process has terminated
-        successfully.  This list does not have to be used but is the
-        defacto attribute we just inside of :meth:`` to determine success.
     """
     ASSIGNMENT_SCHEMA = Schema({
         Required("job"): Schema({
@@ -114,12 +109,10 @@ class JobType(object):
     ignore_uid_gid_mapping_errors = read_env_bool(
         "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
     process_protocol = ProcessProtocol
-    success_codes = (0, )
     logging = {}
     cache = {}
 
     def __init__(self, assignment):
-
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
@@ -202,7 +195,7 @@ class JobType(object):
             raise
 
         return {
-            "master_api": config["master-api"],
+            "master_api": config.get("master-api"),
             "hostname": config["hostname"],
             "systemid": config["systemid"],
             "id": config["id"],
@@ -990,14 +983,14 @@ class JobType(object):
 
     def is_successful(self, reason):
         """
-        Returns True if we should consider ``reason`` to be
-        successful.  This function is called by :meth:`_process_stopped`
-        to determine if the object returned by a process is an indication
-        of failure.
+        User-overridable method that determines whether the process
+        referred to by a protocol instance has exited successfully.
+        Default implementation returns true if the process's return
+        code was 0 and false in all other cases.
         """
         return (
             reason.type is ProcessDone and
-            reason.value.exitCode in self.success_codes)
+            reason.value.exitCode == 0)
 
     def _process_stopped(self, protocol, reason):
         """
