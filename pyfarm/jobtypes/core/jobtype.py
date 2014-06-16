@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import imp
-import json
 import os
 import tempfile
 import sys
@@ -48,6 +47,7 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.sysinfo import memory, user, system
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
