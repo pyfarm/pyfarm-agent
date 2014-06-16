@@ -304,32 +304,18 @@ class JobType(object):
                 "Expected an integer or string for `%s`" % value_name)
 
     @classmethod
-    def _url(cls, name, version):
-        """Returns the remote url for the requested job type and version"""
-        return str(
-            "%(master-api)s/jobtypes/%(jobtype)s/versions/%(version)s" % {
-            "master-api": config["master-api"],
-            "jobtype": name,
-            "version": version})
-
-    @classmethod
-    def _download_jobtype(cls, assignment):
+    def _download_jobtype(cls, name, version):
         """
         Downloads the job type specified in ``assignment``.  This
         method will pass the response it receives to :meth:`_cache_jobtype`
         however failures will be retried.
         """
+        url = config["master-api"] + "/jobtypes/" + name + "/" + str(version)
         result = Deferred()
-        url = cls._url(
-            assignment["jobtype"]["name"],
-            assignment["jobtype"]["version"])
-
-        def download(*_):
-            get(
-                url,
+        download = lambda *_: \
+            get(url,
                 callback=result.callback,
                 errback=lambda: reactor.callLater(http_retry_delay(), download))
-
         download()
         return result
 
@@ -452,7 +438,8 @@ class JobType(object):
                 caching.addCallback(load_jobtype)
 
             # Start the download
-            download = cls._download_jobtype(assignment)
+            download = cls._download_jobtype(
+                assignment["jobtype"]["name"], assignment["jobtype"]["version"])
             download.addCallback(download_complete)
         else:
             load_jobtype((cls.cache[cache_key]))
