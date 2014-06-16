@@ -30,3 +30,11 @@ jobtype_expandvars: True
 # incoming job requests.
 # NOTE: This value is not used on Windows.
 jobtype_ignore_id_mapping_errors: False
+
+# While a job type is running and generating log output
+# the file object should flush to disk after this many lines
+jobtype_log_flush_after_lines: 50
+
+# In the logging thread block for this many seconds to wait
+# for an item to appear in the logging queue.
+jobtype_log_queue_timeout: .25

@@ -48,10 +48,9 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, user, system
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
-from pyfarm.jobtypes.core.log import STDERR, STDOUT, LoggingThread
+from pyfarm.jobtypes.core.internals import STDERR, STDOUT, Cache, Process
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ProcessInputs, ReplaceEnvironment)
-from pyfarm.jobtypes.core.internals import Cache
+    ProcessProtocol, ProcessInputs)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -61,7 +60,7 @@ process_stderr = getLogger("jobtypes.process.stderr")
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
-class JobType(Cache):
+class JobType(Cache, Process):
     """
     Base class for all other job types.  This class is intended
     to abstract away many of the asynchronous necessary to run
@@ -92,7 +91,6 @@ class JobType(Cache):
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
     process_protocol = ProcessProtocol
-    logging = {}
     cache = {}
 
     def __init__(self, assignment):
@@ -201,71 +199,6 @@ class JobType(Cache):
             str(self.assignment["jobtype"]["name"]),
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
-
-    def _log_in_thread(self, protocol, stream_type, data):
-        """
-        Internal implementation called several methods including
-        :meth:`_received_stdout`, :meth:`_received_stderr`,
-        :meth:`_process_started` and others.
-
-        This method takes the incoming protocol object and retrieves the thread
-        which is handling logging for a given process.  Each message will then
-        be queued and written to disk at the next opportunity.
-        """
-        self.logging[protocol.id].put(stream_type, data)
-
-    def _get_uidgid(self, value, value_name, func_name, module, module_name):
-        """
-        Internal function which handles both user name and group conversion.
-        """
-        # This platform does not implement the module
-        if module is NotImplemented:
-            logger.warning(
-                "This platform does not implement the %r module, skipping "
-                "%s()", module_name, func_name)
-
-        # Convert a user/group string to an integer
-        elif isinstance(value, STRING_TYPES):
-            try:
-                if module_name == "pwd":
-                    return pwd.getpwnam(value).pw_uid
-                elif module_name == "grp":
-                    return grp.getgrnam(value).gr_gid
-                else:
-                    raise ValueError(
-                        "Internal error, failed to get module to use for "
-                        "conversion.  Was given %r" % module)
-            except KeyError:
-                logger.error(
-                    "Failed to convert %s to a %s",
-                    value, func_name.split("_")[1])
-
-                if not config.get("jobtype_ignore_id_mapping_errors"):
-                    raise
-
-        # Verify that the provided user/group string is real
-        elif isinstance(value, INTEGER_TYPES):
-            try:
-                if module_name == "pwd":
-                    pass
-                elif module_name == "grp":
-                    pass
-                else:
-                    raise ValueError(
-                        "Internal error, failed to get module to use for "
-                        "conversion.  Was given %r" % module)
-
-                # Seems to check out, return the original value
-                return value
-            except KeyError:
-                logger.error(
-                    "%s %s does not seem to exist", value_name, value)
-
-                if not config.get("jobtype_ignore_id_mapping_errors"):
-                    raise
-        else:
-            raise ValueError(
-                "Expected an integer or string for `%s`" % value_name)
 
     @classmethod
     def load(cls, assignment):
@@ -569,32 +502,19 @@ class JobType(Cache):
             kwargs["path"], uid, gid)
 
         # Internal data setup
+        # TODO: this should not use tasks
         logfile = self.get_csvlog_path(process_inputs.tasks)
         self.protocols[protocol.id] = protocol
 
-        # Start the logging thread
-        # TODO: need a method to generate or retrieve a LoggingThread, we could
-        # run up to this point with the same log file
-        thread = self.logging[protocol.id] = LoggingThread(logfile)
-        thread.start()
+        self._start_logging(protocol, logfile)
 
         # TODO: do validation of **kwargs here so we don't do it in one location
         # * environment (dict, strings only)
         # * path exists (see previous setup for this in the history)
         #
-
-        # reactor.spawnProcess does different things with the environment
-        # depending on what platform you're on and what you're passing in.
-        # To avoid inconsistent behavior, we replace os.environ with
-        # our own environment so we can launch the process.  After launching
-        # we replace the original environment.
-        with ReplaceEnvironment(environment):
-            reactor.spawnProcess(protocol, commands[0], **kwargs)
+        self._spawn_process(environment, protocol, commands[0], kwargs)
 
         return protocol
-
-    def _start(self):
-        return self.start()
 
     def start(self):
         """
@@ -614,9 +534,6 @@ class JobType(Cache):
 
         self.deferred = Deferred()
         return self.deferred
-
-    def _stop(self):
-        return self.stop()
 
     def stop(self):
         """
