@@ -40,7 +40,6 @@ from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
 
-from pyfarm.core.config import read_env_bool
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
@@ -78,12 +77,6 @@ class JobType(Cache):
         these dicts has the keys "id" and "frame".  The
         list is ordered by frame number.
 
-    :attribute bool ignore_uid_gid_mapping_errors:
-        If True, then ignore any errors produced by :meth:`usrgrp_to_uidgid`
-        and return ``(None, None`)` instead.  If this value is False
-        the original exception will be raised instead and report as
-        an error which can prevent a task from running.
-
     :attribute cache:
         Stores the cached job types
 
@@ -98,10 +91,6 @@ class JobType(Cache):
             Optional("data"): dict}),
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
-
-    # TODO: command line flags, file based configuration
-    ignore_uid_gid_mapping_errors = read_env_bool(
-        "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
     process_protocol = ProcessProtocol
     logging = {}
     cache = {}
@@ -251,7 +240,7 @@ class JobType(Cache):
                     "Failed to convert %s to a %s",
                     value, func_name.split("_")[1])
 
-                if not self.ignore_uid_gid_mapping_errors:
+                if not config.get("jobtype_ignore_id_mapping_errors"):
                     raise
 
         # Verify that the provided user/group string is real
@@ -272,7 +261,7 @@ class JobType(Cache):
                 logger.error(
                     "%s %s does not seem to exist", value_name, value)
 
-                if not self.ignore_uid_gid_mapping_errors:
+                if not config.get("jobtype_ignore_id_mapping_errors"):
                     raise
         else:
             raise ValueError(

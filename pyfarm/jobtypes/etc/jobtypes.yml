@@ -22,3 +22,11 @@ jobtype_cache_directory: $temp/pyfarm/jobtypes/cache
 
 # If True then expand environment variables in file paths.
 jobtype_expandvars: True
+
+# If True, then ignore any errors produced when tring
+# to map users and groups to IDs.  This will cause the
+# underlying methods in the job type to instead run
+# as the job type's owner instead, ignoring what the
+# incoming job requests.
+# NOTE: This value is not used on Windows.
+jobtype_ignore_id_mapping_errors: False
