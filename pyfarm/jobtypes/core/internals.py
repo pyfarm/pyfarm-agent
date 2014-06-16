@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred
 
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
@@ -257,6 +257,61 @@ class Process(object):
         # we replace the original environment.
         with ReplaceEnvironment(environment):
             return reactor.spawnProcess(protocol, command, **kwargs)
+
+    # TODO: set state
+    def _process_started(self, protocol):
+        """
+        Internal implementation for :meth:`process_started`.
+
+        This method logs the start of a process and informs the master of
+        the state change.
+        """
+        assert isinstance(protocol, ProcessProtocol)
+        logger.info("%r started", protocol)
+        self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
+
+    def _process_stopped(self, protocol, reason):
+        """
+        Internal implementation for :meth:`process_stopped`.
+
+        If ``--capture-process-output`` was set when the agent was launched
+        all standard output from the process will be sent to the stdout
+        of the agent itself.  In all other cases we send the data to
+        :meth:`_log_in_thread` so it can be stored in a file without
+        blocking the event loop.
+        """
+        assert isinstance(protocol, ProcessProtocol)
+
+        logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
+
+        if self.is_successful(reason):
+            self._log_in_thread(
+                protocol, STDOUT,
+                "Process has terminated successfully, code %s" %
+                reason.value.exitCode)
+        else:
+            self.failed_processes.append((protocol, reason))
+            self._log_in_thread(
+                protocol, STDOUT,
+                "Process has not terminated successfully, code %s" %
+                reason.value.exitCode)
+
+        # pop off the protocol and thread since the process has terminated
+        protocol = self.protocols.pop(protocol.id)
+        thread = self.logging.pop(protocol.id)
+        thread.stop()
+
+        # If this was the last process running
+        # TODO: sequential processes
+        if not self.protocols:
+            if not self.failed_processes:
+                self.deferred.callback(reason)
+                for task in self.assignment["tasks"]:
+                    self.set_task_state(task, WorkState.DONE, reason)
+            else:
+                self.deferred.errback()
+                for task in self.assignment["tasks"]:
+                    self.set_task_state(task, WorkState.FAILED, reason)
 
     def _log_in_thread(self, protocol, stream_type, data):
         """
