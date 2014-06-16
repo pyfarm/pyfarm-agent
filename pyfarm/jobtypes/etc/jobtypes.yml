@@ -2,3 +2,12 @@
 # for the jobtypes.  More information about how configuration files
 # are read can be found at:
 #  https://pyfarm.readthedocs.org/en/latest/modules/pyfarm.core.config.html
+
+# If True then include os.environ in any
+# processes launched by job type.
+jobtype_include_os_environ: True
+
+# Any additional key/value pairs to include
+# in the environment of a process launched
+# by a job type.
+jobtype_default_environment: {}

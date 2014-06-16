@@ -59,12 +59,7 @@ logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 
-# Construct the base environment that all job types will use.  We do this
-# once per process so a job type can't modify the running environment
-# on purpose or by accident.
-# TODO: file based configuration
-DEFAULT_ENVIRONMENT = os.environ.copy()
-assert isinstance(DEFAULT_ENVIRONMENT, dict)
+FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 # TODO: file based configuration
 DEFAULT_CACHE_DIRECTORY = read_env(
@@ -523,25 +518,26 @@ class JobType(object):
             return group
         return self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
-    def get_environment(self, env=None):
+    def get_environment(self):
         """
-        Constructs a default environment dictionary that will replace
-        ``os.environ`` before the process is launched in
-        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
-        before and after each process and so that each process can't modify
-        the original environment.
+        Constructs an environment dictionary that can be used
+        when a process is spawned by a job type.
         """
-        if isinstance(env, dict):
-            return env
+        environment = {}
+        config_environment = config.get("jobtype_default_environment")
 
-        elif env is not None:
+        if config.get("jobtype_include_os_environ"):
+            environment.update(FROZEN_ENVIRONMENT)
+
+        if isinstance(config_environment, dict):
+            environment.update(config_environment)
+
+        elif config_environment is not None:
             logger.warning(
-                "Expected a dictionary for `env`, falling back onto default "
-                "environment")
+                "Expected a dictionary for `jobtype_default_environment`, "
+                "ignoring the configuration value.")
 
-        return dict(
-            list(DEFAULT_ENVIRONMENT.items()) +
-            list(self.assignment["job"].get("environ", {}).items()))
+        return environment
 
     def get_path(self, path, environment=None, expandvars=None, task=None):
         """
@@ -717,7 +713,7 @@ class JobType(object):
                     "processes as another user.")
 
         # Prepare the arguments for the spawnProcess call
-        environment = self.get_environment(process_inputs.env)
+        environment = self.get_environment()
         commands = self.get_command_list(
             process_inputs.command,
             environment=environment, expandvars=process_inputs.expandvars)
