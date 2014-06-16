@@ -20,7 +20,7 @@ import tempfile
 import sys
 from datetime import datetime
 from string import Template
-from os.path import join, dirname, isfile, basename
+from os.path import join, dirname, isfile, basename, isdir
 from functools import partial
 
 try:
@@ -60,10 +60,29 @@ process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
+CACHE_DIRECTORY = Template(
+    config.get("jobtype_cache_directory", "")).safe_substitute(
+    temp=tempfile.gettempdir())
 
-# TODO: file based configuration
-DEFAULT_CACHE_DIRECTORY = read_env(
-    "PYFARM_JOBTYPE_CACHE_DIRECTORY", join(".pyfarm_agen", ".jobtypes"))
+if not CACHE_DIRECTORY:
+    CACHE_DIRECTORY = None
+    logger.warning("Job type cache directory has been disabled.")
+
+elif not isdir(CACHE_DIRECTORY):
+    try:
+        os.makedirs(CACHE_DIRECTORY)
+
+    except OSError:
+        logger.error(
+            "Failed to create %r.  Job type caching is "
+            "now disabled.", CACHE_DIRECTORY)
+        CACHE_DIRECTORY = None
+
+    else:
+        logger.info("Created job type cache directory %r", CACHE_DIRECTORY)
+
+else:
+    logger.debug("Job type cache directory is %r", CACHE_DIRECTORY)
 
 
 class JobType(object):
@@ -285,11 +304,6 @@ class JobType(object):
                 "Expected an integer or string for `%s`" % value_name)
 
     @classmethod
-    def _cache_key(cls, assignment):
-        """Returns the key used to store and retrieve the cached job type"""
-        return assignment["jobtype"]["name"], assignment["jobtype"]["version"]
-
-    @classmethod
     def _url(cls, name, version):
         """Returns the remote url for the requested job type and version"""
         return str(
@@ -297,21 +311,6 @@ class JobType(object):
             "master-api": config["master-api"],
             "jobtype": name,
             "version": version})
-
-    @classmethod
-    def _cache_directory(cls):
-        """Returns the path where job types should be cached"""
-        return config.get("jobtype_cache_directory") or DEFAULT_CACHE_DIRECTORY
-
-    @classmethod
-    def _cache_filename(cls, cache_key, jobtype):
-        """
-        Returns the path where this specific job type should be
-        stored or loaded from
-        """
-        return str(join(
-            cls._cache_directory(),
-            "_".join(map(str, cache_key)) + "_" + jobtype["classname"] + ".py"))
 
     @classmethod
     def _download_jobtype(cls, assignment):
@@ -341,7 +340,9 @@ class JobType(object):
         to store it on disk.  In the rare even that we fail to write it
         to disk, we store it in memory instead.
         """
-        filename = cls._cache_filename(cache_key, jobtype)
+        filename = str(join(
+            CACHE_DIRECTORY,
+            "_".join(map(str, cache_key)) + "_" + jobtype["classname"] + ".py"))
         success = Deferred()
 
         def write_to_disk(filename):
@@ -405,7 +406,8 @@ class JobType(object):
         incoming assignment data
         """
         result = Deferred()
-        cache_key = cls._cache_key(assignment)
+        cache_key = (
+            assignment["jobtype"]["name"], assignment["jobtype"]["version"])
 
         def load_jobtype(args):
             jobtype, filepath = args
@@ -433,7 +435,7 @@ class JobType(object):
             # Finally, send the results to the callback
             result.callback(getattr(module, jobtype["classname"]))
 
-        if config["jobtype-no-cache"] or cache_key not in cls.cache:
+        if CACHE_DIRECTORY is None or cache_key not in cls.cache:
             def download_complete(response):
                 # Server is offline or experiencing issues right
                 # now so we should retry the request.
@@ -442,7 +444,7 @@ class JobType(object):
                         http_retry_delay(),
                         response.request.retry)
 
-                if config["jobtype-no-cache"]:
+                if CACHE_DIRECTORY is None:
                     return load_jobtype((response.json(), None))
 
                 # When the download is complete, cache the results

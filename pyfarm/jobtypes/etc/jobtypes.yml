@@ -11,3 +11,11 @@ jobtype_include_os_environ: True
 # in the environment of a process launched
 # by a job type.
 jobtype_default_environment: {}
+
+# The default location where a job type should
+# store cached source code from the master.  Note
+# that $temp will be expanded to the local system's
+# temp directory.  If this directory does not exist
+# it will be created.  Leaving this value blank will
+# disable job type caching.
+jobtype_cache_directory: $temp/pyfarm/jobtypes/cache
