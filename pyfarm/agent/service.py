@@ -337,10 +337,14 @@ class Agent(object):
 
             if stopping_jobtypes:
                 wait_on_stopping = DeferredList(stopping_jobtypes)
-                wait_on_stopping.addCallback(self.post_shutdown_to_master)
-
+                if agent_id in config:
+                    wait_on_stopping.addCallback(self.post_shutdown_to_master)
+                else:
+                    wait_on_stopping.addCallback(reactor.stop)
             elif "agent-id" in config:
                 self.post_shutdown_to_master()
+            else:
+                reactor.callLater(1, reactor.stop)
 
             # TODO: stop running tasks, informing master for each
             # TODO: chain task stoppage callback to start shutdown_post_update
