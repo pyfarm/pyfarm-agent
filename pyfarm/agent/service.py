@@ -300,7 +300,7 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
-    def stop(self, *_):  # this is the SIGINT handler, we ignore the inputs
+    def stop(self):
         """
         Internal code which stops the agent.  This will terminate any running
         processes, inform the master of the terminated tasks, update the
@@ -364,6 +364,9 @@ class Agent(object):
         # Count each time Ctrl+C is pressed, after three tries we will
         # force terminate the agent
         self.sigint_signal_count += 1
+
+    def sigint_handler(self, *_):
+        self.stop()
 
     def post_shutdown_to_master(self, stop_reactor=True):
         """
