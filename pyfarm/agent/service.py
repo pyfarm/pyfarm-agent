@@ -438,6 +438,7 @@ class Agent(object):
 
         if stop_reactor:
             finished.addCallback(lambda *_: reactor.stop())
+            finished.addErrback(lambda *_: reactor.stop())
 
         return finished
 
