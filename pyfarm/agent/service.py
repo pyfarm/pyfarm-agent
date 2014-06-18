@@ -404,7 +404,7 @@ class Agent(object):
                     delay = random() + random()
                     svclog.warning(
                         "State update failed due to server error: %s.  "
-                        "Retrying in %s seconds",
+                        "Retrying in %s seconds.",
                         response.data(), delay)
                     reactor.callLater(delay, response.request.retry)
                 else:
@@ -419,7 +419,7 @@ class Agent(object):
                     delay = random() + random()
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
-                        "Retrying in %s seconds",
+                        "Retrying in %s seconds.",
                         response.data(), delay)
                     reactor.callLater(delay, response.request.retry)
                 else:
