@@ -67,6 +67,7 @@ process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
+ITERABLE_CONTAINERS = (list, tuple, set)
 
 
 class JobType(Cache, Process):
@@ -221,6 +222,8 @@ class JobType(Cache, Process):
         from cache or from the master and then instance it with the
         incoming assignment data
         """
+        cls.ASSIGNMENT_SCHEMA(assignment)
+
         result = Deferred()
         cache_key = (
             assignment["jobtype"]["name"], assignment["jobtype"]["version"])
@@ -367,7 +370,7 @@ class JobType(Cache, Process):
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        assert isinstance(tasks, (list, tuple))
+        assert isinstance(tasks, ITERABLE_CONTAINERS)
 
         if now is None:
             now = datetime.utcnow()
@@ -452,7 +455,7 @@ class JobType(Cache, Process):
         assert isinstance(process_inputs, ProcessInputs)
 
         # assert `task` is a valid type
-        if not isinstance(process_inputs.tasks, (list, tuple)):
+        if not isinstance(process_inputs.tasks, ITERABLE_CONTAINERS):
             self.set_states(
                 process_inputs.tasks, WorkState.FAILED,
                 "`task` must be a dictionary, got %s instead.  Check "
@@ -461,7 +464,7 @@ class JobType(Cache, Process):
             return
 
         # assert `command` is a valid type
-        if not isinstance(process_inputs.command, (list, tuple)):
+        if not isinstance(process_inputs.command, ITERABLE_CONTAINERS):
             self.set_states(
                 process_inputs.tasks, WorkState.FAILED,
                 "`command` must be a list or tuple, got %s instead.  Check "
