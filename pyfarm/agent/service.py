@@ -313,7 +313,7 @@ class Agent(object):
         # process exits.
         if not self.shutting_down:
             self.shutting_down = True
-            self.shutdown_timeout = (datetime.now() +
+            self.shutdown_timeout = (datetime.utcnow() +
                                      timedelta(
                                         seconds=config["shutdown_timeout"]))
 
@@ -400,7 +400,7 @@ class Agent(object):
                 finished.callback(OK)
 
             elif response.code >= INTERNAL_SERVER_ERROR:
-                if self.shutdown_timeout > datetime.now():
+                if self.shutdown_timeout > datetime.utcnow():
                     delay = random() + random()
                     svclog.warning(
                         "State update failed due to server error: %s.  "
@@ -415,7 +415,7 @@ class Agent(object):
                     finished.errback(INTERNAL_SERVER_ERROR)
 
             else:
-                if self.shutdown_timeout > datetime.now():
+                if self.shutdown_timeout > datetime.utcnow():
                     delay = random() + random()
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
@@ -430,7 +430,7 @@ class Agent(object):
                     finished.errback(response.code)
 
         def error_while_posting(failure):
-            if self.shutdown_timeout > datetime.now():
+            if self.shutdown_timeout > datetime.utcnow():
                 delay = http_retry_delay()
                 svclog.warning(
                     "State update failed due to unhandled error: %s.  "
