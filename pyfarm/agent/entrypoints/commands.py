@@ -249,6 +249,12 @@ class AgentEntryPoint(object):
             dest="pretty_json",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
+        start_general_group.add_argument(
+            "--shutdown-timeout",
+            default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
+            type=int,
+            help="How long the agent should log out from the master when "
+                 "stopped, in seconds.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -457,7 +463,8 @@ class AgentEntryPoint(object):
                 "master-reannounce": self.args.master_reannounce,
                 "pidfile": self.args.pidfile,
                 "pids": {
-                    "parent": os.getpid()}}
+                    "parent": os.getpid()},
+                "shutdown_timeout": self.args.shutdown_timeout}
             # update configuration with values from the command line
 
             config.update(config_flags)

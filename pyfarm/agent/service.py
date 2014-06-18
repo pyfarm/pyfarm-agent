@@ -314,7 +314,8 @@ class Agent(object):
         if not self.shutting_down:
             self.shutting_down = True
             self.shutdown_timeout = (datetime.now() +
-                                     timedelta(seconds=30))
+                                     timedelta(
+                                        seconds=config["shutdown_timeout"]))
 
             def remove_pidfile():
                 if not isfile(config["pidfile"]):
