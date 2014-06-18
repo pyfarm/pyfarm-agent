@@ -14,6 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Job Type Core
+=============
+
+This module contains the core job type from which all
+other job types are built.  All other job types must
+inherit from the :class:`JobType` class in this modle.
+"""
+
 import imp
 import os
 import sys
@@ -102,10 +111,13 @@ class JobType(Cache, Process):
         self._uuid = uuid()
         config["jobtypes"][self._uuid] = self
 
+        self.started = Deferred()
+        self.stopped = Deferred()
+
         self.protocols = {}
-        self.failed_processes = []
-        self.finished_tasks = []
-        self.failed_tasks = []
+        self.failed_processes = set()
+        self.finished_tasks = set()
+        self.failed_tasks = set()
         self.stdout_line_fragments = []
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
@@ -193,7 +205,9 @@ class JobType(Cache, Process):
             "operating_system": system.operating_system()}
 
     def __repr__(self):
-        return "JobType(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)" % (
+        formatting = "%s(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)"
+        return formatting % (
+            self.__class__.__name__,
             self.assignment["job"]["id"],
             tuple(task["id"] for task in self.assignment["tasks"]),
             str(self.assignment["jobtype"]["name"]),
@@ -450,7 +464,7 @@ class JobType(Cache, Process):
                 pwd is not NotImplemented,
                 grp is not NotImplemented,
                 process_inputs.user is not None or
-                                process_inputs.group is not None]):
+                process_inputs.group is not None]):
 
             # Regardless of platform, we run a command as
             # another user unless we're an admin
@@ -508,7 +522,7 @@ class JobType(Cache, Process):
 
         self._start_logging(protocol, logfile)
 
-        # TODO: do validation of **kwargs here so we don't do it in one location
+        # TODO: do validation of kwargs here so we don't do it in one location
         # * environment (dict, strings only)
         # * path exists (see previous setup for this in the history)
         #
@@ -532,8 +546,7 @@ class JobType(Cache, Process):
         for process_inputs in self.build_process_inputs():
             self.spawn_process(process_inputs)
 
-        self.deferred = Deferred()
-        return self.deferred
+        return self.started
 
     def stop(self):
         """
@@ -542,17 +555,15 @@ class JobType(Cache, Process):
         this job type and also inform the master of any state changes
         to an associated task or tasks.
         """
-        stopped = Deferred()
         # TODO: stop all running processes
         # TODO: notify master of stopped task(s)
-
         # TODO: chain this callback to the completion of our request to master
         def finished_processes():
-            stopped.callback(True)
+            self.stopped.callback(True)
             config["jobtypes"].pop(self._uuid)
 
         finished_processes()
-        return stopped
+        return self.stopped
 
     def format_log_message(self, message, stream_type=None):
         """
@@ -636,7 +647,7 @@ class JobType(Cache, Process):
             logger.error(
                 "Expected a dictionary for `task`, cannot change state")
 
-        elif not "id" in task or not isinstance(task["id"], INTEGER_TYPES):
+        elif "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
             logger.error(
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
@@ -657,7 +668,7 @@ class JobType(Cache, Process):
                 error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
                 if task not in self.failed_tasks:
-                    self.failed_tasks.append(task)
+                    self.failed_tasks.add(task)
 
             # `error` shouldn't be set if the state is not a failure
             elif error is not None:
@@ -678,42 +689,44 @@ class JobType(Cache, Process):
             elif error is not None:
                 logger.error("Expected a string for `error`")
 
-            def post_update(url, data, delay=0):
+            def post_update(post_url, post_data, delay=0):
                 post_func = partial(
-                    post, url,
-                    data=data,
+                    post, post_url,
+                    data=post_data,
                     callback=lambda x: result_callback(
-                        url, data, task["id"], state, x),
-                    errback=lambda x: error_callback(url, data, x))
+                        post_url, post_data, task["id"], state, x),
+                    errback=lambda x: error_callback(post_url, post_data, x))
                 reactor.callLater(delay, post_func)
 
-            def result_callback(url, data, task_id, state, response):
-                if response.code >= 500 and response.code < 600:
+            def result_callback(cburl, cbdata, task_id, cbstate, response):
+                if 500 <= response.code < 600:
                     logger.error(
                         "Error while posting state update for task %s "
                         "to %s, return code is %s, retrying",
-                        task_id, state, response.code)
-                    post_update(url, data, delay=http_retry_delay())
+                        task_id, cbstate, response.code)
+                    post_update(cburl, cbdata, delay=http_retry_delay())
 
                 elif response.code != OK:
                     # Nothing else we could do about that, this is
                     # a problem on our end.  We should only encounter
-                    # this error dueing development
+                    # this error during development
                     logger.error(
                         "Could not set state for task %s to %s, server "
-                        "response code was %s", task_id, state, response.code)
+                        "response code was %s",
+                        task_id, cbstate, response.code)
 
                 else:
                     logger.info(
-                        "Set state of task %s to %s on master", task_id, state)
-                    if state == WorkState.DONE \
+                        "Set state of task %s to %s on master",
+                        task_id, cbstate)
+                    if cbstate == WorkState.DONE \
                             and task_id not in self.finished_tasks:
-                        self.finished_tasks.append(task_id)
+                        self.finished_tasks.add(task_id)
 
-            def error_callback(url, data, failure):
+            def error_callback(cburl, cbdata, _):
                 logger.error(
                     "Error while posting state update for task, retrying")
-                post_update(url, data, delay=http_retry_delay())
+                post_update(cburl, cbdata, delay=http_retry_delay())
 
             # Initial attempt to make an update with an explicit zero
             # delay.
@@ -783,6 +796,7 @@ class JobType(Cache, Process):
         those to received_stdout_line(), which will eventually forward it to
         process_stdout_line()
         """
+        dangling_fragment = None
         if "\n" in stdout:
             ends_on_fragment = True
             if stdout[-1] == "\n":
@@ -792,11 +806,11 @@ class JobType(Cache, Process):
                 dangling_fragment = lines.pop(-1)
             for line in lines:
                 if protocol.id in self.stdout_line_fragments:
-                    l = self.stdout_line_fragments[protocol.id] + line
+                    line_out = self.stdout_line_fragments[protocol.id] + line
                     del self.stdout_line_fragments[protocol.id]
-                    if len(l) > 0 and l[-1] == "\r":
-                        l = l[:-1]
-                    self.received_stdout_line(protocol, l)
+                    if len(line_out) > 0 and line_out[-1] == "\r":
+                        line_out = line_out[:-1]
+                    self.received_stdout_line(protocol, line_out)
                 else:
                     if len(line) > 0 and line[-1] == "\r":
                         line = line[:-1]
