@@ -401,7 +401,7 @@ class Agent(object):
 
             elif response.code >= INTERNAL_SERVER_ERROR:
                 if self.shutdown_timeout > datetime.utcnow():
-                    delay = random() + random()
+                    delay = http_retry_delay()
                     svclog.warning(
                         "State update failed due to server error: %s.  "
                         "Retrying in %s seconds.",
@@ -416,7 +416,7 @@ class Agent(object):
 
             else:
                 if self.shutdown_timeout > datetime.utcnow():
-                    delay = random() + random()
+                    delay = http_retry_delay()
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
                         "Retrying in %s seconds.",
