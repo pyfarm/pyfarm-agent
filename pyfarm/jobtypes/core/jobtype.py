@@ -401,6 +401,17 @@ class JobType(Cache, Process):
         """
         raise NotImplementedError("`build_process_inputs` must be implemented")
 
+    # TODO: finish map_path() implementation
+    def map_path(self, path):
+        """
+        Takes a string argument.  Translates a given path for any OS to
+        what it should be on this particular node.  Might communicate with
+        the master to achieve this.
+        """
+        assert isinstance(path, STRING_TYPES)
+        path = self.expandvars(path)
+        return path
+
     def expandvars(self, value, environment=None, expand=None):
         """
         Expands variables inside of a string using an environment.  Exp
