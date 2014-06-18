@@ -389,27 +389,21 @@ class JobType(Cache, Process):
                 self.assignment["job"]["id"],
                 "-".join(map(str, list(task["id"]for task in tasks)))))
 
-    def build_process_inputs(self):
+    # TODO: internal implementation like the doc string says
+    # TODO: reflow the doc string text for a better layout
+    def get_command_data(self):
         """
-        This method constructs and returns all the arguments necessary
-        to execute one or multiple processes on the system.  An example
-        implementation may look similar to this:
-
-        >>> from pyfarm.jobtypes.core.jobtype import ProcessInputs
-        >>> def build_process_inputs(self):
-        ...     for task in self.assignments():
-        ...         yield ProcessInputs(
-        ...             [task],
-        ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
-        ...             environ={"FOO": "1"},
-        ...             user="foo",
-        ...             group="bar")
-
-        The above is a generator that will return everything that's needed to
-        run the process. See :class:`ProcessInputs` for some more detailed
-        documentation on each attribute's function.
+        Overridable.  Returns the command, arguments, environment,
+        working directory and optionally a freeform variable for the command
+        to execute the current assignment in the form of a CommandData
+        (currently ProcessInputs) object. Should not be used when this jobtype
+        requires more than one process for one assignment.  May not get called
+        at all if start() was overridden.  Should use map_path() on all paths.
+        Default implementation does nothing. For simple jobtypes that use
+        exactly one process per assignment, this is the most important method
+        to implement.
         """
-        raise NotImplementedError("`build_process_inputs` must be implemented")
+        raise NotImplementedError("`get_command_data` must be implemented")
 
     # TODO: finish map_path() implementation
     def map_path(self, path):
@@ -571,7 +565,7 @@ class JobType(Cache, Process):
         # TODO: collect all tasks and depending on the relationship
         # between tasks and processes we have to change how we notify
         # the master (and how we cancel other tasks which are queued)
-        for process_inputs in self.build_process_inputs():
+        for process_inputs in self.get_command_data():
             self.spawn_process(process_inputs)
 
         return self.started

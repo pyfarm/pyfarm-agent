@@ -27,7 +27,7 @@ from pyfarm.jobtypes.core.process import ProcessInputs
 
 
 class FakeRender(JobType):
-    def build_process_inputs(self):
+    def get_command_data(self):
         fakerender = which("pyfarm-dev-fakerender")
 
         for task in self.assignments():
