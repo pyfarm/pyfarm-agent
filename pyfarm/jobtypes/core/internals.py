@@ -73,9 +73,14 @@ class LoggingThread(threading.Thread):
 
     def put(self, streamno, message):
         """Put a message in the queue for the thread to pickup"""
-        assert self.stopped is False, "Cannot put(), thread is stopped"
         assert streamno in STREAMS
-        assert isinstance(message, STRING_TYPES)
+
+        if self.stopped:
+            raise RuntimeError("Cannot put(), thread is stopped")
+
+        if not isinstance(message, STRING_TYPES):
+            raise TypeError("Expected string for `message`")
+
         now = datetime.utcnow()
         self.queue.put_nowait(
             (now.isoformat(), streamno, self.lineno, message))
@@ -238,17 +243,28 @@ class Process(object):
         return self.stop()
 
     def _start_logging(self, protocol, log):
-        assert isinstance(protocol, ProcessProtocol)
-        assert isinstance(log, STRING_TYPES)
+        if not isinstance(protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
+
+        if not isinstance(log, STRING_TYPES):
+            raise TypeError("Expected string for `log`")
+
         thread = self.logging[protocol.id] = LoggingThread(logfile)
         thread.start()
         return thread
 
     def _spawn_process(self, environment, protocol, command, kwargs):
-        assert isinstance(environment, dict)
-        assert isinstance(protocol, ProcessProtocol)
-        assert isinstance(command, STRING_TYPES)
-        assert isinstance(kwargs, dict)
+        if not isinstance(environment, dict):
+            raise TypeError("Expected dict for `environment`")
+
+        if not isinstance(protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
+
+        if not isinstance(command, STRING_TYPES):
+            raise TypeError("Expected string for `command`")
+
+        if not isinstance(kwargs, dict):
+            raise TypeError("Expected dictionary for kwargs")
 
         # reactor.spawnProcess does different things with the environment
         # depending on what platform you're on and what you're passing in.
@@ -266,7 +282,9 @@ class Process(object):
         This method logs the start of a process and informs the master of
         the state change.
         """
-        assert isinstance(protocol, ProcessProtocol)
+        if not isinstance(protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
+
         logger.info("%r started", protocol)
         self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
 
@@ -280,7 +298,8 @@ class Process(object):
         :meth:`_log_in_thread` so it can be stored in a file without
         blocking the event loop.
         """
-        assert isinstance(protocol, ProcessProtocol)
+        if not isinstance(protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
 
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
@@ -329,6 +348,9 @@ class Process(object):
         """
         Internal function which handles both user name and group conversion.
         """
+        if not isinstance(value, STRING_TYPES):
+            raise TypeError("Expected string for `value`")
+
         # This platform does not implement the module
         if module is NotImplemented:
             logger.warning(

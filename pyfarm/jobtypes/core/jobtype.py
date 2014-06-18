@@ -360,6 +360,9 @@ class JobType(Cache, Process):
         Return a list of command to be used when running the process
         as a read-only tuple.
         """
+        if not isinstance(cmdlist, (tuple, list)):
+            raise TypeError("Expected tuple or list for `cmdlist`")
+
         return tuple(map(self.expandvars, cmdlist))
 
     # TODO: This needs more command line arguments and configuration options
@@ -370,7 +373,11 @@ class JobType(Cache, Process):
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        assert isinstance(tasks, ITERABLE_CONTAINERS)
+        if not isinstance(tasks, ITERABLE_CONTAINERS):
+            raise TypeError("Expected tuple, list or set for `tasks`")
+
+        if now is not None and not isinstance(now, datetime):
+            raise TypeError("Expected None or datetime for `now`")
 
         if now is None:
             now = datetime.utcnow()
@@ -411,7 +418,9 @@ class JobType(Cache, Process):
         what it should be on this particular node.  Might communicate with
         the master to achieve this.
         """
-        assert isinstance(path, STRING_TYPES)
+        if not isinstance(path, STRING_TYPES):
+            raise TypeError("Expected string for `path`")
+
         path = self.expandvars(path)
         return path
 
@@ -433,8 +442,11 @@ class JobType(Cache, Process):
             perform environment variable expansion otherwise we return
             ``value`` untouched.
         """
-        assert isinstance(value, STRING_TYPES)
-        assert environment is None or isinstance(environment, dict)
+        if not isinstance(value, STRING_TYPES):
+            raise TypeError("Expected a string for `value`")
+
+        if environment is not None or not isinstance(environment, dict):
+            raise TypeError("Expected None or a dictionary for `environment`")
 
         if expand is None:
             expand = config.get("jobtype_expandvars")
@@ -452,7 +464,8 @@ class JobType(Cache, Process):
         Spawns a process using :func:`.reactor.spawnProcess` and return
         the protocol object it generates.
         """
-        assert isinstance(process_inputs, ProcessInputs)
+        if not isinstance(process_inputs, ProcessInputs):
+            raise TypeError("Expected ProcessInputs for `process_inputs`")
 
         # assert `task` is a valid type
         if not isinstance(process_inputs.tasks, ITERABLE_CONTAINERS):
@@ -551,7 +564,8 @@ class JobType(Cache, Process):
         prepare and start one more more processes.
         """
         # Make sure start() is not called twice
-        assert not hasattr(self, "deferred")
+        if self.started.called:
+            raise RuntimeError("%s has already been started" % self)
 
         # TODO: add deferred handlers
         # TODO: collect all tasks and depending on the relationship
@@ -569,6 +583,9 @@ class JobType(Cache, Process):
         this job type and also inform the master of any state changes
         to an associated task or tasks.
         """
+        if self.stopped.called:
+            raise RuntimeError("%s has already been stopped" % self)
+
         # TODO: stop all running processes
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
@@ -629,7 +646,9 @@ class JobType(Cache, Process):
         Wrapper around :meth:`set_state` that that allows you to
         the state on the master for multiple tasks at once.
         """
-        assert isinstance(tasks, (tuple, list))
+        if not isinstance(tasks, ITERABLE_CONTAINERS):
+            raise TypeError("Expected tuple, list or set for `tasks`")
+
         for task in tasks:
             self.set_task_state(task, state, error=error)
 
