@@ -54,12 +54,14 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, user, system
+from pyfarm.agent.sysinfo import memory, system
+from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
-from pyfarm.jobtypes.core.internals import STDERR, STDOUT, Cache, Process
+from pyfarm.jobtypes.core.internals import (
+    STDERR, STDOUT, Cache, Process, TypeChecks)
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ProcessInputs)
+    ProcessProtocol)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -70,7 +72,7 @@ FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 ITERABLE_CONTAINERS = (list, tuple, set)
 
 
-class JobType(Cache, Process):
+class JobType(Cache, Process, TypeChecks):
     """
     Base class for all other job types.  This class is intended
     to abstract away many of the asynchronous necessary to run
@@ -198,8 +200,8 @@ class JobType(Cache, Process):
             "total_ram": int(memory.total_ram()),
             "free_ram": int(memory.ram_free()),
             "consumed_ram": int(memory.total_consumption()),
-            "admin": user.is_administrator(),
-            "user": user.username(),
+            "admin": is_administrator(),
+            "user": username(),
             "case_sensitive_files": system.filesystem_is_case_sensitive(),
             "case_sensitive_env": system.environment_is_case_sensitive(),
             "machine_architecture": machine_architecture,
@@ -453,70 +455,37 @@ class JobType(Cache, Process):
 
         return Template(expanduser(value)).safe_substitute(**environment)
 
-    def spawn_process(self, process_inputs):
+    # TODO: finish implementation, remove process_inputs fully
+    def spawn_process(
+            self, command, arguments, working_directory, environment,
+            user, group):
         """
-        Starts one child process using the command, arguments, working
-        directory and environment from :meth:`command_data`. Job types
-        should never start child processes through any other means.  The
-        only exception to this rule is code that resides in
+        Starts one child process using input from :meth:`command_data`.
+        Job types should never start child processes through any other
+        means.  The only exception to this rule is code that resides in
         :meth:`prepare_for_job`, which should use
         :meth:`spawn_persistent_job_process` instead.
+
+        :raises OSError:
+            Raised if `working_directory` was provided but the provided
+            path does not exist
         """
-        if not isinstance(process_inputs, ProcessInputs):
-            raise TypeError("Expected ProcessInputs for `process_inputs`")
+        self._check_spawn_process_inputs(
+            command, arguments, working_directory, environment,
+            user, group)
 
-        # assert `task` is a valid type
-        if not isinstance(process_inputs.tasks, ITERABLE_CONTAINERS):
-            self.set_states(
-                process_inputs.tasks, WorkState.FAILED,
-                "`task` must be a dictionary, got %s instead.  Check "
-                "the output produced by `build_process_inputs`" % type(
-                    process_inputs.tasks))
-            return
+        uid = None
+        gid = None
 
-        # assert `command` is a valid type
-        if not isinstance(process_inputs.command, ITERABLE_CONTAINERS):
-            self.set_states(
-                process_inputs.tasks, WorkState.FAILED,
-                "`command` must be a list or tuple, got %s instead.  Check "
-                "the output produced by `build_process_inputs`" % type(
-                    process_inputs.command))
-            return
+        # Convert user to uid
+        if all([user is not None, pwd is not NotImplemented]):
+            uid = self.get_uid(user)
 
-        # username/group to uid/gid mapping
-        uid, gid = None, None
-        if all([not WINDOWS,  # Twisted does not implement this on Windows
-                pwd is not NotImplemented,
-                grp is not NotImplemented,
-                process_inputs.user is not None or
-                process_inputs.group is not None]):
+        # Convert group to gid
+        if all([group is not None, grp is not NotImplemented]):
+            gid = self.get_gid(group)
 
-            # Regardless of platform, we run a command as
-            # another user unless we're an admin
-            if user.is_administrator():
-                # map user
-                try:
-                    uid = self.get_uid(process_inputs.user)
-                except (ValueError, KeyError):
-                    self.set_states(
-                        process_inputs.tasks, WorkState.FAILED,
-                        "Failed to or verify user %r" % process_inputs.user)
-                    return
-
-                # map group
-                try:
-                    gid = self.get_uid(process_inputs.group)
-                except (ValueError, KeyError):
-                    self.set_task_state(
-                        process_inputs.tasks, WorkState.FAILED,
-                        "Failed to or verify group %r" % process_inputs.group)
-                    return
-
-            else:
-                logger.warning(
-                    "User and/or group was provided but the agent is not "
-                    "running as an administrator which is required to run"
-                    "processes as another user.")
+        # TODO: finish implementation
 
         # Prepare the arguments for the spawnProcess call
         environment = self.get_environment()
