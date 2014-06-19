@@ -455,8 +455,12 @@ class JobType(Cache, Process):
 
     def spawn_process(self, process_inputs):
         """
-        Spawns a process using :func:`.reactor.spawnProcess` and return
-        the protocol object it generates.
+        Starts one child process using the command, arguments, working
+        directory and environment from :meth:`command_data`. Job types
+        should never start child processes through any other means.  The
+        only exception to this rule is code that resides in
+        :meth:`prepare_for_job`, which should use
+        :meth:`spawn_persistent_job_process` instead.
         """
         if not isinstance(process_inputs, ProcessInputs):
             raise TypeError("Expected ProcessInputs for `process_inputs`")
