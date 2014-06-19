@@ -40,16 +40,18 @@ except ImportError:  # pragma: no cover
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred
 
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
 from pyfarm.agent.utility import UnicodeCSVWriter
+from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
 STDOUT = 0
 STDERR = 1
 STREAMS = set([STDOUT, STDERR])
+USER_GROUP_TYPES = list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -399,3 +401,44 @@ class Process(object):
         else:
             raise ValueError(
                 "Expected an integer or string for `%s`" % value_name)
+
+
+class TypeChecks(object):
+    def _check_spawn_process_inputs(
+            self, command, arguments, working_directory, environment,
+            user, group):
+        if not isinstance(command, STRING_TYPES):
+            raise TypeError("Expected a string for `command`")
+
+        if not isinstance(arguments, (list, tuple)):
+            raise TypeError("Expected a list or tuple for `arguments`")
+
+        if isinstance(working_directory, STRING_TYPES) \
+                and not isdir(working_directory):
+            raise OSError(
+                "`working_directory` %s does not exist" % working_directory)
+
+        elif working_directory is not None:
+            raise TypeError("Expected a string for `working_directory`")
+
+        if not isinstance(environment, dict):
+            raise TypeError("Expected a dictionary for `environment`")
+
+        if not isinstance(user, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `user`")
+
+        if not isinstance(group, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `group`")
+
+        admin = is_administrator()
+
+        if WINDOWS:
+            if user is not None:
+                logger.warning("`user` is ignored on Windows")
+
+            if group is not None:
+                logger.warning("`group` is ignored on Windows")
+
+        elif user is not None or group is not None and not admin:
+            raise EnvironmentError(
+                "Cannot change user or group without being admin.")
