@@ -252,7 +252,8 @@ class AgentEntryPoint(object):
         start_general_group.add_argument(
             "--shutdown-timeout",
             default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
-            type=int,
+            type=partial(integer, instance=self,
+                         flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
 
