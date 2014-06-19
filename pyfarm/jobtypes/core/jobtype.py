@@ -49,7 +49,7 @@ from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
 
-from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post, http_retry_delay
@@ -59,7 +59,7 @@ from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.internals import (
-    STDERR, STDOUT, Cache, Process, TypeChecks)
+    ITERABLE_CONTAINERS, STDERR, STDOUT, Cache, Process, TypeChecks)
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol)
 
@@ -69,7 +69,6 @@ process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
-ITERABLE_CONTAINERS = (list, tuple, set)
 
 
 class JobType(Cache, Process, TypeChecks):
@@ -308,34 +307,6 @@ class JobType(Cache, Process, TypeChecks):
 
         return instance
 
-    def get_uid(self, username):
-        """
-        Convert ``username`` into an integer representing the user id.  If
-        ``username`` is an integer verify that it exists instead.
-
-        .. warning::
-
-            This method returns ``None`` on platforms that don't implement
-            the :mod:`pwd` module.
-        """
-        if username is None:
-            return username
-        return self._get_uidgid(username, "username", "get_uid", pwd, "pwd")
-
-    def get_gid(self, group):
-        """
-        Convert ``group`` into an integer representing the group id.  If
-        ``group`` is an integer verify that it exists instead.
-
-        .. warning::
-
-            This method returns ``None`` on platforms that don't implement
-            the :mod:`grp` module.
-        """
-        if group is None:
-            return group
-        return self._get_uidgid(group, "group", "get_gid", grp, "grp")
-
     def get_environment(self):
         """
         Constructs an environment dictionary that can be used
@@ -362,9 +333,7 @@ class JobType(Cache, Process, TypeChecks):
         Return a list of command to be used when running the process
         as a read-only tuple.
         """
-        if not isinstance(cmdlist, (tuple, list)):
-            raise TypeError("Expected tuple or list for `cmdlist`")
-
+        self._check_command_list_inputs(cmdlist)
         return tuple(map(self.expandvars, cmdlist))
 
     # TODO: This needs more command line arguments and configuration options
@@ -375,11 +344,7 @@ class JobType(Cache, Process, TypeChecks):
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        if not isinstance(tasks, ITERABLE_CONTAINERS):
-            raise TypeError("Expected tuple, list or set for `tasks`")
-
-        if now is not None and not isinstance(now, datetime):
-            raise TypeError("Expected None or datetime for `now`")
+        self._check_csvlog_path_inputs(tasks, now)
 
         if now is None:
             now = datetime.utcnow()
@@ -414,9 +379,7 @@ class JobType(Cache, Process, TypeChecks):
         what it should be on this particular node.  Might communicate with
         the master to achieve this.
         """
-        if not isinstance(path, STRING_TYPES):
-            raise TypeError("Expected string for `path`")
-
+        self._check_map_path_inputs(path)
         path = self.expandvars(path)
         return path
 
@@ -438,11 +401,7 @@ class JobType(Cache, Process, TypeChecks):
             perform environment variable expansion otherwise we return
             ``value`` untouched.
         """
-        if not isinstance(value, STRING_TYPES):
-            raise TypeError("Expected a string for `value`")
-
-        if environment is not None or not isinstance(environment, dict):
-            raise TypeError("Expected None or a dictionary for `environment`")
+        self._check_expandvars_inputs(value, environment)
 
         if expand is None:
             expand = config.get("jobtype_expandvars")
@@ -479,11 +438,11 @@ class JobType(Cache, Process, TypeChecks):
 
         # Convert user to uid
         if all([user is not None, pwd is not NotImplemented]):
-            uid = self.get_uid(user)
+            uid = self._get_uidgid(user, "username", "get_uid", pwd, "pwd")
 
         # Convert group to gid
         if all([group is not None, grp is not NotImplemented]):
-            gid = self.get_gid(group)
+            gid = self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
         # TODO: finish implementation
 
@@ -613,8 +572,7 @@ class JobType(Cache, Process, TypeChecks):
         Wrapper around :meth:`set_state` that that allows you to
         the state on the master for multiple tasks at once.
         """
-        if not isinstance(tasks, ITERABLE_CONTAINERS):
-            raise TypeError("Expected tuple, list or set for `tasks`")
+        self._check_set_states_inputs(tasks, state)
 
         for task in tasks:
             self.set_task_state(task, state, error=error)

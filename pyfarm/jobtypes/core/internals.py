@@ -52,6 +52,7 @@ STDOUT = 0
 STDERR = 1
 STREAMS = set([STDOUT, STDERR])
 USER_GROUP_TYPES = list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]
+ITERABLE_CONTAINERS = (list, tuple, set)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -442,3 +443,32 @@ class TypeChecks(object):
         elif user is not None or group is not None and not admin:
             raise EnvironmentError(
                 "Cannot change user or group without being admin.")
+
+    def _check_expandvars_inputs(self, value, environment):
+        if not isinstance(value, STRING_TYPES):
+            raise TypeError("Expected a string for `value`")
+
+        if environment is not None or not isinstance(environment, dict):
+            raise TypeError("Expected None or a dictionary for `environment`")
+
+    def _check_map_path_inputs(self, path):
+        if not isinstance(path, STRING_TYPES):
+            raise TypeError("Expected string for `path`")
+
+    def _check_csvlog_path_inputs(self, tasks, now):
+        if not isinstance(tasks, ITERABLE_CONTAINERS):
+            raise TypeError("Expected tuple, list or set for `tasks`")
+
+        if now is not None and not isinstance(now, datetime):
+            raise TypeError("Expected None or datetime for `now`")
+
+    def _check_command_list_inputs(self, cmdlist):
+        if not isinstance(cmdlist, (tuple, list)):
+            raise TypeError("Expected tuple or list for `cmdlist`")
+
+    def _check_set_states_inputs(self, tasks, state):
+        if not isinstance(tasks, ITERABLE_CONTAINERS):
+            raise TypeError("Expected tuple, list or set for `tasks`")
+
+        if state not in WorkState:
+            raise ValueError("Expected `state` to be in %s" % list(WorkState))
