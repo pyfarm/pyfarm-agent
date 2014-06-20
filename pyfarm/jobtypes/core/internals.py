@@ -44,9 +44,7 @@ from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
-from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.agent.sysinfo.user import is_administrator
-from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
 STDOUT = 0
 STDERR = 1
@@ -57,74 +55,6 @@ ITERABLE_CONTAINERS = (list, tuple, set)
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
 logfile = getLogger("jobtypes.log")
-
-
-# TODO: if we get fail the task if we have errors
-class LoggingThread(threading.Thread):
-    """
-    This class runs a thread which writes lines in csv format
-    to the log file.
-    """
-    def __init__(self, filepath):
-        super(LoggingThread, self).__init__()
-        self.queue = Queue()
-        self.filepath = filepath
-        self.lineno = 1
-        self.stopped = False
-        self.shutdown_event = \
-            reactor.addSystemEventTrigger("before", "shutdown", self.stop)
-
-    def put(self, streamno, message):
-        """Put a message in the queue for the thread to pickup"""
-        assert streamno in STREAMS
-
-        if self.stopped:
-            raise RuntimeError("Cannot put(), thread is stopped")
-
-        if not isinstance(message, STRING_TYPES):
-            raise TypeError("Expected string for `message`")
-
-        now = datetime.utcnow()
-        self.queue.put_nowait(
-            (now.isoformat(), streamno, self.lineno, message))
-        self.lineno += 1
-
-    def stop(self):
-        self.stopped = True
-        reactor.removeSystemEventTrigger(self.shutdown_event)
-
-    def run(self):
-        stopping = False
-        next_flush = config.get("jobtype_log_flush_after_lines")
-        stream = open(self.filepath, "w")
-        writer = UnicodeCSVWriter(stream)
-        while True:
-            # Pull data from the queue or retry again
-            try:
-                timestamp, streamno, lineno, message = \
-                    self.queue.get(
-                        timeout=config.get("jobtype_log_queue_timeout"))
-            except Empty:
-                pass
-            else:
-                # Write data from the queue to a file
-                writer.writerow(
-                    [timestamp, str(streamno), str(lineno), message])
-                if self.lineno >= next_flush:
-                    stream.flush()
-                    next_flush += config.get("jobtype_log_flush_after_lines")
-
-            # We're either being told to stop or we
-            # need to run one more iteration of the
-            # loop to pickup any straggling messages.
-            if self.stopped and stopping:
-                logger.debug("Closing %s", stream.name)
-                stream.close()
-                break
-
-            # Go around one more time to pickup remaining messages
-            elif self.stopped:
-                stopping = True
 
 
 class Cache(object):
@@ -245,37 +175,24 @@ class Process(object):
     def _stop(self):
         return self.stop()
 
-    def _start_logging(self, protocol, log):
-        if not isinstance(protocol, ProcessProtocol):
-            raise TypeError("Expected ProcessProtocol for `protocol`")
-
-        if not isinstance(log, STRING_TYPES):
-            raise TypeError("Expected string for `log`")
-
-        thread = self.logging[protocol.id] = LoggingThread(logfile)
+    def _start_logging(self, protocol, log_path):
+        thread = self.logging[protocol.uuid] = LoggingThread(log_path)
         thread.start()
         return thread
 
-    def _spawn_process(self, environment, protocol, command, kwargs):
-        if not isinstance(environment, dict):
-            raise TypeError("Expected dict for `environment`")
+    def _get_uid_gid(self, user, group):
+        uid = None
+        gid = None
 
-        if not isinstance(protocol, ProcessProtocol):
-            raise TypeError("Expected ProcessProtocol for `protocol`")
+        # Convert user to uid
+        if all([user is not None, pwd is not NotImplemented]):
+            uid = self._get_uidgid(user, "username", "get_uid", pwd, "pwd")
 
-        if not isinstance(command, STRING_TYPES):
-            raise TypeError("Expected string for `command`")
+        # Convert group to gid
+        if all([group is not None, grp is not NotImplemented]):
+            gid = self._get_uidgid(group, "group", "get_gid", grp, "grp")
 
-        if not isinstance(kwargs, dict):
-            raise TypeError("Expected dictionary for kwargs")
-
-        # reactor.spawnProcess does different things with the environment
-        # depending on what platform you're on and what you're passing in.
-        # To avoid inconsistent behavior, we replace os.environ with
-        # our own environment so we can launch the process.  After launching
-        # we replace the original environment.
-        with ReplaceEnvironment(environment):
-            return reactor.spawnProcess(protocol, command, **kwargs)
+        return uid, gid
 
     # TODO: set state
     def _process_started(self, protocol):
@@ -285,9 +202,6 @@ class Process(object):
         This method logs the start of a process and informs the master of
         the state change.
         """
-        if not isinstance(protocol, ProcessProtocol):
-            raise TypeError("Expected ProcessProtocol for `protocol`")
-
         logger.info("%r started", protocol)
         self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
 
@@ -301,9 +215,6 @@ class Process(object):
         :meth:`_log_in_thread` so it can be stored in a file without
         blocking the event loop.
         """
-        if not isinstance(protocol, ProcessProtocol):
-            raise TypeError("Expected ProcessProtocol for `protocol`")
-
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
         if self.is_successful(reason):
@@ -347,7 +258,8 @@ class Process(object):
         """
         self.logging[protocol.id].put(stream_type, data)
 
-    def _get_uidgid(self, value, value_name, func_name, module, module_name):
+    def _get_uid_gid_value(
+            self, value, value_name, func_name, module, module_name):
         """
         Internal function which handles both user name and group conversion.
         """
@@ -406,20 +318,20 @@ class Process(object):
 
 class TypeChecks(object):
     def _check_spawn_process_inputs(
-            self, command, arguments, working_directory, environment,
-            user, group):
+            self, command, arguments, working_dir, environment, user, group):
+        """Checks input arguments for :meth:`spawn_process"""
         if not isinstance(command, STRING_TYPES):
             raise TypeError("Expected a string for `command`")
 
         if not isinstance(arguments, (list, tuple)):
             raise TypeError("Expected a list or tuple for `arguments`")
 
-        if isinstance(working_directory, STRING_TYPES) \
-                and not isdir(working_directory):
+        if isinstance(working_dir, STRING_TYPES) \
+                and not isdir(working_dir):
             raise OSError(
-                "`working_directory` %s does not exist" % working_directory)
+                "`working_directory` %s does not exist" % working_dir)
 
-        elif working_directory is not None:
+        elif working_dir is not None:
             raise TypeError("Expected a string for `working_directory`")
 
         if not isinstance(environment, dict):
@@ -445,6 +357,7 @@ class TypeChecks(object):
                 "Cannot change user or group without being admin.")
 
     def _check_expandvars_inputs(self, value, environment):
+        """Checks input arguments for :meth:`expandvars`"""
         if not isinstance(value, STRING_TYPES):
             raise TypeError("Expected a string for `value`")
 
@@ -452,10 +365,12 @@ class TypeChecks(object):
             raise TypeError("Expected None or a dictionary for `environment`")
 
     def _check_map_path_inputs(self, path):
+        """Checks input arguments for :meth:`map_path`"""
         if not isinstance(path, STRING_TYPES):
             raise TypeError("Expected string for `path`")
 
     def _check_csvlog_path_inputs(self, tasks, now):
+        """Checks input arguments for :meth:`get_csvlog_path`"""
         if not isinstance(tasks, ITERABLE_CONTAINERS):
             raise TypeError("Expected tuple, list or set for `tasks`")
 
@@ -463,10 +378,12 @@ class TypeChecks(object):
             raise TypeError("Expected None or datetime for `now`")
 
     def _check_command_list_inputs(self, cmdlist):
+        """Checks input arguments for :meth:`get_command_list`"""
         if not isinstance(cmdlist, (tuple, list)):
             raise TypeError("Expected tuple or list for `cmdlist`")
 
     def _check_set_states_inputs(self, tasks, state):
+        """Checks input arguments for :meth:`set_states`"""
         if not isinstance(tasks, ITERABLE_CONTAINERS):
             raise TypeError("Expected tuple, list or set for `tasks`")
 
