@@ -28,20 +28,13 @@ import os
 import sys
 from datetime import datetime
 from string import Template
-from os.path import join, basename, expanduser
+from os.path import join, expanduser
 from functools import partial
 
 try:
     from httplib import OK, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
     from http.client import OK, INTERNAL_SERVER_ERROR
-
-try:
-    import pwd
-    import grp
-except ImportError:  # pragma: no cover
-    pwd = NotImplemented
-    grp = NotImplemented
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -59,9 +52,9 @@ from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.internals import (
-    ITERABLE_CONTAINERS, STDERR, STDOUT, Cache, Process, TypeChecks)
+    STDERR, STDOUT, Cache, Process, TypeChecks)
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol)
+    ProcessProtocol, ReplaceEnvironment, LoggingThread)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -89,10 +82,6 @@ class JobType(Cache, Process, TypeChecks):
 
     :attribute cache:
         Stores the cached job types
-
-    :attribute process_protocol:
-        The protocol object used to communicate between the process
-        and the job type.
     """
     ASSIGNMENT_SCHEMA = Schema({
         Required("job"): Schema({
@@ -101,7 +90,6 @@ class JobType(Cache, Process, TypeChecks):
             Optional("data"): dict}),
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
-    process_protocol = ProcessProtocol
     cache = {}
 
     def __init__(self, assignment):
@@ -116,20 +104,12 @@ class JobType(Cache, Process, TypeChecks):
         self.started = Deferred()
         self.stopped = Deferred()
 
-        self.protocols = {}
+        self.processes = {}
         self.failed_processes = set()
         self.finished_tasks = set()
         self.failed_tasks = set()
         self.stdout_line_fragments = []
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
-
-        # JobType objects in the future may or may not have explicit tasks
-        # associated with when them.  The format of tasks could also change
-        # since it's an internal representation so to guard against these
-        # changes we just use a simple uuid to represent ourselves in the
-        # config dictionary.
-        self._uuid = uuid()
-        config["jobtypes"][self._uuid] = self
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -285,28 +265,6 @@ class JobType(Cache, Process, TypeChecks):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
 
-    def build_process_protocol(
-            self, jobtype, process_inputs, command, arguments, environment,
-            path, uid, gid):
-        """
-        Returns the process protocol object used to connect a job type
-        to a running process.  By default this instances
-        the :cvar:`.process_protocol` class variable.
-
-        :raises TypeError:
-            Raised if the protocol object is not a subclass of
-            :class:`.ProcessProtocol`
-        """
-        instance = self.process_protocol(
-            jobtype, process_inputs, command, arguments, environment,
-            path, uid, gid)
-
-        if not isinstance(instance, ProcessProtocol):
-            raise TypeError(
-                "Expected of pyfarm.jobtypes.core.protocol.ProcessProtocol")
-
-        return instance
-
     def get_environment(self):
         """
         Constructs an environment dictionary that can be used
@@ -337,14 +295,14 @@ class JobType(Cache, Process, TypeChecks):
         return tuple(map(self.expandvars, cmdlist))
 
     # TODO: This needs more command line arguments and configuration options
-    def get_csvlog_path(self, tasks, now=None):
+    def get_csvlog_path(self, protocol_uuid, now=None):
         """
         Returns the path to the comma separated value (csv) log file.
         The agent stores logs from processes in a csv format so we can store
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        self._check_csvlog_path_inputs(tasks, now)
+        self._check_csvlog_path_inputs(protocol_uuid, now)
 
         if now is None:
             now = datetime.utcnow()
@@ -353,8 +311,7 @@ class JobType(Cache, Process, TypeChecks):
             config["task-log-dir"],
             "%s_%s_%s.csv" % (
                 now.strftime("%G%m%d%H%M%S"),
-                self.assignment["job"]["id"],
-                "-".join(map(str, list(task["id"]for task in tasks)))))
+                self.assignment["job"]["id"], protocol_uuid)
 
     # TODO: internal implementation like the doc string says
     # TODO: reflow the doc string text for a better layout
@@ -416,7 +373,7 @@ class JobType(Cache, Process, TypeChecks):
 
     # TODO: finish implementation, remove process_inputs fully
     def spawn_process(
-            self, command, arguments, working_directory, environment,
+            self, command, arguments, working_dir, environment,
             user, group):
         """
         Starts one child process using input from :meth:`command_data`.
@@ -426,62 +383,57 @@ class JobType(Cache, Process, TypeChecks):
         :meth:`spawn_persistent_job_process` instead.
 
         :raises OSError:
-            Raised if `working_directory` was provided but the provided
+            Raised if `working_dir` was provided but the provided
             path does not exist
+
+        :raises EnvironmentError:
+            Raised if an attempt is made to change the user or
+            group without root access.  This error will only occur on
+            Linux or Unix platforms.
         """
         self._check_spawn_process_inputs(
-            command, arguments, working_directory, environment,
+            command, arguments, working_dir, environment,
             user, group)
 
-        uid = None
-        gid = None
+        uid, gid = self._get_uid_gid(user, group)
+        process_protocol = ProcessProtocol(
+            self, command, arguments, working_dir, environment, uid, gid)
 
-        # Convert user to uid
-        if all([user is not None, pwd is not NotImplemented]):
-            uid = self._get_uidgid(user, "username", "get_uid", pwd, "pwd")
+        if not isinstance(process_protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
 
-        # Convert group to gid
-        if all([group is not None, grp is not NotImplemented]):
-            gid = self._get_uidgid(group, "group", "get_gid", grp, "grp")
+        # Capture the protocol instance so we can keep track
+        # of the process we're about to spawn and start the
+        # logging thread.
+        log_path = self.get_csvlog_path(process_protocol.uuid)
+        log_thread = LoggingThread(log_path)
+        log_thread.stop()
+        self.processes[process_protocol.uuid] = (process_protocol, log_thread)
 
-        # TODO: finish implementation
+        # NOTE: `env` should always be None, see the comment below
+        # for more details
+        kwargs = {"args": arguments, "env": None}
 
-        # Prepare the arguments for the spawnProcess call
-        environment = self.get_environment()
-        commands = self.get_command_list(process_inputs.command)
-
-        # args - name of command being run + input arguments
-        kwargs = {
-            "args": [basename(commands[0])] + list(commands[1:]),
-            "env": environment,
-            "path": self.expandvars(process_inputs.path)}
-
-        # Add uid/gid into kwargs
         if uid is not None:
             kwargs.update(uid=uid)
+
         if gid is not None:
             kwargs.update(gid=gid)
 
-        # Instance the process protocol so the process we create will
-        # call into this class
-        protocol = self.build_process_protocol(
-            self, process_inputs, commands[0], kwargs["args"], kwargs["env"],
-            kwargs["path"], uid, gid)
+        # reactor.spawnProcess does different things with the environment
+        # depending on what platform you're on and what you're passing in.
+        # To avoid inconsistent behavior, we replace os.environ with
+        # our own environment so we can launch the process.  After launching
+        # we replace the original environment.  See
+        #   http://twistedmatrix.com/documents/current
+        #   /api/twisted.internet.interfaces.IReactorProcess.html
+        # For more detailed information on how specific platforms handle
+        # the environment.
+        with ReplaceEnvironment(environment):
+            reactor.spawnProcess(process_protocol, command, **kwargs)
 
-        # Internal data setup
-        # TODO: this should not use tasks
-        logfile = self.get_csvlog_path(process_inputs.tasks)
-        self.protocols[protocol.id] = protocol
+        return process_protocol
 
-        self._start_logging(protocol, logfile)
-
-        # TODO: do validation of kwargs here so we don't do it in one location
-        # * environment (dict, strings only)
-        # * path exists (see previous setup for this in the history)
-        #
-        self._spawn_process(environment, protocol, commands[0], kwargs)
-
-        return protocol
 
     def start(self):
         """
