@@ -169,8 +169,12 @@ class Assign(APIResource):
 
         def loaded_jobtype(jobtype_class):
             instance = jobtype_class(data)
-            assert hasattr(instance, "_uuid")
-            assert instance._id in config
+
+            if not isinstance(instance, JobType):
+                raise TypeError(
+                    "Expected a subclass of "
+                    "pyfarm.jobtypes.core.jobtype.JobType")
+
             deferred = instance._start()
             deferred.addCallback(lambda _: remove_assignment(index))
             deferred.addErrback(lambda _: remove_assignment(index))

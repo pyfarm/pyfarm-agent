@@ -126,9 +126,9 @@ class AgentEntryPoint(object):
         global_network.add_argument(
             "--port", default=50000,
             type=partial(port, instance=self),
-            help="The port number which the gent is either running on or "
-                 "will started on.  This port is also reported the master "
-                 "when an agent starts. [default: %(default)s]")
+            help="The port number which the agent is either running on or "
+                 "will run on when started.  This port is also reported the "
+                 "master when an agent starts. [default: %(default)s]")
         global_network.add_argument(
             "--host", default=None,
             help="The host to communicate with or hostname to present to the "

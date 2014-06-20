@@ -210,7 +210,7 @@ class Cache(object):
                     stream.write(jobtype["code"])
 
                 jobtype.pop("code", None)
-                return filename, jobtype
+                return tmpfilepath, jobtype
 
         def written_to_disk(results):
             filename, jobtype = results
