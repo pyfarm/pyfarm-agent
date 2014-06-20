@@ -142,6 +142,31 @@ class ProcessProtocol(_ProcessProtocol):
         """Called when the process emits on stderr"""
         self.jobtype.received_stderr(self, data)
 
+    def kill(self):
+        """Kills the underlying process, if running."""
+        if self.running:
+            logger.info("Killing %s", self)
+            self.process.signalProcess("KILL")
+        else:
+            logger.warning("Cannot kill %s, it's not running.", self)
+
+    def terminate(self):
+        """Terminates the underlying process, if running."""
+        if self.running:
+            logger.info("Terminating %s", self)
+            self.process.signalProcess("TERM")
+        else:
+            logger.warning("Cannot terminate %s, it's not running.", self)
+
+    def interrupt(self):
+        """Interrupts the underlying process, if running."""
+        if self.running:
+            logger.info("Interrupt %s", self)
+            self.process.signalProcess("INT")
+        else:
+            logger.warning("Cannot interrupt %s, it's not running.", self)
+
+
 
 # TODO: if we get fail the task if we have errors
 class LoggingThread(Thread):
