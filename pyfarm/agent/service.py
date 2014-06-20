@@ -25,7 +25,7 @@ such as log reading, system information gathering, and management of processes.
 import atexit
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 from os.path import join, isfile
 from random import random
@@ -75,9 +75,9 @@ class Agent(object):
         assert "agent" not in config
         config["agent"] = self
         self.http = None
-        self.sigint_signal_count = 0
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
+        self.shutting_down = False
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
@@ -300,7 +300,7 @@ class Agent(object):
         config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
-    def stop(self, *_):  # this is the SIGINT handler, we ignore the inputs
+    def stop(self):
         """
         Internal code which stops the agent.  This will terminate any running
         processes, inform the master of the terminated tasks, update the
@@ -311,7 +311,12 @@ class Agent(object):
         # If this is the first time we're calling stop() then
         # setup a function call to remove the pidfile when the
         # process exits.
-        if self.sigint_signal_count == 0:
+        if not self.shutting_down:
+            self.shutting_down = True
+            self.shutdown_timeout = (datetime.utcnow() +
+                                     timedelta(
+                                        seconds=config["shutdown_timeout"]))
+
             def remove_pidfile():
                 if not isfile(config["pidfile"]):
                     svclog.warning("%s does not exist", config["pidfile"])
@@ -326,6 +331,7 @@ class Agent(object):
                         config["pidfile"], e)
 
             atexit.register(remove_pidfile)
+
             self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
@@ -337,33 +343,20 @@ class Agent(object):
 
             if stopping_jobtypes:
                 wait_on_stopping = DeferredList(stopping_jobtypes)
-                wait_on_stopping.addCallback(self.post_shutdown_to_master)
-
+                if agent_id in config:
+                    wait_on_stopping.addCallback(self.post_shutdown_to_master)
+                else:
+                    wait_on_stopping.addCallback(reactor.stop)
             elif "agent-id" in config:
                 self.post_shutdown_to_master()
+            else:
+                reactor.callLater(1, reactor.stop)
 
             # TODO: stop running tasks, informing master for each
             # TODO: chain task stoppage callback to start shutdown_post_update
 
-        if self.sigint_signal_count:
-            svclog.critical(
-                "!!! Continuing to press Ctrl+C will forcefully terminate the "
-                "agent.  This may not be a safe thing to do !!!")
-
-        # If the agent is stuck in a loop, such as with posting itself
-        # to the master, we may forcefully terminate the agent by hitting
-        # Ctrl+C multiple times
-        if self.sigint_signal_count > 2:
-            try:
-                reactor.stop()
-            except Exception:
-                pass
-            svclog.critical("Agent has been forcefully terminated.")
-            os._exit(1)
-
-        # Count each time Ctrl+C is pressed, after three tries we will
-        # force terminate the agent
-        self.sigint_signal_count += 1
+    def sigint_handler(self, *_):
+        self.stop()
 
     def post_shutdown_to_master(self, stop_reactor=True):
         """
@@ -407,28 +400,49 @@ class Agent(object):
                 finished.callback(OK)
 
             elif response.code >= INTERNAL_SERVER_ERROR:
-                delay = random() + random()
-                svclog.warning(
-                    "State update failed due to server error: %s.  "
-                    "Retrying in %s seconds",
-                    response.data(), delay)
-                reactor.callLater(delay, response.request.retry)
+                if self.shutdown_timeout > datetime.utcnow():
+                    delay = http_retry_delay()
+                    svclog.warning(
+                        "State update failed due to server error: %s.  "
+                        "Retrying in %s seconds.",
+                        response.data(), delay)
+                    reactor.callLater(delay, response.request.retry)
+                else:
+                    svclog.warning(
+                        "State update failed due to server error: %s.  "
+                        "Shutdown timeout reached, not retrying.",
+                        response.data())
+                    finished.errback(INTERNAL_SERVER_ERROR)
 
             else:
-                delay = random() + random()
+                if self.shutdown_timeout > datetime.utcnow():
+                    delay = http_retry_delay()
+                    svclog.warning(
+                        "State update failed due to unhandled error: %s.  "
+                        "Retrying in %s seconds.",
+                        response.data(), delay)
+                    reactor.callLater(delay, response.request.retry)
+                else:
+                    svclog.warning(
+                        "State update failed due to unhandled error: %s.  "
+                        "Shutdown timeout reached, not retrying.",
+                        response.data())
+                    finished.errback(response.code)
+
+        def error_while_posting(failure):
+            if self.shutdown_timeout > datetime.utcnow():
+                delay = http_retry_delay()
                 svclog.warning(
                     "State update failed due to unhandled error: %s.  "
                     "Retrying in %s seconds",
-                    response.data(), delay)
-                reactor.callLater(delay, response.request.retry)
-
-        def error_while_posting(failure):
-            delay = http_retry_delay()
-            svclog.warning(
-                "State update failed due to unhandled error: %s.  "
-                "Retrying in %s seconds",
-                failure, delay)
-            reactor.callLater(delay, post_update(run=False))
+                    failure, delay)
+                reactor.callLater(delay, post_update(run=False))
+            else:
+                svclog.warning(
+                    "State update failed due to unhandled error: %s.  "
+                    "Shutdown timeout reached, not retrying.",
+                    failure)
+                finished.errback(failure)
 
         # Post our current state to the master.  We're only posting ram_free
         # and state here because all other fields would be updated the next
@@ -438,6 +452,7 @@ class Agent(object):
 
         if stop_reactor:
             finished.addCallback(lambda *_: reactor.stop())
+            finished.addErrback(lambda *_: reactor.stop())
 
         return finished
 
