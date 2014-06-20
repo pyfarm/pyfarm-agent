@@ -24,10 +24,21 @@ are useful in starting or managing a process.
 """
 
 import os
+from threading import Thread
+from datetime import datetime
+from Queue import Empty, Queue
 
+from psutil import Process, NoSuchProcess
+from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
-from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES
+from pyfarm.core.enums import STRING_TYPES
+from pyfarm.agent.config import config
+from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import uuid, UnicodeCSVWriter
+from pyfarm.jobtypes.core.internals import STREAMS
+
+logger = getLogger("jobtypes.process")
 
 
 class ReplaceEnvironment(object):
@@ -69,23 +80,25 @@ class ProcessProtocol(_ProcessProtocol):
     necessary to run and manage a process.  More specifically, this helps
     to act as plumbing between the process being run and the job type.
     """
-    def __init__(self, jobtype, process_inputs, command, arguments, env,
-                 path, uid, gid):
+    def __init__(
+            self, jobtype, command, arguments, environment, working_dir,
+            uid, gid):
         self.jobtype = jobtype
-        self.inputs = process_inputs
         self.command = command
-        self.args = arguments
-        self.env = env
-        self.path = path
+        self.arguments = arguments
+        self.environment = environment
+        self.working_dir = working_dir
         self.uid = uid
         self.gid = gid
-        self.id = tuple(task["id"] for task in process_inputs.tasks)
+        self.uuid = uuid()
+        self.running = False
 
     def __repr__(self):
-        return "Process(id=%r, pid=%r, command=%r, args=%r, path=%r, " \
-               "uid=%r, gid=%r)" % (
-                   self.id, self.pid, self.command, self.args,
-                   self.path, self.uid, self.gid)
+        return \
+            "Process(pid=%r, command=%r, args=%r, working_dir=%r, " \
+            "uid=%r, gid=%r)" % (
+            self.pid, self.command, self.args, self.working_dir,
+            self.uid, self.gid)
 
     @property
     def pid(self):
@@ -93,13 +106,22 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def process(self):
+        """The underlying Twisted process object"""
         return self.transport
+
+    @property
+    def psutil_process(self):
+        try:
+            return Process(pid=self.pid)
+        except NoSuchProcess:
+            return None
 
     def connectionMade(self):
         """
         Called when the process first starts and the file descriptors
         have opened.
         """
+        self.running = True
         self.jobtype.process_started(self)
 
     def processEnded(self, reason):
@@ -109,6 +131,7 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
+        self.running = False
         self.jobtype.process_stopped(self, reason)
 
     def outReceived(self, data):
@@ -118,3 +141,71 @@ class ProcessProtocol(_ProcessProtocol):
     def errReceived(self, data):
         """Called when the process emits on stderr"""
         self.jobtype.received_stderr(self, data)
+
+
+# TODO: if we get fail the task if we have errors
+class LoggingThread(Thread):
+    """
+    This class runs a thread which writes lines in csv format
+    to the log file.
+    """
+    def __init__(self, log_path):
+        super(LoggingThread, self).__init__()
+        self.queue = Queue()
+        self.filepath = log_path
+        self.lineno = 1
+        self.stopped = False
+        self.shutdown_event = \
+            reactor.addSystemEventTrigger("before", "shutdown", self.stop)
+
+    def put(self, streamno, message):
+        """Put a message in the queue for the thread to pickup"""
+        assert streamno in STREAMS
+
+        if self.stopped:
+            raise RuntimeError("Cannot put(), thread is stopped")
+
+        if not isinstance(message, STRING_TYPES):
+            raise TypeError("Expected string for `message`")
+
+        now = datetime.utcnow()
+        self.queue.put_nowait(
+            (now.isoformat(), streamno, self.lineno, message))
+        self.lineno += 1
+
+    def stop(self):
+        self.stopped = True
+        reactor.removeSystemEventTrigger(self.shutdown_event)
+
+    def run(self):
+        stopping = False
+        next_flush = config.get("jobtype_log_flush_after_lines")
+        stream = open(self.filepath, "w")
+        writer = UnicodeCSVWriter(stream)
+        while True:
+            # Pull data from the queue or retry again
+            try:
+                timestamp, streamno, lineno, message = \
+                    self.queue.get(
+                        timeout=config.get("jobtype_log_queue_timeout"))
+            except Empty:
+                pass
+            else:
+                # Write data from the queue to a file
+                writer.writerow(
+                    [timestamp, str(streamno), str(lineno), message])
+                if self.lineno >= next_flush:
+                    stream.flush()
+                    next_flush += config.get("jobtype_log_flush_after_lines")
+
+            # We're either being told to stop or we
+            # need to run one more iteration of the
+            # loop to pickup any straggling messages.
+            if self.stopped and stopping:
+                logger.debug("Closing %s", stream.name)
+                stream.close()
+                break
+
+            # Go around one more time to pickup remaining messages
+            elif self.stopped:
+                stopping = True
