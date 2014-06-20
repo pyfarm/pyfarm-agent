@@ -167,7 +167,6 @@ class ProcessProtocol(_ProcessProtocol):
             logger.warning("Cannot interrupt %s, it's not running.", self)
 
 
-
 # TODO: if we get fail the task if we have errors
 class LoggingThread(Thread):
     """
