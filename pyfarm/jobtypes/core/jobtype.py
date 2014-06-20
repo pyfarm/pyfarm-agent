@@ -190,8 +190,8 @@ class JobType(object):
         # since it's an internal representation so to guard against these
         # changes we just use a simple uuid to represent ourselves in the
         # config dictionary.
-        self._uuid = uuid()
-        config["jobtypes"][self._uuid] = self
+        self.uuid = uuid()
+        config["jobtypes"][self.uuid] = self
 
         self.protocols = {}
         self.assignment = ImmutableDict(assignment)
@@ -785,7 +785,7 @@ class JobType(object):
         # TODO: chain this callback to the completion of our request to master
         def finished_processes():
             stopped.callback(True)
-            config["jobtypes"].pop(self._uuid)
+            config["jobtypes"].pop(self.uuid)
 
         finished_processes()
         return stopped
