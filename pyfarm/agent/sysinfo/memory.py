@@ -48,7 +48,7 @@ def ram_free():
 
 def total_ram():
     """Total physical memory (ram) installed on the system"""
-    return convert.bytetomb(psutil.phymem_usage().total)
+    return convert.bytetomb(psutil.virtual_memory().total)
 
 
 def total_swap():
