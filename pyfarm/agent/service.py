@@ -220,7 +220,9 @@ class Agent(object):
             "port": config["port"],
             "free_ram": int(memory.ram_free()),
             "time_offset": config["time-offset"] or 0,
-            "state": config["state"]}
+            "state": config["state"],
+            "current_assignments": config.get(
+                "current_assignments", {})}  # may not be set yet
 
         if "remote-ip" in config:
             data.update(remote_ip=config["remote-ip"])
