@@ -16,17 +16,14 @@
 
 import json
 import os
-import socket
 from collections import namedtuple
 from httplib import responses, OK
-from urllib import quote, urlopen
 
 from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web.error import SchemeNotSupported
 from twisted.web.client import Response as TWResponse, Headers, ResponseDone
-from pyfarm.core.config import read_env
 from pyfarm.core.enums import STRING_TYPES
 
 from pyfarm.agent.testutil import TestCase, BaseRequestTestCase, skip_on_ci
