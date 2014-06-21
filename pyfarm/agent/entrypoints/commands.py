@@ -249,6 +249,13 @@ class AgentEntryPoint(object):
             dest="pretty_json",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
+        start_general_group.add_argument(
+            "--shutdown-timeout",
+            default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
+            type=partial(integer, instance=self,
+                         flag="shutdown_timeout", min_=0),
+            help="How many seconds the agent should spend attempting to inform "
+                 "the master that it's shutting down.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -457,7 +464,8 @@ class AgentEntryPoint(object):
                 "master-reannounce": self.args.master_reannounce,
                 "pidfile": self.args.pidfile,
                 "pids": {
-                    "parent": os.getpid()}}
+                    "parent": os.getpid()},
+                "shutdown_timeout": self.args.shutdown_timeout}
             # update configuration with values from the command line
 
             config.update(config_flags)
@@ -598,7 +606,7 @@ class AgentEntryPoint(object):
 
         # Setup the agent, register stop(), then run the agent
         service = Agent()
-        signal.signal(signal.SIGINT, service.stop)
+        signal.signal(signal.SIGINT, service.sigint_handler)
         service.start()
 
         reactor.run()
