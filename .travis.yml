@@ -74,4 +74,4 @@ after_failure:
   - sudo cat /tmp/uwsgi.log
   - sudo cat /tmp/nginx_error.log
   - sudo cat /tmp/nginx_access.log
-  - sudo cat /etc/nginx/nginx.conf;
+  - sudo cat /etc/nginx/nginx.conf
