@@ -15,21 +15,15 @@
 # limitations under the License.
 
 import os
-import json
 
 try:
     from httplib import OK, CREATED
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
-from twisted.internet import reactor
-from twisted.internet.defer import Deferred
-
-from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, PYFARM_AGENT_MASTER
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import get
 from pyfarm.agent.service import Agent
 
 
