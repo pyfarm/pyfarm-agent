@@ -48,6 +48,7 @@ class TestAgentBasicMethods(TestCase):
 
     def test_system_data(self):
         expected = {
+            "current_assignments": {},
             "systemid": system_identifier(),
             "hostname": config["hostname"],
             "ram": config["ram"],
