@@ -86,7 +86,7 @@ def skip_on_ci(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if "BUILDBOT_UUID" in os.environ or "TRAVIS" in os.environ:
-            raise SkipTest
+            raise SkipTest("Skipped on CI")
         return func(*args, **kwargs)
     return wrapper
 
