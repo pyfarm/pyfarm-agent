@@ -311,7 +311,7 @@ class JobType(Cache, Process, TypeChecks):
             config["task-log-dir"],
             "%s_%s_%s.csv" % (
                 now.strftime("%G%m%d%H%M%S"),
-                self.assignment["job"]["id"], protocol_uuid)
+                self.assignment["job"]["id"], protocol_uuid))
 
     # TODO: internal implementation like the doc string says
     # TODO: reflow the doc string text for a better layout
