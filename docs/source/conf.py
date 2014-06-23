@@ -26,7 +26,8 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
-    "sphinxcontrib.httpdomain"
+    "sphinxcontrib.httpdomain",
+    "sphinxcontrib.programoutput"
 ]
 
 templates_path = ["_templates"]

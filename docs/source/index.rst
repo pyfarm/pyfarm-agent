@@ -11,6 +11,7 @@ a host by the master.
     :maxdepth: 2
 
     environment
+    commands
     modules/pyfarm.agent
     modules/pyfarm.jobtypes
 
