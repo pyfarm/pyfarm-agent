@@ -35,8 +35,8 @@ source_suffix = ".rst"
 # The encoding of source files.
 #source_encoding = "utf-8-sig"
 
-# The agent toctree document.
-agent_doc = "index"
+# The master toctree document.
+master_doc = "index"
 
 # General information about the project.
 project = "pyfarm.agent"
