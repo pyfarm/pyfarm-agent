@@ -19,6 +19,7 @@ from __future__ import with_statement
 import sys
 assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
+import os
 from os import walk
 from os.path import isfile, join
 from setuptools import setup
@@ -30,6 +31,8 @@ install_requires = [
     "voluptuous", "jinja2", "psutil>=2.1.0",
     "netifaces>=0.10.2"]
 
+if "READTHEDOCS" in os.environ:
+    install_requires += ["sphinxcontrib-httpdomain"]
 
 # Windows is a little special because we have to have pywin32
 # installed.  pyfarm.core uses it and certain components of
