@@ -253,7 +253,7 @@ man_pages = [
 texinfo_documents = [
     ("index", "pyfarm_agent", "pyfarm.agent Documentation",
      "Oliver Palmer, Guido Winkelmann", "pyfarm_agent",
-     "One line description of project.",
+     "The remote agent which executes jobs for PyFarm.",
      "Miscellaneous")]
 
 # Documents to append as an appendix to all manuals.
