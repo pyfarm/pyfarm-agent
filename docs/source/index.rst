@@ -1,7 +1,7 @@
 Welcome to pyfarm.agent's documentation!
 ========================================
 
-Contents:
+**Contents**
 
 .. toctree::
    :maxdepth: 2
