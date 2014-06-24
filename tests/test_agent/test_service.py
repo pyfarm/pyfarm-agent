@@ -45,6 +45,7 @@ class TestAgentBasicMethods(TestCase):
             "current_assignments": {},
             "systemid": system_identifier(),
             "hostname": config["hostname"],
+            "version": config.version,
             "ram": config["ram"],
             "cpus": config["cpus"],
             "port": config["port"],
