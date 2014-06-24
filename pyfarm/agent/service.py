@@ -215,6 +215,7 @@ class Agent(object):
         data = {
             "systemid": config["systemid"],
             "hostname": config["hostname"],
+            "version": config.version,
             "ram": int(config["ram"]),
             "cpus": config["cpus"],
             "port": config["port"],
