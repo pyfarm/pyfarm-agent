@@ -1,6 +1,9 @@
 Commands
 ========
 
+Standard Commands
++++++++++++++++++
+
 pyfarm-agent
 ------------
 
@@ -15,6 +18,10 @@ pyfarm-agent
 
 .. program-output:: pyfarm-agent stop -h | grep -v pf.
     :shell:
+
+
+Development Commands
+++++++++++++++++++++
 
 pyfarm-dev-fakerender
 ---------------------
