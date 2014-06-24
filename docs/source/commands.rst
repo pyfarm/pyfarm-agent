@@ -7,18 +7,10 @@ Standard Commands
 pyfarm-agent
 ------------
 
-.. program-output:: pyfarm-agent -h | grep -v pf.
-    :shell:
-
-.. program-output:: pyfarm-agent status -h | grep -v pf.
-    :shell:
-
-.. program-output:: pyfarm-agent start -h | grep -v pf.
-    :shell:
-
-.. program-output:: pyfarm-agent stop -h | grep -v pf.
-    :shell:
-
+.. literalinclude:: includes/commands/pyfarm-agent.out
+.. literalinclude:: includes/commands/pyfarm-agent_status.out
+.. literalinclude:: includes/commands/pyfarm-agent_start.out
+.. literalinclude:: includes/commands/pyfarm-agent_stop.out
 
 Development Commands
 ++++++++++++++++++++
@@ -26,11 +18,10 @@ Development Commands
 pyfarm-dev-fakerender
 ---------------------
 
-.. program-output:: pyfarm-dev-fakerender -h | grep -v pf.
-    :shell:
+.. literalinclude:: includes/commands/pyfarm-dev-fakerender.out
+
 
 pyfarm-dev-fakework
 -------------------
 
-.. program-output:: pyfarm-dev-fakework -h | grep -v pf.
-    :shell:
+.. literalinclude:: includes/commands/pyfarm-dev-fakework.out
