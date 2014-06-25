@@ -84,7 +84,6 @@ class ProcessProtocol(_ProcessProtocol):
         self.uid = uid
         self.gid = gid
         self.uuid = uuid()
-        self.running = False
 
     def __repr__(self):
         return \
@@ -114,7 +113,6 @@ class ProcessProtocol(_ProcessProtocol):
         Called when the process first starts and the file descriptors
         have opened.
         """
-        self.running = True
         self.jobtype.process_started(self)
 
     def processEnded(self, reason):
@@ -124,7 +122,6 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self.running = False
         self.jobtype.process_stopped(self, reason)
 
     def outReceived(self, data):
@@ -137,24 +134,24 @@ class ProcessProtocol(_ProcessProtocol):
 
     def kill(self):
         """Kills the underlying process, if running."""
-        if self.running:
-            logger.info("Killing %s", self)
+        logger.info("Killing %s", self)
+        try:
             self.process.signalProcess("KILL")
-        else:
-            logger.warning("Cannot kill %s, it's not running.", self)
+        except Exception as e:
+            logger.warning("Cannot kill %s: %s.", self, e)
 
     def terminate(self):
         """Terminates the underlying process, if running."""
-        if self.running:
-            logger.info("Terminating %s", self)
+        logger.info("Terminating %s", self)
+        try:
             self.process.signalProcess("TERM")
-        else:
-            logger.warning("Cannot terminate %s, it's not running.", self)
+        except Exception as e:
+            logger.warning("Cannot terminate %s: %s.", self, e)
 
     def interrupt(self):
         """Interrupts the underlying process, if running."""
-        if self.running:
-            logger.info("Interrupt %s", self)
+        logger.info("Interrupt %s", self)
+        try:
             self.process.signalProcess("INT")
-        else:
-            logger.warning("Cannot interrupt %s, it's not running.", self)
+        except Exception as e:
+            logger.warning("Cannot interrupt %s: %s.", self, e)
