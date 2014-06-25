@@ -24,19 +24,12 @@ are useful in starting or managing a process.
 """
 
 import os
-from threading import Thread
-from datetime import datetime
-from Queue import Empty, Queue
 
 from psutil import Process, NoSuchProcess
-from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
-from pyfarm.core.enums import STRING_TYPES
-from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import uuid, UnicodeCSVWriter
-from pyfarm.jobtypes.core.internals import STREAMS
+from pyfarm.agent.utility import uuid
 
 logger = getLogger("jobtypes.process")
 
@@ -165,71 +158,3 @@ class ProcessProtocol(_ProcessProtocol):
             self.process.signalProcess("INT")
         else:
             logger.warning("Cannot interrupt %s, it's not running.", self)
-
-
-# TODO: if we get fail the task if we have errors
-class LoggingThread(Thread):
-    """
-    This class runs a thread which writes lines in csv format
-    to the log file.
-    """
-    def __init__(self, log_path):
-        super(LoggingThread, self).__init__()
-        self.queue = Queue()
-        self.filepath = log_path
-        self.lineno = 1
-        self.stopped = False
-        self.shutdown_event = \
-            reactor.addSystemEventTrigger("before", "shutdown", self.stop)
-
-    def put(self, streamno, message):
-        """Put a message in the queue for the thread to pickup"""
-        assert streamno in STREAMS
-
-        if self.stopped:
-            raise RuntimeError("Cannot put(), thread is stopped")
-
-        if not isinstance(message, STRING_TYPES):
-            raise TypeError("Expected string for `message`")
-
-        now = datetime.utcnow()
-        self.queue.put_nowait(
-            (now.isoformat(), streamno, self.lineno, message))
-        self.lineno += 1
-
-    def stop(self):
-        self.stopped = True
-        reactor.removeSystemEventTrigger(self.shutdown_event)
-
-    def run(self):
-        stopping = False
-        next_flush = config.get("jobtype_log_flush_after_lines")
-        stream = open(self.filepath, "w")
-        writer = UnicodeCSVWriter(stream)
-        while True:
-            # Pull data from the queue or retry again
-            try:
-                timestamp, streamno, lineno, message = \
-                    self.queue.get(
-                        timeout=config.get("jobtype_log_queue_timeout"))
-            except Empty:
-                pass
-            else:
-                # Write data from the queue to a file
-                writer.writerow(
-                    [timestamp, str(streamno), str(lineno), message])
-                if self.lineno >= next_flush:
-                    stream.flush()
-                    next_flush += config.get("jobtype_log_flush_after_lines")
-
-            # We're either being told to stop or we
-            # need to run one more iteration of the
-            # loop to pickup any straggling messages.
-            if self.stopped and stopping:
-                logger.debug("Closing %s", stream.name)
-                stream.close()
-                break
-
-            # Go around one more time to pickup remaining messages
-            elif self.stopped:
-                stopping = True
