@@ -32,7 +32,7 @@ install_requires = [
     "netifaces>=0.10.2"]
 
 if "READTHEDOCS" in os.environ:
-    install_requires += ["sphinxcontrib-httpdomain"]
+    install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
 # Windows is a little special because we have to have pywin32
 # installed.  pyfarm.core uses it and certain components of
