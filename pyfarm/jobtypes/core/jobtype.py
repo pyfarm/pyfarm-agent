@@ -26,6 +26,7 @@ inherit from the :class:`JobType` class in this modle.
 import imp
 import os
 import sys
+from collections import namedtuple
 from datetime import datetime
 from string import Template
 from os.path import join, expanduser
@@ -37,7 +38,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, INTERNAL_SERVER_ERROR
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
@@ -60,6 +61,9 @@ logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
+ProcessData = namedtuple(
+    "ProcessData",
+    ("protocol", "log_thread", "started", "stopped"))
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
@@ -101,7 +105,6 @@ class JobType(Cache, Process, TypeChecks):
         self.uuid = uuid()
         config["jobtypes"][self.uuid] = self
 
-        self.started = Deferred()
         self.stopped = Deferred()
 
         self.processes = {}
@@ -109,82 +112,13 @@ class JobType(Cache, Process, TypeChecks):
         self.finished_tasks = set()
         self.failed_tasks = set()
         self.stdout_line_fragments = []
+        self.start_called = False
+        self.stop_called = False
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
         logger.debug("Instanced %r", self)
-
-    def node(self):
-        """
-        Returns live information about this host, the operating system,
-        hardware, and several other pieces of global data which is useful
-        inside of the job type.  Currently data from this method includes:
-
-            * **master_api** - The base url the agent is using to
-              communicate with the master.
-            * **hostname** - The hostname as reported to the master.
-            * **systemid** - The unique identifier used to identify.
-              this agent to the master.
-            * **id** - The database id of the agent as given to us by
-              the master on startup of the agent.
-            * **cpus** - The number of CPUs reported to the master
-            * **ram** - The amount of ram reported to the master.
-            * **total_ram** - The amount of ram, in megabytes,
-              that's installed on the system regardless of what
-              was reported to the master.
-            * **free_ram** - How much ram, in megabytes, is free
-              for the entire system.
-            * **consumed_ram** - How much ram, in megabytes, is
-              being consumed by the agent and any processes it has
-              launched.
-            * **admin** - Set to True if the current user is an
-              administrator or 'root'.
-            * **user** - The username of the current user.
-            * **case_sensitive_files** - True if the file system is
-              case sensitive.
-            * **case_sensitive_env** - True if environment variables
-              are case sensitive.
-            * **machine_architecture** - The architecture of the machine
-              the agent is running on.  This will return 32 or 64.
-            * **operating_system** - The operating system the agent
-              is executing on.  This value will be 'linux', 'mac' or
-              'windows'.  In rare circumstances this could also
-              be 'other'.
-
-        :raises KeyError:
-            Raised if one or more keys are not present in
-            the global configuration object.
-
-            This should rarely if ever be a problem under normal
-            circumstances.  The exception to this rule is in
-            unittests or standalone libraries with the global
-            config object may not be populated.
-        """
-        try:
-            machine_architecture = system.machine_architecture()
-        except NotImplementedError:
-            logger.warning(
-                "Failed to determine machine architecture.  This is a "
-                "bug, please report it.")
-            raise
-
-        return {
-            "master_api": config.get("master-api"),
-            "hostname": config["hostname"],
-            "systemid": config["systemid"],
-            "id": config["id"],
-            "cpus": config["cpus"],
-            "ram": config["ram"],
-            "total_ram": int(memory.total_ram()),
-            "free_ram": int(memory.ram_free()),
-            "consumed_ram": int(memory.total_consumption()),
-            "admin": is_administrator(),
-            "user": username(),
-            "case_sensitive_files": system.filesystem_is_case_sensitive(),
-            "case_sensitive_env": system.environment_is_case_sensitive(),
-            "machine_architecture": machine_architecture,
-            "operating_system": system.operating_system()}
 
     def __repr__(self):
         formatting = "%s(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)"
@@ -261,9 +195,116 @@ class JobType(Cache, Process, TypeChecks):
 
         return result
 
+    def node(self):
+        """
+        Returns live information about this host, the operating system,
+        hardware, and several other pieces of global data which is useful
+        inside of the job type.  Currently data from this method includes:
+
+            * **master_api** - The base url the agent is using to
+              communicate with the master.
+            * **hostname** - The hostname as reported to the master.
+            * **systemid** - The unique identifier used to identify.
+              this agent to the master.
+            * **id** - The database id of the agent as given to us by
+              the master on startup of the agent.
+            * **cpus** - The number of CPUs reported to the master
+            * **ram** - The amount of ram reported to the master.
+            * **total_ram** - The amount of ram, in megabytes,
+              that's installed on the system regardless of what
+              was reported to the master.
+            * **free_ram** - How much ram, in megabytes, is free
+              for the entire system.
+            * **consumed_ram** - How much ram, in megabytes, is
+              being consumed by the agent and any processes it has
+              launched.
+            * **admin** - Set to True if the current user is an
+              administrator or 'root'.
+            * **user** - The username of the current user.
+            * **case_sensitive_files** - True if the file system is
+              case sensitive.
+            * **case_sensitive_env** - True if environment variables
+              are case sensitive.
+            * **machine_architecture** - The architecture of the machine
+              the agent is running on.  This will return 32 or 64.
+            * **operating_system** - The operating system the agent
+              is executing on.  This value will be 'linux', 'mac' or
+              'windows'.  In rare circumstances this could also
+              be 'other'.
+
+        :raises KeyError:
+            Raised if one or more keys are not present in
+            the global configuration object.
+
+            This should rarely if ever be a problem under normal
+            circumstances.  The exception to this rule is in
+            unittests or standalone libraries with the global
+            config object may not be populated.
+        """
+        try:
+            machine_architecture = system.machine_architecture()
+        except NotImplementedError:
+            logger.warning(
+                "Failed to determine machine architecture.  This is a "
+                "bug, please report it.")
+            raise
+
+        return {
+            "master_api": config.get("master-api"),
+            "hostname": config["hostname"],
+            "systemid": config["systemid"],
+            "id": config["id"],
+            "cpus": config["cpus"],
+            "ram": config["ram"],
+            "total_ram": int(memory.total_ram()),
+            "free_ram": int(memory.ram_free()),
+            "consumed_ram": int(memory.total_consumption()),
+            "admin": is_administrator(),
+            "user": username(),
+            "case_sensitive_files": system.filesystem_is_case_sensitive(),
+            "case_sensitive_env": system.environment_is_case_sensitive(),
+            "machine_architecture": machine_architecture,
+            "operating_system": system.operating_system()}
+
     def assignments(self):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
+
+    @property
+    def started(self):
+        """
+        Property which returns a deferred that will fire a callback
+        when all processes have started.  Even if the process/processes
+        have already started the callback will still fire.
+
+        .. note::
+            If new processes are created after accessing this property
+            they will **not** be tracked.
+        """
+        deferreds = []
+
+        for process_id, process in self.processes.items():
+            deferreds.append(process.started)
+
+        return DeferredList(deferreds)
+
+    @property
+    def stopped(self):
+        """
+        Property which returns a deferred that will fire a callback
+        when all processes have finished.  Even if the process/processes
+        have already finished the callback will still fire.
+
+        .. note::
+            If new processes are created after accessing this property
+            they will **not** be tracked.
+        """
+        deferreds = []
+
+        for process_id, process in self.processes.items():
+            deferreds.append(process.started)
+
+        return DeferredList(deferreds)
 
     def get_environment(self):
         """
@@ -408,7 +449,10 @@ class JobType(Cache, Process, TypeChecks):
         log_path = self.get_csvlog_path(process_protocol.uuid)
         log_thread = LoggingThread(log_path)
         log_thread.stop()
-        self.processes[process_protocol.uuid] = (process_protocol, log_thread)
+
+        self.processes[process_protocol.uuid] = ProcessData(
+            protocol=process_protocol, log_thread=log_thread,
+            started=Deferred(), stopped=Deferred())
 
         # NOTE: `env` should always be None, see the comment below
         # for more details
@@ -432,8 +476,6 @@ class JobType(Cache, Process, TypeChecks):
         with ReplaceEnvironment(environment):
             reactor.spawnProcess(process_protocol, command, **kwargs)
 
-        return process_protocol
-
     def start(self):
         """
         This method is called when the job type should start
@@ -441,11 +483,11 @@ class JobType(Cache, Process, TypeChecks):
         prepare and start one more more processes.
         """
         # Make sure start() is not called twice
-        if self.started.called:
+        if self.start_called:
             raise RuntimeError("%s has already been started" % self)
+        else:
+            self.start_called = True
 
-        # TODO: add deferred handlers
-        # TODO: collect all tasks and depending on the relationship
         # between tasks and processes we have to change how we notify
         # the master (and how we cancel other tasks which are queued)
         for process_inputs in self.get_command_data():
@@ -453,25 +495,38 @@ class JobType(Cache, Process, TypeChecks):
 
         return self.started
 
-    def stop(self):
+    def stop(self, signal="KILL"):
         """
         This method is called when the job type should stop
         running.  This will terminate any processes associated with
         this job type and also inform the master of any state changes
         to an associated task or tasks.
-        """
-        if self.stopped.called:
-            raise RuntimeError("%s has already been stopped" % self)
 
-        # TODO: stop all running processes
+        :param string signal:
+            The signal to send the any running processes.  Valid options
+            are KILL, TERM or INT.
+        """
+        assert signal in ("KILL", "TERM", "INT")
+
+        if self.stop_called:
+            raise RuntimeError("%s has already been stopped" % self)
+        else:
+            self.stop_called = True
+
+        for process_id, process in self.processes.iteritems():
+            if signal == "KILL":
+                process.protocol.kill()
+            elif signal == "TERM":
+                process.protocol.terminate()
+            elif signal == "INT":
+                process.protocol.interrupt()
+
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
-        def finished_processes():
-            self.stopped.callback(True)
-            config["jobtypes"].pop(self.uuid)
 
-        finished_processes()
-        return self.stopped
+        stopped = self.stopped
+        stopped.addCallback(config["jobtypes"].pop, self.uuid)
+        return stopped
 
     def format_log_message(self, message, stream_type=None):
         """
