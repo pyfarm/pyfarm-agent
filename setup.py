@@ -32,7 +32,7 @@ install_requires = [
     "netifaces>=0.10.2"]
 
 if "READTHEDOCS" in os.environ:
-    install_requires += ["sphinxcontrib-httpdomain"]
+    install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
 if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain"]
