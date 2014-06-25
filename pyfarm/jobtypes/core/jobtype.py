@@ -52,9 +52,9 @@ from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.internals import (
-    STDERR, STDOUT, Cache, Process, TypeChecks)
+    STDERR, STDOUT, Cache, Process, TypeChecks, LoggingThread)
 from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ReplaceEnvironment, LoggingThread)
+    ProcessProtocol, ReplaceEnvironment)
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
