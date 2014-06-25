@@ -665,9 +665,17 @@ class JobType(Cache, Process, TypeChecks):
         Default implementation returns true if the process's return
         code was 0 and false in all other cases.
         """
-        return (
-            reason.type is ProcessDone and
-            reason.value.exitCode == 0)
+        if reason == 0:
+            return True
+        elif isinstance(reason, WHOLE_NUMBERS):
+            return False
+        elif hasattr(reason, "type"):
+            return (
+                reason.type is ProcessDone and
+                reason.value.exitCode == 0)
+        else:
+            raise NotImplementedError(
+                "Don't know how to handle is_successful(%r)" % reason)
 
     def process_stopped(self, protocol, reason):
         """
