@@ -434,7 +434,6 @@ class JobType(Cache, Process, TypeChecks):
 
         return process_protocol
 
-
     def start(self):
         """
         This method is called when the job type should start
