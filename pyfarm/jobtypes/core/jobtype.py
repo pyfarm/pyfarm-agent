@@ -130,6 +130,42 @@ class JobType(Cache, Process, TypeChecks):
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
+    @property
+    def started(self):
+        """
+        Property which returns a deferred that will fire a callback
+        when all processes have started.  Even if the process/processes
+        have already started the callback will still fire.
+
+        .. note::
+            If new processes are created after accessing this property
+            they will **not** be tracked in the deferred callback.
+        """
+        deferreds = []
+
+        for process_id, process in self.processes.items():
+            deferreds.append(process.started)
+
+        return DeferredList(deferreds)
+
+    @property
+    def stopped(self):
+        """
+        Property which returns a deferred that will fire a callback
+        when all processes have finished.  Even if the process/processes
+        have already finished the callback will still fire.
+
+        .. note::
+            If new processes are created after accessing this property
+            they will **not** be tracked in the deferred callback.
+        """
+        deferreds = []
+
+        for process_id, process in self.processes.items():
+            deferreds.append(process.started)
+
+        return DeferredList(deferreds)
+
     @classmethod
     def load(cls, assignment):
         """
@@ -269,42 +305,6 @@ class JobType(Cache, Process, TypeChecks):
     def assignments(self):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
-
-    @property
-    def started(self):
-        """
-        Property which returns a deferred that will fire a callback
-        when all processes have started.  Even if the process/processes
-        have already started the callback will still fire.
-
-        .. note::
-            If new processes are created after accessing this property
-            they will **not** be tracked.
-        """
-        deferreds = []
-
-        for process_id, process in self.processes.items():
-            deferreds.append(process.started)
-
-        return DeferredList(deferreds)
-
-    @property
-    def stopped(self):
-        """
-        Property which returns a deferred that will fire a callback
-        when all processes have finished.  Even if the process/processes
-        have already finished the callback will still fire.
-
-        .. note::
-            If new processes are created after accessing this property
-            they will **not** be tracked.
-        """
-        deferreds = []
-
-        for process_id, process in self.processes.items():
-            deferreds.append(process.started)
-
-        return DeferredList(deferreds)
 
     def get_environment(self):
         """
@@ -491,7 +491,7 @@ class JobType(Cache, Process, TypeChecks):
         # between tasks and processes we have to change how we notify
         # the master (and how we cancel other tasks which are queued)
         for process_inputs in self.get_command_data():
-            self.spawn_process(process_inputs)
+            self.spawn_process(*process_inputs)
 
         return self.started
 
