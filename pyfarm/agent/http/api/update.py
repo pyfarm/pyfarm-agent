@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, ACCEPTED
 
 from twisted.web.server import NOT_DONE_YET
+from treq import content
 
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
@@ -40,6 +41,8 @@ class Update(APIResource):
         data = kwargs["data"]
         agent = config["agent"]
 
+        # TODO Check version parameter for sanity
+
         url = "%s/agents/updates/%s" % (config["master-api"], data["version"])
 
         def download_update(version):
@@ -50,9 +53,16 @@ class Update(APIResource):
 
         def update_downloaded(response):
             if response.code == OK:
+                with open(join(config["updates_drop_dir"],
+                               "pyfarm-agent.zip")) as update_file:
+                    update_file.write(content(request))
                 config["restart_requested"] = True
                 if len(config["current_assignments"]) == 0:
                     agent.stop()
+            else:
+                pass # TODO
+
+        download_update(data["version"])
 
         request.setResponseCode(ACCEPTED)
         request.finish()
