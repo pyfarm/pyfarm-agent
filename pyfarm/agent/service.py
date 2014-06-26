@@ -50,6 +50,7 @@ from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.state import Status, Stop
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
+from pyfarm.agent.http.api.update import Update
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
@@ -267,6 +268,7 @@ class Agent(object):
         # and operations.
         v1.putChild("status", Status())
         v1.putChild("stop", Stop())
+        v1.putChild("update", Update())
 
         return root
 
