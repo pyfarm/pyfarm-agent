@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from os import urandom
-from random import choice, randint
+from random import randint
 
 from pyfarm.core.enums import NOTSET
 from pyfarm.agent.config import LoggingConfiguration, ConfigurationWithCallbacks
