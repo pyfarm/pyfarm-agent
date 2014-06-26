@@ -84,12 +84,13 @@ class ProcessProtocol(_ProcessProtocol):
         self.uid = uid
         self.gid = gid
         self.uuid = uuid()
+        self.ended = False
 
     def __repr__(self):
         return \
             "Process(pid=%r, command=%r, args=%r, working_dir=%r, " \
             "uid=%r, gid=%r)" % (
-            self.pid, self.command, self.args, self.working_dir,
+            self.pid, self.command, self.arguments, self.working_dir,
             self.uid, self.gid)
 
     @property
@@ -103,6 +104,14 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def psutil_process(self):
+        """Returns a :class:`psutil.Process` object for the running process"""
+        # It's possible that the process could have
+        # ended by not died yet.  To make sure we
+        # create a psutil object in those conditions
+        # we have this check.
+        if self.ended:
+            return None
+
         try:
             return Process(pid=self.pid)
         except NoSuchProcess:
@@ -122,6 +131,7 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
+        self.ended = True
         self.jobtype.process_stopped(self, reason)
 
     def outReceived(self, data):
