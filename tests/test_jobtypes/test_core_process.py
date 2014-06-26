@@ -18,43 +18,9 @@ import os
 from collections import namedtuple
 
 from pyfarm.agent.testutil import TestCase
-from pyfarm.jobtypes.core.process import (
-    ProcessInputs, ReplaceEnvironment, ProcessProtocol)
+from pyfarm.jobtypes.core.process import ReplaceEnvironment
 
 DummyInputs = namedtuple("DummyInputs", ("task", ))
-
-
-class TestProcessInputs(TestCase):
-    def test_task_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs(None, []))
-
-    def test_command_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, None,))
-
-    def test_env_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, [], env=-1))
-
-    def test_path_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, [], path=-1))
-        
-    def test_user_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, [], user=-1))
-        
-    def test_group_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, [], group=-1))
-
-    def convert_command_type(self):
-        self.assertRaises(TypeError,
-            lambda: ProcessInputs({}, [None]))
-
-    def test_convert_numeric_command_values(self):
-        self.assertEqual(ProcessInputs([], [1]).command, ("1", ))
 
 
 class TestReplaceEnvironment(TestCase):
