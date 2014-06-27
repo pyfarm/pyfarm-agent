@@ -30,18 +30,16 @@ DummyInputs = namedtuple("DummyInputs", ("task", ))
 
 class FakeJobType(object):
     def __init__(self):
-        self.done = Deferred()
-        self.started = False
-        self.stopped = False
+        self.started = Deferred()
+        self.stopped = Deferred()
         self.stdout = []
         self.stderr = []
 
     def process_started(self, protocol):
-        self.started = True
+        self.started.callback(protocol)
 
     def process_stopped(self, protocol, reason):
-        self.stopped = True
-        self.done.callback(True)
+        self.stopped.callback((protocol, reason))
 
     def received_stdout(self, data):
         self.stdout.append(data)
@@ -69,14 +67,14 @@ class TestProtocol(TestCase):
         protocol = self.launch_process(fake_jobtype)
         self.assertEqual(protocol.pid, protocol.transport.pid)
         protocol.transport.signalProcess("KILL")
-        return fake_jobtype.done
+        return fake_jobtype.stopped
 
     def test_process(self):
         fake_jobtype = FakeJobType()
         protocol = self.launch_process(fake_jobtype)
         self.assertIs(protocol.process, protocol.transport)
         protocol.transport.signalProcess("KILL")
-        return fake_jobtype.done
+        return fake_jobtype.stopped
 
     def test_psutil_process_after_exit(self):
         fake_jobtype = FakeJobType()
@@ -85,10 +83,10 @@ class TestProtocol(TestCase):
         def exited(*_):
             self.assertIsNone(protocol.psutil_process)
 
-        fake_jobtype.done.addCallback(exited)
+        fake_jobtype.stopped.addCallback(exited)
         protocol.transport.signalProcess("KILL")
 
-        return fake_jobtype.done
+        return fake_jobtype.stopped
 
     def test_psutil_process_running(self):
         fake_jobtype = FakeJobType()
@@ -96,7 +94,19 @@ class TestProtocol(TestCase):
         self.assertIsInstance(protocol.psutil_process, psutil.Process)
         self.assertEqual(protocol.psutil_process.pid, protocol.pid)
         protocol.transport.signalProcess("KILL")
-        return fake_jobtype.done
+        return fake_jobtype.stopped
+
+    def test_process_started(self):
+        fake_jobtype = FakeJobType()
+
+        def done(*_):
+            self.assertTrue(fake_jobtype.started.called)
+
+        fake_jobtype.started.addCallback(lambda _: None)
+        fake_jobtype.stopped.addCallback(done)
+        protocol = self.launch_process(fake_jobtype)
+        protocol.transport.signalProcess("KILL")
+        return fake_jobtype.stopped
 
     # TODO: add tests for remaining protocol attributes
 
