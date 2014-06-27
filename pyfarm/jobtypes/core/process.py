@@ -147,7 +147,7 @@ class ProcessProtocol(_ProcessProtocol):
         logger.info("Killing %s", self)
         try:
             self.process.signalProcess("KILL")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.warning("Cannot kill %s: %s.", self, e)
 
     # NOTE: no covered by tests due to flakyness
@@ -157,7 +157,7 @@ class ProcessProtocol(_ProcessProtocol):
         logger.info("Terminating %s", self)
         try:
             self.process.signalProcess("TERM")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.warning("Cannot terminate %s: %s.", self, e)
 
     def interrupt(self):
@@ -165,5 +165,5 @@ class ProcessProtocol(_ProcessProtocol):
         logger.info("Interrupt %s", self)
         try:
             self.process.signalProcess("INT")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.warning("Cannot interrupt %s: %s.", self, e)
