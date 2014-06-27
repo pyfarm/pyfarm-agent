@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import os
 import re
 import logging
@@ -36,6 +37,7 @@ from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
+from pyfarm.agent.utility import rmpath
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -44,17 +46,6 @@ if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
-
-
-def rm(path):
-    try:
-        os.remove(path)
-    except Exception:
-        pass
-    try:
-        shutil.rmtree(path)
-    except Exception:
-        pass
 
 
 def safe_repr(obj, short=False):
@@ -193,10 +184,10 @@ class TestCase(_TestCase):
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
-        self.addCleanup(rm, path)
+        self.addCleanup(rmpath, path, exit_retry=True)
 
-    def create_test_file(self, content="Hello, World!"):
-        fd, path = tempfile.mkstemp(suffix=".txt")
+    def create_test_file(self, content="Hello, World!", suffix=".txt"):
+        fd, path = tempfile.mkstemp(suffix=suffix)
         self.add_cleanup_path(path)
         with open(path, "w") as stream:
             stream.write(content)
