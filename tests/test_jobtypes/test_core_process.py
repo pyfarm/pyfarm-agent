@@ -164,6 +164,24 @@ class TestProtocol(TestCase):
         protocol.kill()
         return DeferredList([finished, fake_jobtype.stopped])
 
+    def test_interrupt(self):
+        finished = Deferred()
+
+        def check_signal(data):
+            protocol, reason = data
+            self.assertIsInstance(protocol, ProcessProtocol)
+            self.assertIs(reason.type, ProcessTerminated)
+            self.assertIn("signal 9", str(reason))
+            self.assertIsNone(reason.value.exitCode)
+            finished.callback(None)
+
+        fake_jobtype = FakeJobType()
+        fake_jobtype.stopped.addCallback(check_signal)
+        protocol = self._launch_python(
+            fake_jobtype, "import time; time.sleep(3600)")
+        protocol.kill()
+        return DeferredList([finished, fake_jobtype.stopped])
+
 
 class TestReplaceEnvironment(TestCase):
     original_environment = os.environ.copy()
