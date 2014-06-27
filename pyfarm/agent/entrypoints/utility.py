@@ -24,7 +24,7 @@ on the main entry point class.
 
 import os
 import sys
-from os.path import isfile, isdir, dirname
+from os.path import isfile
 from random import randint
 
 try:
@@ -38,6 +38,7 @@ except ImportError:  # pragma: no cover
 from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
+from pyfarm.agent.utility import rmpath
 
 logger = getLogger("agent.cmd.util")
 
@@ -205,9 +206,12 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
             try:
                 os.remove(cache_path)
             except (IOError, OSError):  # pragma: no cover
-                logger.fatal(
-                    "Failed to remove invalid cache file %r", cache_path)
-                raise
+                logger.warning(
+                    "Failed to remove invalid cache file %r, system id will "
+                    "be generated live.", cache_path)
+                systemid = None  # reset the systemid
+                rmpath(cache_path, exit_retry=True)
+
             else:
                 logger.debug(
                     "Removed invalid system identifier cache %r", cache_path)
