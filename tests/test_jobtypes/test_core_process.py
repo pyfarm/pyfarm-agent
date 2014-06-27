@@ -20,6 +20,7 @@ from collections import namedtuple
 import psutil
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.error import ProcessTerminated
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.agent.testutil import TestCase
@@ -142,6 +143,23 @@ class TestProtocol(TestCase):
         self._launch_python(
             fake_jobtype,
             "import sys; print >> sys.stderr, %r" % rand_str)
+        return DeferredList([finished, fake_jobtype.stopped])
+
+    def test_kill(self):
+        finished = Deferred()
+
+        def check_signal(data):
+            protocol, reason = data
+            self.assertIsInstance(protocol, ProcessProtocol)
+            self.assertIs(reason.type, ProcessTerminated)
+            self.assertIn("signal 9", str(reason))
+            finished.callback(None)
+
+        fake_jobtype = FakeJobType()
+        fake_jobtype.stopped.addCallback(check_signal)
+        protocol = self._launch_python(
+            fake_jobtype, "import time; time.sleep(3600)")
+        protocol.kill()
         return DeferredList([finished, fake_jobtype.stopped])
 
 
