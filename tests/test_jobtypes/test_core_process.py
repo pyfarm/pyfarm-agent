@@ -19,7 +19,7 @@ from collections import namedtuple
 
 import psutil
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.agent.testutil import TestCase
@@ -29,11 +29,11 @@ DummyInputs = namedtuple("DummyInputs", ("task", ))
 
 
 class FakeJobType(object):
-    def __init__(self):
+    def __init__(self, stdout=None, stderr=None):
         self.started = Deferred()
         self.stopped = Deferred()
-        self.stdout = []
-        self.stderr = []
+        self.stdout = stdout
+        self.stderr = stderr
 
     def process_started(self, protocol):
         self.started.callback(protocol)
@@ -41,21 +41,20 @@ class FakeJobType(object):
     def process_stopped(self, protocol, reason):
         self.stopped.callback((protocol, reason))
 
-    def received_stdout(self, data):
-        self.stdout.append(data)
+    def received_stdout(self, protocol, data):
+        if self.stdout is not None:
+            self.stdout(protocol, data)
 
-    def received_stderr(self, data):
-        self.stderr.append(data)
+    def received_stderr(self, protocol, data):
+        if self.stderr is not None:
+            self.stderr(protocol, data)
 
 
 class TestProtocol(TestCase):
-    def launch_process(self, jobtype, args=None):
-        if args is None:
-            args = ["python", "-c", "import time; time.sleep(3600)"]
-
+    def _launch_python(self, jobtype, script="i = 42"):
         protocol = ProcessProtocol(jobtype, *[None] * 6)
         reactor.spawnProcess(
-            protocol, "python", args)
+            protocol, "python", ["python", "-c", script])
         return protocol
 
     def test_subclass(self):
@@ -64,51 +63,86 @@ class TestProtocol(TestCase):
 
     def test_pid(self):
         fake_jobtype = FakeJobType()
-        protocol = self.launch_process(fake_jobtype)
+        protocol = self._launch_python(fake_jobtype)
         self.assertEqual(protocol.pid, protocol.transport.pid)
-        protocol.transport.signalProcess("KILL")
         return fake_jobtype.stopped
 
     def test_process(self):
         fake_jobtype = FakeJobType()
-        protocol = self.launch_process(fake_jobtype)
+        protocol = self._launch_python(fake_jobtype)
         self.assertIs(protocol.process, protocol.transport)
-        protocol.transport.signalProcess("KILL")
         return fake_jobtype.stopped
 
     def test_psutil_process_after_exit(self):
         fake_jobtype = FakeJobType()
-        protocol = self.launch_process(fake_jobtype)
+        protocol = self._launch_python(fake_jobtype)
 
         def exited(*_):
             self.assertIsNone(protocol.psutil_process)
 
         fake_jobtype.stopped.addCallback(exited)
-        protocol.transport.signalProcess("KILL")
-
         return fake_jobtype.stopped
 
     def test_psutil_process_running(self):
         fake_jobtype = FakeJobType()
-        protocol = self.launch_process(fake_jobtype)
+        protocol = self._launch_python(fake_jobtype)
         self.assertIsInstance(protocol.psutil_process, psutil.Process)
         self.assertEqual(protocol.psutil_process.pid, protocol.pid)
-        protocol.transport.signalProcess("KILL")
         return fake_jobtype.stopped
 
-    def test_process_started(self):
+    def test_connectionMade(self):
         fake_jobtype = FakeJobType()
 
-        def done(*_):
+        def stopped(*_):
             self.assertTrue(fake_jobtype.started.called)
 
-        fake_jobtype.started.addCallback(lambda _: None)
-        fake_jobtype.stopped.addCallback(done)
-        protocol = self.launch_process(fake_jobtype)
-        protocol.transport.signalProcess("KILL")
+        fake_jobtype.started.addCallback(
+            lambda value: self.assertIsInstance(value, ProcessProtocol))
+        fake_jobtype.stopped.addCallback(stopped)
+        self._launch_python(fake_jobtype)
         return fake_jobtype.stopped
 
-    # TODO: add tests for remaining protocol attributes
+    def test_processEnded(self):
+        fake_jobtype = FakeJobType()
+
+        def stopped(*_):
+            self.assertTrue(fake_jobtype.stopped.called)
+
+        fake_jobtype.stopped.addCallback(
+            lambda data: self.assertIsInstance(data[0], ProcessProtocol))
+        fake_jobtype.stopped.addCallback(stopped)
+        self._launch_python(fake_jobtype)
+        return fake_jobtype.stopped
+
+    def test_outReceived(self):
+        finished = Deferred()
+        rand_str = os.urandom(24).encode("hex")
+
+        def check_stdout(protocol, data):
+            self.assertIsInstance(protocol, ProcessProtocol)
+            self.assertEqual(data.strip(), rand_str)
+            finished.callback(None)
+
+        fake_jobtype = FakeJobType(stdout=check_stdout)
+        self._launch_python(
+            fake_jobtype,
+            "import sys; print >> sys.stdout, %r" % rand_str)
+        return DeferredList([finished, fake_jobtype.stopped])
+
+    def test_errReceived(self):
+        finished = Deferred()
+        rand_str = os.urandom(24).encode("hex")
+
+        def check_stdout(protocol, data):
+            self.assertIsInstance(protocol, ProcessProtocol)
+            self.assertEqual(data.strip(), rand_str)
+            finished.callback(None)
+
+        fake_jobtype = FakeJobType(stderr=check_stdout)
+        self._launch_python(
+            fake_jobtype,
+            "import sys; print >> sys.stderr, %r" % rand_str)
+        return DeferredList([finished, fake_jobtype.stopped])
 
 
 class TestReplaceEnvironment(TestCase):
