@@ -15,13 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from twisted.internet import reactor
-
 try:
     from httplib import OK, ACCEPTED
 except ImportError:  # pragma: no cover
     from http.client import OK, ACCEPTED
 
+from twisted.internet import reactor
 from twisted.web.server import NOT_DONE_YET
 from treq import content
 
