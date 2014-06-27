@@ -15,6 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Update Endpoint
+===============
+
+This endpoint is used to instruct the agent to download and apply an update.
+"""
+
 try:
     from httplib import OK, ACCEPTED
 except ImportError:  # pragma: no cover
