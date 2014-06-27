@@ -40,6 +40,31 @@ logger = getLogger("agent.http.update")
 
 
 class Update(APIResource):
+    """
+    Requests the agent to download and apply the specified version of itself.
+    Will make the agent restart at the next opportunity.
+
+    .. http:post:: /api/v1/update HTTP/1.1
+
+        **Request**
+
+        .. sourcecode:: http
+
+            POST /api/v1/update HTTP/1.1
+            Accept: application/json
+
+            {
+                "version": 1.2.3
+            }
+
+        **Response**
+
+        .. sourcecode:: http
+
+            HTTP/1.1 200 ACCEPTED
+            Content-Type: application/json
+
+    """
     isLeaf = False  # this is not really a collection of things
 
     def post(self, **kwargs):
