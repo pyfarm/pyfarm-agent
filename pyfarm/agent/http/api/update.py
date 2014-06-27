@@ -52,6 +52,7 @@ class Update(APIResource):
         url = "%s/agents/updates/%s" % (config["master-api"], data["version"])
 
         def download_update(version):
+            config["downloading_update"] = True
             get(url,
                 callback=update_downloaded,
                 errback=lambda: reactor.callLater(http_retry_delay(),
@@ -68,7 +69,11 @@ class Update(APIResource):
             else:
                 pass # TODO
 
-        download_update(data["version"])
+            config["downloading_update"] = False
+
+        if ("downloading_update" not in config or
+            not config["downloading_update"]):
+            download_update(data["version"])
 
         request.setResponseCode(ACCEPTED)
         request.finish()
