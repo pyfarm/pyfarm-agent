@@ -22,12 +22,16 @@ Top level utilities for the agent to use internally.  Many of these
 are copied over from the master (which we can't import here).
 """
 
+import atexit
 import csv
 import codecs
 import cStringIO
 from decimal import Decimal
 from datetime import datetime
 from json import dumps as _dumps
+from os import remove
+from os.path import isfile, isdir
+from shutil import rmtree
 from UserDict import UserDict
 from uuid import uuid1
 
@@ -193,4 +197,49 @@ class UnicodeCSVWriter(object):
             self.writerow(row)
 
 
+def rmpath(path, exit_retry=False):
+    """
+    Deletes the provided ``path`` from disk.  This function will not
+    raise any exceptions so it's a safe option to use if you're trying
+    to delete a file or directory and don't necessarily care if you're
+    successful.
+
+    :param string path:
+        The path to delete from disk.  This may be either
+        a directory or file and will be ignored if it does
+        not exist.
+
+    :param bool exit_retry:
+        If True then try deleting ``path`` again when the interpreter
+        exists.  On some platforms, such a Windows, failure to delete
+        the path while the interpreter is active is a common issue.
+    """
+    if isfile(path):
+        try:
+            remove(path)
+        except (OSError, IOError) as e:
+            if exit_retry:
+                logger.debug(
+                    "Will try to delete path %r at shutdown.", path)
+                atexit.register(rmpath, path, exit_retry=False)
+            else:
+                logger.debug("Failed to delete file %r: %r", path, e)
+        else:
+            logger.debug("Deleted file %r", path)
+
+        return
+
+    if isdir(path):
+        try:
+            rmtree(path)
+        except (OSError, IOError) as e:
+            if exit_retry:
+                logger.debug(
+                    "Will try to delete directory %r at shutdown.", path)
+                atexit.register(rmpath, path, exit_retry=False)
+            else:
+                logger.debug("Failed to delete directory %r: %r", path, e)
+        else:
+            logger.debug("Deleted directory %r", path)
+        return
 
