@@ -136,8 +136,10 @@ class TestProtocol(TestCase):
 
         def check_stdout(protocol, data):
             self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertEqual(data.strip(), rand_str)
-            finished.callback(None)
+            data = data.strip()
+            if data:  # we may not get it in the first line of output
+                self.assertEqual(data.strip(), rand_str)
+                finished.callback(None)
 
         fake_jobtype = FakeJobType(stderr=check_stdout)
         self._launch_python(
