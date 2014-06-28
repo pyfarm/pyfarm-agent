@@ -14,11 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
 import os
 import re
 import logging
-import shutil
 import socket
 import tempfile
 from functools import wraps
@@ -82,7 +80,35 @@ def skip_on_ci(func):
     return wrapper
 
 
+class AssertRaisesContext(object):
+    """
+    An implementation similar to :class:`unittest.case._AssertRaisesContext`
+    which is present in Python's base test case but no in Twisted's.
+    """
+    def __init__(self,
+                 expected, function=None, expected_regexp=None, test_case=None):
+        self.expected = expected
+        self.function = function
+        self.expected_regexp = expected_regexp
+        self.failureException = test_case.failureException
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            try:
+                exc_name = self.expected.__name__
+            except AttributeError:
+                exc_name = str(self.expected)
+            raise self.failureException(
+                "{0} not raised".format(exc_name))
+
+
 class TestCase(_TestCase):
+    """
+    The base test class
+    """
     RAND_LENGTH = 8
 
     # Global timeout for all test cases.  If an individual test takes
