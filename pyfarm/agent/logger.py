@@ -29,7 +29,7 @@ from logging import Handler
 from warnings import warn
 
 from logging import (
-    DEBUG, INFO, WARNING, ERROR, CRITICAL,
+    DEBUG, INFO, WARNING, ERROR, CRITICAL, FATAL,
     Logger as _Logger, getLogger as _getLoggerPython)
 
 from twisted.python.log import (
@@ -253,6 +253,9 @@ class Logger(object):
 
     def critical(self, message, *args):
         msg(message % args, system=self.system, logLevel=CRITICAL)
+
+    def fatal(self, message, *args):
+        msg(message % args, system=self.system, logLevel=FATAL)
 
 
 # module reload protection, we only want OBSERVER
