@@ -17,6 +17,7 @@
 import os
 import re
 import logging
+import shutil
 import socket
 import tempfile
 from functools import wraps
@@ -35,7 +36,6 @@ from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
-from pyfarm.agent.utility import rmpath
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -44,6 +44,17 @@ if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
+
+
+def rm(path):
+    try:
+        os.remove(path)
+    except Exception:
+        pass
+    try:
+        shutil.rmtree(path)
+    except Exception:
+        pass
 
 
 def safe_repr(obj, short=False):
@@ -80,35 +91,7 @@ def skip_on_ci(func):
     return wrapper
 
 
-class AssertRaisesContext(object):
-    """
-    An implementation similar to :class:`unittest.case._AssertRaisesContext`
-    which is present in Python's base test case but no in Twisted's.
-    """
-    def __init__(self,
-                 expected, function=None, expected_regexp=None, test_case=None):
-        self.expected = expected
-        self.function = function
-        self.expected_regexp = expected_regexp
-        self.failureException = test_case.failureException
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            try:
-                exc_name = self.expected.__name__
-            except AttributeError:
-                exc_name = str(self.expected)
-            raise self.failureException(
-                "{0} not raised".format(exc_name))
-
-
 class TestCase(_TestCase):
-    """
-    The base test class
-    """
     RAND_LENGTH = 8
 
     # Global timeout for all test cases.  If an individual test takes
@@ -176,7 +159,7 @@ class TestCase(_TestCase):
             raise SkipTest(reason)
 
         def assertRaises(self, exception, f, *args, **kwargs):
-            if exception is AssertionError and not __debug__:
+            if exception is AssertionError and __debug__:
                 self.skipTest(
                     "Operating in optimized mode, can't test AssertionError")
 
@@ -210,10 +193,10 @@ class TestCase(_TestCase):
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
-        self.addCleanup(rmpath, path, exit_retry=True)
+        self.addCleanup(rm, path)
 
-    def create_test_file(self, content="Hello, World!", suffix=".txt"):
-        fd, path = tempfile.mkstemp(suffix=suffix)
+    def create_test_file(self, content="Hello, World!"):
+        fd, path = tempfile.mkstemp(suffix=".txt")
         self.add_cleanup_path(path)
         with open(path, "w") as stream:
             stream.write(content)

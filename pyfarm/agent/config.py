@@ -50,7 +50,7 @@ class LoggingConfiguration(Configuration):
     CREATED = "created"
     DELETED = "deleted"
 
-    def __init__(self, data=None, environment=None, load=True):
+    def __init__(self, data=None, environment=None):
         super(LoggingConfiguration, self).__init__("pyfarm.agent")
         assert data is None or isinstance(data, dict)
         assert environment is None or isinstance(environment, dict)
@@ -58,33 +58,31 @@ class LoggingConfiguration(Configuration):
         if environment is None:
             environment = os.environ
 
-        if load:
-            self.load(environment=environment)
-            self.update(
-                # A mapping of UUIDs to job type instances.
-                jobtypes={},
+        self.load(environment=environment)
+        self.update(
+            # A mapping of UUIDs to job type instances.
+            jobtypes={},
 
-                # A mapping of tasks to job type instances.
-                current_assignments={},
+            # A mapping of tasks to job type instances.
+            current_assignments={},
 
-                # The last time we were in touch with the master,
-                # or the last time it was in touch with us.
-                last_master_contact=None,
+            # The last time we were in touch with the master,
+            # or the last time it was in touch with us.
+            last_master_contact=None,
 
-                # The last time we announced ourselves to the master.  This
-                # may be longer than --master-reannounce if `last_master_contact`
-                # caused us to skip an announcement.
-                last_announce=None)
+            # The last time we announced ourselves to the master.  This
+            # may be longer than --master-reannounce if `last_master_contact`
+            # caused us to skip an announcement.
+            last_announce=None)
 
         if data is not None:
             self.update(data)
 
         # Load configuration file(s) for jobtypes and then
         # update the local instance
-        if load:
-            jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
-            jobtypes_config.load(environment=environment)
-            self.update(jobtypes_config)
+        jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
+        jobtypes_config.load(environment=environment)
+        self.update(jobtypes_config)
 
     def __setitem__(self, key, value):
         if key not in self:
