@@ -6,6 +6,7 @@ Submodules
 
 .. toctree::
 
+   pyfarm.jobtypes.core.internals
    pyfarm.jobtypes.core.jobtype
    pyfarm.jobtypes.core.process
 
