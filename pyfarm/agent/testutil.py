@@ -150,7 +150,7 @@ class TestCase(_TestCase):
             raise SkipTest(reason)
 
         def assertRaises(self, exception, f, *args, **kwargs):
-            if exception is AssertionError and __debug__:
+            if exception is AssertionError and not __debug__:
                 self.skipTest(
                     "Operating in optimized mode, can't test AssertionError")
 
