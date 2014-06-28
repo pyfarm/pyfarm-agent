@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
-import logging
 import socket
+import sys
 import tempfile
 from functools import wraps
 from random import randint, choice
@@ -103,6 +104,11 @@ class TestCase(_TestCase):
     # Override the default `assertRaises` which does not provide
     # context management.
     def assertRaises(self, excClass, callableObj=None, *args, **kwargs):
+        if excClass is AssertionError and sys.flags.optimize:
+            self.skipTest(
+                "AssertionError will never be raised, running in optimized "
+                "mode.")
+
         context = _AssertRaisesContext(excClass, self)
         if callableObj is None:
             return context
@@ -113,6 +119,11 @@ class TestCase(_TestCase):
     # context management.
     def assertRaisesRegexp(self, expected_exception, expected_regexp,
                            callable_obj=None, *args, **kwargs):
+        if expected_exception is AssertionError and sys.flags.optimize:
+            self.skipTest(
+                "AssertionError will never be raised, running in optimized "
+                "mode.")
+
         context = _AssertRaisesContext(
             expected_exception, self, expected_regexp)
         if callable_obj is None:
