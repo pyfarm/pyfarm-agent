@@ -14,15 +14,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
-import logging
-import shutil
 import socket
+import sys
 import tempfile
 from functools import wraps
 from random import randint, choice
 from urllib import urlopen
+
+try:
+    from unittest.case import _AssertRaisesContext
+
+except ImportError:  # copied from Python 2.7's source
+    class _AssertRaisesContext(object):
+        def __init__(self, expected, test_case, expected_regexp=None):
+            self.expected = expected
+            self.failureException = test_case.failureException
+            self.expected_regexp = expected_regexp
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, tb):
+            if exc_type is None:
+                try:
+                    exc_name = self.expected.__name__
+                except AttributeError:
+                    exc_name = str(self.expected)
+                raise self.failureException(
+                    "{0} not raised".format(exc_name))
+            if not issubclass(exc_type, self.expected):
+                # let unexpected exceptions pass through
+                return False
+            self.exception = exc_value # store for later retrieval
+            if self.expected_regexp is None:
+                return True
+
+            expected_regexp = self.expected_regexp
+            if isinstance(expected_regexp, STRING_TYPES):
+                expected_regexp = re.compile(expected_regexp)
+            if not expected_regexp.search(str(exc_value)):
+                raise self.failureException('"%s" does not match "%s"' %
+                         (expected_regexp.pattern, str(exc_value)))
+            return True
 
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
@@ -36,6 +72,7 @@ from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
+from pyfarm.agent.utility import rmpath
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -44,42 +81,6 @@ if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
-
-
-def rm(path):
-    try:
-        os.remove(path)
-    except Exception:
-        pass
-    try:
-        shutil.rmtree(path)
-    except Exception:
-        pass
-
-
-def safe_repr(obj, short=False):
-    try:
-        result = repr(obj)
-    except Exception:
-        result = object.__repr__(obj)
-    if not short or len(result) < 80:
-        return result
-    return result[:80] + ' [truncated]...'
-
-
-class skip_if(object):
-    def __init__(self, true, reason):
-        self.true = true
-        self.reason = reason
-
-    def __call__(self, method):
-        @wraps(method)
-        def wrapped(*args, **kwargs):
-            if (callable(self.true) and self.true()) or self.true:
-                args[0].skipTest(self.reason)
-
-            return method(*args, **kwargs)
-        return wrapped
 
 
 def skip_on_ci(func):
@@ -100,48 +101,57 @@ class TestCase(_TestCase):
     # expected duration of the longest test case.
     timeout = 15
 
+    # Override the default `assertRaises` which does not provide
+    # context management.
+    def assertRaises(self, excClass, callableObj=None, *args, **kwargs):
+        if excClass is AssertionError and sys.flags.optimize:
+            self.skipTest(
+                "AssertionError will never be raised, running in optimized "
+                "mode.")
+
+        context = _AssertRaisesContext(excClass, self)
+        if callableObj is None:
+            return context
+        with context:
+            callableObj(*args, **kwargs)
+
+    # Override the default `assertRaisesRegexp` which does not provide
+    # context management.
+    def assertRaisesRegexp(self, expected_exception, expected_regexp,
+                           callable_obj=None, *args, **kwargs):
+        if expected_exception is AssertionError and sys.flags.optimize:
+            self.skipTest(
+                "AssertionError will never be raised, running in optimized "
+                "mode.")
+
+        context = _AssertRaisesContext(
+            expected_exception, self, expected_regexp)
+        if callable_obj is None:
+            return context
+        with context:
+            callable_obj(*args, **kwargs)
+
     # back ports of some of Python 2.7's unittest features
     if PY26:
-        def assertRaisesRegexp(
-                self, expected_exception, expected_regexp, callable_obj=None,
-                *args, **kwargs):
-
-            exception = None
-            try:
-                callable_obj(*args, **kwargs)
-            except expected_exception, ex:
-                exception = ex
-
-            if exception is None:
-                self.fail("%s not raised" % str(expected_exception.__name__))
-
-            if isinstance(expected_regexp, STRING_TYPES):
-                expected_regexp = re.compile(expected_regexp)
-
-            if not expected_regexp.search(str(exception)):
-                self.fail('"%s" does not match "%s"' % (
-                    expected_regexp.pattern, str(exception)))
-
         def assertIsNone(self, obj, msg=None):
             if obj is not None:
-                standardMsg = '%s is not None' % (safe_repr(obj),)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(self._formatMessage(msg, "%r is not None" % obj))
 
         def assertIsNotNone(self, obj, msg=None):
             if obj is None:
-                standardMsg = 'unexpectedly None'
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(self._formatMessage(msg, "unexpectedly None"))
 
         def assertIsInstance(self, obj, cls, msg=None):
             if not isinstance(obj, cls):
-                standardMsg = '%s is not an instance of %r' % (
-                    safe_repr(obj), cls)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(
+                    self._formatMessage(
+                        msg, "%r is not an instance of %r" % (obj, cls)))
 
         def assertNotIsInstance(self, obj, cls, msg=None):
             if isinstance(obj, cls):
-                standardMsg = '%s is an instance of %r' % (safe_repr(obj), cls)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(
+                    self._formatMessage(
+                        msg, "%r is an instance of %r" % (obj, cls)))
 
         def assertIn(self, containee, container, msg=None):
             if containee not in container:
@@ -157,13 +167,6 @@ class TestCase(_TestCase):
 
         def skipTest(self, reason):
             raise SkipTest(reason)
-
-        def assertRaises(self, exception, f, *args, **kwargs):
-            if exception is AssertionError and __debug__:
-                self.skipTest(
-                    "Operating in optimized mode, can't test AssertionError")
-
-            return _TestCase.assertRaises(self, exception, f, *args, **kwargs)
 
     def setUp(self):
         DelayedCall.debug = True
@@ -193,10 +196,10 @@ class TestCase(_TestCase):
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
-        self.addCleanup(rm, path)
+        self.addCleanup(rmpath, path, exit_retry=True)
 
-    def create_test_file(self, content="Hello, World!"):
-        fd, path = tempfile.mkstemp(suffix=".txt")
+    def create_test_file(self, content="Hello, World!", suffix=".txt"):
+        fd, path = tempfile.mkstemp(suffix=suffix)
         self.add_cleanup_path(path)
         with open(path, "w") as stream:
             stream.write(content)

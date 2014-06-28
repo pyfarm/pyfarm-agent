@@ -65,33 +65,35 @@ class TestPartials(TestCase):
 
 class TestRequestAssertions(TestCase):
     def test_invalid_method(self):
-        self.assertRaises(AssertionError, lambda: request("", ""))
+        with self.assertRaises(AssertionError):
+            request("", "")
 
     def test_invalid_url_type(self):
-        self.assertRaises(AssertionError, lambda: request("GET", None))
+        with self.assertRaises(AssertionError):
+            request("GET", None)
 
     def test_invalid_empty_url(self):
-        self.assertRaises(AssertionError, lambda: request("GET", ""))
+        with self.assertRaises(AssertionError):
+            request("GET", "")
 
     def test_invalid_callback_type(self):
-        self.assertRaises(AssertionError,
-                          lambda: request("GET", "/", callback=""))
+        with self.assertRaises(AssertionError):
+            request("GET", "/", callback="")
 
     def test_invalid_errback_type(self):
-        self.assertRaises(AssertionError,
-                          lambda: request("GET", "/", errback=""))
+        with self.assertRaises(AssertionError):
+            request("GET", "/", errback="")
 
     def test_invalid_header_value_length(self):
-        self.assertRaises(AssertionError,
-                          lambda: request(
-                              "GET", "/", callback=lambda: None,
-                              headers={"foo": ["a", "b"]}))
+        with self.assertRaises(AssertionError):
+            request("GET", "/", callback=lambda: None,
+                    headers={"foo": ["a", "b"]})
 
     def test_invalid_header_value_type(self):
-        self.assertRaises(NotImplementedError,
-                          lambda: request(
-                              "GET", "/", callback=lambda: None,
-                              headers={"foo": None}))
+        with self.assertRaises(NotImplementedError):
+            request("GET", "/",
+                    callback=lambda: None,
+                    headers={"foo": None})
 
 
 class RequestTestCase(BaseRequestTestCase):
@@ -197,11 +199,13 @@ class TestRetryDelay(TestCase):
             http_retry_delay(
                 initial=0, uniform=True, get_delay=lambda: 1, minimum=10), 10)
 
-    def test_invalid_types(self):
-        self.assertRaises(
-            AssertionError, lambda: http_retry_delay(initial=""))
-        self.assertRaises(
-            AssertionError, lambda: http_retry_delay(minimum=""))
+    def test_invalid_type_initial(self):
+        with self.assertRaises(AssertionError):
+            http_retry_delay(initial="")
+
+    def test_invalid_type_minimum(self):
+        with self.assertRaises(AssertionError):
+            http_retry_delay(minimum="")
 
 
 class TestClientFunctions(RequestTestCase):
@@ -462,7 +466,9 @@ class TestResponse(RequestTestCase):
                     "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
-        self.assertRaises(RuntimeError, lambda: r.data())
+
+        with self.assertRaises(RuntimeError):
+            r.data()
 
     def test_data(self):
         deferred = Deferred()
@@ -501,7 +507,9 @@ class TestResponse(RequestTestCase):
                     "Content-Type": "application/json"}, "data": None})
 
         r = Response(deferred, twisted_response, request)
-        self.assertRaises(RuntimeError, lambda: r.json())
+
+        with self.assertRaises(RuntimeError):
+            r.json()
 
     def test_json_wrong_content_type(self):
         deferred = Deferred()
@@ -516,8 +524,10 @@ class TestResponse(RequestTestCase):
 
         r = Response(deferred, twisted_response, request)
         r._done = True
-        self.assertRaisesRegexp(
-            ValueError, "Not an application/json response\.", lambda: r.json())
+
+        with self.assertRaisesRegexp(
+                ValueError, "Not an application/json response\."):
+            r.json()
 
     def test_json_decoding_error(self):
         deferred = Deferred()
@@ -531,8 +541,9 @@ class TestResponse(RequestTestCase):
                     "Content-Type": "application/json"}, "data": None})
         r = Response(deferred, twisted_response, request)
         r._done = True
-        self.assertRaisesRegexp(
-            ValueError, "No JSON object could be decoded", lambda: r.json())
+        with self.assertRaisesRegexp(ValueError,
+                                     "No JSON object could be decoded"):
+            r.json()
 
     def test_json(self):
         deferred = Deferred()
