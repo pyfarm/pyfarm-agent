@@ -88,24 +88,23 @@ class TestCase(_TestCase):
 
         def assertIsNone(self, obj, msg=None):
             if obj is not None:
-                standardMsg = '%s is not None' % (safe_repr(obj),)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(self._formatMessage(msg, "%r is not None" % obj))
 
         def assertIsNotNone(self, obj, msg=None):
             if obj is None:
-                standardMsg = 'unexpectedly None'
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(self._formatMessage(msg, "unexpectedly None"))
 
         def assertIsInstance(self, obj, cls, msg=None):
             if not isinstance(obj, cls):
-                standardMsg = '%s is not an instance of %r' % (
-                    safe_repr(obj), cls)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(
+                    self._formatMessage(
+                        msg, "%r is not an instance of %r" % (obj, cls)))
 
         def assertNotIsInstance(self, obj, cls, msg=None):
             if isinstance(obj, cls):
-                standardMsg = '%s is an instance of %r' % (safe_repr(obj), cls)
-                self.fail(self._formatMessage(msg, standardMsg))
+                self.fail(
+                    self._formatMessage(
+                        msg, "%r is an instance of %r" % (obj, cls)))
 
         def assertIn(self, containee, container, msg=None):
             if containee not in container:
