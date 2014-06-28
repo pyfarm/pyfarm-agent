@@ -46,31 +46,6 @@ if ":" not in PYFARM_AGENT_MASTER:
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
-def safe_repr(obj, short=False):
-    try:
-        result = repr(obj)
-    except Exception:
-        result = object.__repr__(obj)
-    if not short or len(result) < 80:
-        return result
-    return result[:80] + ' [truncated]...'
-
-
-class skip_if(object):
-    def __init__(self, true, reason):
-        self.true = true
-        self.reason = reason
-
-    def __call__(self, method):
-        @wraps(method)
-        def wrapped(*args, **kwargs):
-            if (callable(self.true) and self.true()) or self.true:
-                args[0].skipTest(self.reason)
-
-            return method(*args, **kwargs)
-        return wrapped
-
-
 def skip_on_ci(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
