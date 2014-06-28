@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from os import urandom
-from random import randint
 
 from pyfarm.core.enums import NOTSET
 from pyfarm.agent.config import LoggingConfiguration, ConfigurationWithCallbacks
@@ -27,7 +26,6 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
         self.created = []
         self.modified = []
         self.deleted = []
-        kwargs.update(load=False)
         super(ChangedLoggingConfiguration, self).__init__(*args, **kwargs)
 
     def changed(self, change_type, key, new_value=NOTSET, old_value=NOTSET):
@@ -45,7 +43,10 @@ class ChangedLoggingConfiguration(LoggingConfiguration):
 class TestLoggingConfiguration(TestCase):
     def get_data(self):
         return {
-            "int": randint(-1024, 1024),
+            "jobtypes": {},
+            "current_assignments": [],
+            "last_master_contact": None,
+            "last_announce": None,
             urandom(16).encode("hex"): urandom(16).encode("hex"),
             urandom(16).encode("hex"): urandom(16).encode("hex")}
 
