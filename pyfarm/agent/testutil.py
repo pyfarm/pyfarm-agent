@@ -23,6 +23,42 @@ from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
+try:
+    from unittest.case import _AssertRaisesContext
+
+except ImportError:  # copied from Python 2.7's source
+    class _AssertRaisesContext(object):
+        def __init__(self, expected, test_case, expected_regexp=None):
+            self.expected = expected
+            self.failureException = test_case.failureException
+            self.expected_regexp = expected_regexp
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, tb):
+            if exc_type is None:
+                try:
+                    exc_name = self.expected.__name__
+                except AttributeError:
+                    exc_name = str(self.expected)
+                raise self.failureException(
+                    "{0} not raised".format(exc_name))
+            if not issubclass(exc_type, self.expected):
+                # let unexpected exceptions pass through
+                return False
+            self.exception = exc_value # store for later retrieval
+            if self.expected_regexp is None:
+                return True
+
+            expected_regexp = self.expected_regexp
+            if isinstance(expected_regexp, STRING_TYPES):
+                expected_regexp = re.compile(expected_regexp)
+            if not expected_regexp.search(str(exc_value)):
+                raise self.failureException('"%s" does not match "%s"' %
+                         (expected_regexp.pattern, str(exc_value)))
+            return True
+
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
@@ -64,28 +100,28 @@ class TestCase(_TestCase):
     # expected duration of the longest test case.
     timeout = 15
 
+    # Override the default `assertRaises` which does not provide
+    # context management.
+    def assertRaises(self, excClass, callableObj=None, *args, **kwargs):
+        context = _AssertRaisesContext(excClass, self)
+        if callableObj is None:
+            return context
+        with context:
+            callableObj(*args, **kwargs)
+
+    # Override the default `assertRaisesRegexp` which does not provide
+    # context management.
+    def assertRaisesRegexp(self, expected_exception, expected_regexp,
+                           callable_obj=None, *args, **kwargs):
+        context = _AssertRaisesContext(
+            expected_exception, self, expected_regexp)
+        if callable_obj is None:
+            return context
+        with context:
+            callable_obj(*args, **kwargs)
+
     # back ports of some of Python 2.7's unittest features
     if PY26:
-        def assertRaisesRegexp(
-                self, expected_exception, expected_regexp, callable_obj=None,
-                *args, **kwargs):
-
-            exception = None
-            try:
-                callable_obj(*args, **kwargs)
-            except expected_exception, ex:
-                exception = ex
-
-            if exception is None:
-                self.fail("%s not raised" % str(expected_exception.__name__))
-
-            if isinstance(expected_regexp, STRING_TYPES):
-                expected_regexp = re.compile(expected_regexp)
-
-            if not expected_regexp.search(str(exception)):
-                self.fail('"%s" does not match "%s"' % (
-                    expected_regexp.pattern, str(exception)))
-
         def assertIsNone(self, obj, msg=None):
             if obj is not None:
                 self.fail(self._formatMessage(msg, "%r is not None" % obj))
@@ -120,13 +156,6 @@ class TestCase(_TestCase):
 
         def skipTest(self, reason):
             raise SkipTest(reason)
-
-        def assertRaises(self, exception, f, *args, **kwargs):
-            if exception is AssertionError and not __debug__:
-                self.skipTest(
-                    "Operating in optimized mode, can't test AssertionError")
-
-            return _TestCase.assertRaises(self, exception, f, *args, **kwargs)
 
     def setUp(self):
         DelayedCall.debug = True
