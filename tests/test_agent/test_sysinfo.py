@@ -84,10 +84,11 @@ class BaseSystem(TestCase):
         for arch in ("i386", "i686", "x86"):
             self.assertEqual(system.machine_architecture(arch), 32)
 
-        self.assertRaises(
-            NotImplementedError, lambda: system.machine_architecture(""))
-        self.assertRaises(
-            NotImplementedError, lambda: system.machine_architecture("foobar"))
+        with self.assertRaises(NotImplementedError):
+            system.machine_architecture("")
+
+        with self.assertRaises(NotImplementedError):
+            system.machine_architecture("foobar")
 
 
 class Network(TestCase):

@@ -78,8 +78,8 @@ class TestStaticPath(TestCase):
         StaticPath.ALLOW_DIRECTORY_LISTING = self.allow_directory_listing
 
     def test_path_does_not_exist(self):
-        self.assertRaises(
-            OSError, lambda: StaticPath(os.urandom(48).encode("hex")))
+        with self.assertRaises(OSError):
+            StaticPath(os.urandom(48).encode("hex"))
 
     def test_render_cache_header(self):
         path = self.create_test_file()
@@ -102,4 +102,5 @@ class TestStaticPath(TestCase):
         directory, files = self.create_test_directory()
         StaticPath.ALLOW_DIRECTORY_LISTING = False
         static_path = StaticPath(directory)
-        self.assertRaises(Error, lambda: static_path.directoryListing())
+        with self.assertRaises(Error):
+            static_path.directoryListing()

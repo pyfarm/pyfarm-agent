@@ -47,7 +47,8 @@ class TestAssertInstance(TestCase):
         def function(instance=None):
             pass
 
-        self.assertRaises(AssertionError, lambda: function(instance=None))
+        with self.assertRaises(AssertionError):
+            function(instance=None)
 
     def test_has_args_and_parser(self):
         @assert_instance
@@ -60,9 +61,14 @@ class TestAssertInstance(TestCase):
         parser = self.parser
         del self.args
         del self.parser
-        self.assertRaises(AssertionError, lambda: function(instance=self))
+
+        with self.assertRaises(AssertionError):
+            function(instance=self)
+
         self.parser = parser
-        self.assertRaises(AssertionError, lambda: function(instance=self))
+        with self.assertRaises(AssertionError):
+            function(instance=self)
+
         self.args = args
         self.assertTrue(function(instance=self))
 
