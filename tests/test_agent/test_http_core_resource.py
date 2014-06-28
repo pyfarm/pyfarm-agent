@@ -124,12 +124,15 @@ class TestResourceInternals(TestResourceBase):
 
     def test_content_types_not_set(self):
         Resource.CONTENT_TYPES = None
-        self.assertRaises(AssertionError, lambda: Resource())
+        with self.assertRaises(AssertionError):
+            Resource()
 
     def test_template_property_not_set(self):
         Resource.TEMPLATE = NotImplemented
         resource = Resource()
-        self.assertRaises(NotImplementedError, lambda: resource.template)
+
+        with self.assertRaises(NotImplementedError):
+            resource.template()
 
     def test_template_property(self):
         resource = Resource()
@@ -147,7 +150,9 @@ class TestResourceInternals(TestResourceBase):
 
     def test_methods_method_property_with_duplicate_methods(self):
         resource = ResourceWithDuplicateMethods()
-        self.assertRaises(ValueError, lambda: resource.methods)
+
+        with self.assertRaises(ValueError):
+            resource.methods()
 
     def test_content_types_default(self):
         request = DummyRequest(headers={})

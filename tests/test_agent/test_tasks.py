@@ -35,12 +35,15 @@ class TestScheduledTasks(TestCase):
 
     def test_assertion_errors(self):
         lc = ScheduledTaskManager()
-        self.assertRaises(
-            AssertionError, lambda: lc.register(None, 1))
-        self.assertRaises(
-            AssertionError, lambda: lc.register(lambda: None, 1, func_args=1))
-        self.assertRaises(
-            AssertionError, lambda: lc.register(lambda: None, 1, func_kwargs=1))
+
+        with self.assertRaises(AssertionError):
+            lc.register(None, 1)
+
+        with self.assertRaises(AssertionError):
+            lc.register(lambda: None, 1, func_args=1)
+
+        with self.assertRaises(AssertionError):
+            lc.register(lambda: None, 1, func_kwargs=1)
 
     def test_start_on_register(self):
         lc = ScheduledTaskManager()

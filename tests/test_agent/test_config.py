@@ -122,7 +122,8 @@ class TestLoggingConfiguration(TestCase):
         self.assertEqual(set(config.modified), set(all_data.keys()))
 
     def test_raises_type_error(self):
-        self.assertRaises(TypeError, lambda: LoggingConfiguration(seq=1))
+        with self.assertRaises(TypeError):
+            LoggingConfiguration(seq=1)
 
     def test_update_modified_dict(self):
         data = self.get_data()
@@ -147,24 +148,24 @@ class TestLoggingConfiguration(TestCase):
         config = ChangedLoggingConfiguration()
         config.update(data)
         for _, _ in config.items():
-            self.assertRaises(TypeError, lambda: config.update(1))
+            with self.assertRaises(TypeError):
+                config.update(1)
 
 
 class TestConfigurationExceptions(TestCase):
     def test_change_type_assert_missing_value(self):
         config = LoggingConfiguration()
-        self.assertRaises(
-            AssertionError,
-            lambda: config.changed(LoggingConfiguration.MODIFIED, ""))
-        self.assertRaises(
-            AssertionError,
-            lambda: config.changed(LoggingConfiguration.CREATED, ""))
+
+        with self.assertRaises(AssertionError):
+            config.changed(LoggingConfiguration.MODIFIED, "")
+
+        with self.assertRaises(AssertionError):
+            config.changed(LoggingConfiguration.CREATED, "")
 
     def test_change_unknown_change_type(self):
         config = LoggingConfiguration()
-        self.assertRaises(
-            NotImplementedError,
-            lambda: config.changed("FOOBAR", "", ""))
+        with self.assertRaises(NotImplementedError):
+            config.changed("FOOBAR", "", "")
 
 
 class TestCallbackConfiguration(TestCase):
@@ -174,8 +175,8 @@ class TestCallbackConfiguration(TestCase):
 
     def test_assert_callable(self):
         config = ConfigurationWithCallbacks()
-        self.assertRaises(
-            AssertionError, lambda: config.register_callback("", None))
+        with self.assertRaises(AssertionError):
+            config.register_callback("", None)
 
     def test_add_callback(self):
         callback = lambda: None
