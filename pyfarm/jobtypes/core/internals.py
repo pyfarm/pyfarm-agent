@@ -233,11 +233,6 @@ class Process(object):
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
-        # pop off the protocol and thread since the process has terminated
-        protocol = self.protocols.pop(protocol.id)
-        thread = self.logging.pop(protocol.id)
-        thread.stop()
-
         # If this was the last process running
         # TODO: sequential processes
         if not self.protocols:
