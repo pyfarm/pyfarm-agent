@@ -302,12 +302,11 @@ class TypeChecks(object):
         if not isinstance(arguments, (list, tuple)):
             raise TypeError("Expected a list or tuple for `arguments`")
 
-        if isinstance(working_dir, STRING_TYPES) \
-                and not isdir(working_dir):
-            raise OSError(
-                "`working_dir` %s does not exist" % working_dir)
-
-        elif working_dir is not None:
+        if isinstance(working_dir, STRING_TYPES):
+            if not isdir(working_dir):
+                raise OSError(
+                    "`working_dir` %s does not exist" % working_dir)
+        else:
             raise TypeError("Expected a string for `working_dir`")
 
         if not isinstance(environment, dict):
