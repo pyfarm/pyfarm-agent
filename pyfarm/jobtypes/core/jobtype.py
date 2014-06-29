@@ -336,22 +336,22 @@ class JobType(Cache, Process, TypeChecks):
         return tuple(map(self.expandvars, cmdlist))
 
     # TODO: This needs more command line arguments and configuration options
-    def get_csvlog_path(self, protocol_uuid, now=None):
+    def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
         Returns the path to the comma separated value (csv) log file.
         The agent stores logs from processes in a csv format so we can store
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
         """
-        self._check_csvlog_path_inputs(protocol_uuid, now)
+        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
-        if now is None:
-            now = datetime.utcnow()
+        if create_time is None:
+            create_time = datetime.utcnow()
 
         return join(
             config["task-log-dir"],
             "%s_%s_%s.csv" % (
-                now.strftime("%G%m%d%H%M%S"),
+                create_time.strftime("%G%m%d%H%M%S"),
                 self.assignment["job"]["id"], protocol_uuid))
 
     # TODO: internal implementation like the doc string says
