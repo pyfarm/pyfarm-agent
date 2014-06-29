@@ -23,7 +23,7 @@ from os.path import dirname, isfile
 
 try:
     range_ = xrange
-except NameError:
+except NameError:  # pragma: no cover
     range_ = range
 
 from twisted.internet import reactor
@@ -33,6 +33,7 @@ from twisted.python.threadpool import ThreadPool
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import UnicodeCSVWriter
 
 STDOUT = 0
 STDERR = 1
@@ -74,21 +75,23 @@ def open_log(path, ignore_existing=False):
 
 class Log(object):
     """
-    Internal object which represents a log object.
+    Internal class which represents a log object and handle
+    data that's internal to log handling.
     """
     def __init__(self, fileobj):
         self.lock = RLock()
         self.file = fileobj
         self.messages = deque()
         self.written = 0
+        self.csv = UnicodeCSVWriter(self.file)
 
 
 class LoggerPool(ThreadPool):
     """
     This is the thread pool which will handle create of log file
-    and storage of messages from processes to disk.  Configuration of
+    and storage of messages from processes.  Configuration of
     some of the internals of this class can accomplished using the
-    `jobtype_logging_threadpool` config value.
+    ``jobtype_logging_threadpool`` config value in ``jobtypes.yml``.
     """
     reactor = reactor
     logs = {}
@@ -107,7 +110,7 @@ class LoggerPool(ThreadPool):
                 "Config value "
                 "jobtype_logging_threadpool.min_threads must be >= 1")
 
-        # Calculate maxthreads of a value was not provided for us
+        # Calculate maxthreads if a value was not provided for us
         if maxthreads == "auto":
             auto_maxthreads = min(int(cpu.total_cpus() * 1.5), 20)
             maxthreads = max(auto_maxthreads, minthreads)
@@ -124,11 +127,11 @@ class LoggerPool(ThreadPool):
         logger.debug("Created %r", self)
         reactor.addSystemEventTrigger("before", "shutdown", self.stop)
 
-    def __repr__(self):
-        return "%s(min=%r, max=%r)" % (
-            self.__class__.__name__, self.min, self.max)
-
     def defer(self, function, *args, **kwargs):
+        """
+        Wrapper around :func:`.deferToThreadPool` so we can defer some
+        functions to this pool's workers.
+        """
         return deferToThreadPool(self.reactor, self, function, *args, **kwargs)
 
     def open_log(self, protocol, path, ignore_existing=False):
@@ -172,8 +175,15 @@ class LoggerPool(ThreadPool):
             self.callInThread(self.flush, log)
 
     def flush(self, log):
+        """
+        Takes the given log object and flushes the messages it
+        contains to the attached file object.
+        """
         while True:
-            # Only one thread at a time may retrieve objects
+            # Only one thread at a time may retrieve objects, write
+            # to the file, and flush.  This helps to preserve the
+            # order of the messages and cuts down on wasted cycles
+            # from switching contexts.
             with log.lock:
                 try:
                     date, streamno, message = log.messages.popleft()
@@ -215,6 +225,7 @@ class LoggerPool(ThreadPool):
         return log
 
     def close(self, protocol_id):
+        """Closes the file handle for the given protocol id."""
         log = self.logs.pop(protocol_id, None)
         if log is not None:
             self.flush(log)
@@ -222,6 +233,15 @@ class LoggerPool(ThreadPool):
             logger.info("Closed %s", log.file.name)
 
     def stop(self):
+        """
+        Flushes any remaining data, closes the underlying files, then stops
+        the thread pool.
+
+        .. warning::
+
+            Because this method is usually called when the reactor is
+            stopping all file handling happens in the main thread.
+        """
         logger.info("Logging thread pool is shutting down.")
         self.stopped = True
 
