@@ -14,13 +14,13 @@ env:
     - PIP_DOWNLOAD_CACHE=/tmp/pip_download_cache
     - MASTER_PYTHON_VERSION=3.4
     - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
-    - PYFARM_AGENT_TEST_HTTP_SCHEME=https  # test with https to ensure there's not any obvious problems handling ssl
+    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
 
   # TODO: test the agent against multiple configurations, independent of DB configuration.
   # NOTE: Do not use sqlite here as it breaks because of concurrency issues
   matrix:
-    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis" PYFARM_AGENT_TEST_HTTP_SCHEME="http"
-    - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis" PYFARM_AGENT_TEST_HTTP_SCHEME="https"
+    - PYFARM_AGENT_TEST_HTTP_SCHEME="http"
+    - PYFARM_AGENT_TEST_HTTP_SCHEME="https"
 
 matrix:
   fast_finish: true
