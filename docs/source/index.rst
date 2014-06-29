@@ -10,8 +10,9 @@ a host by the master.
 .. toctree::
     :maxdepth: 2
 
-    environment
     commands
+    environment
+    configuration
     modules/pyfarm.agent
     modules/pyfarm.jobtypes
 
