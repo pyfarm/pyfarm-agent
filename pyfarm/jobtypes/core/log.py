@@ -138,7 +138,7 @@ class LoggerPool(ThreadPool):
             minthreads=minthreads, maxthreads=maxthreads,
             name=self.__class__.__name__)
 
-    def defer(self, function, *args, **kwargs):
+    def defer(self, function, *args, **kwargs):  # pragma: no cover
         """
         Wrapper around :func:`.deferToThreadPool` so we can defer some
         functions to this pool's workers.
