@@ -38,7 +38,7 @@ from pyfarm.agent.utility import UnicodeCSVWriter
 STDOUT = 0
 STDERR = 1
 STREAMS = set([STDOUT, STDERR])
-CREATE_LOG_LOG = Lock()
+CREATE_LOG_LOCK = Lock()
 
 logger = getLogger("jobtypes.log")
 
@@ -56,7 +56,7 @@ def open_log(path, ignore_existing=False):
     """
     parent_dir = dirname(path)
 
-    with CREATE_LOG_LOG:
+    with CREATE_LOG_LOCK:
         if not ignore_existing and isfile(path):
             raise OSError("Log exists: %r" % path)
 
@@ -65,7 +65,7 @@ def open_log(path, ignore_existing=False):
         try:
             makedirs(parent_dir)
             logger.debug("Created directory %r", parent_dir)
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if e.errno != EEXIST:
                 raise
 
