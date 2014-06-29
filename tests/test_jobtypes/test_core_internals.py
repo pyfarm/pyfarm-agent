@@ -14,8 +14,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import Thread
-from Queue import Queue
+from os import urandom
+from os.path import isdir
+from textwrap import dedent
+
+try:
+    from httplib import CREATED
+except ImportError:  # pragma: no cover
+    from http.client import CREATED
 
 
-from pyfarm.agent.testutil import TestCase
+from twisted.internet.defer import Deferred
+
+from pyfarm.core.enums import LINUX, MAC, WINDOWS
+from pyfarm.agent.config import config
+from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.http.core.client import post, get
+from pyfarm.jobtypes.core.internals import Cache, pwd, grp
+
+
+class TestImports(TestCase):
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_windows(self):
+        self.assertIs(pwd, NotImplemented)
+        self.assertIs(grp, NotImplemented)
+
+    @skipIf(not any([LINUX, MAC]), "Not Linux/Mac")
+    def test_posix(self):
+        self.assertIsNot(pwd, NotImplemented)
+        self.assertIsNot(grp, NotImplemented)
+
+
+class TestCache(TestCase):
+    @skipIf(Cache.CACHE_DIRECTORY is None, "Cache.CACHE_DIRECTORY not set")
+    def test_cache_directory(self):
+        self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
+
+    def test_download_jobtype(self):
+        classname = "Test%s" % urandom(8).encode("hex")
+        sourcecode = dedent("""
+        from pyfarm.jobtypes.core.jobtype import JobType
+        class %s(JobType):
+            pass""" % classname)
+
+        cache = Cache()
+        finished = Deferred()
+
+        def post_success(response):
+            if response.code == CREATED:
+                data = response.json()
+                download = cache._download_jobtype(
+                    data["name"], data["version"])
+                download.addCallback(finished.callback)
+                download.addErrback(finished.errback)
+
+            else:
+                finished.errback(response.json())
+
+        post(config["master-api"] + "/jobtypes/",
+             callback=post_success, errback=finished.errback,
+             data={"name": classname,
+                   "classname": classname,
+                   "code": sourcecode})
+        return finished
