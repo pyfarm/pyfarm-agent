@@ -29,13 +29,14 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet.defer import Deferred
 
-from pyfarm.core.enums import LINUX, MAC, WINDOWS
+from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
-from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks, pwd, grp
+from pyfarm.jobtypes.core.internals import (
+    ITERABLE_CONTAINERS, Cache, Process, TypeChecks, pwd, grp)
 from pyfarm.jobtypes.core.log import logpool, CSVLog
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
@@ -251,3 +252,69 @@ class TestSpawnProcessTypeChecks(TestCase):
         with self.assertRaisesRegexp(EnvironmentError, ".*change user or.*"):
             checks._check_spawn_process_inputs(
                 "", [], gettempdir(), {}, "foo", "foo")
+
+
+class TestMiscTypeChecks(TestCase):
+    def test_expandvars_value_not_string(self):
+        checks = TypeChecks()
+        checks._check_expandvars_inputs("", {})
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*value.*"):
+            checks._check_expandvars_inputs(None, None)
+
+    def test_expandvars_environment_not_dict(self):
+        checks = TypeChecks()
+        checks._check_expandvars_inputs("", None)
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*environment.*"):
+            checks._check_expandvars_inputs("", 1)
+
+    def test_map(self):
+        checks = TypeChecks()
+        for objtype in STRING_TYPES:
+            checks._check_map_path_inputs(objtype())
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*path.*"):
+            checks._check_map_path_inputs(None)
+
+
+
+    def test_csvlog_path_tasks(self):
+        checks = TypeChecks()
+        for objtype in ITERABLE_CONTAINERS:
+            checks._check_csvlog_path_inputs(objtype(), None)
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*tasks.*"):
+            checks._check_csvlog_path_inputs(None, None)
+
+    def test_csvlog_path_time(self):
+        checks = TypeChecks()
+        for objtype in ITERABLE_CONTAINERS:
+            checks._check_csvlog_path_inputs(objtype(), None)
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*now.*"):
+            checks._check_csvlog_path_inputs([], "")
+
+    def test_command_list(self):
+        checks = TypeChecks()
+        checks._check_command_list_inputs(tuple())
+        checks._check_command_list_inputs([])
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*cmdlist.*"):
+            checks._check_command_list_inputs(None)
+
+    def test_set_state_tasks(self):
+        checks = TypeChecks()
+        for objtype in ITERABLE_CONTAINERS:
+            checks._check_set_states_inputs(objtype(), WorkState.DONE)
+
+        with self.assertRaisesRegexp(TypeError, ".*for.*tasks.*"):
+            checks._check_set_states_inputs(None, None)
+
+    def test_set_state_state(self):
+        checks = TypeChecks()
+        for state in WorkState:
+            checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), state)
+
+        with self.assertRaisesRegexp(ValueError, ".*Expected.*state.*"):
+            checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
