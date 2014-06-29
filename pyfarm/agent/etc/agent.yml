@@ -11,3 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+# The user agent the master will use when connecting to the agent's
+# REST api.  This value should only be changed if the master's code
+# is updated with a new user agent.  Change this value has not effect
+# on the master.
+master_user_agent: PyFarm/1.0 (master)
