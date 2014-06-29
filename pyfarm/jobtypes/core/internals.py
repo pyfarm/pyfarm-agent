@@ -233,20 +233,9 @@ class Process(object):
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
-        # If this was the last process running
-        # TODO: sequential processes
-        if not self.protocols:
-            if not self.failed_processes:
-                self.deferred.callback(reason)
-                for task in self.assignment["tasks"]:
-                    self.set_task_state(task, WorkState.DONE, reason)
-            else:
-                self.deferred.errback()
-                for task in self.assignment["tasks"]:
-                    self.set_task_state(task, WorkState.FAILED, reason)
-
-    def _get_uid_gid_value(
-            self, value, value_name, func_name, module, module_name):
+    # complete coverage provided by other tests
+    def _get_uid_gid_value(self, value, value_name, func_name,
+                           module, module_name):  # pragma: no cover
         """
         Internal function which handles both user name and group conversion.
         """
