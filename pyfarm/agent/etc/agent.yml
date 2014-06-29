@@ -37,6 +37,11 @@ agent_user_data: ~/.pyfarm/agent
 # The location where agent updates should be stored.
 agent_updates_dir: "{agent_user_data}/updates"
 
+# If True then display unhandled tracebacks via the REST api.  Tracebacks
+# direct from the API is an indication of an unhandled error which you'll
+# normally want to have enabled to potential issues can be debugged.
+agent_http_api_show_tracebacks: True
+
 # Defines the number of seconds between iterations of pyfarm-supervisor's
 # agent status check.
 supervisor_interval: 5
