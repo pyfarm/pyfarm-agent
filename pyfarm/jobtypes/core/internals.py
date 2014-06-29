@@ -305,7 +305,7 @@ class TypeChecks(object):
         if isinstance(working_dir, STRING_TYPES) \
                 and not isdir(working_dir):
             raise OSError(
-                "`working_directory` %s does not exist" % working_dir)
+                "`working_dir` %s does not exist" % working_dir)
 
         elif working_dir is not None:
             raise TypeError("Expected a string for `working_dir`")
