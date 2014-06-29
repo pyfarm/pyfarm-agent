@@ -17,13 +17,24 @@
 from collections import deque
 from datetime import datetime
 from os import urandom
-from tempfile import mkdtemp
-from os.path import join, isfile, isdir
+from tempfile import mkdtemp, gettempdir
+from os.path import join, isfile, isdir, abspath
 
+from twisted.internet import reactor
+from twisted.internet.defer import Deferred
+
+from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility import UnicodeCSVWriter
+from pyfarm.agent.utility import UnicodeCSVWriter, uuid
+from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.jobtypes.core.log import (
-    CREATE_LOG_LOCK, STDOUT, STDERR, STREAMS, CSVLog, open_log)
+    CREATE_LOG_LOCK, STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool,
+    open_log)
+
+
+class FakeProtocol(object):
+    def __init__(self):
+        self.uuid = uuid()
 
 
 class TestModuleLevel(TestCase):
@@ -102,3 +113,146 @@ class TestCSVLog(TestCase):
         data = (datetime.utcnow(), STDOUT, 1, "hello")
         self.log.write(data)
         self.assertEqual(self.log.written, 1)
+
+
+class TestLoggerPool(TestCase):
+    def setUp(self):
+        super(TestLoggerPool, self).setUp()
+        self.pool = None
+        config["jobtype_logging_threadpool"]["min_threads"] = 1
+        config["jobtype_logging_threadpool"]["max_threads"] = 2
+
+    def tearDown(self):
+        if self.pool is not None:
+            self.pool.stop()
+
+    def create_test_file(self, create=True):
+        if not create:
+            path = join(gettempdir(), urandom(8).encode("hex"))
+            self.add_cleanup_path(path)
+            return path
+        else:
+            return super(TestLoggerPool, self).create_test_file()
+
+    def test_existing_pool(self):
+        self.assertIsInstance(logpool, LoggerPool)
+        self.assertTrue(logpool.started)
+
+    def test_invalid_minthreads(self):
+        config["jobtype_logging_threadpool"]["min_threads"] = 0
+
+        with self.assertRaises(ValueError):
+            LoggerPool()
+
+    def test_auto_max_maxthreads(self):
+        config["jobtype_logging_threadpool"]["max_threads"] = "auto"
+        pool = LoggerPool()
+        self.assertEqual(
+            pool.max, max(min(int(total_cpus() * 1.5), 20), pool.min))
+
+    def test_minthreads_greater_than_maxthreads(self):
+        config["jobtype_logging_threadpool"]["min_threads"] = 5
+        config["jobtype_logging_threadpool"]["max_threads"] = 1
+
+        with self.assertRaises(ValueError):
+            LoggerPool()
+
+    def test_protocol_already_open(self):
+        protocol = FakeProtocol()
+        pool = LoggerPool()
+        pool.logs[protocol.uuid] = None
+        with self.assertRaises(KeyError):
+            pool.open_log(protocol, self.create_test_file())
+
+    def test_creates_log(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+
+        def created(result):
+            proto, log = result
+            self.assertEqual(proto, protocol.uuid)
+            self.assertIsInstance(log, CSVLog)
+            self.assertTrue(isfile(log.file.name))
+            self.assertEqual(abspath(log.file.name), abspath(path))
+
+        log_created.addCallback(created)
+
+        return log_created
+
+    def test_no_log_when_stopped(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+
+        def created(_):
+            pool.stop()
+            pool.log(protocol.uuid, STDOUT, "")
+            self.assertEqual(pool.logs, {})
+
+        log_created.addCallback(created)
+
+        return log_created
+
+    def test_log(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+
+        def created(_):
+            message = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[0][-1], message)
+            self.assertEqual(pool.logs[protocol.uuid].lines, 1)
+
+        log_created.addCallback(created)
+
+        return log_created
+
+    def test_flush_from_log(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.max_queued_lines = 2
+        pool.flush_lines = 1
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+        finished = Deferred()
+
+        def created(_):
+            # log two messages
+            message1 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message1)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
+            message2 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message2)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
+            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+
+            # log a third message (which should cause a flush)
+            message3 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message3)
+
+            # Keep checking to see if the data has been flushed
+            def check_for_flush():
+                if list(pool.logs[protocol.uuid].messages) == []:
+                    self.assertEqual(pool.logs[protocol.uuid].written, 0)
+                    finished.callback(True)
+                else:
+                    # not flushed yet maybe?
+                    reactor.callLater(.1, check_for_flush)
+
+            reactor.callLater(.1, check_for_flush)
+
+        log_created.addCallback(created)
+
+        return finished
