@@ -337,7 +337,7 @@ class TypeChecks(object):
         if not isinstance(value, STRING_TYPES):
             raise TypeError("Expected a string for `value`")
 
-        if environment is not None or not isinstance(environment, dict):
+        if environment is not None and not isinstance(environment, dict):
             raise TypeError("Expected None or a dictionary for `environment`")
 
     def _check_map_path_inputs(self, path):
