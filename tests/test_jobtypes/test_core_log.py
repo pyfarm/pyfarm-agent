@@ -182,7 +182,6 @@ class TestLoggerPool(TestCase):
             self.assertEqual(abspath(log.file.name), abspath(path))
 
         log_created.addCallback(created)
-
         return log_created
 
     def test_no_log_when_stopped(self):
@@ -198,7 +197,6 @@ class TestLoggerPool(TestCase):
             self.assertEqual(pool.logs, {})
 
         log_created.addCallback(created)
-
         return log_created
 
     def test_log(self):
@@ -216,7 +214,6 @@ class TestLoggerPool(TestCase):
             self.assertEqual(pool.logs[protocol.uuid].lines, 1)
 
         log_created.addCallback(created)
-
         return log_created
 
     def test_flush_from_log(self):
@@ -257,5 +254,73 @@ class TestLoggerPool(TestCase):
             reactor.callLater(.1, check_for_flush)
 
         log_created.addCallback(created)
-
         return finished
+
+    def test_flush_log_object(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.flush_lines = 1
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+
+        def created(_):
+            # log two messages
+            message1 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message1)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
+            message2 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message2)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
+            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+
+            result = pool.flush(pool.logs[protocol.uuid])
+            self.assertEqual(list(pool.logs[protocol.uuid].messages), [])
+            self.assertIs(result, pool.logs[protocol.uuid])
+            self.assertEqual(pool.logs[protocol.uuid].written, 0)
+
+        log_created.addCallback(created)
+        return log_created
+
+    def test_stop(self):
+        path = self.create_test_file(create=False)
+        protocol = FakeProtocol()
+        pool = self.pool = LoggerPool()
+        pool.start()
+        log_created = pool.open_log(protocol, path)
+
+        def created(_):
+            # log two messages
+            message1 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message1)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
+            message2 = urandom(16).encode("hex")
+            pool.log(protocol.uuid, STDOUT, message2)
+            self.assertEqual(
+                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
+            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+
+            log = pool.logs[protocol.uuid]
+            self.assertFalse(pool.stopped)
+            pool.stop()
+            self.assertTrue(pool.stopped)
+            self.assertNotIn(protocol.uuid, pool.logs)
+            self.assertTrue(log.file.closed)
+
+        log_created.addCallback(created)
+        return log_created
+
+    def test_start(self):
+        existing_entries = reactor._eventTriggers["shutdown"].before[:]
+        pool = self.pool = LoggerPool()
+        pool.start()
+        self.assertTrue(pool.started)
+
+        for entry in reactor._eventTriggers["shutdown"].before:
+            if entry not in existing_entries and entry[0] == pool.stop:
+                break
+        else:
+            self.fail("Shutdown even trigger not added")
