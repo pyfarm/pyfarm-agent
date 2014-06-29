@@ -46,7 +46,8 @@ from pyfarm.agent.http.core.client import get, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.log import STDOUT, logpool
 
-USER_GROUP_TYPES = list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]
+USER_GROUP_TYPES = tuple(
+    list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)])
 ITERABLE_CONTAINERS = (list, tuple, set)
 
 logcache = getLogger("jobtypes.cache")
