@@ -56,7 +56,7 @@ install:
   # Agent installation
   - . $VIRTUALENV_AGENT/bin/activate
   - retry pip install coverage python-coveralls --quiet
-  - if [[ $PYFARM_AGENT_TEST_HTTP_SCHEME == "https" ]]; retry pip install PyOpenSSL service_identity --quiet; fi
+  - if [[ $PYFARM_AGENT_TEST_HTTP_SCHEME == "https" ]]; then retry pip install PyOpenSSL service_identity --quiet; fi
   - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
   - retry pip install -e . --egg --quiet
   - pip freeze
