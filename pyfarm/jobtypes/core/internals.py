@@ -64,25 +64,23 @@ class Cache(object):
         config.get("jobtype_cache_directory", "")).safe_substitute(
         temp=tempfile.gettempdir())
 
-    if not CACHE_DIRECTORY:
-        CACHE_DIRECTORY = None
+    if not CACHE_DIRECTORY:  # pragma: no cover
+        CACHE_DIRECTORY = None  # make sure it's None
         logger.warning("Job type cache directory has been disabled.")
 
-    elif not isdir(CACHE_DIRECTORY):
+    else:
         try:
             os.makedirs(CACHE_DIRECTORY)
 
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if e.errno != EEXIST:
                 logger.error(
                     "Failed to create %r.  Job type caching is "
                     "now disabled.", CACHE_DIRECTORY)
                 raise
-
         else:
             logger.info("Created job type cache directory %r", CACHE_DIRECTORY)
 
-    else:
         logger.debug("Job type cache directory is %r", CACHE_DIRECTORY)
 
     @classmethod
@@ -122,7 +120,7 @@ class Cache(object):
         def write_to_disk(filename):
             try:
                 os.makedirs(dirname(filename))
-            except (IOError, OSError):
+            except (IOError, OSError):  # pragma: no cover
                 pass
 
             if isfile(filename):
@@ -138,7 +136,7 @@ class Cache(object):
                 return filename, jobtype
 
             # If the above fails, use a temp file instead
-            except (IOError, OSError) as e:
+            except (IOError, OSError) as e:  # pragma: no cover
                 fd, tmpfilepath = tempfile.mkstemp(suffix=".py")
                 logcache.warning(
                     "Failed to write %s, using %s instead: %s",
@@ -156,7 +154,7 @@ class Cache(object):
             logcache.info("Created cache for %r at %s", cache_key, filename)
             success.callback((jobtype, filename))
 
-        def failed_to_write_to_disk(error):
+        def failed_to_write_to_disk(error):  # pragma: no cover
             logcache.error(
                 "Failed to write job type cache to disk, will use "
                 "memory instead: %s", error)
@@ -321,7 +319,7 @@ class TypeChecks(object):
 
         admin = is_administrator()
 
-        if WINDOWS:
+        if WINDOWS:  # pragma: no cover
             if user is not None:
                 logger.warning("`user` is ignored on Windows")
 
