@@ -24,6 +24,7 @@ the :class:`pyfarm.jobtypes.core.jobtype.JobType` class.
 
 import os
 import tempfile
+from errno import EEXIST
 from datetime import datetime
 from os.path import dirname, isdir, join, isfile
 from string import Template
@@ -70,11 +71,12 @@ class Cache(object):
         try:
             os.makedirs(CACHE_DIRECTORY)
 
-        except OSError:
-            logger.error(
-                "Failed to create %r.  Job type caching is "
-                "now disabled.", CACHE_DIRECTORY)
-            CACHE_DIRECTORY = None
+        except OSError as e:
+            if e.errno != EEXIST:
+                logger.error(
+                    "Failed to create %r.  Job type caching is "
+                    "now disabled.", CACHE_DIRECTORY)
+                raise
 
         else:
             logger.info("Created job type cache directory %r", CACHE_DIRECTORY)
@@ -102,7 +104,7 @@ class Cache(object):
         return result
 
     @classmethod
-    def _filename(cls, cache_key, classname):
+    def _cache_filepath(cls, cache_key, classname):
         return str(join(
             cls.CACHE_DIRECTORY, "%s_%s.py" % (cache_key, classname)))
 
@@ -113,7 +115,7 @@ class Cache(object):
         to store it on disk.  In the rare even that we fail to write it
         to disk, we store it in memory instead.
         """
-        filename = cls._filename(cache_key, jobtype["filename"])
+        filename = cls._cache_filepath(cache_key, jobtype["classname"])
         success = Deferred()
 
         def write_to_disk(filename):
