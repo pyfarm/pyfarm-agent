@@ -183,7 +183,8 @@ class TestCase(_TestCase):
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
-        config.clear(callbacks=True)
+        config.pop("agent", None)
+        config.pop("agent-id", None)
         config.update({
             "systemid": system.system_identifier(),
             "ram-report-delta": 100,
