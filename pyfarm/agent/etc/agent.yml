@@ -52,4 +52,4 @@ agent_unittest:
     dns_test_hostname: example.com
     client_redirect_target: http://example.com
     client_api_test_url_https: https://httpbin.org
-    client_api_test_url_http: https://httpbin.org
+    client_api_test_url_http: http://httpbin.org
