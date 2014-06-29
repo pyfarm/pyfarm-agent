@@ -227,6 +227,12 @@ class TestSpawnProcessTypeChecks(TestCase):
             checks._check_spawn_process_inputs(
                 "", [], None, None, None, None)
 
+    def test_workdir_missing(self):
+        checks = TypeChecks()
+        with self.assertRaises(OSError):
+            checks._check_spawn_process_inputs(
+                "", [], urandom(8).encode("hex"), {}, "foo", "foo")
+
     def test_environment(self):
         checks = TypeChecks()
         with self.assertRaisesRegexp(TypeError, ".*for.*environment.*"):
