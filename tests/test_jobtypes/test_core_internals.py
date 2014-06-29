@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from os import urandom
-from os.path import isdir
+from os.path import isdir, join, isfile
 from textwrap import dedent
 
 try:
@@ -29,7 +29,7 @@ from twisted.internet.defer import Deferred
 from pyfarm.core.enums import LINUX, MAC, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.http.core.client import post, get
+from pyfarm.agent.http.core.client import post
 from pyfarm.jobtypes.core.internals import Cache, pwd, grp
 
 
@@ -46,7 +46,6 @@ class TestImports(TestCase):
 
 
 class TestCache(TestCase):
-    @skipIf(Cache.CACHE_DIRECTORY is None, "Cache.CACHE_DIRECTORY not set")
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
@@ -86,3 +85,28 @@ class TestCache(TestCase):
                    "classname": classname,
                    "code": sourcecode})
         return finished
+
+    def test_filename(self):
+        cache = Cache()
+        self.assertEqual(
+            cache._cache_filepath("foobar", "someclass"),
+            str(join(
+                Cache.CACHE_DIRECTORY, "foobar_someclass.py")))
+
+    def test_cache(self):
+        cache = Cache()
+        classname = "Test%s" % urandom(8).encode("hex")
+        code = urandom(8).encode("hex")
+        cache_key = "Key%s" % classname
+        filepath = cache._cache_filepath(cache_key, classname)
+        jobtype = {"classname": classname, "code": code}
+
+        def written(data):
+            self.assertEqual(data[0]["classname"], classname)
+            self.assertEqual(data[1], filepath)
+            self.assertTrue(isfile(filepath))
+
+        cached = cache._cache_jobtype(cache_key, jobtype)
+        cached.addCallback(written)
+        return cached
+
