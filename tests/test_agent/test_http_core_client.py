@@ -26,7 +26,7 @@ from twisted.web.error import SchemeNotSupported
 from twisted.web.client import Response as TWResponse, Headers, ResponseDone
 from pyfarm.core.enums import STRING_TYPES
 
-from pyfarm.agent.testutil import TestCase, BaseRequestTestCase, skipIf
+from pyfarm.agent.testutil import TestCase, BaseRequestTestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import (
     Request, Response, request, head, get, post, put, patch, delete, build_url,
@@ -103,7 +103,7 @@ class RequestTestCase(BaseRequestTestCase):
 
     def get_url(self, url):
         assert isinstance(url, STRING_TYPES)
-        return self.base_url + ("/%s" % url if not url.startswith("/") else url)
+        return self.TEST_URL + ("/%s" % url if not url.startswith("/") else url)
 
     def get(self, url, **kwargs):
         return get(self.get_url(url), **kwargs)
@@ -161,24 +161,16 @@ class RequestTestCase(BaseRequestTestCase):
 
 class TestClientErrors(RequestTestCase):
     def test_unsupported_scheme(self):
-        self.base_url = ""
-        return self.get(
-            "/get",
-            callback=lambda _: None,
-            errback=lambda failure:
-                self.assertIs(failure.type, SchemeNotSupported))
+        return get("zzz://httpbin.org/",
+                   callback=lambda _: self.fail("Unexpected success"),
+                   errback=lambda failure:
+                   self.assertIs(failure.type, SchemeNotSupported))
 
-    # This keeps failing on travis for some reason, but the error cannot be
-    # reproduced locally. Skip this test on travis for now, but once we
-    # find out what's happening there, it should be enabled again.
-    @skipIf("TRAVIS" in os.environ, "Fails on Travis")
     def test_unknown_hostname(self):
-        self.base_url = self.HTTP_SCHEME + "://" + os.urandom(32).encode("hex")
-        return self.get(
-            "/",
-            callback=lambda _: None,
-            errback=lambda failure:
-                self.assertIs(failure.type, DNSLookupError))
+        return get(self.HTTP_SCHEME + "://%s" % os.urandom(8).encode("hex"),
+                   callback=lambda _: self.fail("Unexpected success"),
+                   errback=lambda failure:
+                   self.assertIs(failure.type, DNSLookupError))
 
 
 class TestRetryDelay(TestCase):
