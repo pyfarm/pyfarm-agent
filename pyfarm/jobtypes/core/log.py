@@ -204,23 +204,24 @@ class LoggerPool(ThreadPool):
                     else:
                         log.written += 1
 
-                # Check if we should flush to disk.  We're doing
-                # this outside the above because it ensures we
-                # only have to run this logic once instead of
-                # once per message.
-                if log.written >= self.flush_lines:
-                    try:
-                        log.file.flush()
-                    except (OSError, IOError) as e:
-                        logger.error(
-                            "Failed to flush output to %s: %s",
-                            log.file.name, e)
-                    else:
-                        logger.debug(
-                            "%s wrote %s lines to %s",
-                            self.currentThread().name, log.written,
-                            log.file.name)
-                        log.written = 0
+        # Check if we should flush to disk.  We're doing
+        # this outside the above because it ensures we
+        # only have to run this logic once instead of
+        # once per message.
+        with log.lock:
+            if log.written >= self.flush_lines:
+                try:
+                    log.file.flush()
+                except (OSError, IOError) as e:
+                    logger.error(
+                        "Failed to flush output to %s: %s",
+                        log.file.name, e)
+                else:
+                    logger.debug(
+                        "%s wrote %s lines to %s",
+                        self.currentThread().name, log.written,
+                        log.file.name)
+                    log.written = 0
 
         return log
 
