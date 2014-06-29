@@ -56,6 +56,8 @@ logfile = getLogger("jobtypes.log")
 class Cache(object):
     """Internal methods for caching job types"""
     cache = {}
+    JOBTYPE_VERSION_URL = \
+        "%(master-api)s/jobtypes/%(name)s/versions/%(version)s"
     CACHE_DIRECTORY = Template(
         config.get("jobtype_cache_directory", "")).safe_substitute(
         temp=tempfile.gettempdir())
@@ -87,8 +89,9 @@ class Cache(object):
         method will pass the response it receives to :meth:`_cache_jobtype`
         however failures will be retried.
         """
-        url = str(  # no unicode allowed in get()
-            config["master-api"] + "/jobtypes/" + name + "/" + str(version))
+        url = str(cls.JOBTYPE_VERSION_URL % {
+            "master-api": config["master-api"],
+            "name": name, "version": version})
 
         result = Deferred()
         download = lambda *_: \
@@ -99,15 +102,18 @@ class Cache(object):
         return result
 
     @classmethod
+    def _filename(cls, cache_key, classname):
+        return str(join(
+            cls.CACHE_DIRECTORY, "%s_%s.py" % (cache_key, classname)))
+
+    @classmethod
     def _cache_jobtype(cls, cache_key, jobtype):
         """
         Once the job type is downloaded this classmethod is called
         to store it on disk.  In the rare even that we fail to write it
         to disk, we store it in memory instead.
         """
-        filename = str(join(
-            cls.CACHE_DIRECTORY,
-            "_".join(map(str, cache_key)) + "_" + jobtype["classname"] + ".py"))
+        filename = cls._filename(cache_key, jobtype["filename"])
         success = Deferred()
 
         def write_to_disk(filename):
