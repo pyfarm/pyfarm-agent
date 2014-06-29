@@ -160,6 +160,10 @@ class LoggingConfiguration(Configuration):
 
         super(LoggingConfiguration, self).update(data, **kwargs)
 
+    def _expandvars(self, value):
+        return super(
+            LoggingConfiguration, self)._expandvars(value.format(**self))
+
     def changed(self, change_type, key, new_value=NOTSET, old_value=NOTSET):
         """
         This method is run whenever one of the keys in this object

@@ -73,6 +73,7 @@ class LoggingHistory(Handler):
     megabytes of memory on Linux.  Results should be similar on other
     platforms.
     """
+    # TODO: use config value here instead (but avoid circular imports)
     data = deque(
         maxlen=read_env_int("PYFARM_AGENT_LOG_HISTORY_MAX_LENGTH", 20000))
 
@@ -280,10 +281,6 @@ def getLogger(name):
     """
     Instances and returns a :class:`.Logger` object with the proper
     name.  New loggers should always be created using this function.
-
-    :raises RuntimeError:
-        raised if this function is called before the observer has
-        been started with :func:`start_logging`
     """
     if not OBSERVER.STARTED:
         warn("Observer not yet started")
