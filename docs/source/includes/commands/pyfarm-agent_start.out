@@ -98,7 +98,7 @@ Logging Options:
 
   --log LOG             If provided log all output from the agent to this
                         path. This will append to any existing log data.
-                        [default: .pyfarm_agent/agent.log]
+                        [default: /tmp/pyfarm/agent/agent.log]
   --capture-process-output
                         If provided then all log output from each process
                         launched by the agent will be sent through agent's

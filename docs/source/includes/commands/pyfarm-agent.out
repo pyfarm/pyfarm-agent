@@ -31,7 +31,7 @@ Agent Network Service:
                         agent connects.
   --systemid-cache SYSTEMID_CACHE
                         The location to cache the value for --systemid.
-                        [default: .pyfarm_agent/systemid]
+                        [default: /tmp/pyfarm/agent/systemid]
 
 Network Resources:
   Resources which the agent will be communicating with.
@@ -50,7 +50,7 @@ Process Control:
   process id file.
 
   --pidfile PIDFILE     The file to store the process id in. [default:
-                        .pyfarm_agent/agent.pid]
+                        /tmp/pyfarm/agent/agent.pid]
   -n, --no-daemon       If provided then do not run the process in the
                         background.
   --chroot CHROOT       The directory to chroot the agent do upon launch. This
