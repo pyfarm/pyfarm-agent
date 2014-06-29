@@ -20,6 +20,7 @@ import re
 import socket
 import sys
 import tempfile
+from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
@@ -82,15 +83,23 @@ if ":" not in PYFARM_AGENT_MASTER:
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
-def skip(should_skip, reason):
-    """Decorator to skip a test when ``should_skip`` is True."""
-    def wrapper(func):
-        def wrapped_func(*args, **kwargs):
-            if should_skip:
-                raise SkipTest(reason)
+class skipIf(object):
+    """
+    Wrapping a test with this class will allow the test to
+    be skipped if ``should_skip`` evals as True.
+    """
+    def __init__(self, should_skip, reason):
+        self.should_skip = should_skip
+        self.reason = reason
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if callable(self.should_skip) and self.should_skip() \
+                    or self.should_skip:
+                raise SkipTest(self.reason)
             return func(*args, **kwargs)
-        return wrapped_func
-    return wrapper
+        return wrapper
 
 
 class TestCase(_TestCase):
