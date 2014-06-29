@@ -88,7 +88,7 @@ def skip(should_skip, reason):
     def wrapper(func):
         @wraps(func)
         def wrapped_func(*args, **kwargs):
-            if not should_skip:
+            if should_skip:
                 raise SkipTest(reason)
             return func(*args, **kwargs)
         return wrapped_func
