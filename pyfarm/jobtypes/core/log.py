@@ -79,6 +79,11 @@ class CSVLog(object):
     data that's internal to log handling.
     """
     def __init__(self, fileobj):
+        # Check the type explicit here because UnicodeCSVWriter will
+        # happy accept a non-file object the fail later.
+        if not isinstance(fileobj, file):
+            raise TypeError("`fileobj` should be a file")
+
         self.lock = RLock()
         self.file = fileobj
         self.messages = deque()
