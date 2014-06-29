@@ -52,8 +52,8 @@ from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
-from pyfarm.jobtypes.core.internals import (
-    STDERR, STDOUT, Cache, Process, TypeChecks, LoggingThread)
+from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, LoggerPool
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ReplaceEnvironment)
 
@@ -62,8 +62,14 @@ logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 ProcessData = namedtuple(
-    "ProcessData",
-    ("protocol", "log_thread", "started", "stopped"))
+    "ProcessData", ("protocol", "started", "stopped"))
+
+try:
+    LOGGER_POOL
+except NameError:
+    LOGGER_POOL = LoggerPool()
+    LOGGER_POOL.start()
+
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
@@ -104,8 +110,6 @@ class JobType(Cache, Process, TypeChecks):
         # config dictionary.
         self.uuid = uuid()
         config["jobtypes"][self.uuid] = self
-
-        self.stopped = Deferred()
 
         self.processes = {}
         self.failed_processes = set()
@@ -443,17 +447,6 @@ class JobType(Cache, Process, TypeChecks):
         if not isinstance(process_protocol, ProcessProtocol):
             raise TypeError("Expected ProcessProtocol for `protocol`")
 
-        # Capture the protocol instance so we can keep track
-        # of the process we're about to spawn and start the
-        # logging thread.
-        log_path = self.get_csvlog_path(process_protocol.uuid)
-        log_thread = LoggingThread(log_path)
-        log_thread.stop()
-
-        self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, log_thread=log_thread,
-            started=Deferred(), stopped=Deferred())
-
         # NOTE: `env` should always be None, see the comment below
         # for more details
         kwargs = {"args": arguments, "env": None}
@@ -464,17 +457,28 @@ class JobType(Cache, Process, TypeChecks):
         if gid is not None:
             kwargs.update(gid=gid)
 
-        # reactor.spawnProcess does different things with the environment
-        # depending on what platform you're on and what you're passing in.
-        # To avoid inconsistent behavior, we replace os.environ with
-        # our own environment so we can launch the process.  After launching
-        # we replace the original environment.  See
-        #   http://twistedmatrix.com/documents/current
-        #   /api/twisted.internet.interfaces.IReactorProcess.html
-        # For more detailed information on how specific platforms handle
-        # the environment.
-        with ReplaceEnvironment(environment):
-            reactor.spawnProcess(process_protocol, command, **kwargs)
+        self.processes[process_protocol.uuid] = ProcessData(
+            protocol=process_protocol, started=Deferred(), stopped=Deferred())
+
+        def spawn_process():
+            # reactor.spawnProcess does different things with the environment
+            # depending on what platform you're on and what you're passing in.
+            # To avoid inconsistent behavior, we replace os.environ with
+            # our own environment so we can launch the process.  After launching
+            # we replace the original environment.  See
+            #   http://twistedmatrix.com/documents/current
+            #   /api/twisted.internet.interfaces.IReactorProcess.html
+            # For more detailed information on how specific platforms handle
+            # the environment.
+            with ReplaceEnvironment(environment):
+                reactor.spawnProcess(process_protocol, command, **kwargs)
+
+        # Capture the protocol instance so we can keep track
+        # of the process we're about to spawn and start the
+        # logging thread.
+        log_path = self.get_csvlog_path(process_protocol.uuid)
+        deferred = LOGGER_POOL.open_log(process_protocol, log_path)
+        deferred.addCallback(spawn_process)
 
     def start(self):
         """
@@ -814,7 +818,7 @@ class JobType(Cache, Process, TypeChecks):
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, line)
         else:
-            self._log_in_thread(protocol, STDOUT, line)
+            LOGGER_POOL.log(protocol.uuid, STDOUT, line)
 
         self.process_stdout_line(protocol, line)
 
@@ -842,7 +846,7 @@ class JobType(Cache, Process, TypeChecks):
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
-            self._log_in_thread(protocol, STDERR, stderr)
+            LOGGER_POOL.log(protocol.uuid, STDERR, stderr)
 
     def received_stderr(self, protocol, stderr):
         """

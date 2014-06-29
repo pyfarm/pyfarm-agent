@@ -43,10 +43,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.jobtypes.core.log import STDOUT
 
-STDOUT = 0
-STDERR = 1
-STREAMS = set([STDOUT, STDERR])
 USER_GROUP_TYPES = list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]
 ITERABLE_CONTAINERS = (list, tuple, set)
 
@@ -240,18 +238,6 @@ class Process(object):
                 self.deferred.errback()
                 for task in self.assignment["tasks"]:
                     self.set_task_state(task, WorkState.FAILED, reason)
-
-    def _log_in_thread(self, protocol, stream_type, data):
-        """
-        Internal implementation called several methods including
-        :meth:`_received_stdout`, :meth:`_received_stderr`,
-        :meth:`_process_started` and others.
-
-        This method takes the incoming protocol object and retrieves the thread
-        which is handling logging for a given process.  Each message will then
-        be queued and written to disk at the next opportunity.
-        """
-        self.logging[protocol.id].put(stream_type, data)
 
     def _get_uid_gid_value(
             self, value, value_name, func_name, module, module_name):
