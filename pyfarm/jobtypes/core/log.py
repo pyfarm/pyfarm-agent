@@ -264,3 +264,12 @@ class LoggerPool(ThreadPool):
         ThreadPool.start(self)
         logger.info(
             "Started logger thread pool (min=%s, max=%s)", self.min, self.max)
+
+try:
+    logpool
+    logger.warning(
+        "A logger pool was already setup, seems like the log module has "
+        "been imported more than once.")
+except NameError:
+    logpool = LoggerPool()
+    logpool.start()

@@ -53,7 +53,7 @@ from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
 from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
-from pyfarm.jobtypes.core.log import STDOUT, STDERR, LoggerPool
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import (
     ProcessProtocol, ReplaceEnvironment)
 
@@ -63,12 +63,6 @@ process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 ProcessData = namedtuple(
     "ProcessData", ("protocol", "started", "stopped"))
-
-try:
-    LOGGER_POOL
-except NameError:
-    LOGGER_POOL = LoggerPool()
-    LOGGER_POOL.start()
 
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
@@ -477,7 +471,7 @@ class JobType(Cache, Process, TypeChecks):
         # of the process we're about to spawn and start the
         # logging thread.
         log_path = self.get_csvlog_path(process_protocol.uuid)
-        deferred = LOGGER_POOL.open_log(process_protocol, log_path)
+        deferred = logpool.open_log(process_protocol, log_path)
         deferred.addCallback(spawn_process)
 
     def start(self):
@@ -818,7 +812,7 @@ class JobType(Cache, Process, TypeChecks):
         if config["capture-process-output"]:
             process_stdout.info("task %r: %s", protocol.id, line)
         else:
-            LOGGER_POOL.log(protocol.uuid, STDOUT, line)
+            logpool.log(protocol.uuid, STDOUT, line)
 
         self.process_stdout_line(protocol, line)
 
@@ -846,7 +840,7 @@ class JobType(Cache, Process, TypeChecks):
         if config["capture-process-output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
-            LOGGER_POOL.log(protocol.uuid, STDERR, stderr)
+            logpool.log(protocol.uuid, STDERR, stderr)
 
     def received_stderr(self, protocol, stderr):
         """

@@ -43,7 +43,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
-from pyfarm.jobtypes.core.log import STDOUT
+from pyfarm.jobtypes.core.log import STDOUT, logpool
 
 USER_GROUP_TYPES = list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]
 ITERABLE_CONTAINERS = (list, tuple, set)
@@ -196,7 +196,7 @@ class Process(object):
         the state change.
         """
         logger.info("%r started", protocol)
-        self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
+        logpool.log(protocol.uuid, STDOUT, "Started %r" % protocol)
 
     def _process_stopped(self, protocol, reason):
         """
@@ -204,21 +204,21 @@ class Process(object):
 
         If ``--capture-process-output`` was set when the agent was launched
         all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to
-        :meth:`_log_in_thread` so it can be stored in a file without
-        blocking the event loop.
+        of the agent itself.  In all other cases we send the data to the
+        logger pool so it can be stored in a file without blocking the
+        event loop.
         """
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
 
         if self.is_successful(reason):
-            self._log_in_thread(
-                protocol, STDOUT,
+            logpool.log(
+                protocol.uuid, STDOUT,
                 "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
             self.failed_processes.append((protocol, reason))
-            self._log_in_thread(
-                protocol, STDOUT,
+            logpool.log(
+                protocol.uuid, STDOUT,
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
