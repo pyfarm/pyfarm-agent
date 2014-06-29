@@ -73,7 +73,7 @@ def open_log(path, ignore_existing=False):
         return open(path, "w")
 
 
-class Log(object):
+class CSVLog(object):
     """
     Internal class which represents a log object and handle
     data that's internal to log handling.
@@ -82,8 +82,16 @@ class Log(object):
         self.lock = RLock()
         self.file = fileobj
         self.messages = deque()
+        self.lines = 0
         self.written = 0
         self.csv = UnicodeCSVWriter(self.file)
+
+    def write(self, data):
+        """Writes the given data to the underlying csv object."""
+        date, streamno, lineno, message = data
+        self.csv.writerow(
+            [date.isoformat(), str(streamno), str(lineno), message])
+        self.written += 1
 
 
 class LoggerPool(ThreadPool):
@@ -150,7 +158,7 @@ class LoggerPool(ThreadPool):
                 "Created log for protocol %r at %r",
                 impacted_protocol.id, stream.name)
 
-            self.logs[impacted_protocol.id] = Log(stream)
+            self.logs[impacted_protocol.id] = CSVLog(stream)
             return impacted_protocol.id, self.logs[impacted_protocol.id]
 
         deferred = self.defer(open_log, path, ignore_existing=ignore_existing)
@@ -169,7 +177,8 @@ class LoggerPool(ThreadPool):
 
         # This operation is atomic so we're safe to keep
         log = self.logs[protocol_id]
-        log.messages.append((datetime.utcnow(), streamno, message))
+        log.lines += 1
+        log.messages.append((datetime.utcnow(), streamno, log.lines, message))
 
         if len(log.messages) > self.max_queued_lines:
             self.callInThread(self.flush, log)
@@ -186,23 +195,20 @@ class LoggerPool(ThreadPool):
             # from switching contexts.
             with log.lock:
                 try:
-                    date, streamno, message = log.messages.popleft()
+                    data = log.messages.popleft()
                 except IndexError:
                     break
                 else:
                     try:
-                        print >> log.file, message
-
+                        log.write(data)
                     except (OSError, IOError) as e:
                         # Put the log message back in the queue
                         # so we're not losing data.  It may be lightly
                         # out of order now but we have a date stamp
                         # and it's more important we don't lose data.
-                        log.messages.appendleft((date, streamno, message))
+                        log.messages.appendleft(data)
                         logger.error(
                             "Failed to write to %s: %s", log.file.name, e)
-                    else:
-                        log.written += 1
 
         # Check if we should flush to disk.  We're doing
         # this outside the above because it ensures we
