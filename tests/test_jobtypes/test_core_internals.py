@@ -19,9 +19,9 @@ from os.path import isdir
 from textwrap import dedent
 
 try:
-    from httplib import CREATED
+    from httplib import CREATED, OK
 except ImportError:  # pragma: no cover
-    from http.client import CREATED
+    from http.client import CREATED, OK
 
 
 from twisted.internet.defer import Deferred
@@ -50,7 +50,7 @@ class TestCache(TestCase):
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
-    def test_download_jobtype(self):
+    def test_download(self):
         classname = "Test%s" % urandom(8).encode("hex")
         sourcecode = dedent("""
         from pyfarm.jobtypes.core.jobtype import JobType
@@ -65,7 +65,16 @@ class TestCache(TestCase):
                 data = response.json()
                 download = cache._download_jobtype(
                     data["name"], data["version"])
-                download.addCallback(finished.callback)
+
+                def downloaded(response):
+                    self.assertEqual(response.code, OK)
+                    data = response.json()
+                    self.assertEqual(data["name"], classname)
+                    self.assertEqual(data["classname"], classname)
+                    self.assertEqual(data["version"], 1)
+                    finished.callback(None)
+
+                download.addCallback(downloaded)
                 download.addErrback(finished.errback)
 
             else:
