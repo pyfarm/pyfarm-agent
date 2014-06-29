@@ -227,19 +227,15 @@ class TestCase(_TestCase):
 
 
 class BaseRequestTestCase(TestCase):
-    HTTP_SCHEME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    HOSTNAME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_HOSTNAME", "httpbin.org")
-    BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "%(scheme)s://%(hostname)s")
-    REDIRECT_TARGET = read_env(
-        "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
-    base_url = BASE_URL % {"scheme": HTTP_SCHEME, "hostname": HOSTNAME}
+    HTTP_SCHEME = read_env("PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
+    DNS_HOSTNAME = config["agent_unittest"]["dns_test_hostname"]
+    TEST_URL = config[
+        "agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
+    REDIRECT_TARGET = config["agent_unittest"]["client_redirect_target"]
 
     # DNS working?
     try:
-        socket.gethostbyname(HOSTNAME)
+        socket.gethostbyname(DNS_HOSTNAME)
     except socket.gaierror:
         RESOLVED_DNS_NAME = False
     else:
@@ -247,7 +243,7 @@ class BaseRequestTestCase(TestCase):
 
     # Basic http request working?
     try:
-        urlopen(base_url)
+        urlopen(TEST_URL)
     except IOError:
         HTTP_REQUEST_SUCCESS = False
     else:
@@ -255,8 +251,8 @@ class BaseRequestTestCase(TestCase):
 
     def setUp(self):
         if not self.RESOLVED_DNS_NAME:
-            self.skipTest("Could not resolve hostname %s" % self.HOSTNAME)
+            self.skipTest("Could not resolve hostname %s" % self.DNS_HOSTNAME)
 
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(
-                "Failed to send an http request to %s" % self.base_url)
+                "Failed to send an http request to %s" % self.TEST_URL)
