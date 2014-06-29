@@ -170,7 +170,7 @@ class TestClientErrors(RequestTestCase):
 
     # This keeps failing on travis for some reason, but the error cannot be
     # reproduced locally. Skip this test on travis for now, but once we
-    ## find out what's happening there, it should be reenabled again.
+    # find out what's happening there, it should be enabled again.
     @skip("TRAVIS" in os.environ, "Fails on Travis")
     def test_unknown_hostname(self):
         self.base_url = self.HTTP_SCHEME + "://" + os.urandom(32).encode("hex")
