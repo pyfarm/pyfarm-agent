@@ -83,12 +83,15 @@ if ":" not in PYFARM_AGENT_MASTER:
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
-def skip_on_ci(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if "BUILDBOT_UUID" in os.environ or "TRAVIS" in os.environ:
-            raise SkipTest("Skipped on CI")
-        return func(*args, **kwargs)
+def skip(should_skip, reason):
+    """Decorator to skip a test when ``should_skip`` is True."""
+    def wrapper(func):
+        @wraps(func)
+        def wrapped_func(*args, **kwargs):
+            if not should_skip:
+                raise SkipTest(reason)
+            return func(*args, **kwargs)
+        return wrapped_func
     return wrapper
 
 
