@@ -18,6 +18,7 @@
 from collections import namedtuple
 from os import urandom, devnull
 from os.path import isdir, join, isfile
+from tempfile import gettempdir
 from textwrap import dedent
 
 try:
@@ -27,14 +28,14 @@ except ImportError:  # pragma: no cover
 
 
 from twisted.internet.defer import Deferred
-from twisted.internet import reactor
 
 from pyfarm.core.enums import LINUX, MAC, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import uuid
-from pyfarm.jobtypes.core.internals import Cache, Process, pwd, grp
+from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks, pwd, grp
 from pyfarm.jobtypes.core.log import logpool, CSVLog
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
@@ -206,3 +207,47 @@ class TestProcess(TestCase):
             self.process._get_uid_gid_value(
                 "root", "username", "get_uid", pwd, "pwd"), 0)
 
+
+class TestSpawnProcessTypeChecks(TestCase):
+    def test_command(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*command.*"):
+            checks._check_spawn_process_inputs(
+                None, None, None, None, None, None)
+
+    def test_arguments(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*arguments.*"):
+            checks._check_spawn_process_inputs(
+                "", None, None, None, None, None)
+
+    def test_workdir_not_string(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*working_.*"):
+            checks._check_spawn_process_inputs(
+                "", [], None, None, None, None)
+
+    def test_environment(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*environment.*"):
+            checks._check_spawn_process_inputs(
+                "", [], gettempdir(), None, None, None)
+
+    def test_user(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*user.*"):
+            checks._check_spawn_process_inputs(
+                "", [], gettempdir(), {}, bool, None)
+
+    def test_group(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(TypeError, ".*for.*group.*"):
+            checks._check_spawn_process_inputs(
+                "", [], gettempdir(), {}, 0, bool)
+
+    @skipIf(is_administrator() or WINDOWS, "Cannot run on Windows or as root")
+    def test_cannot_change_user(self):
+        checks = TypeChecks()
+        with self.assertRaisesRegexp(EnvironmentError, ".*change user or.*"):
+            checks._check_spawn_process_inputs(
+                "", [], gettempdir(), {}, "foo", "foo")
