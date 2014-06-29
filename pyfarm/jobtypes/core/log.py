@@ -204,7 +204,7 @@ class LoggerPool(ThreadPool):
                 else:
                     try:
                         log.write(data)
-                    except (OSError, IOError) as e:
+                    except (OSError, IOError) as e:  # pragma: no cover
                         # Put the log message back in the queue
                         # so we're not losing data.  It may be lightly
                         # out of order now but we have a date stamp
@@ -221,7 +221,7 @@ class LoggerPool(ThreadPool):
             if log.written >= self.flush_lines:
                 try:
                     log.file.flush()
-                except (OSError, IOError) as e:
+                except (OSError, IOError) as e:  # pragma: no cover
                     logger.error(
                         "Failed to flush output to %s: %s",
                         log.file.name, e)
