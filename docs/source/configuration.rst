@@ -20,3 +20,15 @@ file lives at ``pyfarm/agent/etc/agent.yml`` in the source tree.
     :lines: 14-
     :linenos:
 
+
+Job Types
+---------
+
+The below is the current configuration file for job types.  This
+file lives at ``pyfarm/jobtypes/etc/jobtypes.yml`` in the source tree.
+
+.. literalinclude:: ../../pyfarm/jobtypes/etc/jobtypes.yml
+    :language: yaml
+    :lines: 14-
+    :linenos:
+
