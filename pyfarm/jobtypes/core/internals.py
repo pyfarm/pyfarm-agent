@@ -87,7 +87,9 @@ class Cache(object):
         method will pass the response it receives to :meth:`_cache_jobtype`
         however failures will be retried.
         """
-        url = config["master-api"] + "/jobtypes/" + name + "/" + str(version)
+        url = str(  # no unicode allowed in get()
+            config["master-api"] + "/jobtypes/" + name + "/" + str(version))
+
         result = Deferred()
         download = lambda *_: \
             get(url,
