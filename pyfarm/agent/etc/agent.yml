@@ -37,6 +37,17 @@ agent_user_data: ~/.pyfarm/agent
 # The location where agent updates should be stored.
 agent_updates_dir: "{agent_user_data}/updates"
 
+# How many seconds the agent should spend attempting to inform
+# the master that it's shutting down.
+agent_shutdown_timeout: 15
+
+# Controls how often the agent should reannounce itself
+# to the master.  The agent may be in contact with the master
+# more often than this however during long period of
+# inactivity this is how often the agent will 'inform' the
+# master the agent is still online.
+agent_master_reannounce: 120
+
 # If True then display unhandled tracebacks via the REST api.  Tracebacks
 # direct from the API is an indication of an unhandled error which you'll
 # normally want to have enabled to potential issues can be debugged.
