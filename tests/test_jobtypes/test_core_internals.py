@@ -19,28 +19,3 @@ from Queue import Queue
 
 
 from pyfarm.agent.testutil import TestCase
-from pyfarm.jobtypes.core.internals import LoggingThread
-
-
-class TestLoggingThread(TestCase):
-    def test_instance(self):
-        test_path = self.create_test_file()
-        lt = LoggingThread(test_path)
-        self.assertIsInstance(lt, Thread)
-        self.assertIsInstance(lt.queue, Queue)
-        self.assertFalse(lt.stopped)
-        self.assertEqual(lt.lineno, 1)
-
-    def test_shutdown_event_attribute(self):
-        lt = LoggingThread(self.create_test_file())
-        self.assertIsInstance(lt.shutdown_event, tuple)
-        self.assertEqual(lt.shutdown_event[0], "shutdown")
-        self.assertEqual(lt.shutdown_event[1][0], "before")
-        self.assertEqual(lt.shutdown_event[1][1], lt.stop)
-
-    def test_put_is_stream(self):
-        lt = LoggingThread(self.create_test_file())
-
-        # TODO: add context manager to testutil
-        # with self.assertRaises(AssertionError, lambda ):
-        #     lt.put("", "")
