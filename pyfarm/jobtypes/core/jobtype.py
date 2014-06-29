@@ -94,7 +94,6 @@ class JobType(Cache, Process, TypeChecks):
             Optional("data"): dict}),
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
-    cache = {}
 
     def __init__(self, assignment):
         # JobType objects in the future may or may not have explicit tasks

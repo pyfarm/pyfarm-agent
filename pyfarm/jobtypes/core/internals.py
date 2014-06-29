@@ -55,6 +55,7 @@ logfile = getLogger("jobtypes.log")
 
 class Cache(object):
     """Internal methods for caching job types"""
+    cache = {}
     CACHE_DIRECTORY = Template(
         config.get("jobtype_cache_directory", "")).safe_substitute(
         temp=tempfile.gettempdir())
