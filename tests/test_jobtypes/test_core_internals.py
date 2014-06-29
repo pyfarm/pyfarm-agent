@@ -43,7 +43,6 @@ FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
 FakeProcessResult = namedtuple("FakeProcessResult", ("value", ))
 
 
-
 class FakeProtocol(object):
     def __init__(self):
         self.uuid = uuid()
@@ -276,8 +275,6 @@ class TestMiscTypeChecks(TestCase):
 
         with self.assertRaisesRegexp(TypeError, ".*for.*path.*"):
             checks._check_map_path_inputs(None)
-
-
 
     def test_csvlog_path_tasks(self):
         checks = TypeChecks()
