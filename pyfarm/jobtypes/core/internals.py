@@ -308,7 +308,7 @@ class TypeChecks(object):
                 "`working_directory` %s does not exist" % working_dir)
 
         elif working_dir is not None:
-            raise TypeError("Expected a string for `working_directory`")
+            raise TypeError("Expected a string for `working_dir`")
 
         if not isinstance(environment, dict):
             raise TypeError("Expected a dictionary for `environment`")
