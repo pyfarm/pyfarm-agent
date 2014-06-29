@@ -40,13 +40,11 @@ except ImportError:  # pragma: no cover
     getgid = NotImplemented
 
 from pyfarm.core.enums import INTEGER_TYPES, OS
-from pyfarm.core.config import read_env, read_env_int
+from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 
 logger = getLogger("agent.supervisor")
-
-default_data_root = read_env("PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
 
 
 def supervisor():
@@ -69,15 +67,14 @@ def supervisor():
 
     parser = argparse.ArgumentParser(description="Start and monitor the "
                                         "agent process")
-    parser.add_argument("--updates-drop-dir", default=join(expanduser("~"),
-                                                           ".pyfarm",
-                                                           "agent",
-                                                           "updates"),
+    parser.add_argument("--updates-drop-dir",
+                        default=expanduser(config["agent_updates_dir"]),
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
-    parser.add_argument("--pidfile", default=join(default_data_root,
-                                                  "supervisor.pid"),
+    parser.add_argument("--pidfile",
+                        default=join(config["lock_file_root"],
+                                     "supervisor.pid"),
                         help="The file to store the process id in. "
                              "[default: %(default)s]")
     parser.add_argument("-n", "--no-daemon", default=False, action="store_true",
@@ -107,6 +104,12 @@ def supervisor():
             "foreground" % OS.title())
     else:
         logger.debug("Not forking to background")
+
+
+    # Create pid directory if it does not exist
+    pid_dir = os.path.dirname(args.pidfile)
+    if not os.path.isdir(pid_dir):
+        os.makedirs(pid_dir)
 
     pid = os.getpid()
     # Write the PID file
@@ -143,7 +146,7 @@ def supervisor():
 
     update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
 
-    loop_interval = read_env_int("PYFARM_AGENT_SUPERVISOR_INTERVAL", 5)
+    loop_interval = config["supervisor_interval"]
 
     while True:
         if subprocess.call(["pyfarm-agent", "status"]) != 0:
