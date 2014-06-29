@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import urandom
+
+from collections import namedtuple
+from os import urandom, devnull
 from os.path import isdir, join, isfile
 from textwrap import dedent
 
@@ -25,12 +27,40 @@ except ImportError:  # pragma: no cover
 
 
 from twisted.internet.defer import Deferred
+from twisted.internet import reactor
 
 from pyfarm.core.enums import LINUX, MAC, WINDOWS
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.http.core.client import post
-from pyfarm.jobtypes.core.internals import Cache, pwd, grp
+from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.utility import uuid
+from pyfarm.jobtypes.core.internals import Cache, Process, pwd, grp
+from pyfarm.jobtypes.core.log import logpool, CSVLog
+
+FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
+FakeProcessResult = namedtuple("FakeProcessResult", ("value", ))
+
+
+
+class FakeProtocol(object):
+    def __init__(self):
+        self.uuid = uuid()
+
+
+class FakeProcess(Process):
+    def __init__(self):
+        self.start_called = False
+        self.stop_called = False
+        self.failed_processes = []
+
+    def start(self):
+        self.start_called = True
+
+    def stop(self):
+        self.stop_called = True
+
+    def is_successful(self, success):
+        return success.value.exitCode == 0
 
 
 class TestImports(TestCase):
@@ -109,4 +139,70 @@ class TestCache(TestCase):
         cached = cache._cache_jobtype(cache_key, jobtype)
         cached.addCallback(written)
         return cached
+
+
+class TestProcess(TestCase):
+    def setUp(self):
+        TestCase.setUp(self)
+
+        self.protocol = FakeProtocol()
+        self.process = FakeProcess()
+
+        # Clear the logger pool each time and make
+        # sure it won't flush
+        logpool.flush_lines = 1e10
+        logpool.logs.clear()
+        logpool.logs[self.protocol.uuid] = CSVLog(open(devnull))
+        logpool.stopped = False
+
+    def test_start_called(self):
+        self.process._start()
+        self.assertTrue(self.process.start_called)
+
+    def test_stop_called(self):
+        self.process._stop()
+        self.assertTrue(self.process.stop_called)
+
+    @skipIf(grp is NotImplemented, "grp module is NotImplemented")
+    def test_uid_gid_mapper(self):
+        uid, gid = self.process._get_uid_gid(
+            "root", grp.getgrnam("root").gr_name)
+        self.assertEqual(uid, 0)
+        self.assertEqual(gid, 0)
+
+    def test_process_started(self):
+        self.process._process_started(self.protocol)
+        self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
+
+    def test_process_stopped_success(self):
+        result = FakeProcessResult(value=FakeExitCode(exitCode=0))
+        self.process._process_stopped(self.protocol, result)
+        self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
+        self.assertEqual(self.process.failed_processes, [])
+
+    def test_process_stopped_failure(self):
+        result = FakeProcessResult(value=FakeExitCode(exitCode=1))
+        self.process._process_stopped(self.protocol, result)
+        self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
+        self.assertEqual(
+            self.process.failed_processes, [(self.protocol, result)])
+
+    def test_get_uid_gid_value_type(self):
+        with self.assertRaises(TypeError):
+            self.process._get_uid_gid_value(None, None, None, None, None)
+
+    def test_get_uid_gid_value_no_module(self):
+        self.assertIsNone(
+            self.process._get_uid_gid_value(
+                "", None, None, NotImplemented, None))
+
+    def test_get_uid_gid_value_grp(self):
+        self.assertEqual(
+            self.process._get_uid_gid_value(
+                "root", "group", "get_gid", grp, "grp"), 0)
+
+    def test_get_uid_gid_value_pwd(self):
+        self.assertEqual(
+            self.process._get_uid_gid_value(
+                "root", "username", "get_uid", pwd, "pwd"), 0)
 
