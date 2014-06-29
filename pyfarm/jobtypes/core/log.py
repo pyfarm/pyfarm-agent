@@ -132,8 +132,6 @@ class LoggerPool(ThreadPool):
             self,
             minthreads=minthreads, maxthreads=maxthreads,
             name=self.__class__.__name__)
-        logger.debug("Created %r", self)
-        reactor.addSystemEventTrigger("before", "shutdown", self.stop)
 
     def defer(self, function, *args, **kwargs):
         """
@@ -148,18 +146,18 @@ class LoggerPool(ThreadPool):
         class method will return a deferred object that will fire its callback
         once the log is open and ready to receive data.
         """
-        if protocol.id in self.logs:
+        if protocol.uuid in self.logs:
             raise KeyError(
                 "Protocol %r is already logging to %r" % (
-                    protocol.id, self.logs[protocol.id]))
+                    protocol.uuid, self.logs[protocol.uuid]))
 
         def log_created(stream, impacted_protocol):
             logger.info(
                 "Created log for protocol %r at %r",
-                impacted_protocol.id, stream.name)
+                impacted_protocol.uuid, stream.name)
 
-            self.logs[impacted_protocol.id] = CSVLog(stream)
-            return impacted_protocol.id, self.logs[impacted_protocol.id]
+            self.logs[impacted_protocol.uuid] = CSVLog(stream)
+            return impacted_protocol.uuid, self.logs[impacted_protocol.uuid]
 
         deferred = self.defer(open_log, path, ignore_existing=ignore_existing)
         deferred.addCallback(log_created, protocol)
@@ -256,3 +254,13 @@ class LoggerPool(ThreadPool):
             self.close(protocol_id)
 
         ThreadPool.stop(self)
+
+    def start(self):
+        """
+        Starts the logger pool and sets up the required shutdown event
+        trigger which will call :meth:`stop` on exit.
+        """
+        reactor.addSystemEventTrigger("before", "shutdown", self.stop)
+        ThreadPool.start(self)
+        logger.info(
+            "Started logger thread pool (min=%s, max=%s)", self.min, self.max)
