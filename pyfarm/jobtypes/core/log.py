@@ -272,7 +272,7 @@ class LoggerPool(ThreadPool):
 
 try:
     logpool
-    logger.warning(
+    logger.warning(  # pragma: no cover
         "A logger pool was already setup, seems like the log module has "
         "been imported more than once.")
 except NameError:
