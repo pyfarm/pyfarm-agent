@@ -1,4 +1,4 @@
-# No shebang line, this module is meant to be imported
+    # No shebang line, this module is meant to be imported
 #
 # Copyright 2014 Oliver Palmer
 #
@@ -23,8 +23,9 @@ from os.path import join, isfile, isdir, abspath
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 
+from pyfarm.core.enums import PY26
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import UnicodeCSVWriter, uuid
 from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.jobtypes.core.log import (
@@ -47,6 +48,7 @@ class TestModuleLevel(TestCase):
     def test_streams(self):
         self.assertEqual(STREAMS, set([STDERR, STDOUT]))
 
+    @skipIf(PY26, "Python 2.7+")
     def test_lock_type(self):
         # We only want one thread to run open_log
         # can't use isinstance check....
@@ -84,6 +86,7 @@ class TestCSVLog(TestCase):
         self.log = CSVLog(
             open_log(self.create_test_file(), ignore_existing=True))
 
+    @skipIf(PY26, "Python 2.7+")
     def test_lock_type(self):
         # same thread should have access to its own resources
         # can't use isinstance check....
