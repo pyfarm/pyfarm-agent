@@ -20,7 +20,6 @@ import re
 import socket
 import sys
 import tempfile
-from functools import wraps
 from random import randint, choice
 from urllib import urlopen
 
@@ -86,7 +85,6 @@ os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 def skip(should_skip, reason):
     """Decorator to skip a test when ``should_skip`` is True."""
     def wrapper(func):
-        @wraps(func)
         def wrapped_func(*args, **kwargs):
             if should_skip:
                 raise SkipTest(reason)
