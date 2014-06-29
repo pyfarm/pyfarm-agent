@@ -45,3 +45,11 @@ agent_http_api_show_tracebacks: True
 # Defines the number of seconds between iterations of pyfarm-supervisor's
 # agent status check.
 supervisor_interval: 5
+
+# NOTE: The following values are used by the unittests and should be
+# generally ignored for anything other than development.
+agent_unittest:
+    dns_test_hostname: example.com
+    client_redirect_target: http://example.com
+    client_api_test_url_https: https://httpbin.org
+    client_api_test_url_http: https://httpbin.org
