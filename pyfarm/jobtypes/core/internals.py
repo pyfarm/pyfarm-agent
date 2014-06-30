@@ -114,8 +114,11 @@ class Cache(object):
         to store it on disk.  In the rare even that we fail to write it
         to disk, we store it in memory instead.
         """
+        assert isinstance(jobtype, dict)
+        assert isinstance(cache_key, STRING_TYPES)
         filename = cls._cache_filepath(cache_key, jobtype["classname"])
         success = Deferred()
+        jobtype = jobtype.copy()
 
         def write_to_disk(filename):
             try:
@@ -123,7 +126,7 @@ class Cache(object):
             except (IOError, OSError):  # pragma: no cover
                 pass
 
-            if isfile(filename):
+            if isfile(filename):  # pragma: no cover
                 logcache.debug("%s is already cached on disk", filename)
                 jobtype.pop("code", None)
                 return filename, jobtype
