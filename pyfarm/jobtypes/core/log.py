@@ -277,4 +277,8 @@ try:
         "been imported more than once.")
 except NameError:
     logpool = LoggerPool()
-    logpool.start()
+
+    # Required so we only start the logpool if the
+    # reactor is going to run.  If we don't do this
+    # other things will hang.
+    reactor.callWhenRunning(logpool.start)
