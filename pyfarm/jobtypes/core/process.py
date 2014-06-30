@@ -114,7 +114,7 @@ class ProcessProtocol(_ProcessProtocol):
 
         try:
             return Process(pid=self.pid)
-        except NoSuchProcess:
+        except NoSuchProcess:  # pragma: no cover
             return None
 
     def connectionMade(self):
