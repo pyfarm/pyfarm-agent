@@ -186,6 +186,7 @@ class TestCase(_TestCase):
         config.pop("agent", None)
         config.pop("agent-id", None)
         config.update({
+            "jobtypes": {},
             "systemid": system.system_identifier(),
             "ram-report-delta": 100,
             "http-retry-delay": 1,
