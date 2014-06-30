@@ -139,7 +139,6 @@ class TestLoggerPool(TestCase):
 
     def test_existing_pool(self):
         self.assertIsInstance(logpool, LoggerPool)
-        self.assertTrue(logpool.started)
 
     def test_invalid_minthreads(self):
         config["jobtype_logging_threadpool"]["min_threads"] = 0
