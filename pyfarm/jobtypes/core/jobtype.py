@@ -106,8 +106,8 @@ class JobType(Cache, Process, TypeChecks):
 
         self.processes = {}
         self.failed_processes = set()
-        self.finished_tasks = set()
         self.failed_tasks = set()
+        self.finished_tasks = set()
         self.stdout_line_fragments = []
         self.start_called = False
         self.stop_called = False
@@ -159,7 +159,7 @@ class JobType(Cache, Process, TypeChecks):
         deferreds = []
 
         for process_id, process in self.processes.items():
-            deferreds.append(process.started)
+            deferreds.append(process.stopped)
 
         return DeferredList(deferreds)
 
