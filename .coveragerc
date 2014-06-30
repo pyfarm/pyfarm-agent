@@ -15,3 +15,4 @@ omit =
     *pyfarm*testutil.py*
     *pyfarm/agent/http/templates/*
     *pyfarm/agent/http/static/*
+    *pyfarm/jobtypes/examples.py*
