@@ -35,10 +35,6 @@ from twisted.internet.defer import Deferred
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 
-from pyfarm.agent.logger import start_logging
-
-start_logging()
-
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
