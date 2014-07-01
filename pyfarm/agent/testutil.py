@@ -25,6 +25,11 @@ from random import randint, choice
 from urllib import urlopen
 
 try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
+
+try:
     from unittest.case import _AssertRaisesContext
 
 except ImportError:  # copied from Python 2.7's source
@@ -61,7 +66,7 @@ except ImportError:  # copied from Python 2.7's source
             return True
 
 from twisted.internet.base import DelayedCall
-from twisted.trial.unittest import TestCase as _TestCase, SkipTest
+from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 
 from pyfarm.agent.logger import start_logging
 
@@ -83,6 +88,15 @@ if ":" not in PYFARM_AGENT_MASTER:
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
+try:
+    response = urlopen(PYFARM_AGENT_MASTER)
+    PYFARM_MASTER_API_ONLINE = response.code == OK
+except Exception:
+    PYFARM_MASTER_API_ONLINE = False
+else:
+    PYFARM_MASTER_API_ONLINE = True
+
+
 class skipIf(object):
     """
     Wrapping a test with this class will allow the test to
@@ -100,6 +114,19 @@ class skipIf(object):
                 raise SkipTest(self.reason)
             return func(*args, **kwargs)
         return wrapper
+
+
+def requires_master(function):
+    """
+    Any test decorated with this function will fail if the master could
+    not be contacted or returned a response other than 200 OK for "/"
+    """
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        if not PYFARM_MASTER_API_ONLINE:
+            raise FailTest("Could not connect to master")
+        return function(*args, **kwargs)
+    return wrapper
 
 
 class TestCase(_TestCase):
