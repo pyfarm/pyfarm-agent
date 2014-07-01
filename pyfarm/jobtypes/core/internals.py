@@ -114,8 +114,11 @@ class Cache(object):
         to store it on disk.  In the rare even that we fail to write it
         to disk, we store it in memory instead.
         """
-        assert isinstance(jobtype, dict)
+        if isinstance(cache_key, tuple):
+            cache_key = cache_key[0]
+
         assert isinstance(cache_key, STRING_TYPES)
+        assert isinstance(jobtype, dict)
         filename = cls._cache_filepath(cache_key, jobtype["classname"])
         success = Deferred()
         jobtype = jobtype.copy()
