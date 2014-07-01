@@ -32,7 +32,7 @@ from twisted.internet.defer import Deferred
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post
-from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.testutil import TestCase, skipIf, requires_master
 from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import (
@@ -80,6 +80,7 @@ class TestCache(TestCase):
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
+    @requires_master
     def test_download(self):
         classname = "Test%s" % urandom(8).encode("hex")
         sourcecode = dedent("""
