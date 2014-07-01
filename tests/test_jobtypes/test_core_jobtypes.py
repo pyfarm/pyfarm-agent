@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import urandom
 from uuid import UUID
 
 from twisted.internet.defer import Deferred
@@ -21,7 +22,7 @@ from voluptuous import Schema
 
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, requires_master, create_jobtype
 from pyfarm.agent.utility import uuid
 from pyfarm.jobtypes.core.jobtype import JobType, ProcessData
 
@@ -78,7 +79,7 @@ class TestInit(TestCase):
         self.assertFalse(job.start_called)
 
 
-class TestProperties(TestCase):
+class TestPropertiesAndClassmethods(TestCase):
     def test_started(self):
         job = JobType(FAKE_ASSIGNMENT)
         protocol1 = FakeProcessProtocol()
@@ -116,3 +117,8 @@ class TestProperties(TestCase):
         process1.stopped.callback(-1)
         process2.stopped.callback(-2)
         return stopped
+
+    @requires_master
+    def test_load(self):
+        classname = "AgentUnittest" + urandom(8).encode("hex")
+        created = create_jobtype(classname=classname)

@@ -83,7 +83,7 @@ class TestCache(TestCase):
 
     @requires_master
     def test_download(self):
-        classname = "a" + urandom(8).encode("hex")
+        classname = "AgentUnittest" + urandom(8).encode("hex")
         created = create_jobtype(classname=classname)
         cache = Cache()
         finished = Deferred()
