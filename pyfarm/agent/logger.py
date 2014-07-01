@@ -25,20 +25,108 @@ Twisted's and Python's logging facilities.
 import re
 from collections import deque
 from itertools import islice
-from logging import Handler
+from logging import Handler, LogRecord
 from warnings import warn
 
 from logging import (
-    DEBUG, INFO, WARNING, ERROR, CRITICAL, FATAL,
-    Logger as _Logger, getLogger as _getLoggerPython)
+    NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL, FATAL, Handler)
 
-from twisted.python.log import (
-    PythonLoggingObserver as TwistedLogObserver, msg, textFromEventDict)
+from twisted.python.log import PythonLoggingObserver, msg, textFromEventDict
 
-from pyfarm.core.logger import getLogger as _getLogger
 from pyfarm.core.config import read_env_int
 
-twisted_logger = _getLoggerPython("twisted")
+
+class LogRecordToTwisted(Handler):
+    """
+    Captures logging events for a standard Python logger
+    and sends them to Twisted.  Twisted has a built in
+    class to help work with Python's logging library
+    however it won't translate everything directly
+    into Twisted.
+    """
+    def __init__(self, level=NOTSET):
+        Handler.__init__(self, level=level)
+        self.level = DEBUG
+
+    # TODO: implementation
+    def emit(self, record):
+        pass
+
+    def handle(self, record):
+        return 1
+
+    def acquire(self):
+        pass
+
+    def release(self):
+        pass
+
+    def createLock(self):
+        pass
+
+    def close(self):
+        pass
+
+
+def observer(event):
+    """
+    Handles all logging events which are passed into Twisted's logging
+    system.
+    """
+    # TODO: check against and/or map to logging._levelNames
+    if "logLevel" in event:
+        level = event["logLevel"]
+    elif event["isError"]:
+        level = ERROR
+    else:
+        level = DEBUG
+
+    text = textFromEventDict(event)
+    if text is None:
+        return
+
+    # TODO: formatting?
+
+
+# TODO 1: Remove default observers @ twisted.python.log.theLogPublisher.observers
+# TODO 2: Add out own observer (above)
+# TODO 3: Add configuration lookups so we can change levels of specific loggers
+# INFO: dataflow is python logger -> LogRecordToTwisted -> log.msg -> observer -> output
+
+
+class Logger(object):
+    """
+    This is a stand-in for :class:`logging.Logger` that internally emits
+    log messages to :meth:`.msg` with the proper level and system name.
+
+    Neither formatting nor level control should happen here, that should
+    instead happen on the Python loggers themselves.
+    """
+    def __init__(self, system):
+        self.system = system
+
+    def setLevel(self, level):
+        self._logger.setLevel(level)
+
+    def debug(self, message, *args):
+        msg(message % args, system=self.system, logLevel=DEBUG)
+
+    def info(self, message, *args):
+        msg(message % args, system=self.system, logLevel=INFO)
+
+    def warning(self, message, *args):
+        msg(message % args, system=self.system, logLevel=WARNING)
+
+    def error(self, message, *args):
+        msg(message % args, system=self.system, logLevel=ERROR)
+
+    def critical(self, message, *args):
+        msg(message % args, system=self.system, logLevel=CRITICAL)
+
+    def fatal(self, message, *args):
+        msg(message % args, system=self.system, logLevel=FATAL)
+
+
 
 
 class LoggingHistory(Handler):
@@ -221,76 +309,3 @@ class PythonLoggingObserver(TwistedLogObserver):
 
         # Emit the message to the underlying logger
         self.loggers[system].log(level, text)
-
-
-class Logger(object):
-    """
-    This is a stand-in for :class:`logging.Logger` that internally emits
-    log messages to :meth:`.msg` with the proper level and system name.
-
-    Neither formatting nor level control should happen here, that should
-    instead happen on the Python loggers themselves.
-    """
-    def __init__(self, system, logger):
-        assert isinstance(logger, _Logger)
-        self.system = system
-        self._logger = logger
-
-    def setLevel(self, level):
-        self._logger.setLevel(level)
-
-    def debug(self, message, *args):
-        msg(message % args, system=self.system, logLevel=DEBUG)
-
-    def info(self, message, *args):
-        msg(message % args, system=self.system, logLevel=INFO)
-
-    def warning(self, message, *args):
-        msg(message % args, system=self.system, logLevel=WARNING)
-
-    def error(self, message, *args):
-        msg(message % args, system=self.system, logLevel=ERROR)
-
-    def critical(self, message, *args):
-        msg(message % args, system=self.system, logLevel=CRITICAL)
-
-    def fatal(self, message, *args):
-        msg(message % args, system=self.system, logLevel=FATAL)
-
-
-# module reload protection, we only want OBSERVER
-# instanced once
-try:
-    OBSERVER
-except NameError:
-    OBSERVER = PythonLoggingObserver()
-
-
-def start_logging():
-    """
-    Gets the base agent logger setup and then establishes and observer that
-    we can emit log messages to.  You should only need to run this method
-    once per process.
-    """
-    _getLogger("agent")  # setup the global agent logger first
-    OBSERVER.start()
-
-
-def getLogger(name):
-    """
-    Instances and returns a :class:`.Logger` object with the proper
-    name.  New loggers should always be created using this function.
-
-    :raises RuntimeError:
-        raised if this function is called before the observer has
-        been started with :func:`start_logging`
-    """
-    if not OBSERVER.STARTED:
-        warn("Observer not yet started")
-
-    assert name.split(".")[0] in ("agent", "jobtypes")
-
-    logger = _getLogger(name)
-    OBSERVER.loggers[logger.name] = logger
-    OBSERVER.event_system_names[logger.name] = logger.name
-    return Logger(logger.name, logger)
