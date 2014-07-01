@@ -89,9 +89,9 @@ os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
 
 
 try:
-    response = urlopen(PYFARM_AGENT_MASTER)
+    response = urlopen("http://" + PYFARM_AGENT_MASTER)
     PYFARM_MASTER_API_ONLINE = response.code == OK
-except Exception:
+except Exception as e:
     PYFARM_MASTER_API_ONLINE = False
 else:
     PYFARM_MASTER_API_ONLINE = True
