@@ -30,9 +30,8 @@ except ImportError:  # pragma: no cover
 from twisted.internet.defer import Deferred
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, WorkState
-from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import post
-from pyfarm.agent.testutil import TestCase, skipIf, requires_master
+from pyfarm.agent.testutil import (
+    TestCase, skipIf, requires_master, create_jobtype)
 from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import (
@@ -76,46 +75,36 @@ class TestImports(TestCase):
         self.assertIsNot(grp, NotImplemented)
 
 
+
+
 class TestCache(TestCase):
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
     @requires_master
     def test_download(self):
-        classname = "Test%s" % urandom(8).encode("hex")
-        sourcecode = dedent("""
-        from pyfarm.jobtypes.core.jobtype import JobType
-        class %s(JobType):
-            pass""" % classname)
-
+        classname = "a" + urandom(8).encode("hex")
+        created = create_jobtype(classname=classname)
         cache = Cache()
         finished = Deferred()
 
-        def post_success(response):
-            if response.code == CREATED:
+        def post_success(data):
+            download = cache._download_jobtype(
+                data["name"], data["version"])
+
+            def downloaded(response):
+                self.assertEqual(response.code, OK)
                 data = response.json()
-                download = cache._download_jobtype(
-                    data["name"], data["version"])
+                self.assertEqual(data["name"], classname)
+                self.assertEqual(data["classname"], classname)
+                self.assertEqual(data["version"], 1)
+                finished.callback(None)
 
-                def downloaded(response):
-                    self.assertEqual(response.code, OK)
-                    data = response.json()
-                    self.assertEqual(data["name"], classname)
-                    self.assertEqual(data["classname"], classname)
-                    self.assertEqual(data["version"], 1)
-                    finished.callback(None)
+            download.addCallback(downloaded)
+            download.addErrback(finished.errback)
 
-                download.addCallback(downloaded)
-                download.addErrback(finished.errback)
+        created.addCallbacks(post_success, finished.errback)
 
-            else:
-                finished.errback(response.json())
-
-        post(config["master-api"] + "/jobtypes/",
-             callback=post_success, errback=finished.errback,
-             data={"name": classname,
-                   "classname": classname,
-                   "code": sourcecode})
         return finished
 
     def test_filename(self):
