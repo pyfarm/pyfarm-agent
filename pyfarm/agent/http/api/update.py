@@ -111,7 +111,8 @@ class Update(APIResource):
                 if len(config["current_assignments"]) == 0:
                     agent.stop()
             else:
-                pass # TODO
+                logger.error("Unexpected return code %s on downloading update "
+                             "from master", response.code)
 
             config["downloading_update"] = False
 
