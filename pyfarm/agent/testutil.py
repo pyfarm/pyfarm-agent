@@ -21,13 +21,31 @@ import socket
 import sys
 import tempfile
 from functools import wraps
+from os import urandom
 from random import randint, choice
+from textwrap import dedent
 from urllib import urlopen
 
 try:
-    from httplib import OK
+    from httplib import OK, CREATED
 except ImportError:  # pragma: no cover
-    from http.client import OK
+    from http.client import OK, CREATED
+
+from twisted.internet.defer import Deferred
+from twisted.internet.base import DelayedCall
+from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
+
+from pyfarm.agent.logger import start_logging
+
+start_logging()
+
+from pyfarm.core.config import read_env, read_env_bool
+from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
+from pyfarm.agent.http.core.client import post
+from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.entrypoints.commands import STATIC_ROOT
+from pyfarm.agent.sysinfo import memory, cpu, system
+from pyfarm.agent.utility import rmpath
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -65,19 +83,6 @@ except ImportError:  # copied from Python 2.7's source
                          (expected_regexp.pattern, str(exc_value)))
             return True
 
-from twisted.internet.base import DelayedCall
-from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
-
-from pyfarm.agent.logger import start_logging
-
-start_logging()
-
-from pyfarm.core.config import read_env, read_env_bool
-from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
-from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.entrypoints.commands import STATIC_ROOT
-from pyfarm.agent.sysinfo import memory, cpu, system
-from pyfarm.agent.utility import rmpath
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -125,6 +130,34 @@ def requires_master(function):
             raise FailTest("Could not connect to master")
         return function(*args, **kwargs)
     return wrapper
+
+
+def create_jobtype(classname=None, sourcecode=None):
+    """Creates a job type on the master and fires a deferred when finished"""
+    if classname is None:
+        classname = "Test%s" % urandom(8).encode("hex")
+
+    if sourcecode is None:
+        sourcecode = dedent("""
+        from pyfarm.jobtypes.core.jobtype import JobType
+        class %s(JobType):
+            pass""" % classname)
+
+    finished = Deferred()
+
+    def posted(response):
+        if response.code == CREATED:
+            finished.callback(response.json())
+        else:
+            finished.errback(response.json())
+
+    post(config["master-api"] + "/jobtypes/",
+         callback=posted, errback=finished.errback,
+         data={"name": classname,
+               "classname": classname,
+               "code": sourcecode})
+
+    return finished
 
 
 class TestCase(_TestCase):
