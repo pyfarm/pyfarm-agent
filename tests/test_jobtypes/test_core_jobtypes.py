@@ -16,9 +16,10 @@
 
 from os import urandom
 from uuid import UUID
+from os.path import isdir
 
 from twisted.internet.defer import Deferred
-from voluptuous import Schema
+from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
@@ -79,7 +80,7 @@ class TestInit(TestCase):
         self.assertFalse(job.start_called)
 
 
-class TestPropertiesAndClassmethods(TestCase):
+class TestProperties(TestCase):
     def test_started(self):
         job = JobType(FAKE_ASSIGNMENT)
         protocol1 = FakeProcessProtocol()
@@ -118,7 +119,29 @@ class TestPropertiesAndClassmethods(TestCase):
         process2.stopped.callback(-2)
         return stopped
 
+
+class TestJobTypeLoad(TestCase):
+    def test_schema(self):
+        with self.assertRaises(MultipleInvalid):
+            JobType.load({})
+
     @requires_master
     def test_load(self):
+        self.assertIsNotNone(JobType.CACHE_DIRECTORY)
+        self.assertTrue(isdir(JobType.CACHE_DIRECTORY))
         classname = "AgentUnittest" + urandom(8).encode("hex")
         created = create_jobtype(classname=classname)
+        finished = Deferred()
+
+        def jobtype_created(data):
+            assignment = FAKE_ASSIGNMENT.copy()
+            assignment["jobtype"].update(
+                name=data["name"], version=data["version"])
+            loaded = JobType.load(assignment)
+            loaded.errback(finished.callback)
+
+
+            finished.chainDeferred(loaded)
+
+        created.addCallbacks(jobtype_created, finished.errback)
+        return finished
