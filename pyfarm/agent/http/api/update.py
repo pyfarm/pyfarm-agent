@@ -27,10 +27,13 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, ACCEPTED
 
+from os import makedirs
+from os.path import join, isdir
+
 from twisted.internet import reactor
 from twisted.web.server import NOT_DONE_YET
-from treq import get, content
 import twisted.python.failure
+from treq import get, collect
 
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.core.client import post, http_retry_delay
@@ -94,9 +97,16 @@ class Update(APIResource):
 
         def update_downloaded(response):
             if response.code == OK:
-                with open(join(config["updates_drop_dir"],
-                               "pyfarm-agent.zip")) as update_file:
-                    update_file.write(content(request))
+                update_filename = join(config["updates_drop_dir"],
+                                       "pyfarm-agent.zip")
+                logger.debug("Writing update to %s", update_filename)
+                if not isdir(config["updates_drop_dir"]):
+                    makedirs(config["updates_drop_dir"])
+                with open(update_filename, "wb+") as update_file:
+                    collect(response, update_file.write)
+                logger.info("Update file for version %s has been downloaded and "
+                            "stored under %s", data["version"], update_filename)
+                # TODO Only shut down if we were started by the supervisor
                 config["restart_requested"] = True
                 if len(config["current_assignments"]) == 0:
                     agent.stop()
