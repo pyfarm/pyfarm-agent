@@ -34,6 +34,7 @@ from logging import (
 from twisted.python.log import PythonLoggingObserver, msg, textFromEventDict
 
 from pyfarm.core.config import read_env_int
+from pyfarm.core.logger import INTERACTIVE_INTERPRETER, captureWarnings
 
 
 class LogRecordToTwisted(Handler):
@@ -68,12 +69,15 @@ class LogRecordToTwisted(Handler):
         pass
 
 
+# INFO: dataflow is python logger -> LogRecordToTwisted -> log.msg -> observer -> output
 def observer(event):
     """
     Handles all logging events which are passed into Twisted's logging
     system.
     """
     # TODO: check against and/or map to logging._levelNames
+    # TODO: march over the config (ex. pf.agent.*) once to determine level
+    #       then store it in a map so we don't try to do a lookup every time
     if "logLevel" in event:
         level = event["logLevel"]
     elif event["isError"]:
@@ -91,7 +95,13 @@ def observer(event):
 # TODO 1: Remove default observers @ twisted.python.log.theLogPublisher.observers
 # TODO 2: Add out own observer (above)
 # TODO 3: Add configuration lookups so we can change levels of specific loggers
-# INFO: dataflow is python logger -> LogRecordToTwisted -> log.msg -> observer -> output
+def setup():
+    if not INTERACTIVE_INTERPRETER:
+        pass  # color
+    else:
+        pass  # no color
+
+    captureWarnings(True) # TODO: also need to attach the handler above too
 
 
 class Logger(object):
