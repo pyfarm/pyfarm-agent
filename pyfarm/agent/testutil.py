@@ -93,8 +93,6 @@ try:
     PYFARM_MASTER_API_ONLINE = response.code == OK
 except Exception as e:
     PYFARM_MASTER_API_ONLINE = False
-else:
-    PYFARM_MASTER_API_ONLINE = True
 
 
 class skipIf(object):
