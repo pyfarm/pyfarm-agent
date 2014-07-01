@@ -19,7 +19,6 @@ from collections import namedtuple
 from os import urandom, devnull
 from os.path import isdir, join, isfile
 from tempfile import gettempdir
-from textwrap import dedent
 
 try:
     from httplib import CREATED, OK
@@ -73,8 +72,6 @@ class TestImports(TestCase):
     def test_posix(self):
         self.assertIsNot(pwd, NotImplemented)
         self.assertIsNot(grp, NotImplemented)
-
-
 
 
 class TestCache(TestCase):
