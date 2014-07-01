@@ -29,10 +29,10 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet import reactor
 from twisted.web.server import NOT_DONE_YET
-from treq import content
+from treq import get, content
 
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.agent.http.core.client import get, post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 
@@ -78,10 +78,8 @@ class Update(APIResource):
 
         def download_update(version):
             config["downloading_update"] = True
-            get(url,
-                callback=update_downloaded,
-                errback=lambda: reactor.callLater(http_retry_delay(),
-                                                  download_update))
+            deferred = get(url)
+            deferred.addCallback(update_downloaded)
 
         def update_downloaded(response):
             if response.code == OK:
