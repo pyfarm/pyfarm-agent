@@ -211,12 +211,16 @@ class JobType(Cache, Process, TypeChecks):
                         http_retry_delay(),
                         response.request.retry)
 
+                logger.debug(
+                    "Downloaded jobtype %r version %r",
+                    assignment["jobtype"]["name"],
+                    assignment["jobtype"]["version"])
                 if cls.CACHE_DIRECTORY is None:
                     return load_jobtype((response.json(), None))
-
-                # When the download is complete, cache the results
-                caching = cls._cache_jobtype(cache_key, response.json())
-                caching.addCallback(load_jobtype)
+                else:
+                    # When the download is complete, cache the results
+                    caching = cls._cache_jobtype(cache_key, response.json())
+                    caching.addCallback(load_jobtype)
 
             # Start the download
             download = cls._download_jobtype(
@@ -224,7 +228,7 @@ class JobType(Cache, Process, TypeChecks):
                 assignment["jobtype"]["version"])
             download.addCallback(download_complete)
         else:
-            load_jobtype((cls.cache[cache_key]))
+            load_jobtype((cls.cache[cache_key], None))
 
         return result
 
