@@ -34,7 +34,7 @@ from functools import partial
 from json import dumps
 from random import choice, randint, random
 from textwrap import dedent
-from os.path import abspath, dirname, isfile, join, isdir
+from os.path import abspath, dirname, isfile, join, isdir, expanduser
 
 try:
     from httplib import ACCEPTED, OK, responses
@@ -256,6 +256,12 @@ class AgentEntryPoint(object):
                          flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
+        start_general_group.add_argument(
+            "--updates-drop-dir", default=join(expanduser("~"), ".pyfarm",
+                                               "agent", "updates"),
+            help="The directory to drop downloaded updates in. This should be "
+            "the same directory pyfarm-supervisor will look for updates in. "
+            "[default: %(default)s]")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -465,7 +471,8 @@ class AgentEntryPoint(object):
                 "pidfile": self.args.pidfile,
                 "pids": {
                     "parent": os.getpid()},
-                "shutdown_timeout": self.args.shutdown_timeout}
+                "shutdown_timeout": self.args.shutdown_timeout,
+                "updates_drop_dir": self.args.updates_drop_dir}
             # update configuration with values from the command line
 
             config.update(config_flags)
