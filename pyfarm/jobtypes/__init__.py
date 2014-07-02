@@ -21,3 +21,6 @@ Job Types
 This package, :mod:`pyfarm.jobtypes`, contains the code which
 executes a task on an agent.
 """
+
+from pyfarm.agent.logger import setup_logging
+setup_logging()

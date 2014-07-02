@@ -20,3 +20,6 @@ PyFarm Agent
 
 Core module containing code to run PyFarm's agent.
 """
+
+from pyfarm.agent.logger import setup_logging
+setup_logging()
