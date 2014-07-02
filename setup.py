@@ -92,6 +92,7 @@ setup(
         "pyfarm.agent.http",
         "pyfarm.agent.http.api",
         "pyfarm.agent.http.core",
+        "pyfarm.agent.logger",
         "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],

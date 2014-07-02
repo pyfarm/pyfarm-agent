@@ -8,6 +8,7 @@ Subpackages
 
     pyfarm.agent.entrypoints
     pyfarm.agent.http
+    pyfarm.agent.logger
     pyfarm.agent.sysinfo
 
 Submodules
@@ -16,7 +17,6 @@ Submodules
 .. toctree::
 
    pyfarm.agent.config
-   pyfarm.agent.logger
    pyfarm.agent.service
    pyfarm.agent.tasks
    pyfarm.agent.testutil
