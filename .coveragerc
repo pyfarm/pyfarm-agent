@@ -14,3 +14,4 @@ omit =
     *pyfarm*testutil.py*
     *pyfarm/agent/http/templates/*
     *pyfarm/agent/http/static/*
+    *pyfarm/agent/logger/*
