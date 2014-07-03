@@ -17,10 +17,10 @@
 
 from logging import DEBUG, getLogger as _getLogger
 
-from twisted.python.log import startLoggingWithObserver
+from twisted.python.log import startLoggingWithObserver, theLogPublisher
 
-from pyfarm.agent.logger.python import LogRecordToTwisted, getLogger
 from pyfarm.agent.logger.twistd import Observer
+from pyfarm.agent.logger.python import LogRecordToTwisted, getLogger
 
 # NOTE: Normally we don't place code in __init__.  In this case we're doing
 # so because we don't want to change the existing interface for getLogger
@@ -36,7 +36,7 @@ def setup_logging():
     log messages are handled in a single location and
     that we don't lose any messages.
     """
-    if not Observer.SETUP:
+    if Observer.INSTANCE is None:
         # Setup and configure the logger for Twisted
         observer = Observer()
         startLoggingWithObserver(observer, setStdout=False)
@@ -50,3 +50,4 @@ def setup_logging():
         # the config and configure the observer itself
         from pyfarm.agent.config import config
         observer.configure(config)
+        Observer.INSTANCE = observer
