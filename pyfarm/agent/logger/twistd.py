@@ -121,7 +121,6 @@ class Observer(object):
 
         # If we have anything built up in the backlog
         # then be sure we handle these first
-        print "HERE"
         while self.backlog:
             try:
                 self.emit(self.backlog.pop())
