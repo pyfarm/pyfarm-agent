@@ -30,6 +30,25 @@ from twisted.python.log import textFromEventDict
 
 from pyfarm.core.enums import INTERACTIVE_INTERPRETER
 
+CONFIGURATION = {
+    "datefmt": "%Y-%m-%d %H:%M:%S",
+    "format": "%(asctime)s %(levelname)-8s - %(name)-15s - %(message)s",
+
+      # Defines the cutoff level for different loggers.  By default
+      # the only defined cutoff is for root ("").  Logger names
+      # should be defined using *'s to define matches:
+      #  levels:
+      #    - ["", debug]
+      #    - ["pf.*", debug]
+      #    - ["pf.agent.*", info]
+      #    - ["pf.agent.foo", warning]
+      # So for the example above, a logger matching:
+      #   * pf.* will be set to debug
+      #   * pf.agent.* will be set to info
+      #   * pf.agent.foo will be explicitly set to warning
+    "levels": [
+        ['', 'debug']
+    ]}
 
 # Only setup colorama if we're not inside
 # of an interpreter.
@@ -60,7 +79,7 @@ class Observer(object):
                 return head + text + tail
             except KeyError:
                 return text
-                
+
     else:
         FORMATS = {}
         def add_color(self, text, _):
@@ -72,11 +91,11 @@ class Observer(object):
         self.format = None
         self.levels = []
 
-    def configure(self, config):
-        self.datefmt = config["logging"]["datefmt"]
-        self.format = config["logging"]["format"]
+    def configure(self):
+        self.datefmt = CONFIGURATION["datefmt"]
+        self.format = CONFIGURATION["format"]
 
-        for name, level in config["logging"]["levels"]:
+        for name, level in CONFIGURATION["levels"]:
             if not isinstance(level, int):
                 try:
                     level = _levelNames[level.upper()]

@@ -17,7 +17,7 @@
 
 from logging import DEBUG, getLogger as _getLogger
 
-from twisted.python.log import startLoggingWithObserver, theLogPublisher
+from twisted.python.log import startLoggingWithObserver
 
 from pyfarm.agent.logger.twistd import Observer
 from pyfarm.agent.logger.python import LogRecordToTwisted, getLogger
@@ -48,6 +48,5 @@ def setup_logging():
 
         # Now that we've configured the observer import the
         # the config and configure the observer itself
-        from pyfarm.agent.config import config
-        observer.configure(config)
+        observer.configure()
         Observer.INSTANCE = observer
