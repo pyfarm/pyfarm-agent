@@ -55,8 +55,12 @@ class Observer(object):
                 Fore.RED + Style.BRIGHT, Fore.RESET + Style.RESET_ALL)}
 
         def add_color(self, text, level):
-            head, tail = self.FORMATS.get(level, DEBUG)
-            return head + text + tail
+            try:
+                head, tail = self.FORMATS[level]
+                return head + text + tail
+            except KeyError:
+                return text
+                
     else:
         FORMATS = {}
         def add_color(self, text, _):
