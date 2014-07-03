@@ -71,16 +71,13 @@ class LogRecordToTwisted(Handler):
     class to help work with Python's logging library
     however it won't translate everything directly.
     """
-    # def __init__(self):
-    #     # We don't use these attributes because the observer
-    #     # handles these.  But we still have to provide them
-    #     # because the Python logger system will try to access
-    #     # them.
-    #     self.level = NOTSET
-    #     self.filters = []
-    #
-    # def handle(self, record):
-    #     return 0
+    def __init__(self):
+        # We don't use these attributes because the observer
+        # handles these.  But we still have to provide them
+        # because the Python logger system will try to access
+        # them.
+        self.level = NOTSET
+        self.filters = []
 
     def emit(self, record):
         """
