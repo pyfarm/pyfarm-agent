@@ -47,7 +47,7 @@ agent_updates_dir: $agent_user_data/updates
 
 # Defines the sytem
 agent_systemid: auto
-agent_systemid_cache: $agent_user_data/systemid.cache
+agent_systemid_cache: $agent_data_root/systemid.cache
 
 # Defines the number of seconds between iterations of pyfarm-supervisor's
 # agent status check.
