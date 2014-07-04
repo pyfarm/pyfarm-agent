@@ -24,7 +24,7 @@ on the main entry point class.
 
 import os
 import sys
-from argparse import Action
+from argparse import _StoreAction
 from os.path import isfile
 from random import randint
 
@@ -47,7 +47,7 @@ logger = getLogger("agent.cmd.util")
 SYSTEMID_MAX = 281474976710655
 
 
-class SetConfig(Action):
+class SetConfig(_StoreAction):
     """
     An action which can be used by an argument parser to update
     the configuration object when a flag on the command line is
@@ -67,6 +67,8 @@ class SetConfig(Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         config[self.key] = values
+        super(SetConfig, self).__call__(
+            parser, namespace, values, option_string=option_string)
 
 
 # This is a Linux specific test and will be hard to get due to the nature
