@@ -24,6 +24,7 @@ on the main entry point class.
 
 import os
 import sys
+from argparse import Action
 from os.path import isfile
 from random import randint
 
@@ -36,6 +37,7 @@ except ImportError:  # pragma: no cover
 
 
 from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
+from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
 from pyfarm.agent.utility import rmpath
@@ -43,6 +45,29 @@ from pyfarm.agent.utility import rmpath
 logger = getLogger("agent.cmd.util")
 
 SYSTEMID_MAX = 281474976710655
+
+
+class SetConfig(Action):
+    """
+    An action which can be used by an argument parser to update
+    the configuration object when a flag on the command line is
+    set
+
+    >>> from functools import partial
+    >>> from argparse import ArgumentParser
+    >>> from pyfarm.agent.config import config
+    >>> parser = ArgumentParser()
+    >>> parser.add_argument("--foo", action=partial(SetConfig, key="foobar"))
+    >>> parser.parse_args(["--foo", "bar"])
+    >>> assert "foobar" in config and config["foobar"] == "bar"
+    """
+    def __init__(self, *args, **kwargs):
+        self.key = kwargs.pop("key")
+        super(SetConfig, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        assert isinstance(values, STRING_TYPES)
+        config[self.key] = values
 
 
 # This is a Linux specific test and will be hard to get due to the nature
