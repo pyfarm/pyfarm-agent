@@ -32,6 +32,7 @@ module to be used:
 
 import os
 from datetime import datetime
+from os.path import join, abspath, dirname
 
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.config import Configuration
@@ -108,6 +109,10 @@ class LoggingConfiguration(Configuration):
 
             if key == "agent_systemid":
                 return system.system_identifier()
+
+            if key == "agent_static_root":
+                return abspath(
+                    join(dirname(__file__), "http", "static"))
 
         return value
 

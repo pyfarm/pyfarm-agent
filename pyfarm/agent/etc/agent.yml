@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The location where static web files should be served from.  This
+# will default to using PyFarm's installation root.
+agent_static_root: auto
+
 # The default location to store data.  $temp will expand to
 # whatever pyfarm's data root is plus the application
 # name (agent).  For example on Linux this would expand to

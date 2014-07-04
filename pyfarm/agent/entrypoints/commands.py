@@ -80,11 +80,6 @@ from pyfarm.agent.sysinfo import memory, cpu
 
 logger = getLogger("agent.cmd")
 
-# determine template and static file location
-import pyfarm.agent
-STATIC_ROOT = abspath(
-    join(dirname(pyfarm.agent.__file__), "http", "static"))
-
 config["start"] = time.time()
 
 
@@ -370,7 +365,7 @@ class AgentEntryPoint(object):
                  "This flag should not be used in production but is useful "
                  "for development and debugging purposes.")
         start_http_group.add_argument(
-            "--static-files", default=STATIC_ROOT,
+            "--static-files", default=config["agent_static_root"],
             type=partial(direxists, instance=self, flag="static-files"),
             help="The default location where the agent's http server should "
                  "find static files to serve. [default: %(default)s]")
@@ -450,7 +445,6 @@ class AgentEntryPoint(object):
                 "ram-check-interval": self.args.ram_check_interval,
                 "ram-report-delta": self.args.ram_report_delta,
                 "ram-max-report-interval": self.args.ram_max_report_interval,
-                "static-files": self.args.static_files,
                 "html-templates-reload": self.args.html_templates_reload,
                 "ntp-server": self.args.ntp_server,
                 "ntp-server-version": self.args.ntp_server_version,

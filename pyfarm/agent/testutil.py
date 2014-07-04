@@ -70,7 +70,6 @@ start_logging()
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import rmpath
 
@@ -185,11 +184,9 @@ class TestCase(_TestCase):
         config_logger.disabled = 1
         config.clear(callbacks=True)
         config.update({
-            "systemid": system.system_identifier(),
             "ram-report-delta": 100,
             "http-retry-delay": 1,
             "persistent-http-connections": False,
-            "master_api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
             "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
             "ram": int(memory.total_ram()),
@@ -201,7 +198,6 @@ class TestCase(_TestCase):
             "pretty-json": True,
             "ntp-server": "pool.ntp.org",
             "html-templates-reload": True,
-            "static-files": STATIC_ROOT,
             "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0
 

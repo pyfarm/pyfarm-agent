@@ -243,11 +243,11 @@ class Agent(object):
         # to the right objects
         root.putChild(
             "favicon.ico",
-            StaticPath(join(config["static-files"], "favicon.ico"),
+            StaticPath(join(config["agent_static_root"], "favicon.ico"),
                        defaultType="image/x-icon"))
         root.putChild(
             "static",
-            StaticPath(config["static-files"]))
+            StaticPath(config["agent_static_root"]))
 
         # external endpoints
         root.putChild("", Index())
