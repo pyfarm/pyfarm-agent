@@ -24,7 +24,8 @@ Twisted's and Python's logging facilities.
 
 from collections import deque
 from datetime import datetime
-from logging import DEBUG, WARNING, CRITICAL, ERROR, FATAL, _levelNames
+from fnmatch import fnmatch
+from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR, FATAL, _levelNames
 
 from twisted.python.log import textFromEventDict
 
@@ -36,18 +37,10 @@ CONFIGURATION = {
 
       # Defines the cutoff level for different loggers.  By default
       # the only defined cutoff is for root ("").  Logger names
-      # should be defined using *'s to define matches:
-      #  levels:
-      #    - ["", debug]
-      #    - ["pf.*", debug]
-      #    - ["pf.agent.*", info]
-      #    - ["pf.agent.foo", warning]
-      # So for the example above, a logger matching:
-      #   * pf.* will be set to debug
-      #   * pf.agent.* will be set to info
-      #   * pf.agent.foo will be explicitly set to warning
+      # should be defined using *'s to define matches.
     "levels": [
-        ['', 'debug']
+        ("", DEBUG),
+        ("HTTP11ClientProtocol*", INFO)
     ]}
 
 # Only setup colorama if we're not inside
@@ -106,10 +99,18 @@ class Observer(object):
 
             self.levels.append((name, level))
 
+    def filter(self, name, level):
+        for fname, flevel in CONFIGURATION["levels"]:
+            if fname == "" and level > flevel:
+                return True
+
+            if (fname == name or fnmatch(name, fname)) and flevel > level:
+                return True
+
     def emit(self, event):
         # Get the message
         text = textFromEventDict(event)
-        if text is None or text == "Log opened.":
+        if text is None:
             return
 
         # Create a timestamp
@@ -128,6 +129,9 @@ class Observer(object):
 
         if name == "-":
             name = "twisted"
+
+        if self.filter(name, levelno):
+            return
 
         print self.add_color(self.format % locals(), levelno)
 
