@@ -62,12 +62,15 @@ import signal
 from requests import ConnectionError
 from twisted.internet import reactor
 
+from pyfarm.core.config import read_env, read_env_int
 from pyfarm.core.enums import (
     OS, WINDOWS, AgentState, NUMERIC_TYPES, INTEGER_TYPES)
 from pyfarm.core.utility import convert
 
 # start logging before doing anything else
-from pyfarm.agent.logger import getLogger
+from pyfarm.agent.logger import getLogger, start_logging
+start_logging()
+
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
@@ -112,7 +115,8 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        default_data_root = config["agent_data_root"]
+        default_data_root = read_env(
+            "PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
 
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
@@ -247,7 +251,7 @@ class AgentEntryPoint(object):
                  "REST api")
         start_general_group.add_argument(
             "--shutdown-timeout",
-            default=config["agent_shutdown_timeout"],
+            default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
             type=partial(integer, instance=self,
                          flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
@@ -305,7 +309,7 @@ class AgentEntryPoint(object):
                  "at least this many megabytes. [default: %(default)s]")
         start_interval_group.add_argument(
             "--master-reannounce",
-            default=config["agent_master_reannounce"],
+            default=read_env_int("PYFARM_AGENT_MASTER_REANNOUNCE", 120),
             type=partial(integer, instance=self, flag="master-reannounce"),
             help="Controls how often the agent should reannounce itself "
                  "to the master.  The agent may be in contact with the master "
