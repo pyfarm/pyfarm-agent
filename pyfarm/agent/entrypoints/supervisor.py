@@ -22,8 +22,7 @@ import sys
 import time
 import shutil
 import zipfile
-
-from os.path import join, expanduser
+from os.path import join
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -39,19 +38,17 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
-from pyfarm.core.config import read_env, read_env_int
+from pyfarm.core.config import read_env_int
 from pyfarm.core.enums import INTEGER_TYPES, OS
-from pyfarm.agent.logger import getLogger
+from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
+from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.supervisor")
-
-default_data_root = read_env("PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
 
 
 def supervisor():
     logger.debug("Supervisor called with: %r", sys.argv)
-
     supervisor_args = []
     agent_args = []
     in_agent_args = False
@@ -69,14 +66,12 @@ def supervisor():
 
     parser = argparse.ArgumentParser(
         description="Start and monitor the agent process")
-    parser.add_argument("--updates-drop-dir", default=join(expanduser("~"),
-                                                           ".pyfarm",
-                                                           "agent",
-                                                           "updates"),
+    parser.add_argument("--updates-drop-dir",
+                        default=["agent_updates_dir"],
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
-    parser.add_argument("--pidfile", default=join(default_data_root,
+    parser.add_argument("--pidfile", default=join(config["lock_file_root"],
                                                   "supervisor.pid"),
                         help="The file to store the process id in. "
                              "[default: %(default)s]")
