@@ -215,11 +215,11 @@ class Agent(object):
                         config["time-offset"], config["ntp-server"])
 
         data = {
-            "agent_systemid": config["agent_systemid"],
-            "agent_hostname": config["agent_hostname"],
+            "systemid": config["agent_systemid"],
+            "hostname": config["agent_hostname"],
             "version": config.version,
-            "agent_ram": int(config["agent_ram"]),
-            "agent_cpus": config["agent_cpus"],
+            "ram": int(config["agent_ram"]),
+            "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
             "free_ram": int(memory.ram_free()),
             "time_offset": config["time-offset"] or 0,
@@ -623,7 +623,7 @@ class Agent(object):
         """POSTs CPU count changes to the master"""
         def run_post():
             return post(self.agent_api(),
-                data={"cpus": config["cpus"]},
+                data={"cpus": config["agent_cpus"]},
                 callback=self.callback_post_cpu_count_change,
                 errback=self.errback_post_cpu_count_change)
         return run_post() if run else run_post
