@@ -26,7 +26,7 @@ import os
 import sys
 from argparse import _StoreAction
 from errno import EEXIST, ENOENT
-from os.path import dirname
+from os.path import dirname, abspath
 
 try:
     from os import setuid, setgid, fork
@@ -64,9 +64,13 @@ class SetConfig(_StoreAction):
     """
     def __init__(self, *args, **kwargs):
         self.key = kwargs.pop("key")
+        self.isfile = kwargs.pop("isfile", False)
         super(SetConfig, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
+        if self.isfile:
+            values = abspath(values)
+
         config[self.key] = values
         super(SetConfig, self).__call__(
             parser, namespace, values, option_string=option_string)

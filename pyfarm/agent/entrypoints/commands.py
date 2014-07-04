@@ -181,7 +181,7 @@ class AgentEntryPoint(object):
         global_process.add_argument(
             "--pidfile",
             default=config["agent_lock_file"],
-            action=partial(SetConfig, key="agent_lock_file"),
+            action=partial(SetConfig, key="agent_lock_file", isfile=True),
             help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
@@ -327,6 +327,7 @@ class AgentEntryPoint(object):
         logging_group.add_argument(
             "--log",
             default=config["agent_log"],
+            action=partial(SetConfig, key="agent_log", isfile=True),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
@@ -336,7 +337,7 @@ class AgentEntryPoint(object):
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
             "--task-log-dir", default=config["agent_task_logs"],
-            action=partial(SetConfig, key="agent_task_logs"),
+            action=partial(SetConfig, key="agent_task_logs", isfile=True),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -367,6 +368,7 @@ class AgentEntryPoint(object):
         start_http_group.add_argument(
             "--static-files", default=config["agent_static_root"],
             type=partial(direxists, instance=self, flag="static-files"),
+            action=partial(SetConfig, key="agent_static_root", isfile=True),
             help="The default location where the agent's http server should "
                  "find static files to serve. [default: %(default)s]")
         start_http_group.add_argument(
@@ -421,12 +423,6 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            # since the agent process could fork we must make
-            # sure the log file paths are fully specified
-            self.args.log = abspath(self.args.log)
-            self.args.pidfile = abspath(self.args.pidfile)
-            self.args.static_files = abspath(self.args.static_files)
-
             if self.args.chroot is not None:
                 self.args.chroot = abspath(self.args.chroot)
 
