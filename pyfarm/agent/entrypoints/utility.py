@@ -66,7 +66,6 @@ class SetConfig(Action):
         super(SetConfig, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
-        assert isinstance(values, STRING_TYPES)
         config[self.key] = values
 
 
