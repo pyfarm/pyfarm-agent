@@ -17,10 +17,12 @@
 
 """
 Python Logger
-=============
+-------------
 
 This module provides the facilities to capture and send
-log records from Python's logger into Twisted.
+log records from Python's logger into Twisted.  It also
+provides a :class:`Logger` class and :func:`getLogger`
+function to replace the built-in Python implementations.
 """
 
 from time import time
@@ -32,9 +34,9 @@ from twisted.python.log import msg
 
 class Logger(object):
     """
-    A stand-in for a standard :class:`logging.Logger`
-    instance.  Unlike the standard logger this just
-    forwards all messages to Twisted's logging system.
+    A stand-in for an instance of :class:`logging.Logger`
+    Unlike the standard logger this just forwards all messages
+    to Twisted's logging system.
     """
     def __init__(self, name):
         self.name = name
