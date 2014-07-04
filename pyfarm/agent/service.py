@@ -590,7 +590,7 @@ class Agent(object):
         ``config['ram']`` value.
         """
         if change_type == config.MODIFIED:
-            if abs(new_value - old_value) < config["ram-report-delta"]:
+            if abs(new_value - old_value) < config["agent_ram_report_delta"]:
                 svclog.debug("Not enough change in free_ram to report")
             else:
                 self.post_free_ram()

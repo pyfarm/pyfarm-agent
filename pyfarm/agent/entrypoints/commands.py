@@ -306,8 +306,9 @@ class AgentEntryPoint(object):
                  "in ram usage only one or two will be reported to the "
                  "master. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--ram-report-delta", default=100,
+            "--ram-report-delta", default=config["agent_ram_report_delta"],
             type=partial(integer, instance=self, flag="ram-report-delta"),
+            action=partial(SetConfig, key="agent_ram_report_delta"),
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
         start_interval_group.add_argument(

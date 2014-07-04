@@ -94,6 +94,10 @@ agent_http_retry_delay: 5
 # running)
 agent_ram_check_interval: 30
 
+# If the ram has changed this may megabytes since the last
+# check then report the change to the master.
+agent_ram_report_delta: 100
+
 # Physical and network information about the host the agent
 # is running on.  Setting these values to 'auto' will cause
 # them to be initilized to the system's current

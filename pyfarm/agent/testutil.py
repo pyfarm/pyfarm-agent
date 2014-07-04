@@ -184,7 +184,6 @@ class TestCase(_TestCase):
         config_logger.disabled = 1
         config.clear(callbacks=True)
         config.update({
-            "ram-report-delta": 100,
             "agent_http_retry_delay": 1,
             "persistent-http-connections": False,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
