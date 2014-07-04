@@ -108,19 +108,6 @@ class LoggingConfiguration(Configuration):
         super(LoggingConfiguration, self).__delitem__(key)
         self.changed(self.DELETED, key, NOTSET, old_value)
 
-    def _expandvars(self, value):
-        """
-        Augments :meth:`Configuration._expandvars` so local variables
-        in the configuration can be used in other keys:
-
-        .. code-block:: yaml
-
-            root: /tmp
-            path: "{root}/path"
-        """
-        return super(
-            LoggingConfiguration, self)._expandvars(value.format(**self))
-
     def pop(self, key, *args):
         """
         Deletes the provided ``key`` and triggers a ``delete`` event
