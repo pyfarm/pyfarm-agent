@@ -109,6 +109,11 @@ agent_ram_report_delta: 100
 # each report about a change in ram.
 agent_ram_max_report_frequency: 10
 
+# The default network time server and version the agent
+# should use to calcuate its clock skew.
+agent_ntp_server: pool.ntp.org
+agent_ntp_server_version: 2
+
 # Physical and network information about the host the agent
 # is running on.  Setting these values to 'auto' will cause
 # them to be initilized to the system's current

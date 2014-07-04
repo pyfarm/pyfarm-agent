@@ -190,11 +190,14 @@ class Agent(object):
         # this is typically a blocking operation
         if requery_timeoffset or config["time-offset"] is None:
             ntplog.info(
-                "Querying ntp server %r for current time", config["ntp-server"])
+                "Querying ntp server %r for current time",
+                config["agent_ntp_server"])
 
             ntp_client = NTPClient()
             try:
-                pool_time = ntp_client.request(config["ntp-server"])
+                pool_time = ntp_client.request(
+                    config["agent_ntp_server"],
+                    version=config["agent_ntp_server_version"])
 
             except Exception as e:
                 ntplog.warning("Failed to determine network time: %s", e)
@@ -212,7 +215,7 @@ class Agent(object):
                 if config["time-offset"] != 0:
                     ntplog.warning(
                         "Agent is %r second(s) off from ntp server at %r",
-                        config["time-offset"], config["ntp-server"])
+                        config["time-offset"], config["agent_ntp_server"])
 
         data = {
             "systemid": config["agent_systemid"],

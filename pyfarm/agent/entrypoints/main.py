@@ -229,13 +229,15 @@ class AgentEntryPoint(object):
                  "host's time is always up to date then setting this to 0 is "
                  "probably a safe bet.")
         start_general_group.add_argument(
-            "--ntp-server", default="pool.ntp.org",
+            "--ntp-server", default=config["agent_ntp_server"],
+            action=partial(SetConfig, key="agent_ntp_server"),
             help="The default network time server this agent should query to "
                  "retrieve the real time.  This will be used to help determine "
                  "the agent's clock skew if any.  Setting this value to '' "
                  "will effectively disable this query. [default: %(default)s]")
         start_general_group.add_argument(
-            "--ntp-server-version", default=2,
+            "--ntp-server-version", default=config["agent_ntp_server_version"],
+            action=partial(SetConfig, key="agent_ntp_server_version"),
             type=partial(integer, instance=self, flag="ntp-server-version"),
             help="The version of the NTP server in case it's running an older"
                  "or newer version. [default: %(default)s]")
@@ -431,8 +433,6 @@ class AgentEntryPoint(object):
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
                 "html-templates-reload": self.args.html_templates_reload,
-                "ntp-server": self.args.ntp_server,
-                "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
                 "jobtype-no-cache": self.args.jobtype_no_cache,

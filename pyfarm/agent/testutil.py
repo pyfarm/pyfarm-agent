@@ -195,7 +195,6 @@ class TestCase(_TestCase):
             "time-offset": randint(-50, 50),
             "state": choice(AgentState),
             "pretty-json": True,
-            "ntp-server": "pool.ntp.org",
             "html-templates-reload": True,
             "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0
