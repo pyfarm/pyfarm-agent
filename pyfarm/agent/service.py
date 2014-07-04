@@ -188,7 +188,7 @@ class Agent(object):
         """
         # query the time offset and then cache it since
         # this is typically a blocking operation
-        if requery_timeoffset or config["time-offset"] is None:
+        if requery_timeoffset or config["agent_time_offset"] is None:
             ntplog.info(
                 "Querying ntp server %r for current time",
                 config["agent_ntp_server"])
@@ -203,19 +203,21 @@ class Agent(object):
                 ntplog.warning("Failed to determine network time: %s", e)
 
             else:
-                config["time-offset"] = int(pool_time.tx_time - time.time())
+                config["agent_time_offset"] = \
+                    int(pool_time.tx_time - time.time())
 
                 # format the offset for logging purposes
                 utcoffset = datetime.utcfromtimestamp(pool_time.tx_time)
                 iso_timestamp = utcoffset.isoformat()
                 ntplog.debug(
                     "network time: %s (local offset: %r)",
-                    iso_timestamp, config["time-offset"])
+                    iso_timestamp, config["agent_time_offset"])
 
-                if config["time-offset"] != 0:
+                if config["agent_time_offset"] != 0:
                     ntplog.warning(
                         "Agent is %r second(s) off from ntp server at %r",
-                        config["time-offset"], config["agent_ntp_server"])
+                        config["agent_time_offset"],
+                        config["agent_ntp_server"])
 
         data = {
             "systemid": config["agent_systemid"],
@@ -225,7 +227,7 @@ class Agent(object):
             "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
             "free_ram": int(memory.ram_free()),
-            "time_offset": config["time-offset"] or 0,
+            "time_offset": config["agent_time_offset"] or 0,
             "state": config["state"],
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet

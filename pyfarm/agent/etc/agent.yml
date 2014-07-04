@@ -114,6 +114,12 @@ agent_ram_max_report_frequency: 10
 agent_ntp_server: pool.ntp.org
 agent_ntp_server_version: 2
 
+# The amount of time this agent is offset from what
+# would be considered correct based on an atomic
+# clock.  If this value is set to auto the time will
+# be calculated using NTP.
+agent_time_offset: auto
+
 # Physical and network information about the host the agent
 # is running on.  Setting these values to 'auto' will cause
 # them to be initilized to the system's current
