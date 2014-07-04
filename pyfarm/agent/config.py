@@ -107,9 +107,6 @@ class LoggingConfiguration(Configuration):
             if key == "agent_hostname":
                 return network.hostname()
 
-            if key == "agent_systemid":
-                return system.system_identifier()
-
             if key == "agent_static_root":
                 return abspath(
                     join(dirname(__file__), "http", "static"))
