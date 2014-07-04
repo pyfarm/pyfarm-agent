@@ -20,8 +20,8 @@ import signal
 import subprocess
 import sys
 import time
-import zipfile
 import shutil
+import zipfile
 
 from os.path import join, expanduser
 
@@ -127,11 +127,11 @@ def supervisor():
     if getgid is not NotImplemented:
         logger.info("gid: %s" % getgid())
 
-    def terminate_handler(signum, frame):
+    def terminate_handler(*_):
         subprocess.call(["pyfarm-agent"] + agent_args + ["stop"])
         sys.exit(0)
 
-    def restart_handler(signum, frame):
+    def restart_handler(*_):
         subprocess.call(["pyfarm-agent"] + agent_args + ["stop"])
 
     logger.debug("Setting signal handlers")
