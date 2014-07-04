@@ -67,7 +67,7 @@ def supervisor():
     parser = argparse.ArgumentParser(
         description="Start and monitor the agent process")
     parser.add_argument("--updates-drop-dir",
-                        default=["agent_updates_dir"],
+                        default=config["agent_updates_dir"],
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
