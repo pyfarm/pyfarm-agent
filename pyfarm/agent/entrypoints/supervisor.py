@@ -70,8 +70,7 @@ def supervisor():
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
-    parser.add_argument("--pidfile", default=join(config["lock_file_root"],
-                                                  "supervisor.pid"),
+    parser.add_argument("--pidfile", default=config["supervisor_lock_file"],
                         help="The file to store the process id in. "
                              "[default: %(default)s]")
     parser.add_argument("-n", "--no-daemon", default=False, action="store_true",
