@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The location where the agent should change directories
+# into upon starting.  If this value is not set then no
+# changes will be made.
+agent_chdir:
+
 # The location where static web files should be served from.  This
 # will default to using PyFarm's installation root.
 agent_static_root: auto
