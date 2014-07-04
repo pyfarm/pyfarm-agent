@@ -21,5 +21,7 @@ PyFarm Agent
 Core module containing code to run PyFarm's agent.
 """
 
+# Make sure we start intercepting logging messages
+# as early as possible.
 from pyfarm.agent.logger import setup_logging
 setup_logging()
