@@ -111,7 +111,7 @@ class Agent(object):
         Returns the API endpoint for used for updating or creating
         agents on the master
         """
-        return config["master-api"] + "/agents/"
+        return config["master_api"] + "/agents/"
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
@@ -121,7 +121,7 @@ class Agent(object):
 
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
-        return remaining > config["master-reannounce"]
+        return remaining > config["agent_master_reannounce"]
 
     def reannounce(self):
         """
