@@ -319,9 +319,9 @@ class Agent(object):
         # process exits.
         if not self.shutting_down:
             self.shutting_down = True
-            self.shutdown_timeout = (datetime.utcnow() +
-                                     timedelta(
-                                        seconds=config["shutdown_timeout"]))
+            self.shutdown_timeout = (
+                datetime.utcnow() + timedelta(
+                    seconds=config["agent_shutdown_timeout"]))
 
             def remove_pidfile():
                 if not isfile(config["agent_lock_file"]):

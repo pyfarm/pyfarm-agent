@@ -255,8 +255,9 @@ class AgentEntryPoint(object):
         start_general_group.add_argument(
             "--shutdown-timeout",
             default=config["agent_shutdown_timeout"],
-            type=partial(integer, instance=self,
-                         flag="shutdown_timeout", min_=0),
+            action=partial(SetConfig, key="agent_shutdown_timeout"),
+            type=partial(
+                integer, instance=self, flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
         start_general_group.add_argument(
@@ -433,13 +434,14 @@ class AgentEntryPoint(object):
             if self.args.chroot is not None:
                 self.args.chroot = abspath(self.args.chroot)
 
+            # Caching systemid
+            get_system_identifier(
+                systemid=config["agent_systemid"],
+                cache_path=config["agent_systemid_cache"])
+
             # update configuration with values from the command line
             config_flags = {
-                "systemid": get_system_identifier(
-                    systemid=self.args.systemid,
-                    cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
-                "master_api": self.args.master_api,
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
                 "http-max-retries": self.args.http_max_retries,
@@ -459,7 +461,6 @@ class AgentEntryPoint(object):
                 "agent_master_reannounce": self.args.master_reannounce,
                 "pids": {
                     "parent": os.getpid()},
-                "shutdown_timeout": self.args.shutdown_timeout,
                 "updates_drop_dir": self.args.updates_drop_dir}
             # update configuration with values from the command line
 
