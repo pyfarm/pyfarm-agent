@@ -1,6 +1,7 @@
 # No shebang line, this module is meant to be imported
 #
 # Copyright 2014 Oliver Palmer
+# Copyright 2014 Ambient Entertainment GmbH & Co. KG
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +16,9 @@
 # limitations under the License.
 
 try:
-    from httplib import ACCEPTED, BAD_REQUEST, CONFLICT
+    from httplib import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
 except ImportError:  # pragma: no cover
-    from http.client import ACCEPTED, BAD_REQUEST, CONFLICT
+    from http.client import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
 
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Invalid, Schema, Required, Optional
@@ -95,6 +96,15 @@ class Assign(APIResource):
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")
 
+        if "restart_requested" in config and config["restart_requested"] is True:
+            logger.error("Rejecting assignment because of scheduled restart.")
+            request.setResponseCode(SERVICE_UNAVAILABLE)
+            request.write(
+                {"error": "Agent cannot accept assignments because of a "
+                          "pending restart"})
+            request.finish()
+            return NOT_DONE_YET
+
         if "agent-id" not in config:
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
@@ -167,6 +177,10 @@ class Assign(APIResource):
         def remove_assignment(index):
             del config["current_assignments"][index]
 
+        def restart_if_necessary():
+            if "restart_requested" in config and config["restart_requested"]:
+                config["agent"].stop()
+
         def loaded_jobtype(jobtype_class):
             instance = jobtype_class(data)
 
@@ -178,6 +192,8 @@ class Assign(APIResource):
             deferred = instance._start()
             deferred.addCallback(lambda _: remove_assignment(index))
             deferred.addErrback(lambda _: remove_assignment(index))
+            deferred.addCallback(lambda _: restart_if_necessary())
+            deferred.addErrback(lambda _: restart_if_necessary())
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
