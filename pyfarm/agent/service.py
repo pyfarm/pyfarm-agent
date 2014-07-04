@@ -220,7 +220,7 @@ class Agent(object):
             "version": config.version,
             "ram": int(config["ram"]),
             "cpus": config["cpus"],
-            "port": config["port"],
+            "port": config["agent_api_port"],
             "free_ram": int(memory.ram_free()),
             "time_offset": config["time-offset"] or 0,
             "state": config["state"],
@@ -291,7 +291,7 @@ class Agent(object):
         if http_server:
             http_resource = self.build_http_resource()
             self.http = Site(http_resource)
-            reactor.listenTCP(config["port"], self.http)
+            reactor.listenTCP(config["agent_api_port"], self.http)
 
         # Update the configuration with this pid (which may be different
         # than the original pid).

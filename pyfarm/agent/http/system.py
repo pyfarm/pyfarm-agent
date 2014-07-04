@@ -20,11 +20,10 @@ from httplib import OK
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
-from pyfarm.core.utility import convert
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
-from pyfarm.agent.sysinfo import cpu, memory, network
+from pyfarm.agent.sysinfo import cpu, memory
 
 
 def mb(value):
@@ -97,7 +96,7 @@ class Index(Resource):
 
         network_info = [
             ("Hostname", config["hostname"]),
-            ("Agent Port", config["port"]),
+            ("Agent Port", config["agent_api_port"]),
             ("Master API", config["master_api"])]
 
         cpu_info = [

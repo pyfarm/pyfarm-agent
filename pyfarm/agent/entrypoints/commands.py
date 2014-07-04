@@ -74,7 +74,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    start_daemon_posix, get_system_identifier)
+    SetConfig, start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import network, memory, cpu
 
 
@@ -121,6 +121,7 @@ class AgentEntryPoint(object):
                         "on the agent.")
         global_network.add_argument(
             "--port", default=config["agent_api_port"],
+            action=partial(SetConfig, key="agent_api_port"),
             type=partial(port, instance=self),
             help="The port number which the agent is either running on or "
                  "will run on when started.  This port is also reported the "
@@ -438,7 +439,6 @@ class AgentEntryPoint(object):
                 "chroot": self.args.chroot,
                 "master_api": self.args.master_api,
                 "hostname": self.args.host,
-                "port": self.args.port,
                 "state": self.args.state,
                 "ram": self.args.ram,
                 "cpus": self.args.cpus,
