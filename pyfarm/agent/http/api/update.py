@@ -78,7 +78,7 @@ class Update(APIResource):
 
         # TODO Check version parameter for sanity
 
-        url = "%s/agents/updates/%s" % (config["master-api"], data["version"])
+        url = "%s/agents/updates/%s" % (config["master_api"], data["version"])
         url = url.encode()
 
         def download_update(version):
