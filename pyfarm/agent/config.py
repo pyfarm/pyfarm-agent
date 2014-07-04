@@ -74,8 +74,8 @@ class LoggingConfiguration(Configuration):
                 last_master_contact=None,
 
                 # The last time we announced ourselves to the master.  This
-                # may be longer than --master-reannounce if `last_master_contact`
-                # caused us to skip an announcement.
+                # may be longer than --master-reannounce if
+                # `last_master_contact` caused us to skip an announcement.
                 last_announce=None)
 
         if data is not None:
@@ -84,7 +84,8 @@ class LoggingConfiguration(Configuration):
         # Load configuration file(s) for jobtypes and then
         # update the local instance
         if load:
-            jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
+            jobtypes_config = Configuration(
+                "pyfarm.jobtypes", version=self.version)
             jobtypes_config.load(environment=environment)
             self.update(jobtypes_config)
 
