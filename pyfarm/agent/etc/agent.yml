@@ -29,3 +29,7 @@ agent_user_data: ~/.pyfarm/agent
 
 # The location where agent updates should be stored.
 agent_updates_dir: "$agent_user_data/updates"
+
+# Defines the number of seconds between iterations of pyfarm-supervisor's
+# agent status check.
+supervisor_interval: 5

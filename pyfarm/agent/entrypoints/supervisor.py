@@ -38,7 +38,6 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
-from pyfarm.core.config import read_env_int
 from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
@@ -138,7 +137,7 @@ def supervisor():
 
     update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
 
-    loop_interval = read_env_int("PYFARM_AGENT_SUPERVISOR_INTERVAL", 5)
+    loop_interval = config["supervisor_interval"]
 
     while True:
         if subprocess.call(["pyfarm-agent", "status"]) != 0:
