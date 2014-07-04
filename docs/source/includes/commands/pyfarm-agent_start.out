@@ -6,6 +6,7 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--ntp-server-version NTP_SERVER_VERSION]
                                               [--no-pretty-json]
                                               [--shutdown-timeout SHUTDOWN_TIMEOUT]
+                                              [--updates-drop-dir UPDATES_DROP_DIR]
                                               [--cpus CPUS] [--ram RAM]
                                               [--ram-check-interval RAM_CHECK_INTERVAL]
                                               [--ram-max-report-interval RAM_MAX_REPORT_INTERVAL]
@@ -56,6 +57,11 @@ General Configuration:
   --shutdown-timeout SHUTDOWN_TIMEOUT
                         How many seconds the agent should spend attempting to
                         inform the master that it's shutting down.
+  --updates-drop-dir UPDATES_DROP_DIR
+                        The directory to drop downloaded updates in. This
+                        should be the same directory pyfarm-supervisor will
+                        look for updates in. [default:
+                        /home/opalmer/.pyfarm/agent/updates]
 
 Physical Hardware:
   Command line flags which describe the hardware of the agent.
