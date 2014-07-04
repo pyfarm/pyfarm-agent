@@ -97,15 +97,16 @@ class Update(APIResource):
 
         def update_downloaded(response):
             if response.code == OK:
-                update_filename = join(config["updates_drop_dir"],
+                update_filename = join(config["agent_updates_dir"],
                                        "pyfarm-agent.zip")
                 logger.debug("Writing update to %s", update_filename)
-                if not isdir(config["updates_drop_dir"]):
-                    makedirs(config["updates_drop_dir"])
+                if not isdir(config["agent_updates_dir"]):
+                    makedirs(config["agent_updates_dir"])
                 with open(update_filename, "wb+") as update_file:
                     collect(response, update_file.write)
-                logger.info("Update file for version %s has been downloaded and "
-                            "stored under %s", data["version"], update_filename)
+                logger.info("Update file for version %s has been downloaded "
+                            "and stored under %s", data["version"],
+                            update_filename)
                 # TODO Only shut down if we were started by the supervisor
                 config["restart_requested"] = True
                 if len(config["current_assignments"]) == 0:

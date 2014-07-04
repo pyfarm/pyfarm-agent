@@ -22,6 +22,7 @@ import sys
 import time
 import shutil
 import zipfile
+from functools import partial
 from os.path import join
 
 # Platform specific imports.  These should either all fail or
@@ -42,6 +43,7 @@ from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.entrypoints.utility import SetConfig
 
 logger = getLogger("agent.supervisor")
 
@@ -67,6 +69,7 @@ def supervisor():
         description="Start and monitor the agent process")
     parser.add_argument("--updates-drop-dir",
                         default=config["agent_updates_dir"],
+                        action=partial(SetConfig, key="agent_updates_dir"),
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
@@ -134,7 +137,7 @@ def supervisor():
     signal.signal(signal.SIGINT, terminate_handler)
     signal.signal(signal.SIGHUP, restart_handler)
 
-    update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
+    update_file_path = join(config["agent_updates_dir"], "pyfarm-agent.zip")
 
     loop_interval = config["supervisor_interval"]
 

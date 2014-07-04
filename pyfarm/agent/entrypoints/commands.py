@@ -261,8 +261,8 @@ class AgentEntryPoint(object):
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
         start_general_group.add_argument(
-            "--updates-drop-dir", default=join(expanduser("~"), ".pyfarm",
-                                               "agent", "updates"),
+            "--updates-drop-dir", default=config["agent_updates_dir"],
+            action=partial(SetConfig, key="agent_updates_dir"),
             help="The directory to drop downloaded updates in. This should be "
             "the same directory pyfarm-supervisor will look for updates in. "
             "[default: %(default)s]")
@@ -460,8 +460,7 @@ class AgentEntryPoint(object):
                 "task-log-dir": self.args.task_log_dir,
                 "agent_master_reannounce": self.args.master_reannounce,
                 "pids": {
-                    "parent": os.getpid()},
-                "updates_drop_dir": self.args.updates_drop_dir}
+                    "parent": os.getpid()}}
             # update configuration with values from the command line
 
             config.update(config_flags)
