@@ -40,6 +40,7 @@ except ImportError:  # pragma: no cover
     getgid = NotImplemented
 
 from pyfarm.core.config import read_env, read_env_int
+from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 
