@@ -66,8 +66,8 @@ def supervisor():
 
     logger.debug("supervisor_args: %s", supervisor_args)
 
-    parser = argparse.ArgumentParser(description="Start and monitor the "
-                                        "agent process")
+    parser = argparse.ArgumentParser(
+        description="Start and monitor the agent process")
     parser.add_argument("--updates-drop-dir", default=join(expanduser("~"),
                                                            ".pyfarm",
                                                            "agent",
