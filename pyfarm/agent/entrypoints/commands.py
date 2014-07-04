@@ -128,6 +128,7 @@ class AgentEntryPoint(object):
                  "master when an agent starts. [default: %(default)s]")
         global_network.add_argument(
             "--host", default=None,
+            action=partial(SetConfig, key="agent_hostname"),
             help="The host to communicate with or hostname to present to the "
                  "master when starting.  Defaults to %r for the start "
                  "command and 'localhost' other targets such as status or "
@@ -178,6 +179,7 @@ class AgentEntryPoint(object):
         global_process.add_argument(
             "--pidfile",
             default=config["agent_lock_file"],
+            action=partial(SetConfig, key="agent_lock_file"),
             help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
@@ -264,11 +266,13 @@ class AgentEntryPoint(object):
                         "the agent.")
         start_hardware_group.add_argument(
             "--cpus", default=int(cpu.total_cpus()),
+            action=partial(SetConfig, key="agent_cpus"),
             type=partial(integer, instance=self, flag="cpus"),
             help="The total amount of cpus installed on the "
                  "system [default: %(default)s]")
         start_hardware_group.add_argument(
             "--ram", default=int(memory.total_ram()),
+            action=partial(SetConfig, key="agent_ram"),
             type=partial(integer, instance=self, flag="ram"),
             help="The total amount of ram installed on the system in "
                  "megabytes.  [default: %(default)s]")
@@ -436,10 +440,7 @@ class AgentEntryPoint(object):
                     cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
                 "master_api": self.args.master_api,
-                "hostname": self.args.host,
                 "state": self.args.state,
-                "ram": self.args.ram,
-                "cpus": self.args.cpus,
                 "projects": list(set(self.args.projects)),
                 "http-max-retries": self.args.http_max_retries,
                 "http-retry-delay": self.args.http_retry_delay,
@@ -456,7 +457,6 @@ class AgentEntryPoint(object):
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
                 "agent_master_reannounce": self.args.master_reannounce,
-                "pidfile": self.args.pidfile,
                 "pids": {
                     "parent": os.getpid()},
                 "shutdown_timeout": self.args.shutdown_timeout,
@@ -681,7 +681,7 @@ class AgentEntryPoint(object):
         pid_child = data["pids"]["child"]
 
         # Print some general information about the agent
-        logger.info("Agent %(hostname)s is %(state)s" % data)
+        logger.info("Agent %(agent_hostname)s is %(state)s" % data)
         logger.info("               Uptime: %(uptime)s seconds" % data)
         logger.info(
             "  Last Master Contact: %(last_master_contact)s seconds" % data)

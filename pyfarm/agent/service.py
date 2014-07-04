@@ -131,7 +131,7 @@ class Agent(object):
         if not self.should_reannounce():
             return
 
-        svclog.debug("Announcing %s to master", config["hostname"])
+        svclog.debug("Announcing %s to master", config["agent_hostname"])
 
         def callback(response):
             if response.code == OK:
@@ -216,10 +216,10 @@ class Agent(object):
 
         data = {
             "systemid": config["systemid"],
-            "hostname": config["hostname"],
+            "agent_hostname": config["agent_hostname"],
             "version": config.version,
-            "ram": int(config["ram"]),
-            "cpus": config["cpus"],
+            "agent_ram": int(config["agent_ram"]),
+            "agent_cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
             "free_ram": int(memory.ram_free()),
             "time_offset": config["time-offset"] or 0,
@@ -324,17 +324,19 @@ class Agent(object):
                                         seconds=config["shutdown_timeout"]))
 
             def remove_pidfile():
-                if not isfile(config["pidfile"]):
-                    svclog.warning("%s does not exist", config["pidfile"])
+                if not isfile(config["agent_lock_file"]):
+                    svclog.warning(
+                        "%s does not exist", config["agent_lock_file"])
                     return
 
                 try:
-                    os.remove(config["pidfile"])
-                    svclog.debug("Removed pidfile %r", config["pidfile"])
+                    os.remove(config["agent_lock_file"])
+                    svclog.debug(
+                        "Removed pidfile %r", config["agent_lock_file"])
                 except (OSError, IOError) as e:
                     svclog.error(
-                        "Failed to remove pidfile %r: %s",
-                        config["pidfile"], e)
+                        "Failed to remove lock file %r: %s",
+                        config["agent_lock_file"], e)
 
             atexit.register(remove_pidfile)
 

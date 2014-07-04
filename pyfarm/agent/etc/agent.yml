@@ -68,3 +68,11 @@ agent_shutdown_timeout: 15
 # inactivity this is how often the agent will 'inform' the
 # master the agent is still online.
 agent_master_reannounce: 120
+
+# Physical and network information about the host the agent
+# is running on.  Setting these values to 'auto' will cause
+# them to be initilized to the system's current
+# configuration values.
+agent_ram: auto
+agent_cpus: auto
+agent_hostname: auto

@@ -60,7 +60,7 @@ class Index(Resource):
             raise KeyError("failed to find state")
 
         total_swap = memory.total_swap()
-        ram_allocated = (memory.ram_used() / float(config["ram"])) * 100
+        ram_allocated = (memory.ram_used() / float(config["agent_ram"])) * 100
         swap_allocated = (memory.swap_used() / total_swap) * 100
 
         if ram_allocated >= 100:
@@ -85,23 +85,24 @@ class Index(Resource):
             ("RAM Used",
                 "%.2f%% (%s of %s)" % (
                     ram_allocated,
-                    int(memory.ram_used()), mb((config["ram"]))), ram_css),
+                    int(memory.ram_used()),
+                    mb((config["agent_ram"]))), ram_css),
             ("SWAP Used",
                 "%.2f%% (%s of %s)" % (
                     swap_allocated,
                     int(memory.swap_used()), mb((total_swap))), swap_css),
             ("System RAM", mb(memory.total_ram()), None),
-            ("System RAM (reported)", mb(config["ram"]), None),
+            ("System RAM (reported)", mb(config["agent_ram"]), None),
             ("Agent RAM Usage", mb(memory.process_memory()), None)]
 
         network_info = [
-            ("Hostname", config["hostname"]),
+            ("Hostname", config["agent_hostname"]),
             ("Agent Port", config["agent_api_port"]),
             ("Master API", config["master_api"])]
 
         cpu_info = [
             ("CPUs", cpu.total_cpus()),
-            ("CPUs (reported)", config["cpus"]),
+            ("CPUs (reported)", config["agent_cpus"]),
             ("System Time", seconds(cpu.system_time())),
             ("User Time", seconds(cpu.user_time())),
             ("Idle Time", seconds(cpu.idle_time())),
@@ -140,10 +141,10 @@ class Configuration(Resource):
 
     # fields that a user can edit
     EDITABLE_FIELDS = (
-        "cpus", "hostname", "http-max-retries", "http-retry-delays",
-        "ip", "master_api", "memory-check-interval", "ram", "ram-report-delta",
-        "time-offset", "use-address", "state", "swap-report-delta",
-        "http-retry-delay")
+        "agent_cpus", "hostname", "http-max-retries", "http-retry-delays",
+        "ip", "master_api", "memory-check-interval", "agent_ram",
+        "ram-report-delta", "time-offset", "use-address", "state",
+        "swap-report-delta", "http-retry-delay")
 
     def get(self, **kwargs):
         request = kwargs["request"]
