@@ -351,7 +351,7 @@ class Agent(object):
 
             if stopping_jobtypes:
                 wait_on_stopping = DeferredList(stopping_jobtypes)
-                if agent_id in config:
+                if "agent-id" in config:
                     wait_on_stopping.addCallback(self.post_shutdown_to_master)
                 else:
                     wait_on_stopping.addCallback(reactor.stop)
