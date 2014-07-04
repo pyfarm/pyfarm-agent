@@ -372,11 +372,6 @@ class AgentEntryPoint(object):
             help="The default location where the agent's http server should "
                  "find static files to serve. [default: %(default)s]")
         start_http_group.add_argument(
-            "--http-max-retries", default="unlimited",
-            type=partial(integer, instance=self, allow_inf=True, min_=0),
-            help="The max number of times to retry a request to the master "
-                 "after it has failed.  [default: %(default)s]")
-        start_http_group.add_argument(
             "--http-retry-delay", default=5,
             type=partial(number, instance=self),
             help="If a http request to the master has failed, wait this amount "
@@ -432,7 +427,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "http-max-retries": self.args.http_max_retries,
                 "http-retry-delay": self.args.http_retry_delay,
                 "ram-check-interval": self.args.ram_check_interval,
                 "ram-report-delta": self.args.ram_report_delta,

@@ -141,7 +141,7 @@ class Configuration(Resource):
 
     # fields that a user can edit
     EDITABLE_FIELDS = (
-        "agent_cpus", "hostname", "http-max-retries", "http-retry-delays",
+        "agent_cpus", "hostname", "http-retry-delays",
         "ip", "master_api", "memory-check-interval", "agent_ram",
         "ram-report-delta", "time-offset", "use-address", "state",
         "swap-report-delta", "http-retry-delay")
