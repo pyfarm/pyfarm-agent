@@ -75,7 +75,7 @@ from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
     SetConfig, start_daemon_posix, get_system_identifier)
-from pyfarm.agent.sysinfo import network, memory, cpu
+from pyfarm.agent.sysinfo import memory, cpu
 
 
 logger = getLogger("agent.cmd")
@@ -92,7 +92,6 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
-        self.default_host = network.hostname()
         self.parser = argparse.ArgumentParser(
             usage="%(prog)s [status|start|stop]",
             epilog="%(prog)s is a command line client for working with a "
@@ -127,12 +126,11 @@ class AgentEntryPoint(object):
                  "will run on when started.  This port is also reported the "
                  "master when an agent starts. [default: %(default)s]")
         global_network.add_argument(
-            "--host", default=None,
+            "--host", default=config["agent_hostname"],
             action=partial(SetConfig, key="agent_hostname"),
             help="The host to communicate with or hostname to present to the "
-                 "master when starting.  Defaults to %r for the start "
-                 "command and 'localhost' other targets such as status or "
-                 "stop." % self.default_host)
+                 "master when starting.  Defaults to the fully qualified"
+                 "hostname.  [default: %(default)s]")
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
@@ -158,14 +156,21 @@ class AgentEntryPoint(object):
             "Network Resources",
             description="Resources which the agent will be communicating with.")
         global_apis.add_argument(
-            "--master",
+            "--master", default=config["master"],
+            action=partial(SetConfig, key="master"),
             help="This is a convenience flag which will allow you to set the "
                  "hostname for the master.  By default this value will be "
                  "substituted in --master-api")
         global_apis.add_argument(
             "--master-api", default=config["master_api"],
+            action=partial(SetConfig, key="master_api"),
             help="The location where the master's REST api is located. "
                  "[default: %(default)s]")
+        global_apis.add_argument(
+            "--master-api-version", default=config["master_api_version"],
+            action=partial(SetConfig, key="master_api_version"),
+            help="Sets the version of the master's REST api the agent should"
+                 "use [default: %(default)s]")
 
         # global command line flags which apply to top level
         # process control
@@ -397,17 +402,10 @@ class AgentEntryPoint(object):
                  "agent continue to stop itself without waiting for each agent")
 
     def __call__(self):
+        logger.debug("Parsing command line arguments")
         self.args = self.parser.parse_args()
 
-        # Default for 'host' should be 'localhost' for everything
-        # except start.
-        if self.args.host is None:
-            if self.args.target_name == "start":
-                self.args.host = self.default_host
-            else:
-                self.args.host = "localhost"
-
-        if not self.args.master and self.args.target_name == "start":
+        if not config["master"] and self.args.target_name == "start":
             self.parser.error(
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
