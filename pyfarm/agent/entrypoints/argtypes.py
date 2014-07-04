@@ -88,6 +88,9 @@ def port(value, instance=None):
 @assert_instance
 def system_identifier(value, instance=None):
     """validates a --systemid value"""
+    if value == "auto":
+        return value
+
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
