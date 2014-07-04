@@ -143,7 +143,7 @@ class Configuration(Resource):
     EDITABLE_FIELDS = (
         "agent_cpus", "hostname", "http-retry-delays",
         "ip", "master_api", "memory-check-interval", "agent_ram",
-        "ram-report-delta", "time-offset", "use-address", "state",
+        "agent_ram_report_delta", "time-offset", "use-address", "state",
         "swap-report-delta", "http-retry-delay")
 
     def get(self, **kwargs):

@@ -428,7 +428,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "ram-report-delta": self.args.ram_report_delta,
                 "ram-max-report-interval": self.args.ram_max_report_interval,
                 "html-templates-reload": self.args.html_templates_reload,
                 "ntp-server": self.args.ntp_server,
