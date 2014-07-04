@@ -62,7 +62,6 @@ import signal
 from requests import ConnectionError
 from twisted.internet import reactor
 
-from pyfarm.core.config import read_env, read_env_int
 from pyfarm.core.enums import (
     OS, WINDOWS, AgentState, NUMERIC_TYPES, INTEGER_TYPES)
 from pyfarm.core.utility import convert
@@ -115,16 +114,13 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        default_data_root = read_env(
-            "PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
-
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
             "Agent Network Service",
             description="Main flags which control the network services running "
                         "on the agent.")
         global_network.add_argument(
-            "--port", default=50000,
+            "--port", default=config["agent_api_port"],
             type=partial(port, instance=self),
             help="The port number which the agent is either running on or "
                  "will run on when started.  This port is also reported the "
@@ -151,12 +147,12 @@ class AgentEntryPoint(object):
                  "connects.")
         global_network.add_argument(
             "--systemid-cache",
-            default=join(default_data_root, "systemid"),
+            default=join(config["agent_data_root"], "systemid"),
             help="The location to cache the value for --systemid. "
                  "[default: %(default)s]")
 
         # defaults for a couple of the command line flags below
-        self.master_api_default = "http://%(master)s/api/v1"
+        self.master_api_default = config["master_api_url"]
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
@@ -183,7 +179,7 @@ class AgentEntryPoint(object):
                         "via a process id file.")
         global_process.add_argument(
             "--pidfile",
-            default=join(default_data_root, "agent.pid"),
+            default=config["agent_lock_file"],
             help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
@@ -251,7 +247,7 @@ class AgentEntryPoint(object):
                  "REST api")
         start_general_group.add_argument(
             "--shutdown-timeout",
-            default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
+            default=config["agent_shutdown_timeout"],
             type=partial(integer, instance=self,
                          flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
@@ -309,7 +305,7 @@ class AgentEntryPoint(object):
                  "at least this many megabytes. [default: %(default)s]")
         start_interval_group.add_argument(
             "--master-reannounce",
-            default=read_env_int("PYFARM_AGENT_MASTER_REANNOUNCE", 120),
+            default=config["agent_master_reannounce"],
             type=partial(integer, instance=self, flag="master-reannounce"),
             help="Controls how often the agent should reannounce itself "
                  "to the master.  The agent may be in contact with the master "
@@ -324,7 +320,7 @@ class AgentEntryPoint(object):
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
             "--log",
-            default=join(default_data_root, "agent.log"),
+            default=config["agent_log"],
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
@@ -333,7 +329,7 @@ class AgentEntryPoint(object):
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", default=join(default_data_root, "task_logs"),
+            "--task-log-dir", default=config["agent_task_logs"],
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -415,8 +411,7 @@ class AgentEntryPoint(object):
 
         # replace %(master)s in --master-api if --master-api was not set
         if self.args.master_api == self.master_api_default:
-            self.args.master_api = self.args.master_api % {
-                "master": self.args.master}
+            self.args.master_api = config["master_api"]
 
         # if we're on windows, produce some warnings about
         # flags which are not supported
@@ -463,7 +458,6 @@ class AgentEntryPoint(object):
                 "ntp-server-version": self.args.ntp_server_version,
                 "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
-                "api-endpoint-prefix": "/api/v1",
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
