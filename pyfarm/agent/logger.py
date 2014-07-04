@@ -73,7 +73,6 @@ class LoggingHistory(Handler):
     megabytes of memory on Linux.  Results should be similar on other
     platforms.
     """
-    # TODO: use config value here instead (but avoid circular imports)
     data = deque(
         maxlen=read_env_int("PYFARM_AGENT_LOG_HISTORY_MAX_LENGTH", 20000))
 
@@ -265,6 +264,15 @@ try:
     OBSERVER
 except NameError:
     OBSERVER = PythonLoggingObserver()
+
+
+def start_logging():
+    """
+    Gets the base agent logger setup and then establishes and observer that
+    we can emit log messages to.  You should only need to run this method
+    once per process.
+    """
+    _getLogger("agent")  # setup the global agent logger first
     OBSERVER.start()
 
 
@@ -272,6 +280,10 @@ def getLogger(name):
     """
     Instances and returns a :class:`.Logger` object with the proper
     name.  New loggers should always be created using this function.
+
+    :raises RuntimeError:
+        raised if this function is called before the observer has
+        been started with :func:`start_logging`
     """
     if not OBSERVER.STARTED:
         warn("Observer not yet started")
@@ -282,16 +294,3 @@ def getLogger(name):
     OBSERVER.loggers[logger.name] = logger
     OBSERVER.event_system_names[logger.name] = logger.name
     return Logger(logger.name, logger)
-
-
-def start_logging():
-    """
-    Gets the base agent logger setup and then establishes and observer that
-    we can emit log messages to.  You should only need to run this method
-    once per process.
-    """
-    # Setup the global loggers
-    _getLogger("agent")
-    _getLogger("jobtypes")
-    OBSERVER.start()
-

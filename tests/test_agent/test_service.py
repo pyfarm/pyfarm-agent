@@ -25,7 +25,6 @@ from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, PYFARM_AGENT_MASTER
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
-from pyfarm.agent.sysinfo import memory
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
@@ -50,12 +49,13 @@ class TestAgentBasicMethods(TestCase):
             "ram": config["ram"],
             "cpus": config["cpus"],
             "port": config["port"],
-            "free_ram": int(memory.ram_free()),
+            "free_ram": config["free-ram"],
             "time_offset": config["time-offset"],
             "state": config["state"]}
 
         agent = Agent()
-        config["remote-ip"] = expected["remote-ip"] = \
+        self.assertEqual(agent.system_data(), expected)
+        config["remote-ip"] = expected["remote_ip"] = \
             os.urandom(16).encode("hex")
         self.assertEqual(agent.system_data(), expected)
 
