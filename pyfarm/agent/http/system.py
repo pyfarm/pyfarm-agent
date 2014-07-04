@@ -98,7 +98,7 @@ class Index(Resource):
         network_info = [
             ("Hostname", config["hostname"]),
             ("Agent Port", config["port"]),
-            ("Master API", config["master-api"])]
+            ("Master API", config["master_api"])]
 
         cpu_info = [
             ("CPUs", cpu.total_cpus()),
@@ -142,7 +142,7 @@ class Configuration(Resource):
     # fields that a user can edit
     EDITABLE_FIELDS = (
         "cpus", "hostname", "http-max-retries", "http-retry-delays",
-        "ip", "master-api", "memory-check-interval", "ram", "ram-report-delta",
+        "ip", "master_api", "memory-check-interval", "ram", "ram-report-delta",
         "time-offset", "use-address", "state", "swap-report-delta",
         "http-retry-delay")
 

@@ -151,9 +151,6 @@ class AgentEntryPoint(object):
             help="The location to cache the value for --systemid. "
                  "[default: %(default)s]")
 
-        # defaults for a couple of the command line flags below
-        self.master_api_default = config["master_api_url"]
-
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
             "Network Resources",
@@ -164,7 +161,7 @@ class AgentEntryPoint(object):
                  "hostname for the master.  By default this value will be "
                  "substituted in --master-api")
         global_apis.add_argument(
-            "--master-api", default=self.master_api_default,
+            "--master-api", default=config["master_api"],
             help="The location where the master's REST api is located. "
                  "[default: %(default)s]")
 
@@ -409,7 +406,6 @@ class AgentEntryPoint(object):
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
 
-        # replace %(master)s in --master-api if --master-api was not set
         if self.args.master_api == self.master_api_default:
             self.args.master_api = config["master_api"]
 
@@ -440,7 +436,7 @@ class AgentEntryPoint(object):
                     systemid=self.args.systemid,
                     cache_path=self.args.systemid_cache),
                 "chroot": self.args.chroot,
-                "master-api": self.args.master_api,
+                "master_api": self.args.master_api,
                 "hostname": self.args.host,
                 "port": self.args.port,
                 "state": self.args.state,
