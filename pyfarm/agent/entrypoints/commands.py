@@ -428,7 +428,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "http-retry-delay": self.args.http_retry_delay,
                 "ram-check-interval": self.args.ram_check_interval,
                 "ram-report-delta": self.args.ram_report_delta,
                 "ram-max-report-interval": self.args.ram_max_report_interval,
