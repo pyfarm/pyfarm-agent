@@ -53,8 +53,10 @@ agent_api_port: 50000
 # logging output to.
 agent_log: $agent_logs_root/agent.log
 
-# The default location where we should expect to find the
-# master.
+# Configuration values which control how the url
+# for the master is constructed.  If 'master' is not set
+# the --master flag will be required to start the agent.
+master:
 master_api_version: 1
 master_api: http://$master/api/v$master_api_version
 
