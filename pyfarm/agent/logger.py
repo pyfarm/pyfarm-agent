@@ -283,15 +283,15 @@ def getLogger(name):
     OBSERVER.event_system_names[logger.name] = logger.name
     return Logger(logger.name, logger)
 
-#
-# def start_logging():
-#     """
-#     Gets the base agent logger setup and then establishes and observer that
-#     we can emit log messages to.  You should only need to run this method
-#     once per process.
-#     """
-#     # Setup the global loggers
-#     _getLogger("agent")
-#     _getLogger("jobtypes")
-#     OBSERVER.start()
+
+def start_logging():
+    """
+    Gets the base agent logger setup and then establishes and observer that
+    we can emit log messages to.  You should only need to run this method
+    once per process.
+    """
+    # Setup the global loggers
+    _getLogger("agent")
+    _getLogger("jobtypes")
+    OBSERVER.start()
 
