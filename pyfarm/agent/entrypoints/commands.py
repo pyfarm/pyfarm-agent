@@ -430,10 +430,10 @@ class AgentEntryPoint(object):
             if self.args.chroot is not None:
                 self.args.chroot = abspath(self.args.chroot)
 
-            # Caching systemid
-            get_system_identifier(
-                systemid=config["agent_systemid"],
-                cache_path=config["agent_systemid_cache"])
+            # Setup the system identifier
+            systemid = get_system_identifier(
+                self.args.systemid, config["agent_systemid_cache"])
+            config["agent_systemid"] = systemid
 
             # update configuration with values from the command line
             config_flags = {
