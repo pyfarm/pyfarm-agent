@@ -286,7 +286,9 @@ class AgentEntryPoint(object):
             description="Controls which dictate when certain internal "
                         "intervals should occur.")
         start_interval_group.add_argument(
-            "--ram-check-interval", default=30,
+            "--ram-check-interval",
+            default=config["agent_ram_check_interval"],
+            action=partial(SetConfig, key="agent_ram_check_interval"),
             type=partial(integer, instance=self, flag="ram-check-interval"),
             help="How often ram resources should be checked for changes. "
                  "The amount of memory currently being consumed on the system "
@@ -428,7 +430,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "ram-check-interval": self.args.ram_check_interval,
                 "ram-report-delta": self.args.ram_report_delta,
                 "ram-max-report-interval": self.args.ram_max_report_interval,
                 "html-templates-reload": self.args.html_templates_reload,

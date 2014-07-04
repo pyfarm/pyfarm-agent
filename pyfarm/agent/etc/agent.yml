@@ -88,6 +88,12 @@ agent_master_reannounce: 120
 # to help determine how long we should wait before retrying
 agent_http_retry_delay: 5
 
+# How often the agent should check for changes in ram.  This value
+# is used to ensure ram usage is checked at least this often though
+# it may be checked more often due to other events (such as jobs
+# running)
+agent_ram_check_interval: 30
+
 # Physical and network information about the host the agent
 # is running on.  Setting these values to 'auto' will cause
 # them to be initilized to the system's current
