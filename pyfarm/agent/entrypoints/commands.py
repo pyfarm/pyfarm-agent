@@ -187,10 +187,10 @@ class AgentEntryPoint(object):
             "-n", "--no-daemon", default=False, action="store_true",
             help="If provided then do not run the process in the background.")
         global_process.add_argument(
-            "--chroot",
-            type=partial(direxists, instance=self, flag="chroot"),
-            help="The directory to chroot the agent do upon launch.  This is "
-                 "an optional security measure and generally is not ")
+            "--chdir",
+            type=partial(direxists, instance=self, flag="chdir"),
+            action=partial(SetConfig, key="agent_chdir", isfile=True),
+            help="The working directory to change the agent into upon launch")
         global_process.add_argument(
             "--uid",
             type=partial(
@@ -423,9 +423,6 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            if self.args.chroot is not None:
-                self.args.chroot = abspath(self.args.chroot)
-
             # Setup the system identifier
             systemid = get_system_identifier(
                 self.args.systemid, config["agent_systemid_cache"])
@@ -433,7 +430,6 @@ class AgentEntryPoint(object):
 
             # update configuration with values from the command line
             config_flags = {
-                "chroot": self.args.chroot,
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
                 "http-max-retries": self.args.http_max_retries,
@@ -524,20 +520,20 @@ class AgentEntryPoint(object):
                 return 1
 
         # create the directory for log
-        if not self.args.no_daemon and not isfile(self.args.log):
+        if not self.args.no_daemon and not isfile(config["agent_log"]):
             try:
-                os.makedirs(dirname(self.args.log))
+                os.makedirs(dirname(config["agent_log"]))
             except OSError:
                 # Not an error because it could be created later on
                 logger.warning(
-                    "failed to create %s" % dirname(self.args.log))
+                    "failed to create %s" % dirname(config["agent_log"]))
 
         # so long as fork could be imported and --no-daemon was not set
         # then setup the log files
         if not self.args.no_daemon and fork is not NotImplemented:
-            logger.info("sending log output to %s" % self.args.log)
+            logger.info("sending log output to %s" % config["agent_log"])
             daemon_start_return_code = start_daemon_posix(
-                self.args.log, self.args.chroot,
+                config["agent_log"], config["agent_chdir"],
                 self.args.uid, self.args.gid)
 
             if isinstance(daemon_start_return_code, INTEGER_TYPES):

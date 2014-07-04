@@ -79,7 +79,7 @@ class SetConfig(_StoreAction):
 # This is a Linux specific test and will be hard to get due to the nature
 # of how the tests are run, for now we're excluding it.
 # TODO: figure out a reliable way to test  start_daemon_posix
-def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
+def start_daemon_posix(log, chdir, uid, gid):  # pragma: no cover
     """
     Runs the agent process via a double fork.  This basically a duplicate
     of Marcechal's original code with some adjustments:
@@ -102,7 +102,7 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
         return 1
 
     # decouple from the parent environment
-    os.chdir(chroot or "/")
+    os.chdir(chdir or "/")
     os.setsid()
     os.umask(0)
 
