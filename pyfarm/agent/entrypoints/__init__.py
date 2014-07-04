@@ -16,19 +16,9 @@
 
 """
 Entry Points
-------------
+============
 
-This module contains
+This module contains several subpackages which serve
+as the basis for the command line tools for the agent.
 """
 
-from pyfarm.agent.entrypoints.agent import AgentEntryPoint, fake_render
-
-# the entrypoint used in setup.py
-agent = AgentEntryPoint()
-
-
-# Normally this shouldn't be included in source code but we're
-# doing so here so a job type types not have to have the virtual
-# environment loaded.
-if __name__ == "__main__":
-    fake_render()

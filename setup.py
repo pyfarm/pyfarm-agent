@@ -103,11 +103,13 @@ setup(
     namespace_packages=["pyfarm"],
     entry_points={
         "console_scripts": [
-            "pyfarm-agent = pyfarm.agent.entrypoints:agent",
-            "pyfarm-supervisor = pyfarm.agent.entrypoints.supervisor:supervisor",
-            "pyfarm-dev-fakerender = pyfarm.agent.entrypoints:fake_render",
+            "pyfarm-agent = pyfarm.agent.entrypoints.main:agent",
+            "pyfarm-supervisor = "
+            "   pyfarm.agent.entrypoints.supervisor:supervisor",
+            "pyfarm-dev-fakerender = "
+            "   pyfarm.agent.entrypoints.development:fake_render",
             "pyfarm-dev-fakework = "
-            "   pyfarm.agent.entrypoints.commands:fake_work"]},
+            "   pyfarm.agent.entrypoints.commands.development:fake_work"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-agent",
