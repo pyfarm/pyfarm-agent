@@ -304,6 +304,7 @@ class AgentEntryPoint(object):
         start_interval_group.add_argument(
             "--master-reannounce",
             default=config["agent_master_reannounce"],
+            action=partial(SetConfig, key="agent_master_reannounce"),
             type=partial(integer, instance=self, flag="master-reannounce"),
             help="Controls how often the agent should reannounce itself "
                  "to the master.  The agent may be in contact with the master "
@@ -406,9 +407,6 @@ class AgentEntryPoint(object):
             self.parser.error(
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
-
-        if self.args.master_api == self.master_api_default:
-            self.args.master_api = config["master_api"]
 
         # if we're on windows, produce some warnings about
         # flags which are not supported

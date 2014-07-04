@@ -90,7 +90,7 @@ class Agent(object):
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
         self.scheduled_tasks.register(
-            self.reannounce, config["master-reannounce"])
+            self.reannounce, config["agent_master_reannounce"])
 
     @classmethod
     def agent_api(cls):

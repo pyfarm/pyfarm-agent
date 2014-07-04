@@ -202,7 +202,7 @@ class TestCase(_TestCase):
             "ntp-server": "pool.ntp.org",
             "html-templates-reload": True,
             "static-files": STATIC_ROOT,
-            "master-reannounce": randint(5, 15)})
+            "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
