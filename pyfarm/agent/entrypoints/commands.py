@@ -457,7 +457,7 @@ class AgentEntryPoint(object):
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "task-log-dir": self.args.task_log_dir,
-                "master-reannounce": self.args.master_reannounce,
+                "agent_master_reannounce": self.args.master_reannounce,
                 "pidfile": self.args.pidfile,
                 "pids": {
                     "parent": os.getpid()},
