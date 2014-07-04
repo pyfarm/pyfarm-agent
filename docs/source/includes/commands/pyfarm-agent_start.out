@@ -1,0 +1,149 @@
+usage: pyfarm-agent [status|start|stop] start [-h]
+                                              [--projects PROJECTS [PROJECTS ...]]
+                                              [--state STATE]
+                                              [--time-offset TIME_OFFSET]
+                                              [--ntp-server NTP_SERVER]
+                                              [--ntp-server-version NTP_SERVER_VERSION]
+                                              [--no-pretty-json]
+                                              [--shutdown-timeout SHUTDOWN_TIMEOUT]
+                                              [--updates-drop-dir UPDATES_DROP_DIR]
+                                              [--cpus CPUS] [--ram RAM]
+                                              [--ram-check-interval RAM_CHECK_INTERVAL]
+                                              [--ram-max-report-interval RAM_MAX_REPORT_INTERVAL]
+                                              [--ram-report-delta RAM_REPORT_DELTA]
+                                              [--master-reannounce MASTER_REANNOUNCE]
+                                              [--log LOG]
+                                              [--capture-process-output]
+                                              [--task-log-dir TASK_LOG_DIR]
+                                              [--ip-remote IP_REMOTE]
+                                              [--html-templates-reload]
+                                              [--static-files STATIC_FILES]
+                                              [--http-max-retries HTTP_MAX_RETRIES]
+                                              [--http-retry-delay HTTP_RETRY_DELAY]
+                                              [--jobtype-no-cache]
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+General Configuration:
+  These flags configure parts of the agent related to hardware, state, and
+  certain timing and scheduling attributes.
+
+  --projects PROJECTS [PROJECTS ...]
+                        The project or projects this agent is dedicated to. By
+                        default the agent will service any project however
+                        specific projects may be specified. For example if you
+                        wish this agent to service 'Foo Part I' and 'Foo Part
+                        II' only just specify it as `--projects "Foo Part I"
+                        "Foo Part II"`
+  --state STATE         The current agent state, valid values are ['disabled',
+                        'offline', 'running', 'online']. [default: online]
+  --time-offset TIME_OFFSET
+                        If provided then don't talk to the NTP server at all
+                        to calculate the time offset. If you know for a fact
+                        that this host's time is always up to date then
+                        setting this to 0 is probably a safe bet.
+  --ntp-server NTP_SERVER
+                        The default network time server this agent should
+                        query to retrieve the real time. This will be used to
+                        help determine the agent's clock skew if any. Setting
+                        this value to '' will effectively disable this query.
+                        [default: pool.ntp.org]
+  --ntp-server-version NTP_SERVER_VERSION
+                        The version of the NTP server in case it's running an
+                        olderor newer version. [default: 2]
+  --no-pretty-json      If provided do not dump human readable json via the
+                        agent's REST api
+  --shutdown-timeout SHUTDOWN_TIMEOUT
+                        How many seconds the agent should spend attempting to
+                        inform the master that it's shutting down.
+  --updates-drop-dir UPDATES_DROP_DIR
+                        The directory to drop downloaded updates in. This
+                        should be the same directory pyfarm-supervisor will
+                        look for updates in. [default:
+                        /home/opalmer/.pyfarm/agent/updates]
+
+Physical Hardware:
+  Command line flags which describe the hardware of the agent.
+
+  --cpus CPUS           The total amount of cpus installed on the system
+                        [default: 4]
+  --ram RAM             The total amount of ram installed on the system in
+                        megabytes. [default: 15933]
+
+Interval Controls:
+  Controls which dictate when certain internal intervals should occur.
+
+  --ram-check-interval RAM_CHECK_INTERVAL
+                        How often ram resources should be checked for changes.
+                        The amount of memory currently being consumed on the
+                        system is checked after certain events occur such as a
+                        process but this flag specifically controls how often
+                        we should check when no such events are occurring.
+                        [default: 30]
+  --ram-max-report-interval RAM_MAX_REPORT_INTERVAL
+                        This is a limiter that prevents the agent from
+                        reporting memory changes to the master more often than
+                        a specific time interval. This is done in order to
+                        ensure that when 100s of events fire in a short period
+                        of time cause changes in ram usage only one or two
+                        will be reported to the master. [default: 10]
+  --ram-report-delta RAM_REPORT_DELTA
+                        Only report a change in ram if the value has changed
+                        at least this many megabytes. [default: 100]
+  --master-reannounce MASTER_REANNOUNCE
+                        Controls how often the agent should reannounce itself
+                        to the master. The agent may be in contact with the
+                        master more often than this however during long period
+                        of inactivity this is how often the agent will
+                        'inform' the master the agent is still online.
+
+Logging Options:
+  Settings which control logging of the agent's parent process and/or any
+  subprocess it runs.
+
+  --log LOG             If provided log all output from the agent to this
+                        path. This will append to any existing log data.
+                        [default: .pyfarm_agent/agent.log]
+  --capture-process-output
+                        If provided then all log output from each process
+                        launched by the agent will be sent through agent's
+                        loggers.
+  --task-log-dir TASK_LOG_DIR
+                        The directory tasks should log to.
+
+Network Service:
+  Controls how the agent is seen or interacted with by external services
+  such as the master.
+
+  --ip-remote IP_REMOTE
+                        The remote IPv4 address to report. In situation where
+                        the agent is behind a firewall this value will
+                        typically be different.
+
+HTTP Configuration:
+  Options for how the agent will interact with the master's REST api and how
+  it should run it's own REST api.
+
+  --html-templates-reload
+                        If provided then force Jinja2, the html template
+                        system, to check the file system for changes with
+                        every request. This flag should not be used in
+                        production but is useful for development and debugging
+                        purposes.
+  --static-files STATIC_FILES
+                        The default location where the agent's http server
+                        should find static files to serve. [default:
+                        /home/opalmer/repos/pyfarm-
+                        agent/pyfarm/agent/http/static]
+  --http-max-retries HTTP_MAX_RETRIES
+                        The max number of times to retry a request to the
+                        master after it has failed. [default: unlimited]
+  --http-retry-delay HTTP_RETRY_DELAY
+                        If a http request to the master has failed, wait this
+                        amount of time before trying again
+
+Job Types:
+  --jobtype-no-cache    If provided then do not cache job types, always
+                        directly retrieve them. This is beneficial if you're
+                        testing the agent or a new job type class.

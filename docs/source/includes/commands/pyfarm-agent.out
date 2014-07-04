@@ -1,0 +1,65 @@
+usage: pyfarm-agent [status|start|stop]
+
+positional arguments:
+  {start,stop,status}   individual operations pyfarm-agent can run
+    start               starts the agent
+    stop                stops the agent
+    status              query the 'running' state of the agent
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+Agent Network Service:
+  Main flags which control the network services running on the agent.
+
+  --port PORT           The port number which the agent is either running on
+                        or will run on when started. This port is also
+                        reported the master when an agent starts. [default:
+                        50000]
+  --host HOST           The host to communicate with or hostname to present to
+                        the master when starting. Defaults to
+                        'motoko.pyfarm.io' for the start command and
+                        'localhost' other targets such as status or stop.
+  --agent-api-username AGENT_API_USERNAME
+                        The username required to access or manipulate the
+                        agent using REST. [default: agent]
+  --agent-api-password AGENT_API_PASSWORD
+                        The password required to access manipulate the agent
+                        using REST. [default: agent]
+  --systemid SYSTEMID   The system identification value. This is used to help
+                        identify the system itself to the master when the
+                        agent connects.
+  --systemid-cache SYSTEMID_CACHE
+                        The location to cache the value for --systemid.
+                        [default: .pyfarm_agent/systemid]
+
+Network Resources:
+  Resources which the agent will be communicating with.
+
+  --master MASTER       This is a convenience flag which will allow you to set
+                        the hostname for the master. By default this value
+                        will be substituted in --master-api
+  --master-api MASTER_API
+                        The location where the master's REST api is located.
+                        [default: http://%(master)s/api/v1]
+
+Process Control:
+  These settings apply to the parent process of the agent and contribute to
+  allowing the process to run as other users or remain isolated in an
+  environment. They also assist in maintaining the 'running state' via a
+  process id file.
+
+  --pidfile PIDFILE     The file to store the process id in. [default:
+                        .pyfarm_agent/agent.pid]
+  -n, --no-daemon       If provided then do not run the process in the
+                        background.
+  --chroot CHROOT       The directory to chroot the agent do upon launch. This
+                        is an optional security measure and generally is not
+  --uid UID             The user id to run the agent as. *This setting is
+                        ignored on Windows.*
+  --gid GID             The group id to run the agent as. *This setting is
+                        ignored on Windows.*
+
+pyfarm-agent is a command line client for working with a local agent. You can
+use it to stop, start, and report the general status of a running agent
+process.
