@@ -341,6 +341,7 @@ class AgentEntryPoint(object):
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
             "--task-log-dir", default=config["agent_task_logs"],
+            action=partial(SetConfig, key="agent_task_logs"),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -457,8 +458,6 @@ class AgentEntryPoint(object):
                 "pretty-json": self.args.pretty_json,
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
-                "task-log-dir": self.args.task_log_dir,
-                "agent_master_reannounce": self.args.master_reannounce,
                 "pids": {
                     "parent": os.getpid()}}
             # update configuration with values from the command line
