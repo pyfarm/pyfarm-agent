@@ -45,6 +45,8 @@ class LoggingConfiguration(Configuration):
     Special configuration object which logs when a key is changed in
     a dictionary.  If the reactor is not running then log messages will
     be queued until they can be emitted so they are not lost.
+
+    .. automethod:: _expandvars
     """
     MODIFIED = "modified"
     CREATED = "created"
@@ -109,7 +111,12 @@ class LoggingConfiguration(Configuration):
     def _expandvars(self, value):
         """
         Augments :meth:`Configuration._expandvars` so local variables
-        in the configuration can be used in an expansion too.
+        in the configuration can be used in other keys:
+
+        .. code-block:: yaml
+
+            root: /tmp
+            path: "{root}/path"
         """
         return super(
             LoggingConfiguration, self)._expandvars(value.format(**self))
