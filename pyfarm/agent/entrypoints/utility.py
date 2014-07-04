@@ -189,13 +189,12 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
 
         # We don't want to cache custom values because the default behavior
         # is to read the correct system id from disk
-        logger.warning(  # pragma: no cover
-            "Specific system identifier has been provided, this value will "
-            "not be cached.")
-        return systemid
+        if systemid != system.system_identifier():  # pragma: no cover
+            logger.warning(
+                "Specific system identifier has been provided, this value "
+                "will not be cached.")
 
-    if systemid is not None:
-        raise TypeError("Expected ``systemid`` to be an integer")
+            return systemid
 
     if cache_path is not None and not isinstance(cache_path, STRING_TYPES):
         raise TypeError("Expected a string for ``cache_path``")

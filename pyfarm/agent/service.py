@@ -215,7 +215,7 @@ class Agent(object):
                         config["time-offset"], config["ntp-server"])
 
         data = {
-            "systemid": config["systemid"],
+            "agent_systemid": config["agent_systemid"],
             "agent_hostname": config["agent_hostname"],
             "version": config.version,
             "agent_ram": int(config["agent_ram"]),

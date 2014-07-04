@@ -36,7 +36,7 @@ from datetime import datetime
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, cpu, network
+from pyfarm.agent.sysinfo import memory, cpu, network, system
 
 logger = getLogger("agent.config")
 
@@ -105,6 +105,9 @@ class LoggingConfiguration(Configuration):
 
             if key == "agent_hostname":
                 return network.hostname()
+
+            if key == "agent_systemid":
+                return system.system_identifier()
 
         return value
 

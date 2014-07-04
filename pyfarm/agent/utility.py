@@ -76,7 +76,7 @@ TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 
 def uuid():
     """Wrapper around :func:`uuid1` which incorporates our system id"""
-    return uuid1(node=config["systemid"])
+    return uuid1(node=config["agent_systemid"])
 
 
 def default_json_encoder(obj):

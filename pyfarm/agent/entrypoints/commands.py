@@ -140,14 +140,16 @@ class AgentEntryPoint(object):
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid",
+            "--systemid", default=config["agent_systemid"],
             type=partial(system_identifier, instance=self),
+            action=partial(SetConfig, key="agent_systemid"),
             help="The system identification value.  This is used to help "
                  "identify the system itself to the master when the agent "
-                 "connects.")
+                 "connects. [default: %(default)s]")
         global_network.add_argument(
             "--systemid-cache",
-            default=join(config["agent_data_root"], "systemid"),
+            default=config["agent_systemid_cache"],
+            action=partial(SetConfig, key="agent_systemid_cache"),
             help="The location to cache the value for --systemid. "
                  "[default: %(default)s]")
 
@@ -686,7 +688,7 @@ class AgentEntryPoint(object):
         logger.info("    Parent Process ID: %(pid_parent)s" % locals())
         logger.info("           Process ID: %(pid_child)s" % locals())
         logger.info("          Database ID: %(id)s" % data)
-        logger.info("            System ID: %(systemid)s" % data)
+        logger.info("            System ID: %(agent_systemid)s" % data)
         logger.info(
             "      Child Processes: %(child_processes)s "
             "(+%(grandchild_processes)s grandchildren)" % data)
