@@ -372,8 +372,9 @@ class AgentEntryPoint(object):
             help="The default location where the agent's http server should "
                  "find static files to serve. [default: %(default)s]")
         start_http_group.add_argument(
-            "--http-retry-delay", default=5,
+            "--http-retry-delay", default=config["agent_http_retry_delay"],
             type=partial(number, instance=self),
+            action=partial(SetConfig, key="agent_http_retry_delay"),
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 

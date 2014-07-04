@@ -126,7 +126,7 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
     delay = initial
     if initial is None:
         # TODO: provide command line flags for jitter
-        delay = config["http-retry-delay"]
+        delay = config["agent_http_retry_delay"]
 
     assert isinstance(delay, DELAY_NUMBER_TYPES)  # expect integer or float
     assert isinstance(minimum, DELAY_NUMBER_TYPES)  # expect integer or float

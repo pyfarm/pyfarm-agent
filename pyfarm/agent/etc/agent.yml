@@ -84,6 +84,10 @@ agent_shutdown_timeout: 15
 # master the agent is still online.
 agent_master_reannounce: 120
 
+# If an http request fails, use this as the base value
+# to help determine how long we should wait before retrying
+agent_http_retry_delay: 5
+
 # Physical and network information about the host the agent
 # is running on.  Setting these values to 'auto' will cause
 # them to be initilized to the system's current

@@ -185,7 +185,7 @@ class TestCase(_TestCase):
         config.clear(callbacks=True)
         config.update({
             "ram-report-delta": 100,
-            "http-retry-delay": 1,
+            "agent_http_retry_delay": 1,
             "persistent-http-connections": False,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
             "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
