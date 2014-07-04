@@ -450,9 +450,6 @@ class AgentEntryPoint(object):
 
             config.update(config_flags)
 
-        self.agent_api = \
-            "http://%s:%s/api/v1" % (self.args.host, self.args.port)
-
         return_code = self.args.target_func()
 
         # If a specific return code is provided then use it
@@ -460,33 +457,41 @@ class AgentEntryPoint(object):
         if isinstance(return_code, INTEGER_TYPES):
             sys.exit(return_code)
 
+    @property
+    def agent_api(self):
+        return "http://%s:%s/api/v1" % (
+            config["agent_hostname"], config["agent_api_port"])
+
     def start(self):
         url = self.agent_api + "/status"
         try:
             response = requests.get(
                 url, headers={"Content-Type": "application/json"})
         except ConnectionError:
-            if isfile(self.args.pidfile):
-                logger.debug("Process ID file %s exists", self.args.pidfile)
-                with open(self.args.pidfile, "r") as pidfile:
+            if isfile(config["agent_lock_file"]):
+                logger.debug(
+                    "Process ID file %s exists", config["agent_lock_file"])
+
+                with open(config["agent_lock_file"], "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
                     except ValueError:
                         logger.warning(
                             "Could not convert pid in %s to an integer.",
-                            self.args.pidfile)
+                            config["agent_lock_file"])
                     else:
                         try:
                             process = psutil.Process(pid)
                         except psutil.NoSuchProcess:
                             logger.debug(
-                                "Process ID in %s is stale.", self.args.pidfile)
+                                "Process ID in %s is stale.",
+                                config["agent_lock_file"])
                             try:
-                                os.remove(self.args.pidfile)
+                                os.remove(config["agent_lock_file"])
                             except OSError as e:
                                 logger.error(
                                     "Failed to remove PID file %s: %s",
-                                    self.args.pidfile, e)
+                                    config["agent_lock_file"], e)
                                 return 1
                         else:
                             if process.name() == "pyfarm-agent":
@@ -499,7 +504,8 @@ class AgentEntryPoint(object):
                                     "agent.", pid)
             else:
                 logger.debug(
-                    "Process ID file %s does not exist", self.args.pidfile)
+                    "Process ID file %s does not exist",
+                    config["agent_lock_file"])
         else:
             code = "%s %s" % (
                 response.status_code, responses[response.status_code])
@@ -511,12 +517,12 @@ class AgentEntryPoint(object):
 
         logger.info("Starting agent")
 
-        if not isdir(self.args.task_log_dir):
-            logger.debug("Creating %s", self.args.task_log_dir)
+        if not isdir(config["agent_task_logs"]):
+            logger.debug("Creating %s", config["agent_task_logs"])
             try:
-                os.makedirs(self.args.task_log_dir)
+                os.makedirs(config["agent_task_logs"])
             except OSError:
-                logger.error("Failed to create %s", self.args.task_log_dir)
+                logger.error("Failed to create %s", config["agent_task_logs"])
                 return 1
 
         # create the directory for log
@@ -546,33 +552,33 @@ class AgentEntryPoint(object):
 
         # PID file should not exist now.  Either the last agent instance
         # should have removed it or we should hae above.
-        if isfile(self.args.pidfile):
+        if isfile(config["agent_lock_file"]):
             logger.error("PID file should not exist on disk at this point.")
             return 1
 
         # Create the directory for the pid file if necessary
-        pid_dirname = dirname(self.args.pidfile)
+        pid_dirname = dirname(config["agent_lock_file"])
         if not isdir(pid_dirname):
             try:
                 os.makedirs(pid_dirname)
             except OSError:  # pragma: no cover
                 logger.error(
                     "Failed to create parent directory for %s",
-                    self.args.pidfile)
+                    config["agent_lock_file"])
                 return 1
             else:
                 logger.debug("Created directory %s", pid_dirname)
 
         # Write the PID file
         try:
-            with open(self.args.pidfile, "w") as pid:
+            with open(config["agent_lock_file"], "w") as pid:
                 pid.write(str(os.getpid()))
         except OSError as e:
             logger.error(
-                "Failed to write PID file %s: %s", self.args.pidfile, e)
+                "Failed to write PID file %s: %s", config["agent_lock_file"], e)
             return 1
         else:
-            logger.debug("Wrote PID to %s", self.args.pidfile)
+            logger.debug("Wrote PID to %s", config["agent_lock_file"])
 
         logger.info("pid: %s" % pid)
 
@@ -627,23 +633,25 @@ class AgentEntryPoint(object):
             logger.debug(str(e))
             logger.warning(
                 "Failed to communicate with %s's API.  We can only roughly "
-                "determine if agent is offline or online.", self.args.host)
+                "determine if agent is offline or online.",
+                config["agent_hostname"])
 
             # TODO: use config for pidfile, --pidfile should be an override
-            if not isfile(self.args.pidfile):
+            if not isfile(config["agent_lock_file"]):
                 logger.debug(
-                    "Process ID file %s does not exist", self.args.pidfile)
+                    "Process ID file %s does not exist",
+                    config["agent_lock_file"])
                 logger.info("Agent is offline")
                 return 1
 
             else:
-                with open(self.args.pidfile, "r") as pidfile:
+                with open(config["agent_lock_file"], "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
                     except ValueError:
                         logger.error(
                             "Could not convert pid in %s to an integer.",
-                            self.args.pidfile)
+                            config["agent_lock_file"])
                         return 1
 
                 try:
