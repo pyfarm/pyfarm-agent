@@ -11,3 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# The default location to store data.  $temp will expand to
+# whatever pyfarm's data root is plus the application
+# name (agent).  For example on Linux this would expand to
+# /tmp/pyfarm/agent
+agent_data_root: $temp
+
+# The default location where lock files should be stored.  By
+# default these will be stored alone side other data
+# inside the `agent_data_root` value above.
+lock_file_root: "$agent_data_root/lock"
+
+# Where user data for the agent is stored.  ~ will be expanded
+# to the current users's home directory.
+agent_user_data: ~/.pyfarm/agent
+
+# The location where agent updates should be stored.
+agent_updates_dir: "$agent_user_data/updates"
