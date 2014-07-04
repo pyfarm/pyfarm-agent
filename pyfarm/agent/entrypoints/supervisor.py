@@ -157,8 +157,9 @@ def supervisor():
                     with zipfile.ZipFile(update_file_path, "r") as archive:
                         archive.extractall(args.agent_package_dir)
                     os.remove(update_file_path)
-                except e:
-                    logger.error("Caught exception trying to update agent: %r",e)
+                except Exception as e:
+                    logger.error(
+                        "Caught exception trying to update agent: %r", e)
 
             logger.info("starting pyfarm-agent now")
             if subprocess.call(["pyfarm-agent"] + agent_args + ["start"]) != 0:
