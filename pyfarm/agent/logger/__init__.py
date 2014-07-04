@@ -15,6 +15,14 @@
 # limitations under the License.
 
 
+"""
+Logger
+======
+
+This module provides the functionality for handling log
+messages in the agent.
+"""
+
 from logging import DEBUG, getLogger as _getLogger
 
 from twisted.python.log import startLoggingWithObserver
