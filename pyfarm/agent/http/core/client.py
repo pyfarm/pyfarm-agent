@@ -367,13 +367,7 @@ def request(method, url, **kwargs):
     # prepare keyword arguments
     kwargs.update(
         headers=headers,
-
-        # Controls if the http connection should be persistent or
-        # not.  Generally this should always be True because the connection
-        # self-terminates after a short period of time anyway.  We
-        # have setting for it however because the tests need this value
-        # to be False.
-        persistent=config.get("persistent-http-connections", False))
+        persistent=config["agent_http_persistent_connections"])
 
     if request_data is not NOTSET:
         kwargs.update(data=request_data)

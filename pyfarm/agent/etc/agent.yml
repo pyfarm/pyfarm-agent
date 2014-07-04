@@ -73,10 +73,6 @@ master:
 master_api_version: 1
 master_api: http://$master/api/v$master_api_version
 
-# How many seconds the agent should spend attempting to inform
-# the master that it's shutting down.
-agent_shutdown_timeout: 15
-
 # Controls how often the agent should reannounce itself
 # to the master.  The agent may be in contact with the master
 # more often than this however during long period of
@@ -84,9 +80,20 @@ agent_shutdown_timeout: 15
 # master the agent is still online.
 agent_master_reannounce: 120
 
+# How many seconds the agent should spend attempting to inform
+# the master that it's shutting down.
+agent_shutdown_timeout: 15
+
 # If an http request fails, use this as the base value
 # to help determine how long we should wait before retrying
 agent_http_retry_delay: 5
+
+# Controls if the http client connection should be persistent or
+# not.  Generally this should always be True because the connection
+# self-terminates after a short period of time anyway.  For higher
+# latency situations or with larger deployments this value should
+# be False.
+agent_http_persistent_connections: True
 
 # How often the agent should check for changes in ram.  This value
 # is used to ensure ram usage is checked at least this often though
