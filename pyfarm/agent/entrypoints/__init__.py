@@ -21,7 +21,7 @@ Entry Points
 This module contains
 """
 
-from pyfarm.agent.entrypoints.commands import AgentEntryPoint, fake_render
+from pyfarm.agent.entrypoints.agent import AgentEntryPoint, fake_render
 
 # the entrypoint used in setup.py
 agent = AgentEntryPoint()
