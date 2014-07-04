@@ -293,9 +293,11 @@ class AgentEntryPoint(object):
                  "this flag specifically controls how often we should check "
                  "when no such events are occurring. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--ram-max-report-interval", default=10,
+            "--ram-max-report-frequency",
+            default=config["agent_ram_max_report_frequency"],
             type=partial(
                 integer, instance=self, flag="ram-max-report-interval"),
+            action=partial(SetConfig, key="agent_ram_max_report_frequency"),
             help="This is a limiter that prevents the agent from reporting "
                  "memory changes to the master more often than a specific "
                  "time interval.  This is done in order to ensure that when "
@@ -428,7 +430,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "ram-max-report-interval": self.args.ram_max_report_interval,
                 "html-templates-reload": self.args.html_templates_reload,
                 "ntp-server": self.args.ntp_server,
                 "ntp-server-version": self.args.ntp_server_version,

@@ -569,7 +569,8 @@ class Agent(object):
         Posts the current nu
         """
         since_last_update = time.time() - self.last_free_ram_post
-        left_till_update = config["ram-max-report-interval"] - since_last_update
+        left_till_update = \
+            config["agent_ram_max_report_frequency"] - since_last_update
 
         if left_till_update > 0:
             svclog.debug(
