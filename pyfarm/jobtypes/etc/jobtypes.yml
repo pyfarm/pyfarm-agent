@@ -17,3 +17,8 @@
 # False caching is disabled and every job type will retrieved from
 # the master directly.
 jobtype_enable_cache: True
+
+# If True then output from all processes will be sent directly to
+# the agent's logger(s) instead of to the log file assoicated
+# with each process.
+jobtype_capture_process_output: False

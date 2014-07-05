@@ -337,7 +337,11 @@ class AgentEntryPoint(object):
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
         logging_group.add_argument(
-            "--capture-process-output", default=False, action="store_true",
+            "--capture-process-output",
+            default=config["jobtype_capture_process_output"],
+            action=partial(
+                SetConfigConst, key="jobtype_capture_process_output",
+                value=True),
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
@@ -438,7 +442,6 @@ class AgentEntryPoint(object):
                 "projects": list(set(self.args.projects)),
                 "html-templates-reload": self.args.html_templates_reload,
                 "pretty-json": self.args.pretty_json,
-                "capture-process-output": self.args.capture_process_output,
                 "pids": {
                     "parent": os.getpid()}}
             # update configuration with values from the command line
