@@ -216,7 +216,7 @@ def rmpath(path, exit_retry=False):
     if isfile(path):
         try:
             remove(path)
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             if exit_retry:
                 logger.debug(
                     "Will try to delete path %r at shutdown.", path)
@@ -231,7 +231,7 @@ def rmpath(path, exit_retry=False):
     if isdir(path):
         try:
             rmtree(path)
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             if exit_retry:
                 logger.debug(
                     "Will try to delete directory %r at shutdown.", path)
