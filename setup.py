@@ -109,7 +109,7 @@ setup(
             "pyfarm-dev-fakerender = "
             "   pyfarm.agent.entrypoints.development:fake_render",
             "pyfarm-dev-fakework = "
-            "   pyfarm.agent.entrypoints.commands.development:fake_work"]},
+            "   pyfarm.agent.entrypoints.development:fake_work"]},
     include_package_data=True,
     install_requires=install_requires,
     url="https://github.com/pyfarm/pyfarm-agent",
