@@ -18,11 +18,14 @@ from argparse import ArgumentParser as _ArgumentParser
 from collections import namedtuple
 from functools import partial
 
+from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.argtypes import (
-    assert_instance, ip, port, integer, direxists, number, enum)
+    assert_instance, ip, port, integer, direxists, number, enum,
+    system_identifier)
 from pyfarm.agent.testutil import TestCase
 
 DummyArgs = namedtuple("DummyArgs", ["uid"])
+
 
 class ErrorCapturingParser(_ArgumentParser):
     def __init__(self, *args, **kwargs):
@@ -237,3 +240,35 @@ class TestEnum(BaseTestArgTypes):
         self.args = self.parser.parse_args(["--enum", "one"])
         self.assertEqual(self.parser.errors, [])
         self.assertEqual(self.args.enum, "one")
+
+
+class TestSystemIdentifier(BaseTestArgTypes):
+    def setUp(self):
+        BaseTestArgTypes.setUp(self)
+        self.parser.add_argument(
+            "--systemid",
+            type=partial(system_identifier, instance=self))
+
+    def test_auto(self):
+        self.args = self.parser.parse_args(["--systemid", "auto"])
+        self.assertEqual(self.parser.errors, [])
+        self.assertEqual(self.args.systemid, "auto")
+
+    def test_unable_to_parse(self):
+        self.args = self.parser.parse_args(["--systemid", "!"])
+        self.assertEqual(
+            self.parser.errors,
+            ["failed to convert value provided to --systemid to an integer"])
+
+    def test_less_than_zero(self):
+        self.args = self.parser.parse_args(["--systemid", "-1"])
+        self.assertEqual(
+            self.parser.errors,
+            ["valid range for --systemid is 0 to 281474976710655"])
+
+    def test_greater_than_max(self):
+        systemid = SYSTEMID_MAX + 1
+        self.args = self.parser.parse_args(["--systemid", str(systemid)])
+        self.assertEqual(
+            self.parser.errors,
+            ["valid range for --systemid is 0 to 281474976710655"])
