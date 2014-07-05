@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
     pwd = NotImplemented
 
 # Windows
-try:
+try:  # pragma: no cover
     import win32api
     from win32com.shell import shell
 except ImportError:  # pragma: no cover
