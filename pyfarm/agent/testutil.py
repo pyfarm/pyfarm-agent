@@ -184,6 +184,7 @@ class TestCase(_TestCase):
         config_logger.disabled = 1
         config.pop("agent", None)
         config.update({
+            "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
