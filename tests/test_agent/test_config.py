@@ -259,3 +259,21 @@ class TestCallbackConfiguration(TestCase):
             (LoggingConfiguration.CREATED, "foo", True),
             (LoggingConfiguration.MODIFIED, "foo", False),
             (LoggingConfiguration.DELETED, "foo", NOTSET)])
+
+    def test_clear(self):
+        callback = lambda *_: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config.clear(callbacks=False)
+        self.assertEqual(config, {})
+        self.assertIs(config.callbacks["foo"][0], callback)
+
+    def test_clear_callbacks(self):
+        callback = lambda *_: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config.clear(callbacks=True)
+        self.assertEqual(config, {})
+        self.assertEqual(config.callbacks, {})
