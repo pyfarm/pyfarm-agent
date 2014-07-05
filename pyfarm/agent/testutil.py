@@ -20,6 +20,7 @@ import re
 import socket
 import sys
 import tempfile
+from datetime import datetime
 from functools import wraps
 from random import randint, choice
 from urllib import urlopen
@@ -135,6 +136,22 @@ class TestCase(_TestCase):
             return context
         with context:
             callable_obj(*args, **kwargs)
+
+    def assertDateAlmostEqual(
+            self, date1, date2,
+            second_deviation=0, microsecond_deviation=1000000 / 2):
+        self.assertIsInstance(date1, datetime)
+        self.assertIsInstance(date2, datetime)
+        self.assertEqual(date1.year, date2.year)
+        self.assertEqual(date1.month, date2.month)
+        self.assertEqual(date1.day, date2.day)
+        self.assertEqual(date1.hour, date2.hour)
+        self.assertEqual(date1.minute, date2.minute)
+        self.assertEqual(date1.second, date2.second)
+        self.assertApproximates(
+            date1.second, date2.second, second_deviation)
+        self.assertApproximates(
+            date1.microsecond, date2.microsecond, microsecond_deviation)
 
     # back ports of some of Python 2.7's unittest features
     if PY26:
