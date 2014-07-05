@@ -12,58 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# The user agent the master will use when connecting to the agent's
-# REST api.  This value should only be changed if the master's code
-# is updated with a new user agent.  Change this value has not effect
-# on the master.
-master_user_agent: PyFarm/1.0 (master)
-
 # The default location to store data.  $temp will expand to
 # whatever pyfarm's data root is plus the application
 # name (agent).  For example on Linux this would expand to
 # /tmp/pyfarm/agent
 agent_data_root: $temp
 
-# The default location where lock files should be stored.  By
-# default these will be stored alone side other data
-# inside the `agent_data_root` value above.
-lock_file_root: "{agent_data_root}/lock"
-
-# Where user data for the agent is stored.  ~ will be expanded
-# to the current users's home directory.
-agent_user_data: ~/.pyfarm/agent
-
-# The location where agent updates should be stored.
-agent_updates_dir: "{agent_user_data}/updates"
-
-# How many seconds the agent should spend attempting to inform
-# the master that it's shutting down.
-agent_shutdown_timeout: 15
-
-# Controls how often the agent should reannounce itself
-# to the master.  The agent may be in contact with the master
-# more often than this however during long period of
-# inactivity this is how often the agent will 'inform' the
-# master the agent is still online.
-agent_master_reannounce: 120
-
-# If True then display unhandled tracebacks via the REST api.  Tracebacks
-# direct from the API is an indication of an unhandled error which you'll
-# normally want to have enabled to potential issues can be debugged.
-agent_http_api_show_tracebacks: True
 
 # Defines the number of seconds between iterations of pyfarm-supervisor's
 # agent status check.
 supervisor_interval: 5
 
-# NOTE: The following values are used by the unittests and should be
-# generally ignored for anything other than development.
-agent_unittest:
-    dns_test_hostname: example.com
-    client_redirect_target: http://example.com
-    client_api_test_url_https: https://httpbin.org
-    client_api_test_url_http: http://httpbin.org
 # The location where the agent should change directories
 # into upon starting.  If this value is not set then no
 # changes will be made.
@@ -72,12 +31,6 @@ agent_chdir:
 # The location where static web files should be served from.  This
 # will default to using PyFarm's installation root.
 agent_static_root: auto
-
-# The default location to store data.  $temp will expand to
-# whatever pyfarm's data root is plus the application
-# name (agent).  For example on Linux this would expand to
-# /tmp/pyfarm/agent
-agent_data_root: $temp
 
 # The default location where lock files should be stored.  By
 # default these will be stored alone side other data
@@ -106,10 +59,6 @@ agent_updates_dir: $agent_data_root/updates
 agent_systemid: auto
 agent_systemid_cache: $agent_data_root/systemid.cache
 
-# Defines the number of seconds between iterations of pyfarm-supervisor's
-# agent status check.
-supervisor_interval: 5
-
 # The default port which the agent should use to serve the
 # REST api.
 agent_api_port: 50000
@@ -117,6 +66,12 @@ agent_api_port: 50000
 # The location where the the agent should save its own
 # logging output to.
 agent_log: $agent_logs_root/agent.log
+
+# The user agent the master will use when connecting to the agent's
+# REST api.  This value should only be changed if the master's code
+# is updated with a new user agent.  Change this value has not effect
+# on the master.
+master_user_agent: PyFarm/1.0 (master)
 
 # Configuration values which control how the url
 # for the master is constructed.  If 'master' is not set
@@ -187,3 +142,11 @@ agent_time_offset: auto
 agent_ram: auto
 agent_cpus: auto
 agent_hostname: auto
+
+# NOTE: The following values are used by the unittests and should be
+# generally ignored for anything other than development.
+agent_unittest:
+    dns_test_hostname: example.com
+    client_redirect_target: http://example.com
+    client_api_test_url_https: https://httpbin.org
+    client_api_test_url_http: http://httpbin.org
