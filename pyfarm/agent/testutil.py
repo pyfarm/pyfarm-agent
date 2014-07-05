@@ -206,6 +206,8 @@ class TestCase(_TestCase):
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
         config.pop("agent", None)
+        config.pop("current_assignments", None)
+        config.pop("last_master_contact", None)
         config.update({
             "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
