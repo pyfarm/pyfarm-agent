@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ctypes
 import os
 import socket
 import tempfile
@@ -26,15 +27,30 @@ from os.path import isfile
 
 try:
     import pwd
-except ImportError:
-    import getpass
+except ImportError:  # pragma: no cover
     pwd = NotImplemented
+
+try:  # pragma: no cover
+    import win32api
+    from win32com.shell import shell
+except ImportError:  # pragma: no cover
+    win32api = NotImplemented
+
+try:
+    import getpass
+except ImportError:  # pragma: no cover
+    getpass = NotImplemented
+
+try:
+    from os import getuid
+except ImportError:  # pragma: no cover
+    getuid = NotImplemented
 
 import netifaces
 
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import LINUX
-from pyfarm.agent.testutil import TestCase
+from pyfarm.core.enums import LINUX, WINDOWS
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, network, cpu, memory, user
 
 
@@ -231,10 +247,28 @@ class TestMemory(TestCase):
 
 
 class TestUser(TestCase):
-    def test_user(self):
-        if pwd is not NotImplemented:
-            username = pwd.getpwuid(os.getuid())[0]
-        else:
-            username = getpass.getuser()
+    @skipIf(pwd is NotImplemented, "pwd is NotImplemented")
+    def test_username_pwd(self):
+        self.assertEqual(pwd.getpwuid(os.getuid())[0], user.username())
 
-        self.assertEqual(user.username(), username)
+    @skipIf(win32api is NotImplemented, "win32api is NotImplemented")
+    def test_username_win32api(self):
+        self.assertEqual(win32api.GetUserName(), user.username())
+
+    @skipIf(getpass is NotImplemented, "getpass is NotImplemented")
+    def test_username_getpass(self):
+        self.assertEqual(getpass.getuser(), user.username())
+
+    @skipIf(getuid is NotImplemented, "getuid is NotImplemented")
+    def test_administrator_getuid(self):
+        self.assertEqual(getuid() == 0, user.is_administrator())
+
+    @skipIf(win32api is NotImplemented, "win32api is NotImplemented")
+    def test_administrator_win32api(self):
+        self.assertEqual(shell.IsUserAnAdmin(), user.is_administrator())
+
+    @skipIf(win32api is NotImplemented and not WINDOWS,
+            "win32api is NotImplemented and not WINDOWS")
+    def test_administrator_no_win32api_and_windows(self):
+        self.assertEqual(ctypes.windll.shell32.IsUserAnAdmin() != 0,
+                         user.is_administrator())
