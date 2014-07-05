@@ -19,7 +19,7 @@ from datetime import timedelta, datetime
 
 try:
     from httplib import ACCEPTED, OK
-except ImportError:
+except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK
 
 import psutil

@@ -24,7 +24,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility import (
-    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid)
+    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
+    quote_url)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -138,3 +139,21 @@ class TestCSVReader(TestCSVBase):
             except StopIteration:
                 break
         self.assertEqual(written_rows, rows)
+
+
+class TestQuoteURL(TestCase):
+    def test_simple_with_scheme(self):
+        self.assertEqual(quote_url("http://foobar"),  "http://foobar")
+
+    def test_simple_without_scheme(self):
+        self.assertEqual(quote_url("/foobar"),  "/foobar")
+
+    def test_parameters(self):
+        self.assertEqual(
+            quote_url("/foobar?first=1&second=2"),
+            "/foobar?first=1&second=2")
+
+    def test_fragment(self):
+        self.assertEqual(
+            quote_url("/foobar?first=1&second=2#abcd"),
+            "/foobar?first=1&second=2#abcd")
