@@ -39,10 +39,13 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
+# start logging before doing anything else
+from pyfarm.agent.logger import getLogger, start_logging
+start_logging()
+
 from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
-from pyfarm.agent.logger import getLogger
 from pyfarm.agent.entrypoints.utility import SetConfig
 
 logger = getLogger("agent.supervisor")
