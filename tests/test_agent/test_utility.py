@@ -28,16 +28,6 @@ from pyfarm.agent.utility import (
     quote_url, MASTER_USERAGENT, request_from_master)
 
 
-class FakeRequestWithUserAgent(object):
-    def __init__(self, test, user_agent):
-        self.test = test
-        self.user_agent = user_agent
-
-    def getHeader(self, header):
-        self.test.assertEqual(header, "User-Agent")
-        return self.user_agent
-
-
 class TestDefaultJsonEncoder(TestCase):
     def test_default_json_encoder_decimal(self):
         self.assertAlmostEqual(

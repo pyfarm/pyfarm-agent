@@ -98,6 +98,16 @@ class skipIf(object):
         return wrapper
 
 
+class FakeRequestWithUserAgent(object):
+    def __init__(self, test, user_agent):
+        self.test = test
+        self.user_agent = user_agent
+
+    def getHeader(self, header):
+        self.test.assertEqual(header, "User-Agent")
+        return self.user_agent
+
+
 class TestCase(_TestCase):
     RAND_LENGTH = 8
 
