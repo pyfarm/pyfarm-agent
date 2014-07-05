@@ -211,7 +211,7 @@ class JobType(Cache, Process, TypeChecks):
                         http_retry_delay(),
                         response.request.retry)
 
-                if config["jobtype_enable_cache"]:
+                if not config["jobtype_enable_cache"]:
                     return load_jobtype((response.json(), None))
                 else:
                     # When the download is complete, cache the results
