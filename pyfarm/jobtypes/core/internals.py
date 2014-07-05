@@ -90,6 +90,7 @@ class Cache(object):
         method will pass the response it receives to :meth:`_cache_jobtype`
         however failures will be retried.
         """
+        logger.debug("Downloading job type %r version %s", name, version)
         url = str(cls.JOBTYPE_VERSION_URL % {
             "master_api": config["master_api"],
             "name": name, "version": version})
@@ -124,13 +125,17 @@ class Cache(object):
         jobtype = jobtype.copy()
 
         def write_to_disk(filename):
+            parent_dir = dirname(filename)
             try:
-                os.makedirs(dirname(filename))
-            except (IOError, OSError):  # pragma: no cover
-                pass
+                os.makedirs(parent_dir)
+            except (IOError, OSError) as e:  # pragma: no cover
+                if e.errno != EEXIST:
+                    logger.error("Failed to create %s: %s", parent_dir, e)
+            else:
+                logger.debug("Created %s", parent_dir)
 
             if isfile(filename):  # pragma: no cover
-                logcache.debug("%s is already cached on disk", filename)
+                logcache.warning("%s is already cached on disk", filename)
                 jobtype.pop("code", None)
                 return filename, jobtype
 
@@ -138,12 +143,9 @@ class Cache(object):
                 with open(filename, "w") as stream:
                     stream.write(jobtype["code"])
 
-                jobtype.pop("code", None)
-                return filename, jobtype
-
             # If the above fails, use a temp file instead
             except (IOError, OSError) as e:  # pragma: no cover
-                fd, tmpfilepath = tempfile.mkstemp(suffix=".py")
+                _, tmpfilepath = tempfile.mkstemp(suffix=".py")
                 logcache.warning(
                     "Failed to write %s, using %s instead: %s",
                     filename, tmpfilepath, e)
@@ -153,6 +155,13 @@ class Cache(object):
 
                 jobtype.pop("code", None)
                 return tmpfilepath, jobtype
+
+            else:
+                logger.debug(
+                    "Wrote job type %s version %s to %s",
+                    jobtype["name"], jobtype["version"], filename)
+                jobtype.pop("code", None)
+                return filename, jobtype
 
         def written_to_disk(results):
             filename, jobtype = results
@@ -172,6 +181,9 @@ class Cache(object):
 
         # Defer the write process to a thread so we don't
         # block the reactor if the write is slow
+        logger.debug(
+            "Caching job type %s version %s to %s",
+            jobtype["name"], jobtype["version"], filename)
         writer = threads.deferToThread(write_to_disk, filename)
         writer.addCallbacks(written_to_disk, failed_to_write_to_disk)
         return success
