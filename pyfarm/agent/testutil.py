@@ -39,7 +39,6 @@ from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import rmpath
 
@@ -147,7 +146,7 @@ def create_jobtype(classname=None, sourcecode=None):
         else:
             finished.errback(response.json())
 
-    post(config["master-api"] + "/jobtypes/",
+    post(config["master_api"] + "/jobtypes/",
          callback=posted, errback=finished.errback,
          data={"name": classname,
                "classname": classname,
@@ -238,9 +237,10 @@ class TestCase(_TestCase):
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
         config.pop("agent", None)
-        config.pop("agent-id", None)
         config.update({
             "jobtypes": {},
+            "agent-id": randint(1, 50000),
+            "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
