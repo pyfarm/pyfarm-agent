@@ -46,11 +46,11 @@ class TestAgentBasicMethods(TestCase):
             "systemid": system_identifier(),
             "hostname": config["hostname"],
             "version": config.version,
-            "ram": config["ram"],
-            "cpus": config["cpus"],
-            "port": config["port"],
+            "ram": config["agent_ram"],
+            "cpus": config["agent_cpus"],
+            "port": config["agent_api_port"],
             "free_ram": config["free-ram"],
-            "time_offset": config["time-offset"],
+            "time_offset": config["agent_time_offset"],
             "state": config["state"]}
 
         agent = Agent()
