@@ -171,8 +171,19 @@ class TestCPU(TestCase):
         self.assertEqual(psutil.cpu_count(), cpu.total_cpus())
 
     def test_load(self):
-        load = psutil.cpu_percent(.25) / cpu.total_cpus()
-        self.assertApproximates(cpu.load(.25), load, .5)
+        # Make several attempts to test cpu.load().  Because this
+        # depends on the system load at the time we make a few
+        # attempts to get the results we expect.
+        for _ in range(5):
+            load = psutil.cpu_percent(.25) / cpu.total_cpus()
+            try:
+                self.assertApproximates(cpu.load(.25), load, .5)
+            except AssertionError:
+                continue
+            else:
+                break
+        else:
+            self.fail("Failed get a non-failing result after several attempts")
 
     def test_user_time(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
