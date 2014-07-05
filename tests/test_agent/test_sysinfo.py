@@ -162,6 +162,10 @@ class Processor(TestCase):
     def test_count(self):
         self.assertEqual(psutil.cpu_count(), cpu.total_cpus())
 
+    def test_load(self):
+        load = psutil.cpu_percent(.25) / cpu.total_cpus()
+        self.assertApproximates(cpu.load(.25), load, .5)
+
     def test_usertime(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
 
