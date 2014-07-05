@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from os import urandom
 from uuid import UUID
-from os.path import isdir
+from os.path import isdir, isfile
 
 from twisted.internet.defer import Deferred
 from voluptuous import Schema, MultipleInvalid
@@ -130,21 +131,29 @@ class TestJobTypeLoad(TestCase):
         self.assertIsNotNone(JobType.CACHE_DIRECTORY)
         self.assertTrue(isdir(JobType.CACHE_DIRECTORY))
         classname = "AgentUnittest" + urandom(8).encode("hex")
-        # created = create_jobtype(classname=classname)
+        created = create_jobtype(classname=classname)
         finished = Deferred()
+
+        def check_loaded(jobtype, module_name, jobtype_data):
+            self.assertEqual(jobtype.__name__, classname)
+            self.assertIs(
+                getattr(sys.modules[module_name], jobtype.__name__), jobtype)
+            self.assertTrue(isfile(sys.modules[module_name].__file__))
+
+            with open(sys.modules[module_name].__file__, "r") as cache_file:
+                cached_code = cache_file.read()
+
+            self.assertEqual(jobtype_data["code"], cached_code)
 
         def jobtype_created(data):
             assignment = FAKE_ASSIGNMENT.copy()
             assignment["jobtype"].update(
                 name=data["name"], version=data["version"])
             loaded = JobType.load(assignment)
-            loaded.errback(finished.callback)
+            module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
+                classname, data["name"], data["version"])
+            loaded.addCallback(check_loaded, module_name, data)
+            loaded.chainDeferred(finished)
 
-
-            finished.chainDeferred(loaded)
-
-
-        # TODO: fix test/code
-        finished.callback(True)
-        # created.addCallbacks(jobtype_created, finished.errback)
+        created.addCallback(jobtype_created)
         return finished
