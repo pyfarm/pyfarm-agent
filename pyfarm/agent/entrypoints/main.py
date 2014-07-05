@@ -222,8 +222,9 @@ class AgentEntryPoint(object):
             help="The current agent state, valid values are "
                  "" + str(list(AgentState)) + ". [default: %(default)s]")
         start_general_group.add_argument(
-            "--time-offset",
+            "--time-offset", default=config["agent_time_offset"],
             type=partial(integer, instance=self, flag="time-offset", min_=0),
+            action=partial(SetConfig, key="agent_time_offset"),
             help="If provided then don't talk to the NTP server at all to "
                  "calculate the time offset.  If you know for a fact that this "
                  "host's time is always up to date then setting this to 0 is "
@@ -433,7 +434,6 @@ class AgentEntryPoint(object):
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
                 "html-templates-reload": self.args.html_templates_reload,
-                "time-offset": self.args.time_offset,
                 "pretty-json": self.args.pretty_json,
                 "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,

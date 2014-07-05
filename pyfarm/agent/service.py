@@ -188,7 +188,7 @@ class Agent(object):
         """
         # query the time offset and then cache it since
         # this is typically a blocking operation
-        if requery_timeoffset or config["agent_time_offset"] is None:
+        if requery_timeoffset or config["agent_time_offset"] == "auto":
             ntplog.info(
                 "Querying ntp server %r for current time",
                 config["agent_ntp_server"])
