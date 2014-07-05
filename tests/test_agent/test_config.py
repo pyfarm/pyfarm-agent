@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from os import urandom
 from random import randint
 
@@ -150,6 +151,39 @@ class TestLoggingConfiguration(TestCase):
         for _, _ in config.items():
             with self.assertRaises(TypeError):
                 config.update(1)
+
+
+class TestMasterContacted(TestCase):
+    def test_no_update(self):
+        config = LoggingConfiguration()
+        config.clear()
+        self.assertIsNone(config.master_contacted(update=False))
+        self.assertNotIn("last_announce", config)
+        self.assertNotIn("last_master_contact", config)
+
+    def test_announce(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        config.master_contacted(announcement=True)
+        self.assertDateAlmostEqual(now, config["last_announce"])
+
+    def test_update(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        result = config.master_contacted(update=True, announcement=False)
+        self.assertDateAlmostEqual(now, result)
+        self.assertIs(result, config["last_master_contact"])
+
+    def test_update_default(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        result = config.master_contacted()
+        self.assertDateAlmostEqual(now, result)
+        self.assertIs(result, config["last_master_contact"])
+        self.assertNotIn("last_announce", config)
 
 
 class TestConfigurationExceptions(TestCase):
