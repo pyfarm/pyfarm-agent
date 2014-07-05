@@ -183,7 +183,7 @@ class Cache(object):
         # block the reactor if the write is slow
         logger.debug(
             "Caching job type %s version %s to %s",
-            jobtype["name"], jobtype["version"], filename)
+            jobtype["classname"], jobtype.get("version", "?"), filename)
         writer = threads.deferToThread(write_to_disk, filename)
         writer.addCallbacks(written_to_disk, failed_to_write_to_disk)
         return success

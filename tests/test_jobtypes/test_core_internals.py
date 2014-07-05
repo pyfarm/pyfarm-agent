@@ -121,7 +121,8 @@ class TestCache(TestCase):
 
         def written(data):
             self.assertEqual(data[0]["classname"], classname)
-            self.assertEqual(data[1], filepath)
+            if data[1] is not None:
+                self.assertEqual(data[1], filepath)
             self.assertTrue(isfile(filepath))
 
         cached = cache._cache_jobtype(cache_key, jobtype)
