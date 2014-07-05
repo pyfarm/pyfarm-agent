@@ -151,15 +151,6 @@ class TestLoggingConfiguration(TestCase):
             with self.assertRaises(TypeError):
                 config.update(1)
 
-    def test_local_variable_expansion(self):
-        data = self.get_data()
-        config = ChangedLoggingConfiguration()
-        config.update(data)
-        key = "a" + urandom(8).encode("hex")
-        config["sub"] = key
-        config[key] = "{sub}/foo"
-        self.assertEqual(config[key], "%s/foo" % key)
-
 
 class TestConfigurationExceptions(TestCase):
     def test_change_type_assert_missing_value(self):
