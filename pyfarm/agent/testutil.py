@@ -186,7 +186,7 @@ class TestCase(_TestCase):
         config.update({
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
-            "master": PYFARM_AGENT_MASTER.split(":")[0],
+            "master": PYFARM_AGENT_MASTER,
             "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
             "agent_ram": int(memory.total_ram()),
             "agent_cpus": cpu.total_cpus(),
