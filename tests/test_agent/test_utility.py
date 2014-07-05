@@ -25,7 +25,17 @@ from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url)
+    quote_url, MASTER_USERAGENT, request_from_master)
+
+
+class FakeRequestWithUserAgent(object):
+    def __init__(self, test, user_agent):
+        self.test = test
+        self.user_agent = user_agent
+
+    def getHeader(self, header):
+        self.test.assertEqual(header, "User-Agent")
+        return self.user_agent
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -78,6 +88,14 @@ class TestGeneral(TestCase):
         internal_uuid = uuid().hex
         stduuid = uuid1(node=system_identifier()).hex
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
+
+    def test_request_from_master(self):
+        request = FakeRequestWithUserAgent(self, MASTER_USERAGENT)
+        self.assertTrue(request_from_master(request))
+
+    def test_request_not_from_master(self):
+        request = FakeRequestWithUserAgent(self, "foo")
+        self.assertFalse(request_from_master(request))
 
 
 class TestCSVBase(TestCase):
