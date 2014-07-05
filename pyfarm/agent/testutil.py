@@ -182,7 +182,8 @@ class TestCase(_TestCase):
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
-        config.clear(callbacks=True)
+        config.pop("agent", None)
+        config.pop("hostname", None)
         config.update({
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
@@ -194,8 +195,8 @@ class TestCase(_TestCase):
             "free-ram": int(memory.ram_free()),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
-            "agent_pretty_json": True,
-            "html-templates-reload": True,
+            "agent_pretty_json": False,
+            "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0
 
