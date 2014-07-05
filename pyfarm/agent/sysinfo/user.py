@@ -64,7 +64,7 @@ def username():
     """
     if pwd is not NotImplemented:
         return pwd.getpwuid(os.getuid())[0]
-    elif win32api is not NotImplemented:
+    elif win32api is not NotImplemented:  # pragma: no cover
         return win32api.GetUserName()
     elif getpass is not NotImplemented:  # pragma: no cover
         return getpass.getuser()
@@ -79,9 +79,9 @@ def is_administrator():
     """
     if getuid is not NotImplemented:
         return getuid() == 0
-    elif win32api is not NotImplemented:
+    elif win32api is not NotImplemented:  # pragma: no cover
         return shell.IsUserAnAdmin()
-    elif win32api is NotImplemented and WINDOWS:
+    elif win32api is NotImplemented and WINDOWS:  # pragma: no cover
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
     else:
         raise NotImplementedError(
