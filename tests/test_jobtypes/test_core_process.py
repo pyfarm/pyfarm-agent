@@ -51,13 +51,15 @@ class FakeJobType(object):
             self.stderr(protocol, data)
 
 
-class TestProtocol(TestCase):
+class TestProcessBase(TestCase):
     def _launch_python(self, jobtype, script="i = 42"):
         protocol = ProcessProtocol(jobtype, *[None] * 6)
         reactor.spawnProcess(
             protocol, "python", ["python", "-c", script])
         return protocol
 
+
+class TestProtocol(TestProcessBase):
     def test_subclass(self):
         protocol = ProcessProtocol(*[None] * 7)
         self.assertIsInstance(protocol, _ProcessProtocol)
@@ -147,40 +149,64 @@ class TestProtocol(TestCase):
             "import sys; print >> sys.stderr, %r" % rand_str)
         return DeferredList([finished, fake_jobtype.stopped])
 
+
+class TestStopProcess(TestProcessBase):
+    # How long to wait before trying to stop/terminate/etc
+    # the underlying process.  If this value so too low then
+    # the test will fail.
+    STOP_DELAY = 2
+
     def test_kill(self):
         finished = Deferred()
+        fake_jobtype = FakeJobType()
+        protocol = self._launch_python(
+            fake_jobtype, "import time; time.sleep(3600)")
 
-        def check_signal(data):
+        def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
             self.assertIs(reason.type, ProcessTerminated)
             self.assertIn("signal 9", str(reason))
-            finished.callback(None)
 
-        fake_jobtype = FakeJobType()
-        fake_jobtype.stopped.addCallback(check_signal)
-        protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
-        protocol.kill()
-        return DeferredList([finished, fake_jobtype.stopped])
+        fake_jobtype.started.addCallback(
+            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.kill))
+        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
+        return finished
 
     def test_interrupt(self):
         finished = Deferred()
+        fake_jobtype = FakeJobType()
+        protocol = self._launch_python(
+            fake_jobtype, "import time; time.sleep(3600)")
 
-        def check_signal(data):
+        def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
             self.assertIs(reason.type, ProcessTerminated)
-            self.assertIn("signal 9", str(reason))
-            self.assertIsNone(reason.value.exitCode)
-            finished.callback(None)
+            self.assertEqual(reason.value.exitCode, 1)
 
+        fake_jobtype.started.addCallback(
+            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.interrupt))
+        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
+        return finished
+
+    def test_terminate(self):
+        finished = Deferred()
         fake_jobtype = FakeJobType()
-        fake_jobtype.stopped.addCallback(check_signal)
         protocol = self._launch_python(
             fake_jobtype, "import time; time.sleep(3600)")
-        protocol.kill()
-        return DeferredList([finished, fake_jobtype.stopped])
+
+        def check_stopped(data):
+            protocol, reason = data
+            self.assertIsInstance(protocol, ProcessProtocol)
+            self.assertIs(reason.type, ProcessTerminated)
+            self.assertIsNone(reason.value.exitCode)
+            self.assertIn("signal 15", str(reason))
+
+        fake_jobtype.started.addCallback(
+            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.terminate))
+        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
+        return finished
 
 
 class TestReplaceEnvironment(TestCase):
