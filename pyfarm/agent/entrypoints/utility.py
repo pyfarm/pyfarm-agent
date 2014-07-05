@@ -24,7 +24,7 @@ on the main entry point class.
 
 import os
 import sys
-from argparse import _StoreAction
+from argparse import _StoreAction, _StoreTrueAction
 from errno import EEXIST, ENOENT
 from os.path import dirname, abspath
 
@@ -73,6 +73,22 @@ class SetConfig(_StoreAction):
 
         config[self.key] = values
         super(SetConfig, self).__call__(
+            parser, namespace, values, option_string=option_string)
+
+
+class SetConfigConst(_StoreTrueAction):
+    """
+    Performs the same actions as :class:`SetConfig` except
+    it meant to always set a constant value (much like 'store_true' would)
+    """
+    def __init__(self, *args, **kwargs):
+        self.key = kwargs.pop("key")
+        self.value = kwargs.pop("value")
+        super(SetConfigConst, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        config[self.key] = self.value
+        super(SetConfigConst, self).__call__(
             parser, namespace, values, option_string=option_string)
 
 

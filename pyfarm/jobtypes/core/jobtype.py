@@ -424,7 +424,7 @@ class JobType(object):
             # Finally, send the results to the callback
             result.callback(getattr(module, jobtype["classname"]))
 
-        if config["jobtype-no-cache"] or cache_key not in cls.cache:
+        if config["jobtype_enable_cache"] or cache_key not in cls.cache:
             def download_complete(response):
                 # Server is offline or experiencing issues right
                 # now so we should retry the request.
@@ -433,7 +433,7 @@ class JobType(object):
                         http_retry_delay(),
                         response.request.retry)
 
-                if config["jobtype-no-cache"]:
+                if config["jobtype_enable_cache"]:
                     return load_jobtype((response.json(), None))
 
                 # When the download is complete, cache the results

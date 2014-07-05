@@ -71,7 +71,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    SetConfig, start_daemon_posix, get_system_identifier)
+    SetConfig, SetConfigConst, start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import memory, cpu
 
 
@@ -385,7 +385,10 @@ class AgentEntryPoint(object):
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
-            "--jobtype-no-cache", default=False, action="store_true",
+            "--jobtype-no-cache",
+            default=config["jobtype_enable_cache"],
+            action=partial(
+                SetConfigConst, key="jobtype_enable_cache", value=False),
             help="If provided then do not cache job types, always directly "
                  "retrieve them.  This is beneficial if you're testing the "
                  "agent or a new job type class.")
@@ -435,7 +438,6 @@ class AgentEntryPoint(object):
                 "projects": list(set(self.args.projects)),
                 "html-templates-reload": self.args.html_templates_reload,
                 "pretty-json": self.args.pretty_json,
-                "jobtype-no-cache": self.args.jobtype_no_cache,
                 "capture-process-output": self.args.capture_process_output,
                 "pids": {
                     "parent": os.getpid()}}
