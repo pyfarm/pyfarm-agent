@@ -23,7 +23,8 @@ from uuid import uuid1
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility import default_json_encoder, dumps, uuid
+from pyfarm.agent.utility import (
+    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -76,3 +77,64 @@ class TestGeneral(TestCase):
         internal_uuid = uuid().hex
         stduuid = uuid1(node=system_identifier()).hex
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
+
+
+class TestCSVBase(TestCase):
+    def get_row(self):
+        return [os.urandom(16).encode("hex"), os.urandom(16).encode("hex"),
+                os.urandom(16).encode("hex"), os.urandom(16).encode("hex")]
+
+    def get_writer(self):
+        stream = open(self.create_test_file(), "w")
+        return UnicodeCSVWriter(stream), stream.name
+
+
+class TestCSVWriter(TestCSVBase):
+    def test_writerow(self):
+        writer, path = self.get_writer()
+        row = self.get_row()
+        writer.writerow(row)
+        writer.stream.close()
+        with open(path, "r") as stream:
+            written_row = stream.read()
+        self.assertEqual(written_row.strip(), ",".join(row))
+
+    def test_writerows(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        with open(path, "r") as stream:
+            written_rows = stream.read()
+
+        self.assertEqual(
+            written_rows.strip(), "\r\n".join([",".join(row) for row in rows]))
+
+
+class TestCSVReader(TestCSVBase):
+    def test_iter(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        reader = UnicodeCSVReader(open(path))
+
+        written_rows = []
+        for written_row in reader:
+            written_rows.append(written_row)
+        self.assertEqual(written_rows, rows)
+
+    def test_next(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        reader = UnicodeCSVReader(open(path))
+
+        written_rows = []
+        while True:
+            try:
+                written_rows.append(reader.next())
+            except StopIteration:
+                break
+        self.assertEqual(written_rows, rows)
