@@ -63,10 +63,7 @@ from twisted.internet import reactor
 
 from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
 
-# start logging before doing anything else
-from pyfarm.agent.logger import getLogger, start_logging
-start_logging()
-
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
