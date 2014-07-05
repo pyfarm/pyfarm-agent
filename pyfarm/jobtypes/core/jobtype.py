@@ -202,7 +202,7 @@ class JobType(Cache, Process, TypeChecks):
             # Finally, send the results to the callback
             result.callback(getattr(module, jobtype["classname"]))
 
-        if cls.CACHE_DIRECTORY is None or cache_key not in cls.cache:
+        if config["jobtype_enable_cache"] or cache_key not in cls.cache:
             def download_complete(response):
                 # Server is offline or experiencing issues right
                 # now so we should retry the request.
@@ -211,11 +211,7 @@ class JobType(Cache, Process, TypeChecks):
                         http_retry_delay(),
                         response.request.retry)
 
-                logger.debug(
-                    "Downloaded jobtype %r version %r",
-                    assignment["jobtype"]["name"],
-                    assignment["jobtype"]["version"])
-                if cls.CACHE_DIRECTORY is None:
+                if config["jobtype_enable_cache"]:
                     return load_jobtype((response.json(), None))
                 else:
                     # When the download is complete, cache the results
@@ -812,7 +808,7 @@ class JobType(Cache, Process, TypeChecks):
             line = new_line
 
         line = self.format_log_message(line, stream_type=STDOUT)
-        if config["capture-process-output"]:
+        if config["jobtype_capture_process_output"]:
             process_stdout.info("task %r: %s", protocol.id, line)
         else:
             logpool.log(protocol.uuid, STDOUT, line)
@@ -840,7 +836,7 @@ class JobType(Cache, Process, TypeChecks):
         so it can be stored in a file without blocking the event loop.
         """
         stderr = self.format_log_message(stderr, stream_type=STDERR)
-        if config["capture-process-output"]:
+        if config["jobtype_capture_process_output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
             logpool.log(protocol.uuid, STDERR, stderr)

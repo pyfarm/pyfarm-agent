@@ -27,9 +27,7 @@
             <td>{{ key }}</td>
             <td>{{ typename(value) }}</td>
             <td>{{ value }}</td>
-            {% if is_int(value) or key == "http-max-retries"%}
-                <td><input type="number" placeholder="{{ value }}" name="{{ key }}"></td>
-            {% elif key == "state" %}
+            {% if key == "state" %}
                 <td>
                     <select>
                         <option value="No Change">No Change</option>

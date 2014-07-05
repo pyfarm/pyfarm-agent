@@ -46,30 +46,26 @@ class TestDumpsJson(TestCase):
             os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
 
     def test_dumps_pretty(self):
-        config["pretty-json"] = True
+        config["agent_pretty_json"] = True
         self.assertEqual(dumps(self.data), dumps_(self.data, indent=2))
 
     def test_dumps_not_pretty(self):
-        config["pretty-json"] = False
-        self.assertEqual(dumps(self.data), dumps_(self.data))
-
-    def test_dumps_pretty_default(self):
-        config.pop("pretty-json", None)
+        config["agent_pretty_json"] = False
         self.assertEqual(dumps(self.data), dumps_(self.data))
 
     def test_dumps_single_argument(self):
-        config["pretty-json"] = False
+        config["agent_pretty_json"] = False
         data = self.data.keys()[0]
         self.assertEqual(dumps(data), dumps_(data))
 
     def test_dumps_datetime(self):
-        config["pretty-json"] = False
+        config["agent_pretty_json"] = False
         data = {"datetime": datetime.utcnow()}
         self.assertEqual(
             dumps(data), dumps_(data, default=default_json_encoder))
 
     def test_dumps_decimal(self):
-        config["pretty-json"] = False
+        config["agent_pretty_json"] = False
         data = {"decimal": Decimal("1.2")}
         self.assertEqual(
             dumps(data), dumps_(data, default=default_json_encoder))

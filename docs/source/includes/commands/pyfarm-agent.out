@@ -17,9 +17,8 @@ Agent Network Service:
                         reported the master when an agent starts. [default:
                         50000]
   --host HOST           The host to communicate with or hostname to present to
-                        the master when starting. Defaults to
-                        'motoko.pyfarm.io' for the start command and
-                        'localhost' other targets such as status or stop.
+                        the master when starting. Defaults to the fully
+                        qualified hostname.
   --agent-api-username AGENT_API_USERNAME
                         The username required to access or manipulate the
                         agent using REST. [default: agent]
@@ -28,10 +27,10 @@ Agent Network Service:
                         using REST. [default: agent]
   --systemid SYSTEMID   The system identification value. This is used to help
                         identify the system itself to the master when the
-                        agent connects.
+                        agent connects. [default: auto]
   --systemid-cache SYSTEMID_CACHE
                         The location to cache the value for --systemid.
-                        [default: .pyfarm_agent/systemid]
+                        [default: /tmp/pyfarm/agent/systemid.cache]
 
 Network Resources:
   Resources which the agent will be communicating with.
@@ -41,7 +40,10 @@ Network Resources:
                         will be substituted in --master-api
   --master-api MASTER_API
                         The location where the master's REST api is located.
-                        [default: http://%(master)s/api/v1]
+                        [default: http://None/api/v1]
+  --master-api-version MASTER_API_VERSION
+                        Sets the version of the master's REST api the agent
+                        shoulduse [default: 1]
 
 Process Control:
   These settings apply to the parent process of the agent and contribute to
@@ -50,11 +52,11 @@ Process Control:
   process id file.
 
   --pidfile PIDFILE     The file to store the process id in. [default:
-                        .pyfarm_agent/agent.pid]
+                        /tmp/pyfarm/agent/lock/agent.pid]
   -n, --no-daemon       If provided then do not run the process in the
                         background.
-  --chroot CHROOT       The directory to chroot the agent do upon launch. This
-                        is an optional security measure and generally is not
+  --chdir CHDIR         The working directory to change the agent into upon
+                        launch
   --uid UID             The user id to run the agent as. *This setting is
                         ignored on Windows.*
   --gid GID             The group id to run the agent as. *This setting is

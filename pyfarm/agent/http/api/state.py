@@ -83,18 +83,18 @@ class Status(APIResource):
 
         return dumps(
             {"state": config["state"],
-             "hostname": config["hostname"],
+             "agent_hostname": config["agent_hostname"],
              "free_ram": int(memory.ram_free()),
-             "agent_ram": int(memory.process_memory()),
+             "agent_process_ram": int(memory.process_memory()),
              "consumed_ram": int(memory.total_consumption()),
              "child_processes": direct_child_processes,
              "grandchild_processes": grandchild_processes,
              "pids": config["pids"],
              "id": config.get("agent-id", None),
-             "systemid": config["systemid"],
+             "agent_systemid": config["agent_systemid"],
              "last_master_contact": contacted,
              "last_announce": last_announce,
-             "pidfile": config["pidfile"],
+             "agent_lock_file": config["agent_lock_file"],
              "uptime": timedelta(
                  seconds=time.time() - config["start"]).total_seconds(),
              "jobs": list(config["jobtypes"].keys())})

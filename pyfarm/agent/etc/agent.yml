@@ -64,3 +64,126 @@ agent_unittest:
     client_redirect_target: http://example.com
     client_api_test_url_https: https://httpbin.org
     client_api_test_url_http: http://httpbin.org
+# The location where the agent should change directories
+# into upon starting.  If this value is not set then no
+# changes will be made.
+agent_chdir:
+
+# The location where static web files should be served from.  This
+# will default to using PyFarm's installation root.
+agent_static_root: auto
+
+# The default location to store data.  $temp will expand to
+# whatever pyfarm's data root is plus the application
+# name (agent).  For example on Linux this would expand to
+# /tmp/pyfarm/agent
+agent_data_root: $temp
+
+# The default location where lock files should be stored.  By
+# default these will be stored alone side other data
+# inside the `agent_data_root` value above.
+lock_file_root: $agent_data_root/lock
+
+# Locations of specific lock files
+agent_lock_file: $lock_file_root/agent.pid
+supervisor_lock_file: $lock_file_root/supervisor.pid
+
+# Where user data for the agent is stored.  ~ will be expanded
+# to the current users's home directory.
+agent_user_data: ~/.pyfarm/agent
+
+# The default location where the agent should save logs to.  This
+# includes both logs from processes and the agent log itself.
+agent_logs_root: $agent_data_root/logs
+
+# The location where tasks should be logged
+agent_task_logs: $agent_logs_root/tasks
+
+# The location where agent updates should be stored.
+agent_updates_dir: $agent_data_root/updates
+
+# Defines the sytem
+agent_systemid: auto
+agent_systemid_cache: $agent_data_root/systemid.cache
+
+# Defines the number of seconds between iterations of pyfarm-supervisor's
+# agent status check.
+supervisor_interval: 5
+
+# The default port which the agent should use to serve the
+# REST api.
+agent_api_port: 50000
+
+# The location where the the agent should save its own
+# logging output to.
+agent_log: $agent_logs_root/agent.log
+
+# Configuration values which control how the url
+# for the master is constructed.  If 'master' is not set
+# the --master flag will be required to start the agent.
+master:
+master_api_version: 1
+master_api: http://$master/api/v$master_api_version
+
+# Controls how often the agent should reannounce itself
+# to the master.  The agent may be in contact with the master
+# more often than this however during long period of
+# inactivity this is how often the agent will 'inform' the
+# master the agent is still online.
+agent_master_reannounce: 120
+
+# How many seconds the agent should spend attempting to inform
+# the master that it's shutting down.
+agent_shutdown_timeout: 15
+
+# If an http request fails, use this as the base value
+# to help determine how long we should wait before retrying
+agent_http_retry_delay: 5
+
+# Controls if the http client connection should be persistent or
+# not.  Generally this should always be True because the connection
+# self-terminates after a short period of time anyway.  For higher
+# latency situations or with larger deployments this value should
+# be False.
+agent_http_persistent_connections: True
+
+# If True then html templates will be reloaded with
+# every request instead of cached.
+agent_html_template_reload: False
+
+# If True then reformat json output to be more human
+# readable.
+agent_pretty_json: True
+
+# How often the agent should check for changes in ram.  This value
+# is used to ensure ram usage is checked at least this often though
+# it may be checked more often due to other events (such as jobs
+# running)
+agent_ram_check_interval: 30
+
+# If the ram has changed this may megabytes since the last
+# check then report the change to the master.
+agent_ram_report_delta: 100
+
+# How much the agent should wait, in seconds, between
+# each report about a change in ram.
+agent_ram_max_report_frequency: 10
+
+# The default network time server and version the agent
+# should use to calcuate its clock skew.
+agent_ntp_server: pool.ntp.org
+agent_ntp_server_version: 2
+
+# The amount of time this agent is offset from what
+# would be considered correct based on an atomic
+# clock.  If this value is set to auto the time will
+# be calculated using NTP.
+agent_time_offset: auto
+
+# Physical and network information about the host the agent
+# is running on.  Setting these values to 'auto' will cause
+# them to be initilized to the system's current
+# configuration values.
+agent_ram: auto
+agent_cpus: auto
+agent_hostname: auto

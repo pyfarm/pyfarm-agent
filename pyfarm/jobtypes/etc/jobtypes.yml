@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# If True then include os.environ in any
-# processes launched by job type.
-jobtype_include_os_environ: True
 
-# Any additional key/value pairs to include
-# in the environment of a process launched
-# by a job type.
-jobtype_default_environment: {}
+# When set to True caching of job types will be enabled.  When set to
+# False caching is disabled and every job type will retrieved from
+# the master directly.
+jobtype_enable_cache: True
 
-# The default location where a job type should
+# If True then output from all processes will be sent directly to
+# the agent's logger(s) instead of to the log file assoicated
+# with each process.
+jobtype_capture_process_output: False
+
 # store cached source code from the master.  Note
 # that $temp will be expanded to the local system's
 # temp directory.  If this directory does not exist
