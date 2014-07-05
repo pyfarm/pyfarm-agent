@@ -55,7 +55,7 @@ agent_task_logs: $agent_logs_root/tasks
 # The location where agent updates should be stored.
 agent_updates_dir: $agent_data_root/updates
 
-# Defines the sytem
+# Defines how and where the system identifier is cached.
 agent_systemid: auto
 agent_systemid_cache: $agent_data_root/systemid.cache
 
