@@ -66,7 +66,7 @@ def username():
         return pwd.getpwuid(os.getuid())[0]
     elif win32api is not NotImplemented:
         return win32api.GetUserName()
-    elif getpass is not NotImplemented:
+    elif getpass is not NotImplemented:  # pragma: no cover
         return getpass.getuser()
     else:
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
