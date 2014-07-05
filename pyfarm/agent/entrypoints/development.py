@@ -37,14 +37,11 @@ from textwrap import dedent
 import psutil
 import requests
 
-# start logging before doing anything else
-from pyfarm.agent.logger import getLogger, start_logging
-start_logging()
-
 from pyfarm.core.enums import NUMERIC_TYPES
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import integer, number
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import dumps
 
 
