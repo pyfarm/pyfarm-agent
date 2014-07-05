@@ -19,6 +19,8 @@ import socket
 import tempfile
 import time
 import psutil
+import subprocess
+import sys
 import uuid
 from os.path import isfile
 
@@ -188,36 +190,45 @@ class Memory(TestCase):
     def test_swapused(self):
         v1 = convert.bytetomb(psutil.swap_memory().used)
         v2 = memory.swap_used()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_swapfree(self):
         v1 = convert.bytetomb(psutil.swap_memory().free)
         v2 = memory.swap_free()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_ramused(self):
         v1 = convert.bytetomb(psutil.virtual_memory().used)
         v2 = memory.ram_used()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
         v2 = memory.ram_free()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_process_memory(self):
         process = psutil.Process()
         v1 = convert.bytetomb(process.memory_info().rss)
         v2 = memory.process_memory()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_total_consumption(self):
+        # Spawn a child process so we have something
+        # to iterate over
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"])
         parent = psutil.Process()
-        total = parent.memory_info().rss
+        start_total = total = parent.memory_info().rss
 
         for child_process in parent.children(recursive=True):
             total += child_process.memory_info().rss
 
+        # These should not be equal if we've iterated
+        # over any children at all.
+        self.assertNotEqual(start_total, total)
+
         v1 = convert.bytetomb(total)
         v2 = memory.total_consumption()
-        self.assertEqual(v1-v2 < 5, True)
+        child.kill()
+        self.assertApproximates(v1, v2, 5)
