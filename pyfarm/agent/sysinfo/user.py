@@ -51,7 +51,7 @@ from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.core.enums import WINDOWS, LINUX, MAC
 
 
-def username():  # pragma: no cover
+def username():
     """
     Returns the current user name using the most native api
     we can import. On Linux for example this will use the :mod:`pwd`
@@ -67,7 +67,7 @@ def username():  # pragma: no cover
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
 
 
-def is_administrator():  # pragma: no cover
+def is_administrator():
     """
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
