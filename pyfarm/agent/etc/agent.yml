@@ -48,7 +48,7 @@ agent_logs_root: $agent_data_root/logs
 agent_task_logs: $agent_logs_root/tasks
 
 # The location where agent updates should be stored.
-agent_updates_dir: $agent_user_data/updates
+agent_updates_dir: $agent_data_root/updates
 
 # Defines the sytem
 agent_systemid: auto
