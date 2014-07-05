@@ -22,10 +22,10 @@ from uuid import uuid1
 
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo.system import system_identifier
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, FakeRequestWithUserAgent
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url, MASTER_USERAGENT, request_from_master)
+    quote_url, request_from_master)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -80,7 +80,7 @@ class TestGeneral(TestCase):
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
 
     def test_request_from_master(self):
-        request = FakeRequestWithUserAgent(self, MASTER_USERAGENT)
+        request = FakeRequestWithUserAgent(self, config["master_user_agent"])
         self.assertTrue(request_from_master(request))
 
     def test_request_not_from_master(self):
