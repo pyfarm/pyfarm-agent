@@ -110,14 +110,12 @@ class TestResourceBase(TestCase):
 class TestResourceInternals(TestResourceBase):
     def setUp(self):
         TestResourceBase.setUp(self)
-        self._schemas = Resource.SCHEMAS.copy()
         self._pop_empty = Resource.POP_EMPTY_VALUES
 
     def tearDown(self):
         TestResourceBase.tearDown(self)
         Resource.SCHEMAS.clear()
         Resource.SCHEMAS.update(self._schemas)
-        Resource.POP_EMPTY_VALUES = self._pop_empty
 
     def test_classvar_template(self):
         self.assertIs(Resource.TEMPLATE, NotImplemented)
