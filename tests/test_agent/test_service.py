@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
 from pyfarm.agent.sysinfo.system import system_identifier
-from pyfarm.agent.testutil import TestCase, PYFARM_AGENT_MASTER
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
 
@@ -34,17 +34,18 @@ class TestAgentBasicMethods(TestCase):
         agent = Agent()
         self.assertEqual(
             agent.agent_api(),
-            "http://%s/api/v1/agents/1" % PYFARM_AGENT_MASTER)
+            "%s/agents/1" % config["master_api"])
 
     def test_agent_api_url_keyerror(self):
         agent = Agent()
+        config.pop("agent-id")
         self.assertIsNone(agent.agent_api())
 
     def test_system_data(self):
         expected = {
             "current_assignments": {},
             "systemid": system_identifier(),
-            "hostname": config["hostname"],
+            "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],
             "cpus": config["agent_cpus"],
