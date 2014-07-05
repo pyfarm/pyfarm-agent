@@ -24,7 +24,6 @@ from pyfarm.agent.testutil import TestCase
 
 DummyArgs = namedtuple("DummyArgs", ["uid"])
 
-
 class ErrorCapturingParser(_ArgumentParser):
     def __init__(self, *args, **kwargs):
         super(ErrorCapturingParser, self).__init__(*args, **kwargs)
@@ -90,11 +89,27 @@ class TestIp(BaseTestArgTypes):
 class TestPort(BaseTestArgTypes):
     def setUp(self):
         BaseTestArgTypes.setUp(self)
-        self.parser.add_argument("--port", type=partial(port, instance=self))
-        self.parser.add_argument(
-            "--uid", type=partial(integer, instance=self, min_=0))
+
+    def add_arguments(self, add_uid=True, add_port=True):
+        if add_port:
+            self.parser.add_argument(
+                "--port", type=partial(port, instance=self))
+
+        if add_uid:
+            self.parser.add_argument(
+                "--uid", type=partial(integer, instance=self, min_=0))
+
+    def test_uid_not_provided(self):
+        self.add_arguments(add_uid=False)
+        self.args = self.parser.parse_args(["--port", "49152"])
+        self.assertEqual(self.parser.errors, [])
+        self.assertEqual(self.args.port, 49152)
+        self.args = self.parser.parse_args(["--port", "0"])
+        self.assertEqual(
+            self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_min(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=1000)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "49152"])
         self.assertEqual(self.parser.errors, [])
@@ -104,6 +119,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_max(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=1000)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "65535"])
         self.assertEqual(self.parser.errors, [])
@@ -113,6 +129,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_root_min(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "1"])
         self.assertEqual(self.parser.errors, [])
@@ -122,6 +139,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_valid_root_max(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "65535"])
         self.assertEqual(self.parser.errors, [])
@@ -131,6 +149,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_port_not_a_number(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "!"])
         self.assertEqual(
