@@ -150,9 +150,7 @@ class ProcessProtocol(_ProcessProtocol):
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot kill %s: %s.", self, e)
 
-    # NOTE: no covered by tests due to flakyness
-    # TODO: debug 'flakyness' and find a better solution
-    def terminate(self):  # pragma: no cover
+    def terminate(self):
         """Terminates the underlying process, if running."""
         logger.info("Terminating %s", self)
         try:
