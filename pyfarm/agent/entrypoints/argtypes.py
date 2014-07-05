@@ -184,6 +184,9 @@ def direxists(path, instance=None, flag=None):
 def number(value, types=None, instance=None, allow_inf=False, min_=1,
            flag=None):
     """convert the given value to a number"""
+    if value == "auto":
+        return value
+
     # Internally used
     if isinstance(value, NUMERIC_TYPES):  # pragma: no cover
         return value
