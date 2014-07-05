@@ -110,7 +110,7 @@ class TestResourceBase(TestCase):
 class TestResourceInternals(TestResourceBase):
     def setUp(self):
         TestResourceBase.setUp(self)
-        self._pop_empty = Resource.POP_EMPTY_VALUES
+        self._schemas = Resource.SCHEMAS.copy()
 
     def tearDown(self):
         TestResourceBase.tearDown(self)
