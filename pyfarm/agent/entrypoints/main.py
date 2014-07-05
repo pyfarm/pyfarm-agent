@@ -121,8 +121,8 @@ class AgentEntryPoint(object):
             "--host", default=config["agent_hostname"],
             action=partial(SetConfig, key="agent_hostname"),
             help="The host to communicate with or hostname to present to the "
-                 "master when starting.  Defaults to the fully qualified"
-                 "hostname.  [default: %(default)s]")
+                 "master when starting.  Defaults to the fully qualified "
+                 "hostname.")
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
@@ -273,13 +273,15 @@ class AgentEntryPoint(object):
             action=partial(SetConfig, key="agent_cpus"),
             type=partial(integer, instance=self, flag="cpus"),
             help="The total amount of cpus installed on the "
-                 "system [default: %(default)s]")
+                 "system.  Defaults to the number of cpus installed "
+                 "on the system.")
         start_hardware_group.add_argument(
             "--ram", default=int(memory.total_ram()),
             action=partial(SetConfig, key="agent_ram"),
             type=partial(integer, instance=self, flag="ram"),
             help="The total amount of ram installed on the system in "
-                 "megabytes.  [default: %(default)s]")
+                 "megabytes.  Defaults to the amount of ram the "
+                 "system has installed.")
 
         # start interval controls
         start_interval_group = start.add_argument_group(
@@ -382,7 +384,7 @@ class AgentEntryPoint(object):
             type=partial(direxists, instance=self, flag="static-files"),
             action=partial(SetConfig, key="agent_static_root", isfile=True),
             help="The default location where the agent's http server should "
-                 "find static files to serve. [default: %(default)s]")
+                 "find static files to serve.")
         start_http_group.add_argument(
             "--http-retry-delay", default=config["agent_http_retry_delay"],
             type=partial(number, instance=self),
