@@ -117,8 +117,7 @@ def dumps(*args, **kwargs):
     :func:`pyfarm.master.utility.jsonify`
     """
     indent = None
-    pretty = config.get("pretty-json", False)
-    if pretty:
+    if config["agent_pretty_json"]:
         indent = 2
 
     if len(args) == 1 and not isinstance(args[0], (dict, UserDict)):

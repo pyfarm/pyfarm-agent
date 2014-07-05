@@ -194,7 +194,7 @@ class TestCase(_TestCase):
             "free-ram": int(memory.ram_free()),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
-            "pretty-json": True,
+            "agent_pretty_json": True,
             "html-templates-reload": True,
             "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0

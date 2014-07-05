@@ -243,8 +243,9 @@ class AgentEntryPoint(object):
             help="The version of the NTP server in case it's running an older"
                  "or newer version. [default: %(default)s]")
         start_general_group.add_argument(
-            "--no-pretty-json", default=True, action="store_false",
-            dest="pretty_json",
+            "--no-pretty-json", default=config["agent_pretty_json"],
+            action=partial(
+                SetConfigConst, key="agent_pretty_json", value=False),
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
         start_general_group.add_argument(
@@ -442,7 +443,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "pretty-json": self.args.pretty_json,
                 "pids": {
                     "parent": os.getpid()}}
             # update configuration with values from the command line

@@ -99,6 +99,10 @@ agent_http_persistent_connections: True
 # every request instead of cached.
 agent_html_template_reload: False
 
+# If True then reformat json output to be more human
+# readable.
+agent_pretty_json: True
+
 # How often the agent should check for changes in ram.  This value
 # is used to ensure ram usage is checked at least this often though
 # it may be checked more often due to other events (such as jobs
