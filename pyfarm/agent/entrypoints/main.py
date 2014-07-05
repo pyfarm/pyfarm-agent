@@ -15,26 +15,25 @@
 # limitations under the License.
 
 """
-Commands
-========
+Main
+----
 
-The main module which constructs the entrypoint(s) for the agent.
+The main module which constructs the entrypoint for the
+``pyfarm-agent`` command line tool.
 """
 
 from __future__ import division
 
 import argparse
-import ctypes
-import hashlib
+
 import os
 import sys
 import time
-from collections import namedtuple
+
 from functools import partial
 from json import dumps
-from random import choice, randint, random
-from textwrap import dedent
-from os.path import abspath, dirname, isfile, join, isdir, expanduser
+
+from os.path import dirname, isfile, isdir
 
 try:
     from httplib import ACCEPTED, OK, responses
@@ -62,26 +61,18 @@ import signal
 from requests import ConnectionError
 from twisted.internet import reactor
 
-from pyfarm.core.config import read_env, read_env_int
-from pyfarm.core.enums import (
-    OS, WINDOWS, AgentState, NUMERIC_TYPES, INTEGER_TYPES)
-from pyfarm.core.utility import convert
+from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import (
     ip, port, uidgid, direxists, enum, integer, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    start_daemon_posix, get_system_identifier)
-from pyfarm.agent.sysinfo import network, memory, cpu
+    SetConfig, SetConfigConst, start_daemon_posix, get_system_identifier)
+from pyfarm.agent.sysinfo import memory, cpu
 
 
 logger = getLogger("agent.cmd")
-
-# determine template and static file location
-import pyfarm.agent
-STATIC_ROOT = abspath(
-    join(dirname(pyfarm.agent.__file__), "http", "static"))
 
 config["start"] = time.time()
 
@@ -90,7 +81,6 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
-        self.default_host = network.hostname()
         self.parser = argparse.ArgumentParser(
             usage="%(prog)s [status|start|stop]",
             epilog="%(prog)s is a command line client for working with a "
@@ -112,26 +102,24 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        default_data_root = read_env(
-            "PYFARM_AGENT_DATA_ROOT", ".pyfarm_agent")
-
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
             "Agent Network Service",
             description="Main flags which control the network services running "
                         "on the agent.")
         global_network.add_argument(
-            "--port", default=50000,
+            "--port", default=config["agent_api_port"],
+            action=partial(SetConfig, key="agent_api_port"),
             type=partial(port, instance=self),
             help="The port number which the agent is either running on or "
                  "will run on when started.  This port is also reported the "
                  "master when an agent starts. [default: %(default)s]")
         global_network.add_argument(
-            "--host", default=None,
+            "--host", default=config["agent_hostname"],
+            action=partial(SetConfig, key="agent_hostname"),
             help="The host to communicate with or hostname to present to the "
-                 "master when starting.  Defaults to %r for the start "
-                 "command and 'localhost' other targets such as status or "
-                 "stop." % self.default_host)
+                 "master when starting.  Defaults to the fully qualified "
+                 "hostname.")
         global_network.add_argument(
             "--agent-api-username", default="agent",
             help="The username required to access or manipulate the agent "
@@ -141,33 +129,39 @@ class AgentEntryPoint(object):
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid",
+            "--systemid", default=config["agent_systemid"],
             type=partial(system_identifier, instance=self),
+            action=partial(SetConfig, key="agent_systemid"),
             help="The system identification value.  This is used to help "
                  "identify the system itself to the master when the agent "
-                 "connects.")
+                 "connects. [default: %(default)s]")
         global_network.add_argument(
             "--systemid-cache",
-            default=join(default_data_root, "systemid"),
+            default=config["agent_systemid_cache"],
+            action=partial(SetConfig, key="agent_systemid_cache"),
             help="The location to cache the value for --systemid. "
                  "[default: %(default)s]")
-
-        # defaults for a couple of the command line flags below
-        self.master_api_default = "http://%(master)s/api/v1"
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
             "Network Resources",
             description="Resources which the agent will be communicating with.")
         global_apis.add_argument(
-            "--master",
+            "--master", default=config["master"],
+            action=partial(SetConfig, key="master"),
             help="This is a convenience flag which will allow you to set the "
                  "hostname for the master.  By default this value will be "
                  "substituted in --master-api")
         global_apis.add_argument(
-            "--master-api", default=self.master_api_default,
+            "--master-api", default=config["master_api"],
+            action=partial(SetConfig, key="master_api"),
             help="The location where the master's REST api is located. "
                  "[default: %(default)s]")
+        global_apis.add_argument(
+            "--master-api-version", default=config["master_api_version"],
+            action=partial(SetConfig, key="master_api_version"),
+            help="Sets the version of the master's REST api the agent should"
+                 "use [default: %(default)s]")
 
         # global command line flags which apply to top level
         # process control
@@ -180,16 +174,17 @@ class AgentEntryPoint(object):
                         "via a process id file.")
         global_process.add_argument(
             "--pidfile",
-            default=join(default_data_root, "agent.pid"),
+            default=config["agent_lock_file"],
+            action=partial(SetConfig, key="agent_lock_file", isfile=True),
             help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
             help="If provided then do not run the process in the background.")
         global_process.add_argument(
-            "--chroot",
-            type=partial(direxists, instance=self, flag="chroot"),
-            help="The directory to chroot the agent do upon launch.  This is "
-                 "an optional security measure and generally is not ")
+            "--chdir",
+            type=partial(direxists, instance=self, flag="chdir"),
+            action=partial(SetConfig, key="agent_chdir", isfile=True),
+            help="The working directory to change the agent into upon launch")
         global_process.add_argument(
             "--uid",
             type=partial(
@@ -224,38 +219,43 @@ class AgentEntryPoint(object):
             help="The current agent state, valid values are "
                  "" + str(list(AgentState)) + ". [default: %(default)s]")
         start_general_group.add_argument(
-            "--time-offset",
+            "--time-offset", default=config["agent_time_offset"],
             type=partial(integer, instance=self, flag="time-offset", min_=0),
+            action=partial(SetConfig, key="agent_time_offset"),
             help="If provided then don't talk to the NTP server at all to "
                  "calculate the time offset.  If you know for a fact that this "
                  "host's time is always up to date then setting this to 0 is "
                  "probably a safe bet.")
         start_general_group.add_argument(
-            "--ntp-server", default="pool.ntp.org",
+            "--ntp-server", default=config["agent_ntp_server"],
+            action=partial(SetConfig, key="agent_ntp_server"),
             help="The default network time server this agent should query to "
                  "retrieve the real time.  This will be used to help determine "
                  "the agent's clock skew if any.  Setting this value to '' "
                  "will effectively disable this query. [default: %(default)s]")
         start_general_group.add_argument(
-            "--ntp-server-version", default=2,
+            "--ntp-server-version", default=config["agent_ntp_server_version"],
+            action=partial(SetConfig, key="agent_ntp_server_version"),
             type=partial(integer, instance=self, flag="ntp-server-version"),
             help="The version of the NTP server in case it's running an older"
                  "or newer version. [default: %(default)s]")
         start_general_group.add_argument(
-            "--no-pretty-json", default=True, action="store_false",
-            dest="pretty_json",
+            "--no-pretty-json", default=config["agent_pretty_json"],
+            action=partial(
+                SetConfigConst, key="agent_pretty_json", value=False),
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
         start_general_group.add_argument(
             "--shutdown-timeout",
-            default=read_env_int("PYFARM_AGENT_SHUTDOWN_TIMEOUT", 15),
-            type=partial(integer, instance=self,
-                         flag="shutdown_timeout", min_=0),
+            default=config["agent_shutdown_timeout"],
+            action=partial(SetConfig, key="agent_shutdown_timeout"),
+            type=partial(
+                integer, instance=self, flag="shutdown_timeout", min_=0),
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
         start_general_group.add_argument(
-            "--updates-drop-dir", default=join(expanduser("~"), ".pyfarm",
-                                               "agent", "updates"),
+            "--updates-drop-dir", default=config["agent_updates_dir"],
+            action=partial(SetConfig, key="agent_updates_dir"),
             help="The directory to drop downloaded updates in. This should be "
             "the same directory pyfarm-supervisor will look for updates in. "
             "[default: %(default)s]")
@@ -267,14 +267,18 @@ class AgentEntryPoint(object):
                         "the agent.")
         start_hardware_group.add_argument(
             "--cpus", default=int(cpu.total_cpus()),
+            action=partial(SetConfig, key="agent_cpus"),
             type=partial(integer, instance=self, flag="cpus"),
             help="The total amount of cpus installed on the "
-                 "system [default: %(default)s]")
+                 "system.  Defaults to the number of cpus installed "
+                 "on the system.")
         start_hardware_group.add_argument(
             "--ram", default=int(memory.total_ram()),
+            action=partial(SetConfig, key="agent_ram"),
             type=partial(integer, instance=self, flag="ram"),
             help="The total amount of ram installed on the system in "
-                 "megabytes.  [default: %(default)s]")
+                 "megabytes.  Defaults to the amount of ram the "
+                 "system has installed.")
 
         # start interval controls
         start_interval_group = start.add_argument_group(
@@ -282,7 +286,9 @@ class AgentEntryPoint(object):
             description="Controls which dictate when certain internal "
                         "intervals should occur.")
         start_interval_group.add_argument(
-            "--ram-check-interval", default=30,
+            "--ram-check-interval",
+            default=config["agent_ram_check_interval"],
+            action=partial(SetConfig, key="agent_ram_check_interval"),
             type=partial(integer, instance=self, flag="ram-check-interval"),
             help="How often ram resources should be checked for changes. "
                  "The amount of memory currently being consumed on the system "
@@ -290,9 +296,11 @@ class AgentEntryPoint(object):
                  "this flag specifically controls how often we should check "
                  "when no such events are occurring. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--ram-max-report-interval", default=10,
+            "--ram-max-report-frequency",
+            default=config["agent_ram_max_report_frequency"],
             type=partial(
                 integer, instance=self, flag="ram-max-report-interval"),
+            action=partial(SetConfig, key="agent_ram_max_report_frequency"),
             help="This is a limiter that prevents the agent from reporting "
                  "memory changes to the master more often than a specific "
                  "time interval.  This is done in order to ensure that when "
@@ -300,13 +308,15 @@ class AgentEntryPoint(object):
                  "in ram usage only one or two will be reported to the "
                  "master. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--ram-report-delta", default=100,
+            "--ram-report-delta", default=config["agent_ram_report_delta"],
             type=partial(integer, instance=self, flag="ram-report-delta"),
+            action=partial(SetConfig, key="agent_ram_report_delta"),
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
         start_interval_group.add_argument(
             "--master-reannounce",
-            default=read_env_int("PYFARM_AGENT_MASTER_REANNOUNCE", 120),
+            default=config["agent_master_reannounce"],
+            action=partial(SetConfig, key="agent_master_reannounce"),
             type=partial(integer, instance=self, flag="master-reannounce"),
             help="Controls how often the agent should reannounce itself "
                  "to the master.  The agent may be in contact with the master "
@@ -321,16 +331,22 @@ class AgentEntryPoint(object):
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
             "--log",
-            default=join(default_data_root, "agent.log"),
+            default=config["agent_log"],
+            action=partial(SetConfig, key="agent_log", isfile=True),
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
         logging_group.add_argument(
-            "--capture-process-output", default=False, action="store_true",
+            "--capture-process-output",
+            default=config["jobtype_capture_process_output"],
+            action=partial(
+                SetConfigConst, key="jobtype_capture_process_output",
+                value=True),
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", default=join(default_data_root, "task_logs"),
+            "--task-log-dir", default=config["agent_task_logs"],
+            action=partial(SetConfig, key="agent_task_logs", isfile=True),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -352,31 +368,33 @@ class AgentEntryPoint(object):
                         "master's REST api and how it should run it's own "
                         "REST api.")
         start_http_group.add_argument(
-            "--html-templates-reload", default=False,
-            action="store_true",
+            "--html-templates-reload",
+            default=config["agent_html_template_reload"],
+            action=partial(
+                SetConfigConst, key="agent_html_template_reload", value=True),
             help="If provided then force Jinja2, the html template system, "
                  "to check the file system for changes with every request. "
                  "This flag should not be used in production but is useful "
                  "for development and debugging purposes.")
         start_http_group.add_argument(
-            "--static-files", default=STATIC_ROOT,
+            "--static-files", default=config["agent_static_root"],
             type=partial(direxists, instance=self, flag="static-files"),
+            action=partial(SetConfig, key="agent_static_root", isfile=True),
             help="The default location where the agent's http server should "
-                 "find static files to serve. [default: %(default)s]")
+                 "find static files to serve.")
         start_http_group.add_argument(
-            "--http-max-retries", default="unlimited",
-            type=partial(integer, instance=self, allow_inf=True, min_=0),
-            help="The max number of times to retry a request to the master "
-                 "after it has failed.  [default: %(default)s]")
-        start_http_group.add_argument(
-            "--http-retry-delay", default=5,
+            "--http-retry-delay", default=config["agent_http_retry_delay"],
             type=partial(number, instance=self),
+            action=partial(SetConfig, key="agent_http_retry_delay"),
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
-            "--jobtype-no-cache", default=False, action="store_true",
+            "--jobtype-no-cache",
+            default=config["jobtype_enable_cache"],
+            action=partial(
+                SetConfigConst, key="jobtype_enable_cache", value=False),
             help="If provided then do not cache job types, always directly "
                  "retrieve them.  This is beneficial if you're testing the "
                  "agent or a new job type class.")
@@ -395,25 +413,13 @@ class AgentEntryPoint(object):
                  "agent continue to stop itself without waiting for each agent")
 
     def __call__(self):
+        logger.debug("Parsing command line arguments")
         self.args = self.parser.parse_args()
 
-        # Default for 'host' should be 'localhost' for everything
-        # except start.
-        if self.args.host is None:
-            if self.args.target_name == "start":
-                self.args.host = self.default_host
-            else:
-                self.args.host = "localhost"
-
-        if not self.args.master and self.args.target_name == "start":
+        if not config["master"] and self.args.target_name == "start":
             self.parser.error(
                 "--master must be provided (ex. "
                 "'pyfarm-agent --master=foobar start')")
-
-        # replace %(master)s in --master-api if --master-api was not set
-        if self.args.master_api == self.master_api_default:
-            self.args.master_api = self.args.master_api % {
-                "master": self.args.master}
 
         # if we're on windows, produce some warnings about
         # flags which are not supported
@@ -427,55 +433,20 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            # since the agent process could fork we must make
-            # sure the log file paths are fully specified
-            self.args.log = abspath(self.args.log)
-            self.args.pidfile = abspath(self.args.pidfile)
-            self.args.static_files = abspath(self.args.static_files)
-
-            if self.args.chroot is not None:
-                self.args.chroot = abspath(self.args.chroot)
+            # Setup the system identifier
+            systemid = get_system_identifier(
+                self.args.systemid, config["agent_systemid_cache"])
+            config["agent_systemid"] = systemid
 
             # update configuration with values from the command line
             config_flags = {
-                "systemid": get_system_identifier(
-                    systemid=self.args.systemid,
-                    cache_path=self.args.systemid_cache),
-                "chroot": self.args.chroot,
-                "master-api": self.args.master_api,
-                "hostname": self.args.host,
-                "port": self.args.port,
                 "state": self.args.state,
-                "ram": self.args.ram,
-                "cpus": self.args.cpus,
                 "projects": list(set(self.args.projects)),
-                "http-max-retries": self.args.http_max_retries,
-                "http-retry-delay": self.args.http_retry_delay,
-                "ram-check-interval": self.args.ram_check_interval,
-                "ram-report-delta": self.args.ram_report_delta,
-                "ram-max-report-interval": self.args.ram_max_report_interval,
-                "static-files": self.args.static_files,
-                "html-templates-reload": self.args.html_templates_reload,
-                "ntp-server": self.args.ntp_server,
-                "ntp-server-version": self.args.ntp_server_version,
-                "time-offset": self.args.time_offset,
-                "pretty-json": self.args.pretty_json,
-                "api-endpoint-prefix": "/api/v1",
-                "jobtype-no-cache": self.args.jobtype_no_cache,
-                "capture-process-output": self.args.capture_process_output,
-                "task-log-dir": self.args.task_log_dir,
-                "master-reannounce": self.args.master_reannounce,
-                "pidfile": self.args.pidfile,
                 "pids": {
-                    "parent": os.getpid()},
-                "shutdown_timeout": self.args.shutdown_timeout,
-                "updates_drop_dir": self.args.updates_drop_dir}
+                    "parent": os.getpid()}}
             # update configuration with values from the command line
 
             config.update(config_flags)
-
-        self.agent_api = \
-            "http://%s:%s/api/v1" % (self.args.host, self.args.port)
 
         return_code = self.args.target_func()
 
@@ -484,33 +455,41 @@ class AgentEntryPoint(object):
         if isinstance(return_code, INTEGER_TYPES):
             sys.exit(return_code)
 
+    @property
+    def agent_api(self):
+        return "http://%s:%s/api/v1" % (
+            config["agent_hostname"], config["agent_api_port"])
+
     def start(self):
         url = self.agent_api + "/status"
         try:
             response = requests.get(
                 url, headers={"Content-Type": "application/json"})
         except ConnectionError:
-            if isfile(self.args.pidfile):
-                logger.debug("Process ID file %s exists", self.args.pidfile)
-                with open(self.args.pidfile, "r") as pidfile:
+            if isfile(config["agent_lock_file"]):
+                logger.debug(
+                    "Process ID file %s exists", config["agent_lock_file"])
+
+                with open(config["agent_lock_file"], "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
                     except ValueError:
                         logger.warning(
                             "Could not convert pid in %s to an integer.",
-                            self.args.pidfile)
+                            config["agent_lock_file"])
                     else:
                         try:
                             process = psutil.Process(pid)
                         except psutil.NoSuchProcess:
                             logger.debug(
-                                "Process ID in %s is stale.", self.args.pidfile)
+                                "Process ID in %s is stale.",
+                                config["agent_lock_file"])
                             try:
-                                os.remove(self.args.pidfile)
+                                os.remove(config["agent_lock_file"])
                             except OSError as e:
                                 logger.error(
                                     "Failed to remove PID file %s: %s",
-                                    self.args.pidfile, e)
+                                    config["agent_lock_file"], e)
                                 return 1
                         else:
                             if process.name() == "pyfarm-agent":
@@ -523,7 +502,8 @@ class AgentEntryPoint(object):
                                     "agent.", pid)
             else:
                 logger.debug(
-                    "Process ID file %s does not exist", self.args.pidfile)
+                    "Process ID file %s does not exist",
+                    config["agent_lock_file"])
         else:
             code = "%s %s" % (
                 response.status_code, responses[response.status_code])
@@ -535,29 +515,29 @@ class AgentEntryPoint(object):
 
         logger.info("Starting agent")
 
-        if not isdir(self.args.task_log_dir):
-            logger.debug("Creating %s", self.args.task_log_dir)
+        if not isdir(config["agent_task_logs"]):
+            logger.debug("Creating %s", config["agent_task_logs"])
             try:
-                os.makedirs(self.args.task_log_dir)
+                os.makedirs(config["agent_task_logs"])
             except OSError:
-                logger.error("Failed to create %s", self.args.task_log_dir)
+                logger.error("Failed to create %s", config["agent_task_logs"])
                 return 1
 
         # create the directory for log
-        if not self.args.no_daemon and not isfile(self.args.log):
+        if not self.args.no_daemon and not isfile(config["agent_log"]):
             try:
-                os.makedirs(dirname(self.args.log))
+                os.makedirs(dirname(config["agent_log"]))
             except OSError:
                 # Not an error because it could be created later on
                 logger.warning(
-                    "failed to create %s" % dirname(self.args.log))
+                    "failed to create %s" % dirname(config["agent_log"]))
 
         # so long as fork could be imported and --no-daemon was not set
         # then setup the log files
         if not self.args.no_daemon and fork is not NotImplemented:
-            logger.info("sending log output to %s" % self.args.log)
+            logger.info("sending log output to %s" % config["agent_log"])
             daemon_start_return_code = start_daemon_posix(
-                self.args.log, self.args.chroot,
+                config["agent_log"], config["agent_chdir"],
                 self.args.uid, self.args.gid)
 
             if isinstance(daemon_start_return_code, INTEGER_TYPES):
@@ -570,33 +550,33 @@ class AgentEntryPoint(object):
 
         # PID file should not exist now.  Either the last agent instance
         # should have removed it or we should hae above.
-        if isfile(self.args.pidfile):
+        if isfile(config["agent_lock_file"]):
             logger.error("PID file should not exist on disk at this point.")
             return 1
 
         # Create the directory for the pid file if necessary
-        pid_dirname = dirname(self.args.pidfile)
+        pid_dirname = dirname(config["agent_lock_file"])
         if not isdir(pid_dirname):
             try:
                 os.makedirs(pid_dirname)
             except OSError:  # pragma: no cover
                 logger.error(
                     "Failed to create parent directory for %s",
-                    self.args.pidfile)
+                    config["agent_lock_file"])
                 return 1
             else:
                 logger.debug("Created directory %s", pid_dirname)
 
         # Write the PID file
         try:
-            with open(self.args.pidfile, "w") as pid:
+            with open(config["agent_lock_file"], "w") as pid:
                 pid.write(str(os.getpid()))
         except OSError as e:
             logger.error(
-                "Failed to write PID file %s: %s", self.args.pidfile, e)
+                "Failed to write PID file %s: %s", config["agent_lock_file"], e)
             return 1
         else:
-            logger.debug("Wrote PID to %s", self.args.pidfile)
+            logger.debug("Wrote PID to %s", config["agent_lock_file"])
 
         logger.info("pid: %s" % pid)
 
@@ -651,23 +631,25 @@ class AgentEntryPoint(object):
             logger.debug(str(e))
             logger.warning(
                 "Failed to communicate with %s's API.  We can only roughly "
-                "determine if agent is offline or online.", self.args.host)
+                "determine if agent is offline or online.",
+                config["agent_hostname"])
 
             # TODO: use config for pidfile, --pidfile should be an override
-            if not isfile(self.args.pidfile):
+            if not isfile(config["agent_lock_file"]):
                 logger.debug(
-                    "Process ID file %s does not exist", self.args.pidfile)
+                    "Process ID file %s does not exist",
+                    config["agent_lock_file"])
                 logger.info("Agent is offline")
                 return 1
 
             else:
-                with open(self.args.pidfile, "r") as pidfile:
+                with open(config["agent_lock_file"], "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
                     except ValueError:
                         logger.error(
                             "Could not convert pid in %s to an integer.",
-                            self.args.pidfile)
+                            config["agent_lock_file"])
                         return 1
 
                 try:
@@ -690,305 +672,18 @@ class AgentEntryPoint(object):
         pid_child = data["pids"]["child"]
 
         # Print some general information about the agent
-        logger.info("Agent %(hostname)s is %(state)s" % data)
+        logger.info("Agent %(agent_hostname)s is %(state)s" % data)
         logger.info("               Uptime: %(uptime)s seconds" % data)
         logger.info(
             "  Last Master Contact: %(last_master_contact)s seconds" % data)
         logger.info("    Parent Process ID: %(pid_parent)s" % locals())
         logger.info("           Process ID: %(pid_child)s" % locals())
         logger.info("          Database ID: %(id)s" % data)
-        logger.info("            System ID: %(systemid)s" % data)
+        logger.info("            System ID: %(agent_systemid)s" % data)
         logger.info(
             "      Child Processes: %(child_processes)s "
             "(+%(grandchild_processes)s grandchildren)" % data)
         logger.info("   Memory Consumption: %(consumed_ram)sMB" % data)
 
 
-def fake_render():
-    process = psutil.Process()
-    memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
-    memory_used_at_start = memory_usage()
-    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
-
-    logger.info("sys.argv: %r", sys.argv)
-
-    # build parser
-    parser = argparse.ArgumentParser(
-        description="Very basic command line tool which vaguely simulates a "
-                    "render.")
-    getnum = partial(
-        number, instance=FakeInstance(parser=parser, args=None),
-        types=NUMERIC_TYPES,
-        allow_inf=False, min_=0)
-    parser.add_argument(
-        "--ram", type=getnum, default=25,
-        help="How much ram in megabytes the fake command should consume")
-    parser.add_argument(
-        "--duration", type=getnum, default=5,
-        help="How many seconds it should take to run this command")
-    parser.add_argument(
-        "--return-code", type=getnum, action="append", default=[0],
-        help="The return code to return, declaring this flag multiple times "
-             "will result in a random return code.  [default: %(default)s]")
-    parser.add_argument(
-        "--duration-jitter", type=getnum, default=5,
-        help="Randomly add or subtract this amount to the total duration")
-    parser.add_argument(
-        "--ram-jitter", type=getnum, default=None,
-        help="Randomly add or subtract this amount to the ram")
-    parser.add_argument(
-        "-s", "--start", type=getnum, required=True,
-        help="The start frame.  If no other flags are provided this will also "
-             "be the end frame.")
-    parser.add_argument(
-        "-e", "--end", type=getnum, help="The end frame")
-    parser.add_argument(
-        "-b", "--by", type=getnum, help="The by frame", default=1)
-    parser.add_argument(
-        "--spew", default=False, action="store_true",
-        help="Spews lots of random output to stdout which is generally "
-             "a decent stress test for log processing issues.  Do note however "
-             "that this will disable the code which is consuming extra CPU "
-             "cycles.  Also, use this option with care as it can generate "
-             "several gigabytes of data per frame.")
-    parser.add_argument(
-        "--segfault", action="store_true",
-        help="If provided then there's a 25%% chance of causing a segmentation "
-             "fault.")
-    args = parser.parse_args()
-
-    if args.end is None:
-        args.end = args.start
-
-    if args.ram_jitter is None:
-        args.ram_jitter = int(args.ram / 2)
-
-    assert args.end >= args.start and args.by >= 1
-
-    random_output = None
-    if args.spew:
-        random_output = list(os.urandom(1024).encode("hex") for _ in xrange(15))
-
-    errors = 0
-    if isinstance(args.start, float):
-        logger.warning(
-            "Truncating `start` to an integer (float not yet supported)")
-        args.start = int(args.start)
-
-    if isinstance(args.end, float):
-        logger.warning(
-            "Truncating `end` to an integer (float not yet supported)")
-        args.end = int(args.end)
-
-    if isinstance(args.by, float):
-        logger.warning(
-            "Truncating `by` to an integer (float not yet supported)")
-        args.by = int(args.by)
-
-    for frame in xrange(args.start, args.end + 1, args.by):
-        duration = args.duration + randint(
-            -args.duration_jitter, args.duration_jitter)
-        ram_usage = max(
-            0, args.ram + randint(-args.ram_jitter, args.ram_jitter))
-        logger.info("Starting frame %04d", frame)
-
-        # Warn if we're already using more memory
-        if ram_usage < memory_used_at_start:
-            logger.warning(
-                "Memory usage starting up is higher than the value provided, "
-                "defaulting --ram to %s", memory_used_at_start)
-
-        # Consume the requested memory (or close to)
-        # TODO: this is unrealistic, majority of renders don't eat ram like this
-        memory_to_consume = int(ram_usage - memory_usage())
-        big_string = " " * 1048576  # ~ 1MB of memory usage
-        if memory_to_consume > 0:
-            start = time.time()
-            logger.debug(
-                "Consuming %s megabytes of memory", memory_to_consume)
-            try:
-                big_string += big_string * memory_to_consume
-
-            except MemoryError:
-                logger.error("Cannot render, not enough memory")
-                errors += 1
-                continue
-
-            logger.debug(
-                "Finished consumption of memory in %s seconds.  Off from "
-                "target memory usage by %sMB.",
-                time.time() - start, memory_usage() - ram_usage)
-
-        # Decently guaranteed to cause a segmentation fault.  Originally from:
-        #   https://wiki.python.org/moin/CrashingPython#ctypes
-        if args.segfault and random() > .25:
-            i = ctypes.c_char('a')
-            j = ctypes.pointer(i)
-            c = 0
-            while True:
-                j[c] = 'a'
-                c += 1
-            j
-
-        # Continually hash a part of big_string to consume
-        # cpu cycles
-        end_time = time.time() + duration
-        last_percent = None
-        while time.time() < end_time:
-            if args.spew:
-                print >> sys.stdout, choice(random_output)
-            else:
-                hashlib.sha1(big_string[:4096])  # consume CPU cycles
-
-            progress = (1 - (end_time - time.time()) / duration) * 100
-            percent, _ = divmod(progress, 5)
-            if percent != last_percent:
-                last_percent = percent
-                logger.info("Progress %03d%%", progress)
-
-        if last_percent is None:
-            logger.info("Progress 100%%")
-
-        logger.info("Finished frame %04d in %s seconds", frame, duration)
-
-    if errors:
-        logger.error("Render finished with errors")
-        sys.exit(1)
-    else:
-        return_code = choice(args.return_code)
-        logger.info("exit %s", return_code)
-
-
-def fake_work():
-    parser = argparse.ArgumentParser(
-        description="Quick and dirty script to create a job type, a job, and "
-                    "some tasks which are then posted directly to the "
-                    "agent.  The primary purpose of this script is to test "
-                    "the internal of the job types")
-    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
-    getint = partial(
-        integer, instance=FakeInstance(parser=parser, args=None),
-        allow_inf=False, min_=0)
-    parser.add_argument(
-        "--master-api", default="http://127.0.0.1/api/v1",
-        help="The url to the master's api [default: %(default)s]")
-    parser.add_argument(
-        "--agent-api", default="http://127.0.0.1:50000/api/v1",
-        help="The url to the agent's api [default: %(default)s]")
-    parser.add_argument(
-        "--jobtype", default="FakeRender",
-        help="The job type to use [default: %(default)s]")
-    parser.add_argument(
-        "--job", type=getint,
-        help="If provided then this will be the job we pull tasks from "
-             "and assign to the agent.  Please note we'll only be pulling "
-             "tasks that aren't running or assigned.")
-    args = parser.parse_args()
-    logger.info("Master args.master_api: %s", args.master_api)
-    logger.info("Agent args.master_api: %s", args.agent_api)
-    assert not args.agent_api.endswith("/")
-    assert not args.master_api.endswith("/")
-    
-    # session to make requests with
-    session = requests.Session()
-    session.headers.update({"content-type": "application/json"})
-
-    existing_jobtype = session.get(
-        args.master_api + "/jobtypes/%s" % args.jobtype)
-
-    # Create a FakeRender job type if one does not exist
-    if not existing_jobtype.ok:
-        sourcecode = dedent("""
-        from pyfarm.jobtypes.examples import %s as _%s
-        class %s(_%s):
-            pass""" % (args.jobtype, args.jobtype, args.jobtype, args.jobtype))
-        response = session.post(
-            args.master_api + "/jobtypes/",
-            data=dumps({
-                "name": args.jobtype,
-                "classname": args.jobtype,
-                "code": sourcecode,
-                "max_batch": 1}))
-        assert response.ok, response.json()
-        jobtype_data = response.json()
-        logger.info(
-            "Created job type %r, id %r", args.jobtype, jobtype_data["id"])
-
-    else:
-        jobtype_data = existing_jobtype.json()
-        logger.info(
-            "Job type %r already exists, id %r",
-            args.jobtype, jobtype_data["id"])
-
-    jobtype_version = jobtype_data["version"]
-
-    if args.job is None:
-        job = session.post(
-            args.master_api + "/jobs/",
-            data=dumps({
-                "start": 1,
-                "end": 3,
-                "title": "Fake Job - %s" % int(time.time()),
-                "jobtype": args.jobtype}))
-        assert job.ok, job.json()
-        job = job.json()
-        logger.info("Job %r created", job["id"])
-    else:
-        job = session.get(args.master_api + "/jobs/%s" % args.job)
-        if not job.ok:
-            logger.error("No such job with id %r", args.job)
-            return
-        else:
-            job = job.json()
-            logger.info("Job %r exists", job["id"])
-
-    tasks = session.get(args.master_api + "/jobs/%s/tasks/" % job["id"])
-    assert tasks.ok
-
-    job_tasks = []
-    for task in tasks.json():
-        if task["state"] not in ("queued", "failed"):
-            logger.info(
-                "Can't use task %s, it's state is not 'queued' or 'failed'",
-                task["id"])
-            continue
-
-        if task["agent_id"] is not None:
-            logger.info(
-                "Can't use task %s, it already has an agent assigned",
-                task["id"])
-
-        job_tasks.append({"id": task["id"], "frame": task["frame"]})
-
-    if not job_tasks:
-        logger.error("Could not find any tasks to send for job %s", job["id"])
-        return
-
-    logger.info(
-        "Found %s tasks from job %s to assign to %r",
-        len(job_tasks), job["id"], args.agent_api)
-
-    assignment_data = {
-        "job": {
-            "id": job["id"],
-            "by": job["by"],
-            "ram": job["ram"],
-            "ram_warning": job["ram_warning"],
-            "ram_max": job["ram_max"],
-            "cpus": job["cpus"],
-            "batch": job["batch"],
-            "user": job["user"],
-            "data": job["data"],
-            "environ": job["environ"],
-            "title": job["title"]},
-        "jobtype": {
-            "name": args.jobtype,
-            "version": jobtype_version},
-        "tasks": job_tasks}
-
-    response = session.post(
-        args.agent_api + "/assign",
-        data=dumps(assignment_data))
-    assert response.ok, response.json()
-    logger.info("Tasks posted to agent")
-
+agent = AgentEntryPoint()

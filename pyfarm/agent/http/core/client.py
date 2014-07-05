@@ -126,7 +126,7 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
     delay = initial
     if initial is None:
         # TODO: provide command line flags for jitter
-        delay = config["http-retry-delay"]
+        delay = config["agent_http_retry_delay"]
 
     assert isinstance(delay, DELAY_NUMBER_TYPES)  # expect integer or float
     assert isinstance(minimum, DELAY_NUMBER_TYPES)  # expect integer or float
@@ -367,13 +367,7 @@ def request(method, url, **kwargs):
     # prepare keyword arguments
     kwargs.update(
         headers=headers,
-
-        # Controls if the http connection should be persistent or
-        # not.  Generally this should always be True because the connection
-        # self-terminates after a short period of time anyway.  We
-        # have setting for it however because the tests need this value
-        # to be False.
-        persistent=config.get("persistent-http-connections", False))
+        persistent=config["agent_http_persistent_connections"])
 
     if request_data is not NOTSET:
         kwargs.update(data=request_data)

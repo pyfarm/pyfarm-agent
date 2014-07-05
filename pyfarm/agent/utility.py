@@ -76,7 +76,7 @@ TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 
 def uuid():
     """Wrapper around :func:`uuid1` which incorporates our system id"""
-    return uuid1(node=config["systemid"])
+    return uuid1(node=config["agent_systemid"])
 
 
 def default_json_encoder(obj):
@@ -117,8 +117,7 @@ def dumps(*args, **kwargs):
     :func:`pyfarm.master.utility.jsonify`
     """
     indent = None
-    pretty = config.get("pretty-json", False)
-    if pretty:
+    if config["agent_pretty_json"]:
         indent = 2
 
     if len(args) == 1 and not isinstance(args[0], (dict, UserDict)):

@@ -18,7 +18,7 @@ import tempfile
 
 from pyfarm.agent.entrypoints.utility import (
     get_system_identifier, SYSTEMID_MAX)
-from pyfarm.agent.sysinfo import network
+from pyfarm.agent.sysinfo import network, system
 from pyfarm.agent.testutil import TestCase
 
 
@@ -35,44 +35,41 @@ class TestSystemIdentifier(TestCase):
                 "fashion.")
 
     def test_generation(self):
-        self.assertEqual(self.sysident, get_system_identifier())
+        self.assertEqual(
+            self.sysident,
+            get_system_identifier(self.sysident, self.create_test_file()))
 
     def test_stores_cache(self):
-        _, path = tempfile.mkstemp()
-        self.add_cleanup_path(path)
+        path = self.create_test_file()
+        value = get_system_identifier(self.sysident, path, write_always=True)
 
-        value = get_system_identifier(cache_path=path, overwrite=True)
         with open(path, "rb") as cache_file:
             cached_value = cache_file.read()
 
         self.assertEqual(str(value), cached_value)
 
-    def test_cache_oversized_value(self):
-        _, path = tempfile.mkstemp()
-        self.add_cleanup_path(path)
+    def test_oversize_value_fail(self):
+        path = self.create_test_file()
+        systemid = SYSTEMID_MAX + 10
+        with self.assertRaises(ValueError):
+            get_system_identifier(systemid, path)
 
-        with open(path, "wb") as cache_file:
-            cache_file.write(str(SYSTEMID_MAX + 10))
+    def test_oversize_value_ignored_cache(self):
+        systemid = SYSTEMID_MAX + 100000000000000000000
+        path = self.create_test_file(str(systemid))
 
-        self.assertEqual(self.sysident, get_system_identifier(cache_path=path))
+        self.assertEqual(
+            system.system_identifier(), get_system_identifier("auto", path))
 
     def test_retrieves_stored_value(self):
-        _, path = tempfile.mkstemp()
-        self.add_cleanup_path(path)
-
-        with open(path, "wb") as cache_file:
-            cache_file.write(str(42))
-
-        self.assertEqual(42, get_system_identifier(cache_path=path))
+        path = self.create_test_file(str(42))
+        self.assertEqual(42, get_system_identifier("auto", path))
 
     def test_invalid_systemid_range(self):
         with self.assertRaises(ValueError):
-            get_system_identifier(systemid=SYSTEMID_MAX + 1)
+            get_system_identifier(SYSTEMID_MAX + 1, self.create_test_file())
 
     def test_invalid_systemid_type(self):
         with self.assertRaises(TypeError):
-            get_system_identifier(systemid="")
+            get_system_identifier("", self.create_test_file())
 
-    def test_invalid_cache_path_type(self):
-        with self.assertRaises(TypeError):
-            get_system_identifier(cache_path=1)

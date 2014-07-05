@@ -54,7 +54,8 @@ class TestEnvironment(TestCase):
         self.assertTrue(env.globals["is_str"](""))
         self.assertEqual(
             env.globals["typename"](InMemoryCache()), "InMemoryCache")
-        self.assertEqual(env.globals["hostname"](), config["hostname"])
+        self.assertEqual(
+            env.globals["agent_hostname"](), config["agent_hostname"])
         self.assertEqual(env.globals["agent_id"](), config["agent-id"])
         self.assertEqual(env.globals["state"](), config["state"])
         self.assertEqual(env.globals["repr"]("foo"), "'foo'")

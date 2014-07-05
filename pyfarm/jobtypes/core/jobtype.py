@@ -424,7 +424,7 @@ class JobType(object):
             # Finally, send the results to the callback
             result.callback(getattr(module, jobtype["classname"]))
 
-        if config["jobtype-no-cache"] or cache_key not in cls.cache:
+        if config["jobtype_enable_cache"] or cache_key not in cls.cache:
             def download_complete(response):
                 # Server is offline or experiencing issues right
                 # now so we should retry the request.
@@ -433,7 +433,7 @@ class JobType(object):
                         http_retry_delay(),
                         response.request.retry)
 
-                if config["jobtype-no-cache"]:
+                if config["jobtype_enable_cache"]:
                     return load_jobtype((response.json(), None))
 
                 # When the download is complete, cache the results
@@ -1092,7 +1092,7 @@ class JobType(object):
             line = new_line
 
         line = self.format_log_message(line, stream_type=STDOUT)
-        if config["capture-process-output"]:
+        if config["jobtype_capture_process_output"]:
             process_stdout.info("task %r: %s", protocol.id, line)
         else:
             self._log_in_thread(protocol, STDOUT, line)
@@ -1120,7 +1120,7 @@ class JobType(object):
         so it can be stored in a file without blocking the event loop.
         """
         stderr = self.format_log_message(stderr, stream_type=STDERR)
-        if config["capture-process-output"]:
+        if config["jobtype_capture_process_output"]:
             process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
             self._log_in_thread(protocol, STDERR, stderr)
