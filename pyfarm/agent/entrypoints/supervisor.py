@@ -22,6 +22,7 @@ import sys
 import time
 import shutil
 import zipfile
+from functools import partial
 from os.path import join
 
 # Platform specific imports.  These should either all fail or
@@ -38,10 +39,14 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
+# start logging before doing anything else
+from pyfarm.agent.logger import getLogger, start_logging
+start_logging()
+
 from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
-from pyfarm.agent.logger import getLogger
+from pyfarm.agent.entrypoints.utility import SetConfig
 
 logger = getLogger("agent.supervisor")
 
@@ -67,18 +72,23 @@ def supervisor():
         description="Start and monitor the agent process")
     parser.add_argument("--updates-drop-dir",
                         default=config["agent_updates_dir"],
+                        action=partial(
+                            SetConfig, key="agent_updates_dir", isfile=True),
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
                         help="Path to the actual agent code")
-    parser.add_argument("--pidfile", default=join(config["lock_file_root"],
-                                                  "supervisor.pid"),
+    parser.add_argument("--pidfile", default=config["supervisor_lock_file"],
+                        action=partial(
+                            SetConfig, key="supervisor_lock_file", isfile=True),
                         help="The file to store the process id in. "
                              "[default: %(default)s]")
     parser.add_argument("-n", "--no-daemon", default=False, action="store_true",
                         help="If provided then do not run the process in the "
                              "background.")
-    parser.add_argument("--chroot",
-                        help="The directory to chroot to upon launch.")
+    parser.add_argument("--chdir", default=config["agent_chdir"],
+                        action=partial(
+                            SetConfig, key="agent_chdir", isfile=True),
+                        help="The directory to chdir to upon launch.")
     parser.add_argument("--uid", type=int,
                         help="The user id to run the supervisor as.  "
                              "*This setting is ignored on Windows.*")
@@ -90,7 +100,7 @@ def supervisor():
     if not args.no_daemon and fork is not NotImplemented:
         logger.info("sending supervisor log output to %s" % args.log)
         daemon_start_return_code = start_daemon_posix(
-            args.log, args.chroot, args.uid, args.gid)
+            args.log, args.chdir, args.uid, args.gid)
 
         if isinstance(daemon_start_return_code, INTEGER_TYPES):
             return daemon_start_return_code
@@ -135,7 +145,7 @@ def supervisor():
     signal.signal(signal.SIGINT, terminate_handler)
     signal.signal(signal.SIGHUP, restart_handler)
 
-    update_file_path = join(args.updates_drop_dir, "pyfarm-agent.zip")
+    update_file_path = join(config["agent_updates_dir"], "pyfarm-agent.zip")
 
     loop_interval = config["supervisor_interval"]
 

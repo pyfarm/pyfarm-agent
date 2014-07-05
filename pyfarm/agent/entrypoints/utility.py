@@ -24,8 +24,9 @@ on the main entry point class.
 
 import os
 import sys
-from os.path import isfile
-from random import randint
+from argparse import _StoreAction, _StoreTrueAction
+from errno import EEXIST, ENOENT
+from os.path import dirname, abspath
 
 try:
     from os import setuid, setgid, fork
@@ -35,20 +36,66 @@ except ImportError:  # pragma: no cover
     fork = NotImplemented
 
 
-from pyfarm.core.enums import OS, STRING_TYPES, INTEGER_TYPES
+from pyfarm.core.enums import OS, INTEGER_TYPES
+from pyfarm.core.utility import convert
+from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
 from pyfarm.agent.utility import rmpath
 
-logger = getLogger("agent.cmd.util")
+logger = getLogger("agent.cmd")
 
 SYSTEMID_MAX = 281474976710655
+
+
+class SetConfig(_StoreAction):
+    """
+    An action which can be used by an argument parser to update
+    the configuration object when a flag on the command line is
+    set
+
+    >>> from functools import partial
+    >>> from argparse import ArgumentParser
+    >>> from pyfarm.agent.config import config
+    >>> parser = ArgumentParser()
+    >>> parser.add_argument("--foo", action=partial(SetConfig, key="foobar"))
+    >>> parser.parse_args(["--foo", "bar"])
+    >>> assert "foobar" in config and config["foobar"] == "bar"
+    """
+    def __init__(self, *args, **kwargs):
+        self.key = kwargs.pop("key")
+        self.isfile = kwargs.pop("isfile", False)
+        super(SetConfig, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if self.isfile:
+            values = abspath(values)
+
+        config[self.key] = values
+        super(SetConfig, self).__call__(
+            parser, namespace, values, option_string=option_string)
+
+
+class SetConfigConst(_StoreTrueAction):
+    """
+    Performs the same actions as :class:`SetConfig` except
+    it meant to always set a constant value (much like 'store_true' would)
+    """
+    def __init__(self, *args, **kwargs):
+        self.key = kwargs.pop("key")
+        self.value = kwargs.pop("value")
+        super(SetConfigConst, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        config[self.key] = self.value
+        super(SetConfigConst, self).__call__(
+            parser, namespace, values, option_string=option_string)
 
 
 # This is a Linux specific test and will be hard to get due to the nature
 # of how the tests are run, for now we're excluding it.
 # TODO: figure out a reliable way to test  start_daemon_posix
-def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
+def start_daemon_posix(log, chdir, uid, gid):  # pragma: no cover
     """
     Runs the agent process via a double fork.  This basically a duplicate
     of Marcechal's original code with some adjustments:
@@ -71,7 +118,7 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
         return 1
 
     # decouple from the parent environment
-    os.chdir(chroot or "/")
+    os.chdir(chdir or "/")
     os.setsid()
     os.umask(0)
 
@@ -116,7 +163,7 @@ def start_daemon_posix(log, chroot, uid, gid):  # pragma: no cover
             "implemented on %s" % OS.title())
 
 
-def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
+def get_system_identifier(systemid, cache_path=None, write_always=False):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
@@ -146,10 +193,6 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
         however this function will generate the value and then
         store it for future use.
 
-    :param bool overwrite:
-        If ``True`` then overwrite the cache instead of reading
-        from it
-
     :raises ValueError:
         Raised if ``systemid`` is provided and it's outside the value
         range of input (0 to :const:`SYSTEMID_MAX`)
@@ -157,97 +200,90 @@ def get_system_identifier(systemid=None, cache_path=None, overwrite=False):
     :raises TypeError:
         Raised if we receive an unexpected type for one of the inputs
     """
-    remove_cache = False
+    if not any([systemid is None,
+                systemid == "auto",
+                isinstance(systemid, INTEGER_TYPES)]):
+        raise TypeError("Expected None, 'auto' or an integer for "
+                        "`input_systemid`")
 
-    if isinstance(systemid, INTEGER_TYPES):
-        if not 0 < systemid <= SYSTEMID_MAX:
+    if isinstance(systemid, INTEGER_TYPES) \
+            and not 0 < systemid <= SYSTEMID_MAX:
+        raise ValueError("input_systemid's range is 0 to %s" % SYSTEMID_MAX)
+
+    if cache_path is None:
+        cache_path = config["agent_systemid_cache"]
+
+    write_failed = False
+    if systemid == "auto":
+        try:
+            # Try to read the systemid from the cached file
+            with open(cache_path, "r") as cache_file:
+                try:
+                    systemid = convert.ston(cache_file.read())
+
+                # There's something wrong with the data in the cache
+                # file
+                except ValueError:
+                    logger.warning(
+                        "Failed to read cached system identifier from %s, "
+                        "this file will be removed.", cache_file.name)
+                    rmpath(cache_path)
+
+                    # overwrite because there's a problem with the
+                    # stored value
+                    write_always = True
+                else:
+                    logger.info("Loaded system identifier %s from %s",
+                                systemid, cache_file.name)
+
+        except (OSError, IOError) as e:
+            # If the file exists there may be something wrong with it,
+            # try to remove it.
+            if e.errno != ENOENT:
+                logger.error(
+                    "System identifier cache file %s exists but it could not "
+                    "be read: %s.  The file will be removed.", cache_path, e)
+            write_failed = True
+
+    if isinstance(systemid, INTEGER_TYPES) \
+            and not 0 < systemid <= SYSTEMID_MAX:
+        logger.warning(
+            "System identifier from cache is not in range is "
+            "0 to 281474976710655.  Cache file will be deleted.")
+        rmpath(cache_path)
+        write_always = True
+
+    if write_failed or write_always:
+        # Create the parent directory if it does not exist
+        parent_dir = dirname(cache_path)
+        try:
+            os.makedirs(parent_dir)
+        except (OSError, IOError) as e:
+            if e.errno != EEXIST:
+                logger.error("Failed to create %r: %s", parent_dir, e)
+                raise
+        else:
+            logger.debug("Created %r", parent_dir)
+
+        # System identifier is either not cache, invalid or
+        # none was given.  Generate systemid and cache it.
+        systemid = system.system_identifier()
+        try:
+            with open(cache_path, "w") as cache_file:
+                cache_file.write(str(systemid))
+        except (OSError, IOError) as e:
+            logger.warning(
+                "Failed to cache system identifier to %s: %s", systemid, e)
+        else:
+            logger.info(
+                "Cached system identifier %s to %s",
+                systemid, cache_file.name)
+
+        if isinstance(systemid, INTEGER_TYPES) \
+                and not 0 < systemid <= SYSTEMID_MAX:
             raise ValueError("systemid's range is 0 to %s" % SYSTEMID_MAX)
 
-        # We don't want to cache custom values because the default behavior
-        # is to read the correct system id from disk
-        logger.warning(  # pragma: no cover
-            "Specific system identifier has been provided, this value will "
-            "not be cached.")
         return systemid
 
-    if systemid is not None:
-        raise TypeError("Expected ``systemid`` to be an integer")
-
-    if cache_path is not None and not isinstance(cache_path, STRING_TYPES):
-        raise TypeError("Expected a string for ``cache_path``")
-
-    # read from cache if a file was provided
-    if cache_path is not None and (overwrite or isfile(cache_path)):
-        with open(cache_path, "rb") as cache_file:
-            cache_data = cache_file.read()
-
-        # Convert the data in the cache file back to an integer
-        try:
-            systemid = int(cache_data)
-
-        except ValueError as e:
-            remove_cache = True
-            logger.warning(
-                "System identifier in %r could not be converted to "
-                "an integer: %r", cache_path, e)
-
-        # Be sure that the cached value is smaller than then
-        # max we expect.
-        if systemid is not None and systemid > SYSTEMID_MAX:
-            systemid = None
-            remove_cache = True
-            logger.warning(
-                "The system identifier found in %r cannot be "
-                "larger than %s.", cache_path, SYSTEMID_MAX)
-
-        # Somewhere above we determined that the cache file
-        # contains invalid information and must be removed.
-        if remove_cache:
-            try:
-                os.remove(cache_path)
-            except (IOError, OSError):  # pragma: no cover
-                logger.warning(
-                    "Failed to remove invalid cache file %r, system id will "
-                    "be generated live.", cache_path)
-                systemid = None  # reset the systemid
-                rmpath(cache_path, exit_retry=True)
-
-            else:
-                logger.debug(
-                    "Removed invalid system identifier cache %r", cache_path)
-
-        # We have a systemid value already and the cache file itself
-        # is not invalid.
-        if systemid is not None and not remove_cache:
-            logger.debug(
-                "Read system identifier %r from %r", systemid, cache_path)
-            return systemid
-
-    # If the system id has not been set, or we invalidated it
-    # above, generate it.
-    if systemid is None:
-        systemid = system.system_identifier()
-
-        # Under rare conditions we could end up not generating
-        # anything.  In these cases produce a warning then
-        # generate something random.
-        if systemid == 0:  # pragma: no cover
-            logger.warning(
-                "Failed to generate a system identifier.  One will be "
-                "generated randomly and then cached for future use.")
-
-            systemid = randint(0, SYSTEMID_MAX)
-
-    # Try to cache the value
-    if cache_path is not None:
-        try:
-            with open(cache_path, "wb") as cache_file:
-                cache_file.write(str(systemid))
-        except (IOError, OSError) as e:  # pragma: no cover
-            logger.warning(
-                "Failed to write system identifier to %r: %s", cache_path, e)
-        else:
-            logger.debug(
-                "Cached system identifier %r to %r", systemid, cache_file.name)
-
+    logger.debug("Custom system identifier will not be cached.")
     return systemid

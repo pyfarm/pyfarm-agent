@@ -90,7 +90,7 @@ class Agent(object):
         # Setup scheduled tasks
         self.scheduled_tasks = ScheduledTaskManager()
         self.scheduled_tasks.register(
-            self.reannounce, config["master-reannounce"])
+            self.reannounce, config["agent_master_reannounce"])
 
     @classmethod
     def agent_api(cls):
@@ -111,7 +111,7 @@ class Agent(object):
         Returns the API endpoint for used for updating or creating
         agents on the master
         """
-        return config["master-api"] + "/agents/"
+        return config["master_api"] + "/agents/"
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
@@ -121,7 +121,7 @@ class Agent(object):
 
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
-        return remaining > config["master-reannounce"]
+        return remaining > config["agent_master_reannounce"]
 
     def reannounce(self):
         """
@@ -131,7 +131,7 @@ class Agent(object):
         if not self.should_reannounce():
             return
 
-        svclog.debug("Announcing %s to master", config["hostname"])
+        svclog.debug("Announcing %s to master", config["agent_hostname"])
 
         def callback(response):
             if response.code == OK:
@@ -188,41 +188,46 @@ class Agent(object):
         """
         # query the time offset and then cache it since
         # this is typically a blocking operation
-        if requery_timeoffset or config["time-offset"] is None:
+        if requery_timeoffset or config["agent_time_offset"] == "auto":
             ntplog.info(
-                "Querying ntp server %r for current time", config["ntp-server"])
+                "Querying ntp server %r for current time",
+                config["agent_ntp_server"])
 
             ntp_client = NTPClient()
             try:
-                pool_time = ntp_client.request(config["ntp-server"])
+                pool_time = ntp_client.request(
+                    config["agent_ntp_server"],
+                    version=config["agent_ntp_server_version"])
 
             except Exception as e:
                 ntplog.warning("Failed to determine network time: %s", e)
 
             else:
-                config["time-offset"] = int(pool_time.tx_time - time.time())
+                config["agent_time_offset"] = \
+                    int(pool_time.tx_time - time.time())
 
                 # format the offset for logging purposes
                 utcoffset = datetime.utcfromtimestamp(pool_time.tx_time)
                 iso_timestamp = utcoffset.isoformat()
                 ntplog.debug(
                     "network time: %s (local offset: %r)",
-                    iso_timestamp, config["time-offset"])
+                    iso_timestamp, config["agent_time_offset"])
 
-                if config["time-offset"] != 0:
+                if config["agent_time_offset"] != 0:
                     ntplog.warning(
                         "Agent is %r second(s) off from ntp server at %r",
-                        config["time-offset"], config["ntp-server"])
+                        config["agent_time_offset"],
+                        config["agent_ntp_server"])
 
         data = {
-            "systemid": config["systemid"],
-            "hostname": config["hostname"],
+            "systemid": config["agent_systemid"],
+            "hostname": config["agent_hostname"],
             "version": config.version,
-            "ram": int(config["ram"]),
-            "cpus": config["cpus"],
-            "port": config["port"],
+            "ram": int(config["agent_ram"]),
+            "cpus": config["agent_cpus"],
+            "port": config["agent_api_port"],
             "free_ram": int(memory.ram_free()),
-            "time_offset": config["time-offset"] or 0,
+            "time_offset": config["agent_time_offset"] or 0,
             "state": config["state"],
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet
@@ -243,11 +248,11 @@ class Agent(object):
         # to the right objects
         root.putChild(
             "favicon.ico",
-            StaticPath(join(config["static-files"], "favicon.ico"),
+            StaticPath(join(config["agent_static_root"], "favicon.ico"),
                        defaultType="image/x-icon"))
         root.putChild(
             "static",
-            StaticPath(config["static-files"]))
+            StaticPath(config["agent_static_root"]))
 
         # external endpoints
         root.putChild("", Index())
@@ -291,7 +296,7 @@ class Agent(object):
         if http_server:
             http_resource = self.build_http_resource()
             self.http = Site(http_resource)
-            reactor.listenTCP(config["port"], self.http)
+            reactor.listenTCP(config["agent_api_port"], self.http)
 
         # Update the configuration with this pid (which may be different
         # than the original pid).
@@ -319,22 +324,24 @@ class Agent(object):
         # process exits.
         if not self.shutting_down:
             self.shutting_down = True
-            self.shutdown_timeout = (datetime.utcnow() +
-                                     timedelta(
-                                        seconds=config["shutdown_timeout"]))
+            self.shutdown_timeout = (
+                datetime.utcnow() + timedelta(
+                    seconds=config["agent_shutdown_timeout"]))
 
             def remove_pidfile():
-                if not isfile(config["pidfile"]):
-                    svclog.warning("%s does not exist", config["pidfile"])
+                if not isfile(config["agent_lock_file"]):
+                    svclog.warning(
+                        "%s does not exist", config["agent_lock_file"])
                     return
 
                 try:
-                    os.remove(config["pidfile"])
-                    svclog.debug("Removed pidfile %r", config["pidfile"])
+                    os.remove(config["agent_lock_file"])
+                    svclog.debug(
+                        "Removed pidfile %r", config["agent_lock_file"])
                 except (OSError, IOError) as e:
                     svclog.error(
-                        "Failed to remove pidfile %r: %s",
-                        config["pidfile"], e)
+                        "Failed to remove lock file %r: %s",
+                        config["agent_lock_file"], e)
 
             atexit.register(remove_pidfile)
 
@@ -349,7 +356,7 @@ class Agent(object):
 
             if stopping_jobtypes:
                 wait_on_stopping = DeferredList(stopping_jobtypes)
-                if agent_id in config:
+                if "agent-id" in config:
                     wait_on_stopping.addCallback(self.post_shutdown_to_master)
                 else:
                     wait_on_stopping.addCallback(reactor.stop)
@@ -567,7 +574,8 @@ class Agent(object):
         Posts the current nu
         """
         since_last_update = time.time() - self.last_free_ram_post
-        left_till_update = config["ram-max-report-interval"] - since_last_update
+        left_till_update = \
+            config["agent_ram_max_report_frequency"] - since_last_update
 
         if left_till_update > 0:
             svclog.debug(
@@ -588,7 +596,7 @@ class Agent(object):
         ``config['ram']`` value.
         """
         if change_type == config.MODIFIED:
-            if abs(new_value - old_value) < config["ram-report-delta"]:
+            if abs(new_value - old_value) < config["agent_ram_report_delta"]:
                 svclog.debug("Not enough change in free_ram to report")
             else:
                 self.post_free_ram()
@@ -621,7 +629,7 @@ class Agent(object):
         """POSTs CPU count changes to the master"""
         def run_post():
             return post(self.agent_api(),
-                data={"cpus": config["cpus"]},
+                data={"cpus": config["agent_cpus"]},
                 callback=self.callback_post_cpu_count_change,
                 errback=self.errback_post_cpu_count_change)
         return run_post() if run else run_post

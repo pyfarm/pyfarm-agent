@@ -32,10 +32,12 @@ module to be used:
 
 import os
 from datetime import datetime
+from os.path import join, abspath, dirname
 
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.sysinfo import memory, cpu, network, system
 
 logger = getLogger("agent.config")
 
@@ -74,8 +76,8 @@ class LoggingConfiguration(Configuration):
                 last_master_contact=None,
 
                 # The last time we announced ourselves to the master.  This
-                # may be longer than --master-reannounce if `last_master_contact`
-                # caused us to skip an announcement.
+                # may be longer than --master-reannounce if
+                # `last_master_contact` caused us to skip an announcement.
                 last_announce=None)
 
         if data is not None:
@@ -84,11 +86,36 @@ class LoggingConfiguration(Configuration):
         # Load configuration file(s) for jobtypes and then
         # update the local instance
         if load:
-            jobtypes_config = Configuration("pyfarm.jobtypes", version=self.version)
+            jobtypes_config = Configuration(
+                "pyfarm.jobtypes", version=self.version)
             jobtypes_config.load(environment=environment)
             self.update(jobtypes_config)
 
+    def _map_value(self, key, value):
+        """
+        Some configuration values have keywords associated with
+        them, this function is responsible for returning the 'fixed'
+        value.
+        """
+        if value == "auto":
+            if key == "agent_ram":
+                return int(memory.total_ram())
+
+            if key == "agent_cpus":
+                return cpu.total_cpus()
+
+            if key == "agent_hostname":
+                return network.hostname()
+
+            if key == "agent_static_root":
+                return abspath(
+                    join(dirname(__file__), "http", "static"))
+
+        return value
+
     def __setitem__(self, key, value):
+        value = self._map_value(key, value)
+
         if key not in self:
             self.changed(self.CREATED, key, value, NOTSET)
         elif self[key] != value:
@@ -149,6 +176,9 @@ class LoggingConfiguration(Configuration):
                     self.changed(self.MODIFIED, key, value, self[key])
 
         if isinstance(data, dict):
+            for key, value in data.items():
+                data[key] = self._map_value(key, value)
+
             trigger_changed(data)
 
         elif data is not None:
@@ -158,6 +188,9 @@ class LoggingConfiguration(Configuration):
             data = {}
 
         if kwargs:
+            for key, value in kwargs.items():
+                kwargs[key] = self._map_value(key, value)
+
             trigger_changed(kwargs)
 
         super(LoggingConfiguration, self).update(data, **kwargs)

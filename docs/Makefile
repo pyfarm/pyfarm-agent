@@ -60,6 +60,7 @@ ifndef NO_COMMANDS
 	pyfarm-agent status -h | grep -v pf. > source/includes/commands/pyfarm-agent_status.out
 	pyfarm-agent start -h | grep -v pf. > source/includes/commands/pyfarm-agent_start.out
 	pyfarm-agent stop -h | grep -v pf. > source/includes/commands/pyfarm-agent_stop.out
+	pyfarm-supervisor -h | grep -v pf. > source/includes/commands/pyfarm-supervisor.out
 	pyfarm-dev-fakerender -h | grep -v pf. > source/includes/commands/pyfarm-dev-fakerender.out
 	pyfarm-dev-fakework -h | grep -v pf. > source/includes/commands/pyfarm-dev-fakework.out
 endif

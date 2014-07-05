@@ -9,7 +9,7 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--updates-drop-dir UPDATES_DROP_DIR]
                                               [--cpus CPUS] [--ram RAM]
                                               [--ram-check-interval RAM_CHECK_INTERVAL]
-                                              [--ram-max-report-interval RAM_MAX_REPORT_INTERVAL]
+                                              [--ram-max-report-frequency RAM_MAX_REPORT_FREQUENCY]
                                               [--ram-report-delta RAM_REPORT_DELTA]
                                               [--master-reannounce MASTER_REANNOUNCE]
                                               [--log LOG]
@@ -18,7 +18,6 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--ip-remote IP_REMOTE]
                                               [--html-templates-reload]
                                               [--static-files STATIC_FILES]
-                                              [--http-max-retries HTTP_MAX_RETRIES]
                                               [--http-retry-delay HTTP_RETRY_DELAY]
                                               [--jobtype-no-cache]
 
@@ -61,15 +60,17 @@ General Configuration:
                         The directory to drop downloaded updates in. This
                         should be the same directory pyfarm-supervisor will
                         look for updates in. [default:
-                        /home/opalmer/.pyfarm/agent/updates]
+                        /tmp/pyfarm/agent/updates]
 
 Physical Hardware:
   Command line flags which describe the hardware of the agent.
 
-  --cpus CPUS           The total amount of cpus installed on the system
-                        [default: 4]
+  --cpus CPUS           The total amount of cpus installed on the system.
+                        Defaults to the number of cpus installed on the
+                        system.
   --ram RAM             The total amount of ram installed on the system in
-                        megabytes. [default: 15933]
+                        megabytes. Defaults to the amount of ram the system
+                        has installed.
 
 Interval Controls:
   Controls which dictate when certain internal intervals should occur.
@@ -81,7 +82,7 @@ Interval Controls:
                         process but this flag specifically controls how often
                         we should check when no such events are occurring.
                         [default: 30]
-  --ram-max-report-interval RAM_MAX_REPORT_INTERVAL
+  --ram-max-report-frequency RAM_MAX_REPORT_FREQUENCY
                         This is a limiter that prevents the agent from
                         reporting memory changes to the master more often than
                         a specific time interval. This is done in order to
@@ -104,7 +105,7 @@ Logging Options:
 
   --log LOG             If provided log all output from the agent to this
                         path. This will append to any existing log data.
-                        [default: .pyfarm_agent/agent.log]
+                        [default: /tmp/pyfarm/agent/logs/agent.log]
   --capture-process-output
                         If provided then all log output from each process
                         launched by the agent will be sent through agent's
@@ -133,12 +134,7 @@ HTTP Configuration:
                         purposes.
   --static-files STATIC_FILES
                         The default location where the agent's http server
-                        should find static files to serve. [default:
-                        /home/opalmer/repos/pyfarm-
-                        agent/pyfarm/agent/http/static]
-  --http-max-retries HTTP_MAX_RETRIES
-                        The max number of times to retry a request to the
-                        master after it has failed. [default: unlimited]
+                        should find static files to serve.
   --http-retry-delay HTTP_RETRY_DELAY
                         If a http request to the master has failed, wait this
                         amount of time before trying again

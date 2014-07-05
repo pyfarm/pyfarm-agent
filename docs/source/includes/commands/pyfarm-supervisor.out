@@ -1,0 +1,22 @@
+usage: pyfarm-supervisor [-h] [--updates-drop-dir UPDATES_DROP_DIR]
+                         [--agent-package-dir AGENT_PACKAGE_DIR]
+                         [--pidfile PIDFILE] [-n] [--chdir CHDIR] [--uid UID]
+                         [--gid GID]
+
+Start and monitor the agent process
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --updates-drop-dir UPDATES_DROP_DIR
+                        Where to look for agent updates
+  --agent-package-dir AGENT_PACKAGE_DIR
+                        Path to the actual agent code
+  --pidfile PIDFILE     The file to store the process id in. [default:
+                        /tmp/pyfarm/agent/lock/supervisor.pid]
+  -n, --no-daemon       If provided then do not run the process in the
+                        background.
+  --chdir CHDIR         The directory to chdir to upon launch.
+  --uid UID             The user id to run the supervisor as. *This setting is
+                        ignored on Windows.*
+  --gid GID             The group id to run the supervisor as. *This setting
+                        is ignored on Windows.*

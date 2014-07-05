@@ -70,7 +70,6 @@ start_logging()
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.entrypoints.commands import STATIC_ROOT
 from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import rmpath
 
@@ -183,26 +182,22 @@ class TestCase(_TestCase):
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
-        config.clear(callbacks=True)
+        config.pop("agent", None)
         config.update({
-            "systemid": system.system_identifier(),
-            "ram-report-delta": 100,
-            "http-retry-delay": 1,
-            "persistent-http-connections": False,
-            "master-api": "http://%s/api/v1" % PYFARM_AGENT_MASTER,
-            "master": PYFARM_AGENT_MASTER.split(":")[0],
-            "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
-            "ram": int(memory.total_ram()),
-            "cpus": cpu.total_cpus(),
-            "port": randint(10000, 50000),
+            "agent_systemid": system.system_identifier(),
+            "agent_http_retry_delay": 1,
+            "agent_http_persistent_connections": False,
+            "master": PYFARM_AGENT_MASTER,
+            "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
+            "agent_ram": int(memory.total_ram()),
+            "agent_cpus": cpu.total_cpus(),
+            "agent_api_port": randint(10000, 50000),
             "free-ram": int(memory.ram_free()),
-            "time-offset": randint(-50, 50),
+            "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
-            "pretty-json": True,
-            "ntp-server": "pool.ntp.org",
-            "html-templates-reload": True,
-            "static-files": STATIC_ROOT,
-            "master-reannounce": randint(5, 15)})
+            "agent_pretty_json": False,
+            "agent_html_template_reload": True,
+            "agent_master_reannounce": randint(5, 15)})
         config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
