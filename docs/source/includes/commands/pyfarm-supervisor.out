@@ -1,6 +1,3 @@
-[33m2014-07-04 22:15:38 WARNING  - py.warnings     - /home/opalmer/repos/pyfarm-agent/pyfarm/agent/logger.py:289: UserWarning: Observer not yet started
-  warn("Observer not yet started")
-[39m
 usage: pyfarm-supervisor [-h] [--updates-drop-dir UPDATES_DROP_DIR]
                          [--agent-package-dir AGENT_PACKAGE_DIR]
                          [--pidfile PIDFILE] [-n] [--chdir CHDIR] [--uid UID]

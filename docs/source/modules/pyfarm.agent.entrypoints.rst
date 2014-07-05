@@ -7,7 +7,8 @@ Submodules
 .. toctree::
 
    pyfarm.agent.entrypoints.argtypes
-   pyfarm.agent.entrypoints.commands
+   pyfarm.agent.entrypoints.development
+   pyfarm.agent.entrypoints.main
    pyfarm.agent.entrypoints.supervisor
    pyfarm.agent.entrypoints.utility
 
