@@ -34,6 +34,9 @@ class TestVersions(TestCase):
     def test_leaf(self):
         self.assertTrue(Versions.isLeaf)
 
+    def test_parent(self):
+        self.assertIsInstance(Versions(), APIResource)
+
     def test_get_no_request(self):
         versions = Versions()
         self.assertEqual(loads(versions.get()), {"versions": [1]})
