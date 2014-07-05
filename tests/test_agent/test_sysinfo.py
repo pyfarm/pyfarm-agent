@@ -38,15 +38,7 @@ from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.sysinfo import system, network, cpu, memory, user
 
 
-class BaseSystem(TestCase):
-    def test_user(self):
-        if pwd is not NotImplemented:
-            username = pwd.getpwuid(os.getuid())[0]
-        else:
-            username = getpass.getuser()
-
-        self.assertEqual(user.username(), username)
-
+class TestSystem(TestCase):
     def test_uptime(self):
         t1 = system.uptime()
         t2 = time.time() - psutil.boot_time()
@@ -93,7 +85,7 @@ class BaseSystem(TestCase):
             system.machine_architecture("foobar")
 
 
-class Network(TestCase):
+class TestNetwork(TestCase):
     def test_hostname_ignore_dns_mappings(self):
         reverse_hostnames = set()
         for address in network.addresses():
@@ -158,7 +150,7 @@ class Network(TestCase):
         self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
 
 
-class Processor(TestCase):
+class TestCPU(TestCase):
     def test_count(self):
         self.assertEqual(psutil.cpu_count(), cpu.total_cpus())
 
@@ -182,7 +174,7 @@ class Processor(TestCase):
             self.assertEqual(cpu.iowait(), None)
 
 
-class Memory(TestCase):
+class TestMemory(TestCase):
     def test_totalram(self):
         self.assertEqual(memory.total_ram(),
                          convert.bytetomb(psutil.virtual_memory().total))
@@ -236,3 +228,13 @@ class Memory(TestCase):
         v2 = memory.total_consumption()
         child.kill()
         self.assertApproximates(v1, v2, 5)
+
+
+class TestUser(TestCase):
+    def test_user(self):
+        if pwd is not NotImplemented:
+            username = pwd.getpwuid(os.getuid())[0]
+        else:
+            username = getpass.getuser()
+
+        self.assertEqual(user.username(), username)
