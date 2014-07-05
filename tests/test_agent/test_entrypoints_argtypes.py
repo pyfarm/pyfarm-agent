@@ -191,6 +191,10 @@ class TestNumber(BaseTestArgTypes):
             type=partial(
                 number, instance=self, types=int, allow_inf=True, flag="inf"))
 
+    def test_auto(self):
+        self.args = self.parser.parse_args(["--num", "auto"])
+        self.assertEqual(self.args.num, "auto")
+
     def test_infinite(self):
         self.args = self.parser.parse_args(["--inf", "infinite"])
         self.assertEqual(self.parser.errors, [])
