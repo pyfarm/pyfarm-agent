@@ -368,8 +368,10 @@ class AgentEntryPoint(object):
                         "master's REST api and how it should run it's own "
                         "REST api.")
         start_http_group.add_argument(
-            "--html-templates-reload", default=False,
-            action="store_true",
+            "--html-templates-reload",
+            default=config["agent_html_template_reload"],
+            action=partial(
+                SetConfigConst, key="agent_html_template_reload", value=True),
             help="If provided then force Jinja2, the html template system, "
                  "to check the file system for changes with every request. "
                  "This flag should not be used in production but is useful "
@@ -440,7 +442,6 @@ class AgentEntryPoint(object):
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
-                "html-templates-reload": self.args.html_templates_reload,
                 "pretty-json": self.args.pretty_json,
                 "pids": {
                     "parent": os.getpid()}}

@@ -84,12 +84,9 @@ class Environment(_Environment):
 
     def __init__(self, **kwargs):
         # default options
-        kwargs.setdefault(
-            "bytecode_cache", InMemoryCache())
-        kwargs.setdefault(
-            "loader", PackageLoader("pyfarm.agent.http"))
-        kwargs.setdefault(
-            "auto_reload", config.get("html-templates-reload", False))
+        kwargs.setdefault("bytecode_cache", InMemoryCache())
+        kwargs.setdefault("loader", PackageLoader("pyfarm.agent.http"))
+        kwargs.setdefault("auto_reload", config["agent_html_template_reload"])
 
         super(Environment, self).__init__(**kwargs)
 

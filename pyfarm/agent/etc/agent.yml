@@ -95,6 +95,10 @@ agent_http_retry_delay: 5
 # be False.
 agent_http_persistent_connections: True
 
+# If True then html templates will be reloaded with
+# every request instead of cached.
+agent_html_template_reload: False
+
 # How often the agent should check for changes in ram.  This value
 # is used to ensure ram usage is checked at least this often though
 # it may be checked more often due to other events (such as jobs
