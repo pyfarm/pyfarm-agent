@@ -59,7 +59,7 @@ class Cache(object):
     """Internal methods for caching job types"""
     cache = {}
     JOBTYPE_VERSION_URL = \
-        "%(master-api)s/jobtypes/%(name)s/versions/%(version)s"
+        "%(master_api)s/jobtypes/%(name)s/versions/%(version)s"
     CACHE_DIRECTORY = Template(
         config.get("jobtype_cache_directory", "")).safe_substitute(
         temp=tempfile.gettempdir())
@@ -91,7 +91,7 @@ class Cache(object):
         however failures will be retried.
         """
         url = str(cls.JOBTYPE_VERSION_URL % {
-            "master-api": config["master-api"],
+            "master_api": config["master_api"],
             "name": name, "version": version})
 
         result = Deferred()
