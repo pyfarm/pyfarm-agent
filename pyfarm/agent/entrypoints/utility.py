@@ -163,7 +163,7 @@ def start_daemon_posix(log, chdir, uid, gid):  # pragma: no cover
             "implemented on %s" % OS.title())
 
 
-def get_system_identifier(input_systemid, cache_path):
+def get_system_identifier(systemid, cache_path=None, write_always=False):
     """
     Generate a system identifier based on the mac addresses
     of this system.  Each mac address is converted to an
@@ -200,17 +200,21 @@ def get_system_identifier(input_systemid, cache_path):
     :raises TypeError:
         Raised if we receive an unexpected type for one of the inputs
     """
-    if not any([input_systemid is None,
-                input_systemid == "auto",
-                isinstance(input_systemid, INTEGER_TYPES)]):
+    if not any([systemid is None,
+                systemid == "auto",
+                isinstance(systemid, INTEGER_TYPES)]):
         raise TypeError("Expected None, 'auto' or an integer for "
                         "`input_systemid`")
+
+    if isinstance(systemid, INTEGER_TYPES) \
+            and not 0 < systemid <= SYSTEMID_MAX:
+        raise ValueError("input_systemid's range is 0 to %s" % SYSTEMID_MAX)
 
     if cache_path is None:
         cache_path = config["agent_systemid_cache"]
 
-    if input_systemid == "auto":
-        systemid = None
+    write_failed = False
+    if systemid == "auto":
         try:
             # Try to read the systemid from the cached file
             with open(cache_path, "r") as cache_file:
@@ -224,6 +228,10 @@ def get_system_identifier(input_systemid, cache_path):
                         "Failed to read cached system identifier from %s, "
                         "this file will be removed.", cache_file.name)
                     rmpath(cache_path)
+
+                    # overwrite because there's a problem with the
+                    # stored value
+                    write_always = True
                 else:
                     logger.info("Loaded system identifier %s from %s",
                                 systemid, cache_file.name)
@@ -235,31 +243,41 @@ def get_system_identifier(input_systemid, cache_path):
                 logger.error(
                     "System identifier cache file %s exists but it could not "
                     "be read: %s.  The file will be removed.", cache_path, e)
+            write_failed = True
 
-            # Create the parent directory if it does not exist
-            parent_dir = dirname(cache_path)
-            try:
-                os.makedirs(parent_dir)
-            except (OSError, IOError) as e:
-                if e.errno != EEXIST:
-                    logger.error("Failed to create %r: %s", parent_dir, e)
-                    raise
-            else:
-                logger.debug("Created %r", parent_dir)
+    if isinstance(systemid, INTEGER_TYPES) \
+            and not 0 < systemid <= SYSTEMID_MAX:
+        logger.warning(
+            "System identifier from cache is not in range is "
+            "0 to 281474976710655.  Cache file will be deleted.")
+        rmpath(cache_path)
+        write_always = True
 
-            # System identifier is either not cache, invalid or
-            # none was given.  Generate systemid and cache it.
-            systemid = system.system_identifier()
-            try:
-                with open(cache_path, "w") as cache_file:
-                    cache_file.write(str(systemid))
-            except (OSError, IOError) as e:
-                logger.warning(
-                    "Failed to cache system identifier to %s: %s", systemid, e)
-            else:
-                logger.info(
-                    "Cached system identifier %s to %s",
-                    systemid, cache_file.name)
+    if write_failed or write_always:
+        # Create the parent directory if it does not exist
+        parent_dir = dirname(cache_path)
+        try:
+            os.makedirs(parent_dir)
+        except (OSError, IOError) as e:
+            if e.errno != EEXIST:
+                logger.error("Failed to create %r: %s", parent_dir, e)
+                raise
+        else:
+            logger.debug("Created %r", parent_dir)
+
+        # System identifier is either not cache, invalid or
+        # none was given.  Generate systemid and cache it.
+        systemid = system.system_identifier()
+        try:
+            with open(cache_path, "w") as cache_file:
+                cache_file.write(str(systemid))
+        except (OSError, IOError) as e:
+            logger.warning(
+                "Failed to cache system identifier to %s: %s", systemid, e)
+        else:
+            logger.info(
+                "Cached system identifier %s to %s",
+                systemid, cache_file.name)
 
         if isinstance(systemid, INTEGER_TYPES) \
                 and not 0 < systemid <= SYSTEMID_MAX:
@@ -268,4 +286,4 @@ def get_system_identifier(input_systemid, cache_path):
         return systemid
 
     logger.debug("Custom system identifier will not be cached.")
-    return input_systemid
+    return systemid
