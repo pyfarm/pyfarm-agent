@@ -183,12 +183,11 @@ class TestCase(_TestCase):
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
         config.pop("agent", None)
-        config.pop("hostname", None)
         config.update({
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER.split(":")[0],
-            "hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
+            "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
             "agent_ram": int(memory.total_ram()),
             "agent_cpus": cpu.total_cpus(),
             "agent_api_port": randint(10000, 50000),
