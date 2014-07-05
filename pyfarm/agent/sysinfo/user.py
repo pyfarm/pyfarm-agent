@@ -46,9 +46,14 @@ try:
 except ImportError:  # pragma: no cover
     getpass = NotImplemented
 
+try:
+    from os import getuid
+except ImportError:  # pragma: no cover
+    getuid = NotImplemented
+
 
 from pyfarm.agent.sysinfo.system import operating_system
-from pyfarm.core.enums import WINDOWS, LINUX, MAC
+from pyfarm.core.enums import WINDOWS
 
 
 def username():
@@ -72,8 +77,8 @@ def is_administrator():
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
     """
-    if LINUX or MAC:
-        return os.getuid() == 0
+    if getuid is not NotImplemented:
+        return getuid() == 0
     elif win32api is not NotImplemented:
         return shell.IsUserAnAdmin()
     elif win32api is NotImplemented and WINDOWS:
