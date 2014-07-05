@@ -166,13 +166,13 @@ class Processor(TestCase):
         load = psutil.cpu_percent(.25) / cpu.total_cpus()
         self.assertApproximates(cpu.load(.25), load, .5)
 
-    def test_usertime(self):
+    def test_user_time(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
 
-    def test_systemtime(self):
+    def test_system_time(self):
         self.assertEqual(psutil.cpu_times().system <= cpu.system_time(), True)
 
-    def test_idletime(self):
+    def test_idle_time(self):
         self.assertEqual(psutil.cpu_times().idle <= cpu.idle_time(), True)
 
     def test_iowait(self):
