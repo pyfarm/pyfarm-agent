@@ -137,14 +137,14 @@ class Configuration(Resource):
 
     # fields which nobody can see
     HIDDEN_FIELDS = (
-        "agent", "api-endpoint-prefix", "pretty-json")
+        "agent", "agent_pretty_json")
 
     # fields that a user can edit
     EDITABLE_FIELDS = (
-        "agent_cpus", "hostname", "http-retry-delays",
-        "ip", "master_api", "memory-check-interval", "agent_ram",
-        "agent_ram_report_delta", "agent_time_offset", "use-address", "state",
-        "swap-report-delta", "http-retry-delay")
+        "agent_cpus", "hostname", "agent_http_retry_delay",
+        "ip", "master_api", "master", "agent_ram_check_interval", "agent_ram",
+        "agent_ram_report_delta", "agent_time_offset", "state",
+        "agent_http_retry_delay")
 
     def get(self, **kwargs):
         request = kwargs["request"]
