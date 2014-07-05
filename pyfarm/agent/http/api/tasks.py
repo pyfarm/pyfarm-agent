@@ -28,8 +28,13 @@ class Tasks(APIResource):
         if request_from_master(request):
             config.master_contacted()
 
+        try:
+            current_assignments = config["current_assignments"].itervalues
+        except AttributeError:  # pragma: no cover
+            current_assignments = config["current_assignments"].values
+
         tasks = []
-        for assignment in config["current_assignments"].itervalues():
+        for assignment in current_assignments():
             tasks += assignment["tasks"]
 
         return dumps(tasks)
