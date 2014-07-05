@@ -232,8 +232,8 @@ class Agent(object):
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet
 
-        if "remote-ip" in config:
-            data.update(remote_ip=config["remote-ip"])
+        if "remote_ip" in config:
+            data.update(remote_ip=config["remote_ip"])
 
         if "projects" in config:
            data.update(projects=config["projects"])

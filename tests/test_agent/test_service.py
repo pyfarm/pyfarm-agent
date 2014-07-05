@@ -42,6 +42,7 @@ class TestAgentBasicMethods(TestCase):
         self.assertIsNone(agent.agent_api())
 
     def test_system_data(self):
+        config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
             "current_assignments": {},
             "systemid": system_identifier(),
@@ -49,15 +50,13 @@ class TestAgentBasicMethods(TestCase):
             "version": config.version,
             "ram": config["agent_ram"],
             "cpus": config["agent_cpus"],
+            "remote_ip": config["remote_ip"],
             "port": config["agent_api_port"],
             "free_ram": config["free-ram"],
             "time_offset": config["agent_time_offset"],
             "state": config["state"]}
 
         agent = Agent()
-        self.assertEqual(agent.system_data(), expected)
-        config["remote-ip"] = expected["remote_ip"] = \
-            os.urandom(16).encode("hex")
         self.assertEqual(agent.system_data(), expected)
 
 
