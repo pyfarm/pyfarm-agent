@@ -31,7 +31,7 @@ class TestConfig(BaseAPITestCase):
         config.pop("agent", None)
 
     def test_get_config(self):
-        request = self.get(user_agent=config["master_user_agent"])
+        request = self.get(headers={"User-Agent": config["master_user_agent"]})
         config_ = Config()
         response = loads(config_.render(request))
         response.pop("last_master_contact")

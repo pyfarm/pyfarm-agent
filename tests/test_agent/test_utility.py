@@ -80,11 +80,15 @@ class TestGeneral(TestCase):
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
 
     def test_request_from_master(self):
-        request = FakeRequest(self, config["master_user_agent"])
+        request = FakeRequest(
+            self, "GET", "/",
+            headers={"User-Agent": config["master_user_agent"]})
         self.assertTrue(request_from_master(request))
 
     def test_request_not_from_master(self):
-        request = FakeRequest(self, "foo")
+        request = FakeRequest(
+            self, "GET", "/",
+            headers={"User-Agent": "foobar"})
         self.assertFalse(request_from_master(request))
 
 

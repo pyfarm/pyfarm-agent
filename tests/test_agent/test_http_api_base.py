@@ -32,7 +32,7 @@ class TestVersions(BaseAPITestCase):
     CLASS = Versions
 
     def test_versions(self):
-        request = self.get(user_agent=config["master_user_agent"])
+        request = self.get(headers={"User-Agent": config["master_user_agent"]})
         versions = Versions()
         response = versions.render(request)
         self.assertEqual(

@@ -36,7 +36,7 @@ class TestTasks(BaseAPITestCase):
             config["current_assignments"][i] = {"tasks": [i]}
 
     def test_get_tasks(self):
-        request = self.get(user_agent=config["master_user_agent"])
+        request = self.get(headers={"User-Agent": config["master_user_agent"]})
         tasks = Tasks()
         response = tasks.render(request)
         self.assertEqual(loads(response), self.assignments)
