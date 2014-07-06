@@ -84,7 +84,7 @@ class Status(APIResource):
             contacted = datetime.utcnow() - contacted
 
         # Determine the last time we announced ourselves to the
-        # master (if never)
+        # master (if ever)
         last_announce = config.get("last_announce", None)
         if isinstance(last_announce, datetime):
             last_announce = datetime.utcnow() - last_announce
