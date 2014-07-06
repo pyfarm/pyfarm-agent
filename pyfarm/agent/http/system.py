@@ -16,7 +16,11 @@
 
 import time
 from datetime import timedelta
-from httplib import OK
+
+try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
