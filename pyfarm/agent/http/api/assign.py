@@ -96,7 +96,8 @@ class Assign(APIResource):
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")
 
-        if "restart_requested" in config and config["restart_requested"] is True:
+        if "restart_requested" in config \
+                and config["restart_requested"] is True:
             logger.error("Rejecting assignment because of scheduled restart.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
