@@ -17,7 +17,6 @@
 import ctypes
 import os
 import socket
-import tempfile
 import time
 import psutil
 import subprocess
@@ -61,11 +60,10 @@ class TestSystem(TestCase):
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_case_sensitive_filesystem(self):
-        fd, path = tempfile.mkstemp()
+        path = self.create_test_file()
         self.assertEqual(
             not all(map(isfile, [path, path.lower(), path.upper()])),
             system.filesystem_is_case_sensitive())
-        self.add_cleanup_path(path)
 
     def test_case_sensitive_environment(self):
         envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
@@ -174,10 +172,10 @@ class TestCPU(TestCase):
         # Make several attempts to test cpu.load().  Because this
         # depends on the system load at the time we make a few
         # attempts to get the results we expect.
-        for _ in range(5):
+        for _ in range(15):
             load = psutil.cpu_percent(.25) / cpu.total_cpus()
             try:
-                self.assertApproximates(cpu.load(.25), load, .5)
+                self.assertApproximates(cpu.load(.25), load, .75)
             except AssertionError:
                 continue
             else:
