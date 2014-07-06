@@ -237,7 +237,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
                     logger.info("Loaded system identifier %s from %s",
                                 systemid, cache_file.name)
 
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             # If the file exists there may be something wrong with it,
             # try to remove it.
             if e.errno != ENOENT:
@@ -259,11 +259,11 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         parent_dir = dirname(cache_path)
         try:
             os.makedirs(parent_dir)
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             if e.errno != EEXIST:
                 logger.error("Failed to create %r: %s", parent_dir, e)
                 raise
-        else:
+        else:  # pragma: no cover
             logger.debug("Created %r", parent_dir)
 
         # System identifier is either not cache, invalid or
@@ -272,7 +272,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         try:
             with open(cache_path, "w") as cache_file:
                 cache_file.write(str(systemid))
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             logger.warning(
                 "Failed to cache system identifier to %s: %s", systemid, e)
         else:
@@ -281,7 +281,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
                 systemid, cache_file.name)
 
         if isinstance(systemid, INTEGER_TYPES) \
-                and not 0 < systemid <= SYSTEMID_MAX:
+                and not 0 < systemid <= SYSTEMID_MAX:  # pragma: no cover
             raise ValueError("systemid's range is 0 to %s" % SYSTEMID_MAX)
 
         return systemid

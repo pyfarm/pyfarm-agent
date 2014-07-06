@@ -18,6 +18,7 @@ from functools import partial
 from os import urandom
 from os.path import abspath
 
+from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.utility import (
     SYSTEMID_MAX, get_system_identifier, SetConfig, SetConfigConst)
@@ -75,6 +76,22 @@ class TestSystemIdentifier(TestCase):
     def test_invalid_systemid_type(self):
         with self.assertRaises(TypeError):
             get_system_identifier("", self.create_test_file())
+
+    def test_cache_path_is_none(self):
+        result = get_system_identifier("auto", cache_path=None)
+        self.assertEqual(result, system.system_identifier())
+
+        with open(config["agent_systemid_cache"], "r") as stream:
+            cache_data = stream.read().strip()
+
+        self.assertEqual(convert.ston(cache_data), result)
+
+    def test_invalid_cache_data(self):
+        with open(config["agent_systemid_cache"], "w") as stream:
+            stream.write("foobar")
+
+        result = get_system_identifier("auto", cache_path=None)
+        self.assertEqual(result, system.system_identifier())
 
 
 class TestSetConfig(TestCase):
