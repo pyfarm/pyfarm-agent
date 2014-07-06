@@ -37,6 +37,13 @@ class TestConfig(BaseAPITestCase):
         response.pop("last_master_contact")
         current_config = config.copy()
         current_config.pop("last_master_contact")
-        self.assertEqual(response, current_config)
+
+        for key in response:
+            self.assertIn(key, current_config)
+            self.assertEqual(
+                response[key], current_config[key],
+                "Data for key %r %r != %r" % (
+                    key, response[key], current_config[key]))
+
         self.assertDateAlmostEqual(
             config.master_contacted(update=False), datetime.utcnow())
