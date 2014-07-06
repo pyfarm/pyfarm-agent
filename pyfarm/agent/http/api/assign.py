@@ -178,7 +178,7 @@ class Assign(APIResource):
             logger.debug("Removing assignment %s", assign_id)
             del config["current_assignments"][assign_id]
 
-        def restart_if_necessary(_):
+        def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
                 config["agent"].stop()
 
