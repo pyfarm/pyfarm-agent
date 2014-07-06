@@ -284,8 +284,8 @@ class JobType(object):
     def _url(cls, name, version):
         """Returns the remote url for the requested job type and version"""
         return str(
-            "%(master-api)s/jobtypes/%(jobtype)s/versions/%(version)s" % {
-            "master-api": config["master-api"],
+            "%(master_api)s/jobtypes/%(jobtype)s/versions/%(version)s" % {
+            "master_api": config["master_api"],
             "jobtype": name,
             "version": version})
 
