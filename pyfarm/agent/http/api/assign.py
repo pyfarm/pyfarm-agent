@@ -106,7 +106,7 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        if "agent-id" not in config:
+        elif "agent-id" not in config:
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
                 "has not been set yet.")
