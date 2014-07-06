@@ -117,10 +117,12 @@ class FakeRequestHeaders(object):
 
 
 class FakeRequest(object):
-    def __init__(self, test, method, uri, user_agent=None,
-                 headers=None, data=None):
+    def __init__(self, test, method, uri, headers=None, data=None):
         if headers is None:
-            headers = {"Content-Type": ["application/json"]}
+            headers = {}
+
+        if "Content-Type" not in headers:
+            headers.update({"Content-Type": ["application/json"]})
 
         if data is not None:
             data = dumps(data)
@@ -128,7 +130,6 @@ class FakeRequest(object):
         self.test = test
         self.method = method
         self.uri = uri
-        self.user_agent = user_agent
         self.code = None
         self.finished = None
         self.requestHeaders = FakeRequestHeaders(test, headers)
@@ -140,9 +141,7 @@ class FakeRequest(object):
             self.content.seek(0)
 
     def getHeader(self, header):
-        self.test.assertIsNotNone(self.user_agent, "user_agent not set")
-        self.test.assertEqual(header, "User-Agent")
-        return self.user_agent
+        return self.requestHeaders.getRawHeaders(header)
 
     def setResponseCode(self, code):
         self.test.assertIsNone(
@@ -360,7 +359,7 @@ class BaseAPITestCase(TestCase):
 
     def setUp(self):
         if self.__class__ is BaseAPITestCase:
-            self.skipTest("BaseAPITestCase is meant to be subclassed.")
+            return
 
         TestCase.setUp(self)
         self.assertIsNotNone(self.URI, "URI not set")
@@ -372,18 +371,30 @@ class BaseAPITestCase(TestCase):
         self.put = partial(FakeRequest, self, "PUT", self.URI)
 
     def instance_class(self):
+        if self.__class__ is BaseAPITestCase:
+            return
+
         return self.CLASS()
 
     def test_content_types(self):
+        if self.__class__ is BaseAPITestCase:
+            return
+
         for content_type in self.CONTENT_TYPES:
             self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
                           "missing content type %s" % content_type)
 
     def test_leaf(self):
+        if self.__class__ is BaseAPITestCase:
+            return
+
         if self.URI.endswith("/"):
             self.assertTrue(self.CLASS.isLeaf)
         else:
             self.assertFalse(self.CLASS.isLeaf)
 
     def test_parent(self):
+        if self.__class__ is BaseAPITestCase:
+            return
+        
         self.assertIsInstance(self.instance_class(), APIResource)
