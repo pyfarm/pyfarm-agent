@@ -15,14 +15,16 @@
 # limitations under the License.
 
 import logging
+import json
 import os
 import re
 import socket
 import sys
 import tempfile
 from datetime import datetime
-from functools import wraps
+from functools import wraps, partial
 from random import randint, choice
+from StringIO import StringIO
 from urllib import urlopen
 
 try:
@@ -68,6 +70,7 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import rmpath, dumps
 
@@ -99,13 +102,42 @@ class skipIf(object):
         return wrapper
 
 
-class FakeRequest(object):
-    def __init__(self, test, user_agent=None):
+class FakeRequestHeaders(object):
+    def __init__(self, test, headers):
         self.test = test
+        self.test.assertIsInstance(headers, dict)
+
+        for key, value in headers.items():
+            headers[key.lower()] = value
+
+        self.headers = headers
+
+    def getRawHeaders(self, header):
+        return self.headers.get(header)
+
+
+class FakeRequest(object):
+    def __init__(self, test, method, uri, user_agent=None,
+                 headers=None, data=None):
+        if headers is None:
+            headers = {"Content-Type": ["application/json"]}
+
+        if data is not None:
+            data = dumps(data)
+
+        self.test = test
+        self.method = method
+        self.uri = uri
         self.user_agent = user_agent
         self.code = None
         self.finished = None
-        self.written = ""
+        self.requestHeaders = FakeRequestHeaders(test, headers)
+        self.content = StringIO()
+        self._response = StringIO()
+
+        if isinstance(data, STRING_TYPES):
+            self.content.write(data)
+            self.content.seek(0)
 
     def getHeader(self, header):
         self.test.assertIsNotNone(self.user_agent, "user_agent not set")
@@ -117,16 +149,23 @@ class FakeRequest(object):
             self.finished, "finished() called before setResponseCode()")
         self.code = code
 
-    def write(self, code):
+    def write(self, data):
         self.test.assertIsNone(
             self.finished, "finished() called before write()")
-        if not isinstance(code, STRING_TYPES):
-            code = dumps(code)
-        self.written += code
+        if not isinstance(data, STRING_TYPES):
+            data = dumps(data)
+        self._response.write(data)
 
     def finish(self):
         self.test.assertIsNone(self.finished, "finish() already called")
+        self._response.seek(0)
         self.finished = True
+
+    def response(self):
+        self.test.assertIsNotNone(self.finished, "finish() not called")
+        response = json.load(self._response)
+        self._response.seek(0)  # reset so we can call response() again
+        return response
 
 
 class FakeAgent(object):
@@ -312,3 +351,39 @@ class BaseRequestTestCase(TestCase):
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(
                 "Failed to send an http request to %s" % self.base_url)
+
+
+class BaseAPITestCase(TestCase):
+    URI = None
+    CLASS = None
+    CONTENT_TYPES = ["application/json"]
+
+    def setUp(self):
+        if self.__class__ is BaseAPITestCase:
+            self.skipTest("BaseAPITestCase is meant to be subclassed.")
+
+        TestCase.setUp(self)
+        self.assertIsNotNone(self.URI, "URI not set")
+        self.assertIsNotNone(self.CLASS, "CLASS not set")
+        self.assertIsInstance(self.CONTENT_TYPES, list)
+        self.agent = config["agent"] = FakeAgent()
+        self.get = partial(FakeRequest, self, "GET", self.URI)
+        self.post = partial(FakeRequest, self, "POST", self.URI)
+        self.put = partial(FakeRequest, self, "PUT", self.URI)
+
+    def instance_class(self):
+        return self.CLASS()
+
+    def test_content_types(self):
+        for content_type in self.CONTENT_TYPES:
+            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
+                          "missing content type %s" % content_type)
+
+    def test_leaf(self):
+        if self.URI.endswith("/"):
+            self.assertTrue(self.CLASS.isLeaf)
+        else:
+            self.assertFalse(self.CLASS.isLeaf)
+
+    def test_parent(self):
+        self.assertIsInstance(self.instance_class(), APIResource)
