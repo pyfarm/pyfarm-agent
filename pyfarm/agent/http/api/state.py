@@ -18,9 +18,9 @@ import time
 from datetime import timedelta, datetime
 
 try:
-    from httplib import ACCEPTED, OK
+    from httplib import ACCEPTED, OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
-    from http.client import ACCEPTED, OK
+    from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
@@ -43,8 +43,13 @@ class Stop(APIResource):
         agent = config["agent"]
         stopping = agent.stop()
 
+        if not isinstance(data, dict):
+            request.setResponseCode(BAD_REQUEST)
+            request.write(dumps(error="Expected dictionary for data"))
+            request.finish()
+
         # TODO: need to wire this up to the real deferred object in stop()
-        if data.get("wait"):
+        elif data.get("wait"):
             def finished(*_):
                 request.finish()
             if stopping is not None:
