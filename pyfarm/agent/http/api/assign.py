@@ -148,13 +148,18 @@ class Assign(APIResource):
             return NOT_DONE_YET
 
         # Check for double assignments
+        try:
+            current_assignments = config["current_assignments"].itervalues
+        except AttributeError:  # pragma: no cover
+            current_assignments = config["current_assignments"].values
+
         existing_task_ids = set()
-        for assignment in config["current_assignments"].itervalues():
+        new_task_ids = set(task["id"] for task in data["tasks"])
+
+        for assignment in current_assignments():
             for task in assignment["tasks"]:
                 existing_task_ids.add(task["id"])
-        new_task_ids = set()
-        for task in data["tasks"]:
-            new_task_ids.add(task["id"])
+
         if existing_task_ids & new_task_ids:
             request.setResponseCode(CONFLICT)
             request.write(
