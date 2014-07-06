@@ -111,9 +111,9 @@ class FakeRequest(object):
         self.test.assertEqual(header, "User-Agent")
         return self.user_agent
 
-    def setReponseCode(self, code):
+    def setResponseCode(self, code):
         self.test.assertIsNone(
-            self.finished, "finished() called before setReponseCode()")
+            self.finished, "finished() called before setResponseCode()")
         self.code = code
 
     def write(self, code):
