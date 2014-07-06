@@ -80,13 +80,13 @@ class Status(APIResource):
 
         # Determine the last time we talked to the master (if ever)
         contacted = config.master_contacted(update=False)
-        if isinstance(contacted, datetime):
+        if isinstance(contacted, datetime):  # pragma: no cover
             contacted = datetime.utcnow() - contacted
 
         # Determine the last time we announced ourselves to the
         # master (if ever)
         last_announce = config.get("last_announce", None)
-        if isinstance(last_announce, datetime):
+        if isinstance(last_announce, datetime):  # pragma: no cover
             last_announce = datetime.utcnow() - last_announce
 
         return dumps(
