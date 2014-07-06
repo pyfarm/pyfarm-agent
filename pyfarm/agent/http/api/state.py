@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
+from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.agent.config import config
@@ -50,14 +51,16 @@ class Stop(APIResource):
 
         # TODO: need to wire this up to the real deferred object in stop()
         elif data.get("wait"):
-            def finished(*_):
-                request.finish()
-            if stopping is not None:
-                stopping.addCallback(request)
+            def finished(_, finish_request):
+                finish_request.setResponseCode(OK)
+                finish_request.finish()
+
+            if isinstance(stopping, Deferred):
+                stopping.addCallback(finished, request)
             else:
-                logger.warning("NOT IMPLEMENTED: wait for stop")
                 request.setResponseCode(OK)
                 request.finish()
+
         else:
             request.setResponseCode(ACCEPTED)
             request.finish()
