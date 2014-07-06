@@ -21,3 +21,6 @@ omit =
     *pyfarm/agent/http/templates/*
     *pyfarm/agent/http/static/*
     *pyfarm/agent/logger/*
+    *pyfarm/agent/entrypoints/development.py*
+    *pyfarm/agent/entrypoints/main.py*
+    *pyfarm/agent/entrypoints/supervisor.py*
