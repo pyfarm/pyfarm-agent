@@ -43,7 +43,7 @@ class TestDefaultJsonEncoder(TestCase):
 
 class TestDumpsJson(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestDumpsJson, self).setUp()
         self.data = {
             os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
 

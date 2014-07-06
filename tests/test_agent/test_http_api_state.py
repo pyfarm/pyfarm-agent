@@ -77,8 +77,8 @@ class TestStatus(BaseAPITestCase):
     URI = "/status"
     CLASS = Status
 
-    def setUp(self):
-        BaseAPITestCase.setUp(self)
+    def prepare_config(self):
+        super(TestStatus, self).prepare_config()
         config.update(
             state=AgentState.ONLINE,
             pids=[1, 2, 3],

@@ -28,7 +28,7 @@ class TestTasks(BaseAPITestCase):
     CLASS = Tasks
 
     def setUp(self):
-        BaseAPITestCase.setUp(self)
+        super(TestTasks, self).setUp()
         config["current_assignments"] = {}
         self.assignments = []
         for i in range(5):

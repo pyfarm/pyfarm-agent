@@ -29,7 +29,7 @@ DummyArgs = namedtuple("DummyArgs", ["uid"])
 
 class BaseTestArgTypes(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(BaseTestArgTypes, self).setUp()
         self.args = None
         self.parser = ErrorCapturingParser()
 
@@ -68,7 +68,7 @@ class TestAssertInstance(TestCase):
 
 class TestIp(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestIp, self).setUp()
         self.parser.add_argument("--ip", type=partial(ip, instance=self))
 
     def test_valid(self):
@@ -81,9 +81,6 @@ class TestIp(BaseTestArgTypes):
 
 
 class TestPort(BaseTestArgTypes):
-    def setUp(self):
-        BaseTestArgTypes.setUp(self)
-
     def add_arguments(self, add_uid=True, add_port=True):
         if add_port:
             self.parser.add_argument(
@@ -152,7 +149,7 @@ class TestPort(BaseTestArgTypes):
 
 class TestDirectory(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestDirectory, self).setUp()
         self.parser.add_argument(
             "--dir", type=partial(direxists, instance=self, flag="dir"))
 
@@ -172,7 +169,7 @@ class TestDirectory(BaseTestArgTypes):
 
 class TestNumber(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestNumber, self).setUp()
         self.parser.add_argument(
             "--num",
             type=partial(
@@ -216,7 +213,7 @@ class TestNumber(BaseTestArgTypes):
 
 class TestEnum(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestEnum, self).setUp()
         _enum = namedtuple("Enum", ["a", "b", "c"])
         self.enum = _enum(a="one", b="two", c="three")
         self.parser.add_argument(
@@ -239,7 +236,7 @@ class TestEnum(BaseTestArgTypes):
 
 class TestSystemIdentifier(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestSystemIdentifier, self).setUp()
         self.parser.add_argument(
             "--systemid",
             type=partial(system_identifier, instance=self))

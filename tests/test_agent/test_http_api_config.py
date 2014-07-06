@@ -26,10 +26,6 @@ class TestConfig(BaseAPITestCase):
     URI = "/config"
     CLASS = Config
 
-    def setUp(self):
-        BaseAPITestCase.setUp(self)
-        config.pop("agent", None)
-
     def test_get_config(self):
         request = self.get(headers={"User-Agent": config["master_user_agent"]})
         config_ = Config()
@@ -37,6 +33,7 @@ class TestConfig(BaseAPITestCase):
         response.pop("last_master_contact")
         current_config = config.copy()
         current_config.pop("last_master_contact")
+        response.pop("agent")
 
         for key in response:
             self.assertIn(key, current_config)
