@@ -24,7 +24,6 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
-from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.core.enums import AgentState
@@ -32,19 +31,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.api.state import Stop, Status
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.testutil import TestCase, FakeRequest
-
-
-class FakeAgent(object):
-    def __init__(self, stopped=None):
-        if stopped is None:
-            stopped = Deferred()
-        self.stopped = stopped
-
-    def stop(self):
-        if isinstance(self.stopped, Deferred):
-            self.stopped.callback(None)
-        return self.stopped
+from pyfarm.agent.testutil import TestCase, FakeRequest, FakeAgent
 
 
 class TestStop(TestCase):

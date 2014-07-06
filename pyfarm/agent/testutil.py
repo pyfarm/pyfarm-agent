@@ -62,6 +62,7 @@ except ImportError:  # copied from Python 2.7's source
             return True
 
 from twisted.internet.base import DelayedCall
+from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.config import read_env, read_env_bool
@@ -126,6 +127,18 @@ class FakeRequest(object):
     def finish(self):
         self.test.assertIsNone(self.finished, "finish() already called")
         self.finished = True
+
+
+class FakeAgent(object):
+    def __init__(self, stopped=None):
+        if stopped is None:
+            stopped = Deferred()
+        self.stopped = stopped
+
+    def stop(self):
+        if isinstance(self.stopped, Deferred):
+            self.stopped.callback(None)
+        return self.stopped
 
 
 class TestCase(_TestCase):
