@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover
 import psutil
 from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
+from voluptuous import Schema, Optional
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
@@ -37,6 +38,9 @@ logger = getLogger("agent.http.state")
 
 class Stop(APIResource):
     isLeaf = False  # this is not really a collection of things
+    SCHEMAS = {
+        "POST": Schema(
+            {Optional("wait"): bool})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
@@ -44,13 +48,8 @@ class Stop(APIResource):
         agent = config["agent"]
         stopping = agent.stop()
 
-        if not isinstance(data, dict):
-            request.setResponseCode(BAD_REQUEST)
-            request.write(dumps(error="Expected dictionary for data"))
-            request.finish()
-
         # TODO: need to wire this up to the real deferred object in stop()
-        elif data.get("wait"):
+        if data.get("wait"):
             def finished(_, finish_request):
                 finish_request.setResponseCode(OK)
                 finish_request.finish()
