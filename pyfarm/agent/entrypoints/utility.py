@@ -82,12 +82,13 @@ class SetConfigConst(_StoreTrueAction):
     it meant to always set a constant value (much like 'store_true' would)
     """
     def __init__(self, *args, **kwargs):
+        value = kwargs.pop("value")
         self.key = kwargs.pop("key")
-        self.value = kwargs.pop("value")
         super(SetConfigConst, self).__init__(*args, **kwargs)
+        self.const = value
 
     def __call__(self, parser, namespace, values, option_string=None):
-        config[self.key] = self.value
+        config[self.key] = self.const
         super(SetConfigConst, self).__call__(
             parser, namespace, values, option_string=option_string)
 
