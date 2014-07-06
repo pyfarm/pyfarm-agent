@@ -323,7 +323,7 @@ class TestCase(_TestCase):
             "agent_ram": int(memory.total_ram()),
             "agent_cpus": cpu.total_cpus(),
             "agent_api_port": randint(10000, 50000),
-            "free-ram": int(memory.ram_free()),
+            "free_ram": int(memory.ram_free()),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
             "agent_pretty_json": False,
