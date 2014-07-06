@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 
 try:
     from httplib import OK, CREATED
@@ -57,7 +58,17 @@ class TestAgentBasicMethods(TestCase):
             "state": config["state"]}
 
         agent = Agent()
-        self.assertEqual(agent.system_data(), expected)
+        system_data = agent.system_data()
+
+        # Data builds up over time because garbage collection
+        # can't cleanup everything when we're running the
+        # tests over and over.
+        if "--until-failure" in sys.argv:
+            expected.pop("free_ram")
+            self.assertIn("free_ram", system_data)
+            self.assertIsInstance(system_data.pop("free_ram"), int)
+
+        self.assertEqual(system_data, expected)
 
 
 class TestRunAgent(TestCase):
