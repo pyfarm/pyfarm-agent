@@ -96,7 +96,7 @@ class TestSystemIdentifier(TestCase):
 
 class TestSetConfig(TestCase):
     def test_requires_key(self):
-        with self.assertRaisesRegexp(KeyError, "key"):
+        with self.assertRaises(KeyError):
             SetConfig()
 
     def test_set_config(self):
@@ -126,11 +126,11 @@ class TestSetConfig(TestCase):
 
 class TestSetConfigConst(TestCase):
     def test_requires_key(self):
-        with self.assertRaisesRegexp(KeyError, "'value'"):
+        with self.assertRaises(KeyError):
             SetConfigConst()
 
     def test_requires_value(self):
-        with self.assertRaisesRegexp(KeyError, "value"):
+        with self.assertRaises(KeyError):
             SetConfigConst(key="foo")
 
     def test_set_true(self):
