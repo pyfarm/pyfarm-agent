@@ -19,7 +19,7 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequestWithUserAgent
+from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.api.tasks import Tasks
 
@@ -38,7 +38,7 @@ class TestTasks(TestCase):
 
     def test_get_request_master_contacted(self):
         tasks = Tasks()
-        request = FakeRequestWithUserAgent(self, config["master_user_agent"])
+        request = FakeRequest(self, config["master_user_agent"])
 
         config["current_assignments"] = {}
         assignments = []

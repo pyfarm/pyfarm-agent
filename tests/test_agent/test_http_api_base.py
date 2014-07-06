@@ -18,7 +18,7 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequestWithUserAgent
+from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.http.api.base import APIResource, Versions
 
 
@@ -43,7 +43,7 @@ class TestVersions(TestCase):
 
     def test_get_request_master_contacted(self):
         versions = Versions()
-        request = FakeRequestWithUserAgent(self, config["master_user_agent"])
+        request = FakeRequest(self, config["master_user_agent"])
         self.assertEqual(
             loads(versions.get(request=request)), {"versions": [1]})
         self.assertDateAlmostEqual(

@@ -18,7 +18,7 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequestWithUserAgent
+from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.api.config import Config
 
@@ -36,7 +36,7 @@ class TestConfig(TestCase):
 
     def test_get_request_master_contacted(self):
         config_ = Config()
-        request = FakeRequestWithUserAgent(self, config["master_user_agent"])
+        request = FakeRequest(self, config["master_user_agent"])
         response = loads(config_.get(request=request))
         response.pop("last_master_contact")
         current_config = config.copy()

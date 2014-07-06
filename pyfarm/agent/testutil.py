@@ -98,7 +98,7 @@ class skipIf(object):
         return wrapper
 
 
-class FakeRequestWithUserAgent(object):
+class FakeRequest(object):
     def __init__(self, test, user_agent):
         self.test = test
         self.user_agent = user_agent
