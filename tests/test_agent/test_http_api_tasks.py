@@ -19,33 +19,26 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequest
-from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.tasks import Tasks
 
 
-class TestTasks(TestCase):
-    def test_leaf(self):
-        self.assertTrue(Tasks.isLeaf)
+class TestTasks(BaseAPITestCase):
+    URI = "/tasks/"
+    CLASS = Tasks
 
-    def test_parent(self):
-        self.assertIsInstance(Tasks(), APIResource)
-
-    def test_get_no_request(self):
-        tasks = Tasks()
-        with self.assertRaises(KeyError):
-            self.assertEqual(loads(tasks.get()), config)
-
-    def test_get_request_master_contacted(self):
-        tasks = Tasks()
-        request = FakeRequest(self, config["master_user_agent"])
-
+    def setUp(self):
+        BaseAPITestCase.setUp(self)
         config["current_assignments"] = {}
-        assignments = []
+        self.assignments = []
         for i in range(5):
-            assignments.append(i)
+            self.assignments.append(i)
             config["current_assignments"][i] = {"tasks": [i]}
 
-        self.assertEqual(loads(tasks.get(request=request)), assignments)
+    def test_get_tasks(self):
+        request = self.get(user_agent=config["master_user_agent"])
+        tasks = Tasks()
+        response = tasks.render(request)
+        self.assertEqual(loads(response), self.assignments)
         self.assertDateAlmostEqual(
             config.master_contacted(update=False), datetime.utcnow())
