@@ -18,33 +18,24 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequest
+from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.base import APIResource, Versions
 
 
-class TestAPIResource(TestCase):
-    def test_leaf(self):
-        self.assertTrue(APIResource.isLeaf)
-
-    def test_content_types(self):
-        self.assertEqual(APIResource.CONTENT_TYPES, set(["application/json"]))
+class TestAPIResource(BaseAPITestCase):
+    URI = "/"
+    CLASS = APIResource
 
 
-class TestVersions(TestCase):
-    def test_leaf(self):
-        self.assertTrue(Versions.isLeaf)
+class TestVersions(BaseAPITestCase):
+    URI = "/versions/"
+    CLASS = Versions
 
-    def test_parent(self):
-        self.assertIsInstance(Versions(), APIResource)
-
-    def test_get_no_request(self):
+    def test_versions(self):
+        request = self.get(user_agent=config["master_user_agent"])
         versions = Versions()
-        self.assertEqual(loads(versions.get()), {"versions": [1]})
-
-    def test_get_request_master_contacted(self):
-        versions = Versions()
-        request = FakeRequest(self, config["master_user_agent"])
+        response = versions.render(request)
         self.assertEqual(
-            loads(versions.get(request=request)), {"versions": [1]})
+            loads(response), {"versions": [1]})
         self.assertDateAlmostEqual(
             config.master_contacted(update=False), datetime.utcnow())
