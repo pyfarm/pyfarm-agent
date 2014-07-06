@@ -281,14 +281,23 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
-    POP_CONFIG_KEYS = (
-        "agent",
-        "jobs",
-        "jobtypes",
-        "current_assignments",
-        "last_master_contact")
+    POP_CONFIG_KEYS = []
 
     def setUp(self):
+        try:
+            self._pop_config_keys
+        except AttributeError:
+            self._pop_config_keys = []
+
+        self._pop_config_keys.extend(self.POP_CONFIG_KEYS)
+        self._pop_config_keys.extend([
+            "agent",
+            "jobs",
+            "jobtypes",
+            "restart_requested",
+            "current_assignments",
+            "last_master_contact"])
+
         DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
@@ -297,7 +306,7 @@ class TestCase(_TestCase):
         config_logger.disabled = 0
 
     def prepare_config(self):
-        for key in self.POP_CONFIG_KEYS:
+        for key in self._pop_config_keys:
             config.pop(key, None)
 
         config.update({
