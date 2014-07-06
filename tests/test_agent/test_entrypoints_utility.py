@@ -33,11 +33,6 @@ class TestSystemIdentifier(TestCase):
         for mac in network.mac_addresses():
             self.sysident ^= int("0x" + mac.replace(":", ""), 0)
 
-        if self.sysident == 0:
-            self.skipTest(
-                "System identifier could not be generated in a non-random "
-                "fashion.")
-
     def test_generation(self):
         self.assertEqual(
             self.sysident,
