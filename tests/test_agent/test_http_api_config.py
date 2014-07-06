@@ -18,26 +18,22 @@ from json import loads
 from datetime import datetime
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequest
-from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.config import Config
 
 
-class TestConfig(TestCase):
-    def test_leaf(self):
-        self.assertFalse(Config.isLeaf)
+class TestConfig(BaseAPITestCase):
+    URI = "/config"
+    CLASS = Config
 
-    def test_parent(self):
-        self.assertIsInstance(Config(), APIResource)
+    def setUp(self):
+        BaseAPITestCase.setUp(self)
+        config.pop("agent", None)
 
-    def test_get_no_request(self):
+    def test_get_config(self):
+        request = self.get(user_agent=config["master_user_agent"])
         config_ = Config()
-        self.assertEqual(loads(config_.get()), config)
-
-    def test_get_request_master_contacted(self):
-        config_ = Config()
-        request = FakeRequest(self, config["master_user_agent"])
-        response = loads(config_.get(request=request))
+        response = loads(config_.render(request))
         response.pop("last_master_contact")
         current_config = config.copy()
         current_config.pop("last_master_contact")
