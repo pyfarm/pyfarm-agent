@@ -174,14 +174,15 @@ class Assign(APIResource):
         request.write({"id": assignment_uuid})
         request.finish()
 
-        def remove_assignment(index):
-            del config["current_assignments"][index]
+        def remove_assignment(_, assign_id):
+            logger.debug("Removing assignment %s", assign_id)
+            del config["current_assignments"][assign_id]
 
-        def restart_if_necessary():
+        def restart_if_necessary(_):
             if "restart_requested" in config and config["restart_requested"]:
                 config["agent"].stop()
 
-        def loaded_jobtype(jobtype_class):
+        def loaded_jobtype(jobtype_class, assign_id):
             instance = jobtype_class(data)
 
             if not isinstance(instance, JobType):
@@ -190,15 +191,14 @@ class Assign(APIResource):
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
             deferred = instance._start()
-            deferred.addCallback(lambda _: remove_assignment(assignment_uuid))
-            deferred.addErrback(lambda _: remove_assignment(assignment_uuid))
-            deferred.addCallback(lambda _: restart_if_necessary())
-            deferred.addErrback(lambda _: restart_if_necessary())
+            deferred.addBoth(remove_assignment, assign_id)
+            deferred.addBoth(restart_if_necessary)
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
         # are handled internally in this case.
         jobtype_loader = JobType.load(data)
-        jobtype_loader.addCallback(loaded_jobtype)
+        jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
+        jobtype_loader.addErrback(remove_assignment, assignment_uuid)
 
         return NOT_DONE_YET
