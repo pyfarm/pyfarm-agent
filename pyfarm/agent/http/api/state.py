@@ -56,7 +56,7 @@ class Stop(APIResource):
 
             if isinstance(stopping, Deferred):
                 stopping.addCallback(finished, request)
-            else:
+            else:  # pragma: no cover
                 request.setResponseCode(OK)
                 request.finish()
 
