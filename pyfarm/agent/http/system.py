@@ -60,27 +60,27 @@ class Index(Resource):
             if config["state"] == value:
                 state = key.title()
                 break
-        else:
+        else:  # pragma: no cover
             raise KeyError("failed to find state")
 
         total_swap = memory.total_swap()
         ram_allocated = (memory.ram_used() / float(config["agent_ram"])) * 100
         swap_allocated = (memory.swap_used() / total_swap) * 100
 
-        if ram_allocated >= 100:
+        if ram_allocated >= 100:  # pragma: no cover
             ram_css = "danger"
-        elif ram_allocated >= 75:
+        elif ram_allocated >= 75:  # pragma: no cover
             ram_css = "warning"
-        elif ram_allocated >= 50:
+        elif ram_allocated >= 50:  # pragma: no cover
             ram_css = "info"
         else:
             ram_css = None
 
-        if swap_allocated >= 20:
+        if swap_allocated >= 20:  # pragma: no cover
             swap_css = "danger"
-        elif swap_allocated >= 10:
+        elif swap_allocated >= 10:  # pragma: no cover
             swap_css = "warning"
-        elif swap_allocated >= 5:
+        elif swap_allocated >= 5:  # pragma: no cover
             swap_css = "info"
         else:
             swap_css = None
