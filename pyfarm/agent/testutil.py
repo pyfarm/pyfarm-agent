@@ -68,7 +68,7 @@ from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.sysinfo import memory, cpu, system
-from pyfarm.agent.utility import rmpath
+from pyfarm.agent.utility import rmpath, dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -99,13 +99,33 @@ class skipIf(object):
 
 
 class FakeRequest(object):
-    def __init__(self, test, user_agent):
+    def __init__(self, test, user_agent=None):
         self.test = test
         self.user_agent = user_agent
+        self.code = None
+        self.finished = None
+        self.written = ""
 
     def getHeader(self, header):
+        self.test.assertIsNotNone(self.user_agent, "user_agent not set")
         self.test.assertEqual(header, "User-Agent")
         return self.user_agent
+
+    def setReponseCode(self, code):
+        self.test.assertIsNone(
+            self.finished, "finished() called before setReponseCode()")
+        self.code = code
+
+    def write(self, code):
+        self.test.assertIsNone(
+            self.finished, "finished() called before write()")
+        if not isinstance(code, STRING_TYPES):
+            code = dumps(code)
+        self.written += code
+
+    def finish(self):
+        self.test.assertNone(self.finished, "finish() already called")
+        self.finished = True
 
 
 class TestCase(_TestCase):
