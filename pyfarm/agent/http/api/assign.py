@@ -27,7 +27,7 @@ from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import request_from_master
+from pyfarm.agent.utility import request_from_master, uuid
 from pyfarm.agent.sysinfo.memory import ram_free
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
@@ -50,11 +50,6 @@ def validate_environment(values):
 
         if not isinstance(value, STRING_TYPES):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
-
-
-class HandlePost(object):
-    def __init__(self, data):
-        self.data = data
 
 
 class Assign(APIResource):
@@ -169,15 +164,14 @@ class Assign(APIResource):
             return NOT_DONE_YET
 
         # Seems inefficient, but the assignments dict is unlikely to be large
-        index = 0
-        while index in config["current_assignments"]:
-            index += 1
-        config["current_assignments"][index] = data
+        assignment_uuid = uuid()
+        config["current_assignments"][assignment_uuid] = data
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
         # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
+        request.write({"id": assignment_uuid})
         request.finish()
 
         def remove_assignment(index):
@@ -196,8 +190,8 @@ class Assign(APIResource):
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
             deferred = instance._start()
-            deferred.addCallback(lambda _: remove_assignment(index))
-            deferred.addErrback(lambda _: remove_assignment(index))
+            deferred.addCallback(lambda _: remove_assignment(assignment_uuid))
+            deferred.addErrback(lambda _: remove_assignment(assignment_uuid))
             deferred.addCallback(lambda _: restart_if_necessary())
             deferred.addErrback(lambda _: restart_if_necessary())
 

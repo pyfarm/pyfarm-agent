@@ -16,6 +16,7 @@
 
 from os import urandom
 from random import randint
+from uuid import UUID
 
 try:
     from httplib import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
@@ -187,5 +188,8 @@ class TestAssign(BaseAPITestCase):
         self.assertTrue(request.finished)
         self.assertEqual(request.code, ACCEPTED)
         self.assertEqual(result, NOT_DONE_YET)
-        with self.assertRaises(ValueError):
-            request.response()
+        response = request.response()
+        response_id = UUID(response["id"])
+        self.assertIn(response_id, config["current_assignments"])
+        self.assertEqual(
+            config["current_assignments"][response_id], self.data)
