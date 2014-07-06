@@ -281,15 +281,27 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+    POP_CONFIG_KEYS = (
+        "agent",
+        "jobs",
+        "jobtypes",
+        "current_assignments",
+        "last_master_contact")
+
     def setUp(self):
         DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
-        config.pop("agent", None)
-        config.pop("current_assignments", None)
-        config.pop("last_master_contact", None)
+        self.prepare_config()
+        config_logger.disabled = 0
+
+    def prepare_config(self):
+        for key in self.POP_CONFIG_KEYS:
+            config.pop(key, None)
+
         config.update({
+            "jobtypes": {},
             "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
@@ -304,7 +316,6 @@ class TestCase(_TestCase):
             "agent_pretty_json": False,
             "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
-        config_logger.disabled = 0
 
     def add_cleanup_path(self, path):
         self.addCleanup(rmpath, path, exit_retry=True)
