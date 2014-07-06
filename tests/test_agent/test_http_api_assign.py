@@ -49,6 +49,19 @@ class FakeJobType(JobType):
         return self.started
 """
 
+FAKE_JOBTYPE_BAD_TYPE = """
+from twisted.internet.defer import Deferred
+
+class FakeJobType(object):
+    def __init__(self, assignment):
+        self.star_called = False
+        self.started = Deferred()
+
+    def start(self):
+        self.star_called = True
+        return self.started
+"""
+
 
 class TestValidateEnvironment(TestCase):
     def test_type(self):
@@ -185,11 +198,38 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = Assign()
         result = assign.render(request)
+        self.assertEqual(result, NOT_DONE_YET)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, ACCEPTED)
-        self.assertEqual(result, NOT_DONE_YET)
         response = request.response()
         response_id = UUID(response["id"])
         self.assertIn(response_id, config["current_assignments"])
         self.assertEqual(
             config["current_assignments"][response_id], self.data)
+
+    def test_accepted_type_error(self):
+        # Cache the fake job type and make sure the config
+        # turns off caching
+        jobtype = {
+            "classname": "FakeJobType",
+            "code": FAKE_JOBTYPE_BAD_TYPE,
+            "name": self.data["jobtype"]["name"],
+            "version": self.data["jobtype"]["version"]}
+        JobType.cache[(self.data["jobtype"]["name"],
+                       self.data["jobtype"]["version"])] = (jobtype, None)
+
+        # with self.assertRaises(TypeError):
+        config.update(
+            jobtype_enable_cache=False,
+            current_assignments={})
+        request = self.post(
+            data=self.data,
+            headers={"User-Agent": config["master_user_agent"]})
+        assign = Assign()
+        result = assign.render(request)
+        self.assertEqual(result, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.code, ACCEPTED)
+        response = request.response()
+        response_id = UUID(response["id"])
+        self.assertNotIn(response_id, config["current_assignments"])
