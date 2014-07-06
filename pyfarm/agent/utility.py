@@ -250,6 +250,6 @@ def total_seconds(td):
     assert isinstance(td, timedelta)
     try:
         return td.total_seconds()
-    except AttributeError:
+    except AttributeError:  # pragma: no cover
         return (
            td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
