@@ -28,76 +28,65 @@ from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
-from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.api.state import Stop, Status
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.testutil import TestCase, FakeRequest, FakeAgent
+from pyfarm.agent.testutil import BaseAPITestCase, FakeAgent
 
 
-class TestStop(TestCase):
-    def setUp(self):
-        TestCase.setUp(self)
-        self.agent = config["agent"] = FakeAgent()
-
-    def test_leaf(self):
-        self.assertFalse(Stop.isLeaf)
-
-    def test_parent(self):
-        self.assertIsInstance(Stop(), APIResource)
+class TestStop(BaseAPITestCase):
+    URI = "/stop"
+    CLASS = Stop
 
     def test_invalid_type_for_data(self):
-        request = FakeRequest(self)
+        request = self.post(data={"foo": 1})
         stop = Stop()
-        result = stop.post(request=request, data=None)
+        result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
+        self.assertIn(
+            "Failed to validate the request data against the schema",
+            request.response()["error"])
         self.assertEqual(request.code, BAD_REQUEST)
         self.assertTrue(request.finished)
 
     def test_stops_agent(self):
-        request = FakeRequest(self)
+        request = self.post(data={})
         stop = Stop()
-        result = stop.post(request=request, data={})
+        result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertEqual(request.code, ACCEPTED)
         self.assertTrue(request.finished)
+        with self.assertRaises(ValueError):
+            request.response()
+
         return self.agent.stopped
 
     def test_stops_and_waits_for_agent(self):
-        request = FakeRequest(self)
+        request = self.post(data={"wait": True})
         stop = Stop()
-        result = stop.post(request=request, data={"wait": True})
+        result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertEqual(request.code, OK)
         self.assertTrue(request.finished)
+        with self.assertRaises(ValueError):
+            request.response()
         return self.agent.stopped
 
-    def test_stops_if_agent_returns_none(self):
-        config["agent"] = FakeAgent(stopped=False)
-        request = FakeRequest(self)
-        stop = Stop()
-        result = stop.post(request=request, data={"wait": True})
-        self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
-        self.assertTrue(request.finished)
 
+class TestStatus(BaseAPITestCase):
+    URI = "/status"
+    CLASS = Status
 
-class TestStatus(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        BaseAPITestCase.setUp(self)
         config.update(
             state=AgentState.ONLINE,
             pids=[1, 2, 3],
             start=time.time())
 
-    def test_leaf(self):
-        self.assertFalse(Status.isLeaf)
-
-    def test_parent(self):
-        self.assertIsInstance(Status(), APIResource)
-
     def test_get_requires_no_input(self):
+        request = self.get()
         status = Status()
-        status.get()
+        self.assertIsInstance(loads(status.render(request)), dict)
 
     def test_get_result(self):
         process = psutil.Process()
@@ -133,8 +122,10 @@ class TestStatus(TestCase):
             "uptime": timedelta(
                seconds=time.time() - config["start"]).total_seconds(),
             "jobs": list(config["jobtypes"].keys())}
+
+        request = self.get()
         status = Status()
-        data = loads(status.get())
+        data = loads(status.render(request))
 
         # Pop off and test keys which are 'close'
         self.assertApproximates(
