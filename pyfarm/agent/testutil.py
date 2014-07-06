@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import logging
 import json
 import os
 import re
 import socket
 import sys
+import shutil
 import tempfile
 from argparse import ArgumentParser
 from datetime import datetime
@@ -64,6 +66,7 @@ except ImportError:  # copied from Python 2.7's source
                          (expected_regexp.pattern, str(exc_value)))
             return True
 
+import psutil
 from twisted.internet.base import DelayedCall
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
@@ -190,6 +193,7 @@ class ErrorCapturingParser(ArgumentParser):
 
 
 class TestCase(_TestCase):
+    POP_CONFIG_KEYS = []
     RAND_LENGTH = 8
 
     # Global timeout for all test cases.  If an individual test takes
@@ -281,9 +285,9 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
-    POP_CONFIG_KEYS = []
-
     def setUp(self):
+        super(TestCase, self).setUp()
+
         try:
             self._pop_config_keys
         except AttributeError:
@@ -326,23 +330,50 @@ class TestCase(_TestCase):
             "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
 
-    def add_cleanup_path(self, path):
-        self.addCleanup(rmpath, path, exit_retry=True)
+    def _rmdir(self, path, on_exit=True):
+        try:
+            shutil.rmtree(path)
+        except (IOError, OSError):
+            if on_exit:
+                atexit.register(self._rmdir, path, on_exit=False)
 
-    def create_test_file(self, content="Hello, World!", suffix=".txt"):
-        fd, path = tempfile.mkstemp(suffix=suffix)
-        self.add_cleanup_path(path)
-        with open(path, "w") as stream:
+    def create_test_file(self, content=None, dir=None, suffix=""):
+        """
+        Creates a test file on disk using :func:`tempfile.mkstemp`
+        and uses the lower level file interfaces to manage it.  This
+        is done to ensure we have more control of the file descriptor
+        itself so on platforms such as Windows we don't have to worry
+        about running out of file handles.
+        """
+        fd, path = tempfile.mkstemp(suffix=suffix, dir=dir, text=True)
+
+        if content is not None:
+            stream = os.fdopen(fd, "w")
             stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+            try:
+                os.close(stream.fileno())
+            except (IOError, OSError):
+                pass
+        else:
+            try:
+                os.close(fd)
+            except (IOError, OSError):
+                pass
+
+        # self.addCleanup(self._closefd, fd)
         return path
 
     def create_test_directory(self, count=10):
         directory = tempfile.mkdtemp()
-        self.add_cleanup_path(directory)
+        self.addCleanup(self._rmdir, directory)
+
         files = []
-        for i in range(count):
-            fd, tmpfile = tempfile.mkstemp(dir=directory)
-            files.append(tmpfile)
+        for _ in range(count):
+            files.append(self.create_test_file(dir=directory))
+
         return directory, files
 
 
