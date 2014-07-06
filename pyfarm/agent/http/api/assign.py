@@ -110,7 +110,7 @@ class Assign(APIResource):
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
                 "has not been set yet.")
-            request.setResponseCode(BAD_REQUEST)
+            request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
                 {"error": "agent-id has not been set in the config"})
             request.finish()
