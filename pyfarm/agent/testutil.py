@@ -23,9 +23,11 @@ import socket
 import sys
 import shutil
 import tempfile
+import time
 from argparse import ArgumentParser
 from datetime import datetime
 from functools import wraps, partial
+from os.path import basename, isfile
 from random import randint, choice
 from StringIO import StringIO
 from urllib import urlopen
@@ -66,14 +68,16 @@ except ImportError:  # copied from Python 2.7's source
                          (expected_regexp.pattern, str(exc_value)))
             return True
 
+from voluptuous import Schema
 from twisted.internet.base import DelayedCall
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, succeed
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.http.core.template import DeferredTemplate
 from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import dumps
 
@@ -165,8 +169,16 @@ class FakeRequest(object):
 
     def response(self):
         self.test.assertIsNotNone(self.finished, "finish() not called")
-        response = json.load(self._response)
-        self._response.seek(0)  # reset so we can call response() again
+        if not self._response.len:
+            raise ValueError("Not content.")
+
+        try:
+            response = json.load(self._response)
+        except ValueError:
+            self._response.seek(0)
+            response = self._response.read()
+
+        self._response.seek(0)
         return response
 
 
@@ -325,6 +337,7 @@ class TestCase(_TestCase):
             "free_ram": int(memory.ram_free()),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
+            "start": time.time(),
             "agent_pretty_json": False,
             "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
@@ -412,49 +425,110 @@ class BaseRequestTestCase(TestCase):
                 "Failed to send an http request to %s" % self.base_url)
 
 
-class BaseAPITestCase(TestCase):
-    URI = None
-    CLASS = None
-    CONTENT_TYPES = ["application/json"]
+class BaseHTTPTestCase(TestCase):
+    URI = NotImplemented
+    CLASS = NotImplemented
+    CONTENT_TYPES = NotImplemented
+
+    # Only run the real _run if we're inside a child
+    # class.
+    def _run(self, methodName, result):
+        if self.CLASS is NotImplemented:
+            return succeed(True)
+
+        if self.CLASS is not NotImplemented and self.URI is NotImplemented:
+            self.fail("URI not set")
+
+        self.assertIsInstance(self.CONTENT_TYPES, list, "CONTENT_TYPES not set")
+        return super(BaseHTTPTestCase, self)._run(methodName, result)
 
     def setUp(self):
-        if self.__class__ is BaseAPITestCase:
-            return
-
-        TestCase.setUp(self)
-        self.assertIsNotNone(self.URI, "URI not set")
-        self.assertIsNotNone(self.CLASS, "CLASS not set")
-        self.assertIsInstance(self.CONTENT_TYPES, list)
+        super(BaseHTTPTestCase, self).setUp()
         self.agent = config["agent"] = FakeAgent()
-        self.get = partial(FakeRequest, self, "GET", self.URI)
-        self.post = partial(FakeRequest, self, "POST", self.URI)
-        self.put = partial(FakeRequest, self, "PUT", self.URI)
+        self.assertIsNotNone(self.CLASS, "CLASS not set")
 
     def instance_class(self):
-        if self.__class__ is BaseAPITestCase:
-            return
-
         return self.CLASS()
 
-    def test_content_types(self):
-        if self.__class__ is BaseAPITestCase:
-            return
-
-        for content_type in self.CONTENT_TYPES:
-            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
-                          "missing content type %s" % content_type)
+    def test_instance(self):
+        self.instance_class()
 
     def test_leaf(self):
-        if self.__class__ is BaseAPITestCase:
-            return
-
         if self.URI.endswith("/"):
             self.assertTrue(self.CLASS.isLeaf)
         else:
             self.assertFalse(self.CLASS.isLeaf)
 
-    def test_parent(self):
-        if self.__class__ is BaseAPITestCase:
-            return
+    def test_implements_methods(self):
+        instance = self.instance_class()
+        for method_name in instance.methods:
+            if method_name == "head":
+                continue
 
+            self.assertTrue(
+                hasattr(instance, method_name),
+                "%s does not have method %s" % (self.CLASS, method_name))
+            self.assertTrue(callable(getattr(instance, method_name)))
+
+    def test_content_types(self):
+        self.assertIsInstance(self.CLASS.CONTENT_TYPES, set)
+        for content_type in self.CONTENT_TYPES:
+            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
+                          "missing content type %s" % content_type)
+
+    def test_methods_exist_for_schema(self):
+        self.assertIsInstance(self.CLASS.SCHEMAS, dict)
+        instance = self.instance_class()
+        methods = set(method.upper() for method in instance.methods)
+        for method, schema in self.CLASS.SCHEMAS.items():
+            self.assertIsInstance(schema, Schema)
+            self.assertEqual(
+                method.upper(), method,
+                "method name in schema must be upper case")
+            self.assertNotEqual(method, "GET", "cannot have schema for GET")
+            self.assertIn(method, methods)
+
+    def test_missing_schemas(self):
+        missing_schemas = []
+        for method in self.CLASS.LOAD_DATA_FOR_METHODS:
+            if method not in self.CLASS.SCHEMAS:
+                missing_schemas.append(method)
+
+        if missing_schemas:
+            self.skipTest(
+                "WARNING: Missing schema(s) for %s"
+                % ", ".join(missing_schemas))
+
+
+class BaseAPITestCase(BaseHTTPTestCase):
+    CONTENT_TYPES = ["application/json"]
+
+    def setUp(self):
+        super(BaseAPITestCase, self).setUp()
+        self.assertIsNotNone(self.URI, "URI not set")
+        self.get = partial(FakeRequest, self, "GET", self.URI)
+        self.post = partial(FakeRequest, self, "POST", self.URI)
+        self.put = partial(FakeRequest, self, "PUT", self.URI)
+
+    def test_parent(self):
         self.assertIsInstance(self.instance_class(), APIResource)
+
+
+class BaseHTMLTestCase(BaseHTTPTestCase):
+    CONTENT_TYPES = ["text/html", "application/json"]
+
+    def setUp(self):
+        super(BaseHTMLTestCase, self).setUp()
+        self.get = partial(FakeRequest, self, "GET")
+        self.post = partial(FakeRequest, self, "POST")
+        self.put = partial(FakeRequest, self, "PUT")
+
+    def test_template_set(self):
+        self.assertIsNot(self.CLASS.TEMPLATE, NotImplemented)
+
+    def test_template_loaded(self):
+        instance = self.instance_class()
+        template = instance.template
+        self.assertIsInstance(template, DeferredTemplate)
+        self.assertEqual(basename(template.filename), self.CLASS.TEMPLATE)
+        self.assertTrue(isfile(template.filename))
