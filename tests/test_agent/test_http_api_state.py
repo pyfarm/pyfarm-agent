@@ -30,7 +30,8 @@ from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.state import Stop, Status
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.testutil import BaseAPITestCase, FakeAgent
+from pyfarm.agent.testutil import BaseAPITestCase
+from pyfarm.agent.utility import total_seconds
 
 
 class TestStop(BaseAPITestCase):
@@ -119,8 +120,8 @@ class TestStatus(BaseAPITestCase):
             "last_master_contact": contacted,
             "last_announce": last_announce,
             "agent_lock_file": config["agent_lock_file"],
-            "uptime": timedelta(
-               seconds=time.time() - config["start"]).total_seconds(),
+            "uptime": total_seconds(
+                timedelta(seconds=time.time() - config["start"])),
             "jobs": list(config["jobtypes"].keys())}
 
         request = self.get()

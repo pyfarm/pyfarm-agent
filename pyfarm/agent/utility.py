@@ -27,7 +27,7 @@ import csv
 import codecs
 import cStringIO
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dumps as _dumps
 from os import remove
 from os.path import isfile, isdir
@@ -240,3 +240,16 @@ def rmpath(path, exit_retry=False):
             logger.debug("Deleted directory %r", path)
         return
 
+
+def total_seconds(td):
+    """
+    Returns the total number of seconds in the time delta
+    object.  This function is provided for backwards
+    comparability with Python 2.6.
+    """
+    assert isinstance(td, timedelta)
+    try:
+        return td.total_seconds()
+    except AttributeError:
+        return (
+           td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6

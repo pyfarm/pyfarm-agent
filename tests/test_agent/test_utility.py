@@ -16,7 +16,7 @@
 
 import os
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dumps as dumps_
 from uuid import uuid1
 
@@ -25,7 +25,7 @@ from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url, request_from_master)
+    quote_url, request_from_master, total_seconds)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -90,6 +90,9 @@ class TestGeneral(TestCase):
             self, "GET", "/",
             headers={"User-Agent": "foobar"})
         self.assertFalse(request_from_master(request))
+
+    def test_total_seconds(self):
+        self.assertEqual(total_seconds(timedelta(seconds=60)), 60)
 
 
 class TestCSVBase(TestCase):

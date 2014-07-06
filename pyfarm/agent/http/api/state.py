@@ -31,7 +31,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.utility import dumps, total_seconds
 
 logger = getLogger("agent.http.state")
 
@@ -102,6 +102,6 @@ class Status(APIResource):
              "last_master_contact": contacted,
              "last_announce": last_announce,
              "agent_lock_file": config["agent_lock_file"],
-             "uptime": timedelta(
-                 seconds=time.time() - config["start"]).total_seconds(),
+             "uptime": total_seconds(
+                 timedelta(seconds=time.time() - config["start"])),
              "jobs": list(config["jobtypes"].keys())})

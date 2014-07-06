@@ -396,5 +396,5 @@ class BaseAPITestCase(TestCase):
     def test_parent(self):
         if self.__class__ is BaseAPITestCase:
             return
-        
+
         self.assertIsInstance(self.instance_class(), APIResource)
