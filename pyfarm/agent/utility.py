@@ -29,7 +29,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from json import dumps as _dumps
 from UserDict import UserDict
-from uuid import uuid1
+from uuid import UUID, uuid1
 
 try:
     from urlparse import urlsplit
@@ -78,6 +78,8 @@ def default_json_encoder(obj):
         return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
+    elif isinstance(obj, UUID):
+        return str(obj)
 
 
 def quote_url(source_url):

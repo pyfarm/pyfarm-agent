@@ -72,6 +72,10 @@ class TestDumpsJson(TestCase):
         self.assertEqual(
             dumps(data), dumps_(data, default=default_json_encoder))
 
+    def test_dumps_uuid(self):
+        data = {"uuid": uuid()}
+        self.assertEqual(dumps(data), dumps({"uuid": str(data["uuid"])}))
+
 
 class TestGeneral(TestCase):
     def test_uuid(self):
