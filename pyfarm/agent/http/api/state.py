@@ -39,8 +39,8 @@ logger = getLogger("agent.http.state")
 class Stop(APIResource):
     isLeaf = False  # this is not really a collection of things
     SCHEMAS = {
-        "POST": Schema(
-            {Optional("wait"): bool})}
+        "POST": Schema({
+            Optional("wait"): bool})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
