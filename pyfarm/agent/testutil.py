@@ -66,7 +66,6 @@ except ImportError:  # copied from Python 2.7's source
                          (expected_regexp.pattern, str(exc_value)))
             return True
 
-import psutil
 from twisted.internet.base import DelayedCall
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
@@ -76,7 +75,7 @@ from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.sysinfo import memory, cpu, system
-from pyfarm.agent.utility import rmpath, dumps
+from pyfarm.agent.utility import dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")

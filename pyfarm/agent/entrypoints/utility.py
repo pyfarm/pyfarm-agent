@@ -22,6 +22,7 @@ Small objects and functions which facilitate operations
 on the main entry point class.
 """
 
+import atexit
 import os
 import sys
 from argparse import _StoreAction, _StoreTrueAction
@@ -41,7 +42,6 @@ from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
-from pyfarm.agent.utility import rmpath
 
 logger = getLogger("agent.cmd")
 
@@ -228,7 +228,15 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
                     logger.warning(
                         "Failed to read cached system identifier from %s, "
                         "this file will be removed.", cache_file.name)
-                    rmpath(cache_path)
+
+                    try:
+                        os.remove(cache_path)
+                    except (IOError, OSError) as e:
+                        if e.errno != ENOENT:
+                            logger.warning(
+                                "Failed to remove %s: %s.  Will retry on "
+                                "shutdown.", cache_path, e)
+                            atexit.register(os.remove, cache_path)
 
                     # overwrite because there's a problem with the
                     # stored value
@@ -251,7 +259,15 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         logger.warning(
             "System identifier from cache is not in range is "
             "0 to 281474976710655.  Cache file will be deleted.")
-        rmpath(cache_path)
+        try:
+            os.remove(cache_path)
+        except (IOError, OSError) as e:
+            if e.errno != ENOENT:
+                logger.warning(
+                    "Failed to remove %s: %s.  Will retry on "
+                    "shutdown.", cache_path, e)
+                atexit.register(os.remove, cache_path)
+
         write_always = True
 
     if write_failed or write_always:  # pragma: no cover
