@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser as _ArgumentParser
+
 from collections import namedtuple
 from functools import partial
 
@@ -22,18 +22,9 @@ from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.argtypes import (
     assert_instance, ip, port, integer, direxists, number, enum,
     system_identifier)
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 DummyArgs = namedtuple("DummyArgs", ["uid"])
-
-
-class ErrorCapturingParser(_ArgumentParser):
-    def __init__(self, *args, **kwargs):
-        super(ErrorCapturingParser, self).__init__(*args, **kwargs)
-        self.errors = []
-
-    def error(self, message):
-        self.errors.append(message)
 
 
 class BaseTestArgTypes(TestCase):

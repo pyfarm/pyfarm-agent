@@ -21,6 +21,7 @@ import re
 import socket
 import sys
 import tempfile
+from argparse import ArgumentParser
 from datetime import datetime
 from functools import wraps, partial
 from random import randint, choice
@@ -177,6 +178,15 @@ class FakeAgent(object):
         if isinstance(self.stopped, Deferred):
             self.stopped.callback(None)
         return self.stopped
+
+
+class ErrorCapturingParser(ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        super(ErrorCapturingParser, self).__init__(*args, **kwargs)
+        self.errors = []
+
+    def error(self, message):
+        self.errors.append(message)
 
 
 class TestCase(_TestCase):
