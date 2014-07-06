@@ -53,22 +53,12 @@ class TestAgentBasicMethods(TestCase):
             "cpus": config["agent_cpus"],
             "remote_ip": config["remote_ip"],
             "port": config["agent_api_port"],
-            "free_ram": config["free-ram"],
+            "free_ram": config["free_ram"],
             "time_offset": config["agent_time_offset"],
             "state": config["state"]}
 
         agent = Agent()
-        system_data = agent.system_data()
-
-        # Data builds up over time because garbage collection
-        # can't cleanup everything when we're running the
-        # tests over and over.
-        if "--until-failure" in sys.argv:
-            expected.pop("free_ram")
-            self.assertIn("free_ram", system_data)
-            self.assertIsInstance(system_data.pop("free_ram"), int)
-
-        self.assertEqual(system_data, expected)
+        self.assertEqual(agent.system_data(), expected)
 
 
 class TestRunAgent(TestCase):
