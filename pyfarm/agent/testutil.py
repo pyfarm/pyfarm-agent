@@ -124,7 +124,7 @@ class FakeRequest(object):
         self.written += code
 
     def finish(self):
-        self.test.assertNone(self.finished, "finish() already called")
+        self.test.assertIsNone(self.finished, "finish() already called")
         self.finished = True
 
 
