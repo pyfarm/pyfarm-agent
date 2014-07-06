@@ -212,7 +212,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         raise ValueError("input_systemid's range is 0 to %s" % SYSTEMID_MAX)
 
     if cache_path is None:
-        cache_path = config["agent_systemid_cache"]
+        cache_path = config["agent_systemid_cache"]  # pragma: no cover
 
     write_failed = False
     if systemid == "auto":
@@ -224,7 +224,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
 
                 # There's something wrong with the data in the cache
                 # file
-                except ValueError:
+                except ValueError:  # pragma: no cover
                     logger.warning(
                         "Failed to read cached system identifier from %s, "
                         "this file will be removed.", cache_file.name)
@@ -233,7 +233,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
                     # overwrite because there's a problem with the
                     # stored value
                     write_always = True
-                else:
+                else:  # pragma: no cover
                     logger.info("Loaded system identifier %s from %s",
                                 systemid, cache_file.name)
 
@@ -247,23 +247,23 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
             write_failed = True
 
     if isinstance(systemid, INTEGER_TYPES) \
-            and not 0 < systemid <= SYSTEMID_MAX:
+            and not 0 < systemid <= SYSTEMID_MAX:  # pragma: no cover
         logger.warning(
             "System identifier from cache is not in range is "
             "0 to 281474976710655.  Cache file will be deleted.")
         rmpath(cache_path)
         write_always = True
 
-    if write_failed or write_always:
+    if write_failed or write_always:  # pragma: no cover
         # Create the parent directory if it does not exist
         parent_dir = dirname(cache_path)
         try:
             os.makedirs(parent_dir)
-        except (OSError, IOError) as e:  # pragma: no cover
+        except (OSError, IOError) as e:
             if e.errno != EEXIST:
                 logger.error("Failed to create %r: %s", parent_dir, e)
                 raise
-        else:  # pragma: no cover
+        else:
             logger.debug("Created %r", parent_dir)
 
         # System identifier is either not cache, invalid or
@@ -272,7 +272,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         try:
             with open(cache_path, "w") as cache_file:
                 cache_file.write(str(systemid))
-        except (OSError, IOError) as e:  # pragma: no cover
+        except (OSError, IOError) as e:
             logger.warning(
                 "Failed to cache system identifier to %s: %s", systemid, e)
         else:
@@ -281,7 +281,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
                 systemid, cache_file.name)
 
         if isinstance(systemid, INTEGER_TYPES) \
-                and not 0 < systemid <= SYSTEMID_MAX:  # pragma: no cover
+                and not 0 < systemid <= SYSTEMID_MAX:
             raise ValueError("systemid's range is 0 to %s" % SYSTEMID_MAX)
 
         return systemid
