@@ -25,13 +25,12 @@ except ImportError:  # pragma: no cover
 
 
 from twisted.web.server import NOT_DONE_YET
-from voluptuous import Invalid
 
 from pyfarm.agent.config import config
-from pyfarm.agent.http.api.assign import Assign, validate_environment
+from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.sysinfo.memory import total_ram
 from pyfarm.agent.sysinfo.cpu import total_cpus
-from pyfarm.agent.testutil import BaseAPITestCase, TestCase
+from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.jobtypes.core.jobtype import JobType
 
 FAKE_JOBTYPE = """
@@ -41,12 +40,14 @@ from pyfarm.jobtypes.core.jobtype import JobType
 class FakeJobType(JobType):
     def __init__(self, assignment):
         super(FakeJobType, self).__init__(assignment)
-        self.star_called = False
-        self.started = Deferred()
+        self.fake_started = Deferred()
+        self.fake_stopped = Deferred()
+
+    def stop(self):
+        return self.fake_stopped
 
     def start(self):
-        self.star_called = True
-        return self.started
+        return self.fake_started
 """
 
 FAKE_JOBTYPE_BAD_TYPE = """
@@ -61,20 +62,6 @@ class FakeJobType(object):
         self.star_called = True
         return self.started
 """
-
-
-class TestValidateEnvironment(TestCase):
-    def test_type(self):
-        with self.assertRaisesRegexp(Invalid, "Expected a dictionary"):
-            validate_environment(None)
-
-    def test_value(self):
-        with self.assertRaisesRegexp(Invalid, "Value.*string.*"):
-            validate_environment({"foo": None})
-
-    def test_key(self):
-        with self.assertRaisesRegexp(Invalid, "Key.*string.*"):
-            validate_environment({1: None})
 
 
 class TestAssign(BaseAPITestCase):
@@ -171,7 +158,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, CONFLICT)
@@ -196,7 +183,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertTrue(request.finished)
@@ -204,8 +191,24 @@ class TestAssign(BaseAPITestCase):
         self.assertEqual(request.code, ACCEPTED)
         response_id = UUID(response["id"])
         self.assertIn(response_id, config["current_assignments"])
-        self.assertEqual(
-            config["current_assignments"][response_id], self.data)
+
+        # An assignment uuid has been added
+        test_data = self.data.copy()
+        current_assignment = config["current_assignments"][response_id].copy()
+
+        # Update the original test data with the new assignment data
+        # and make sure it matches
+        test_data.update(id=response_id)
+        test_data["jobtype"].update(id=current_assignment["jobtype"]["id"])
+        self.assertEqual(current_assignment, test_data)
+        self.assertIn(current_assignment["jobtype"]["id"], config["jobtypes"])
+
+        # Now trigger the started callback so we can make sure the job
+        # type gets removed
+        jobtype = config["jobtypes"][current_assignment["jobtype"]["id"]]
+        jobtype.fake_started.callback(None)
+        jobtype.fake_stopped.callback(None)
+        self.assertNotIn(response_id, config["current_assignments"])
 
     def test_accepted_type_error(self):
         # Cache the fake job type and make sure the config
@@ -225,7 +228,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertTrue(request.finished)
