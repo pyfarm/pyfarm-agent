@@ -136,7 +136,6 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        # Seems inefficient, but the assignments dict is unlikely to be large
         assignment_uuid = uuid()
         request_data.update(id=assignment_uuid)
         config["current_assignments"][assignment_uuid] = request_data
