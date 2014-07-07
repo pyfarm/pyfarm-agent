@@ -49,7 +49,7 @@ class Assign(APIResource):
 
     def post(self, **kwargs):
         request = kwargs["request"]
-        data = kwargs["data"]
+        request_data = kwargs["data"]
 
         if request_from_master(request):
             config.master_contacted()
@@ -59,8 +59,8 @@ class Assign(APIResource):
         # entries in `config` could be slightly out of sync with the system.
         memory_free = int(ram_free())
         cpus = config["cpus"]
-        requires_ram = data["job"].get("ram")
-        requires_cpus = data["job"].get("cpus")
+        requires_ram = request_data["job"].get("ram")
+        requires_cpus = request_data["job"].get("cpus")
 
         if "restart_requested" in config \
                 and config["restart_requested"] is True:
@@ -87,7 +87,8 @@ class Assign(APIResource):
             logger.error(
                 "Task %s requires %sMB of ram, this agent has %sMB free.  "
                 "Rejecting Task %s.",
-                data["job"]["id"], requires_ram, memory_free, data["job"]["id"])
+                request_data["job"]["id"], requires_ram, memory_free,
+                request_data["job"]["id"])
             request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough ram",
@@ -104,7 +105,8 @@ class Assign(APIResource):
             logger.error(
                 "Task %s requires %s CPUs, this agent has %s CPUs.  "
                 "Rejecting Task %s.",
-                data["job"]["id"], requires_cpus, cpus, data["job"]["id"])
+                request_data["job"]["id"], requires_cpus, cpus,
+                request_data["job"]["id"])
             request.setResponseCode(BAD_REQUEST)
             request.write(
                 {"error": "Not enough cpus",
@@ -120,7 +122,7 @@ class Assign(APIResource):
             current_assignments = config["current_assignments"].values
 
         existing_task_ids = set()
-        new_task_ids = set(task["id"] for task in data["tasks"])
+        new_task_ids = set(task["id"] for task in request_data["tasks"])
 
         for assignment in current_assignments():
             for task in assignment["tasks"]:
@@ -136,7 +138,8 @@ class Assign(APIResource):
 
         # Seems inefficient, but the assignments dict is unlikely to be large
         assignment_uuid = uuid()
-        config["current_assignments"][assignment_uuid] = data
+        request_data.update(id=assignment_uuid)
+        config["current_assignments"][assignment_uuid] = request_data
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
@@ -144,35 +147,59 @@ class Assign(APIResource):
         request.setResponseCode(ACCEPTED)
         request.write({"id": assignment_uuid})
         request.finish()
+        logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
 
-        def remove_assignment(result, assign_id):
+        def assignment_started(result, assign_id):
+            # TODO: report error to master
             if hasattr(result, "getTraceback"):
                 logger.error(result.getTraceback())
+                logger.error(
+                    "Assignment %s failed to start, removing.", assign_id)
+                config["current_assignments"].pop(assign_id)
+            else:
+                logger.debug("Assignment %s has started", assign_id)
 
-            logger.debug("Removing assignment %s", assign_id)
-            del config["current_assignments"][assign_id]
+        def assignment_stopped(result, assign_id):
+            # TODO: report error to master
+            if hasattr(result, "getTraceback"):
+                logger.error(result.getTraceback())
+                logger.error("Assignment %s failed, removing.", assign_id)
+            else:
+                logger.debug("Assignment %s has stopped", assign_id)
+
+            config["current_assignments"].pop(assign_id)
 
         def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
                 config["agent"].stop()
 
         def loaded_jobtype(jobtype_class, assign_id):
-            instance = jobtype_class(data)
+            # TODO: report error to master
+            if hasattr(jobtype_class, "getTraceback"):
+                logger.error(jobtype_class.getTraceback())
+                return
+
+            # Instance the job type and pass in the assignment
+            # data.
+            instance = jobtype_class(request_data)
 
             if not isinstance(instance, JobType):
                 raise TypeError(
                     "Expected a subclass of "
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
-            deferred = instance._start()
-            deferred.addBoth(remove_assignment, assign_id)
-            deferred.addBoth(restart_if_necessary)
+            start_deferred = instance._start()
+            start_deferred.addBoth(assignment_started, assign_id)
+            start_deferred.addBoth(restart_if_necessary)
+            stopped_deferred = instance._stop()
+            stopped_deferred.addBoth(assignment_stopped, assign_id)
+            stopped_deferred.addBoth(restart_if_necessary)
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
         # are handled internally in this case.
-        jobtype_loader = JobType.load(data)
+        jobtype_loader = JobType.load(request_data)
         jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
-        jobtype_loader.addErrback(remove_assignment, assignment_uuid)
+        jobtype_loader.addErrback(assignment_stopped, assignment_uuid)
 
         return NOT_DONE_YET
