@@ -74,6 +74,22 @@ def validate_environment(values):
         if not isinstance(value, STRING_TYPES):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
 
+
+def validate_uuid(value):
+    """
+    Ensures that ``value`` can be converted to or is a UUID object.
+    """
+    if isinstance(value, UUID):
+        pass
+    elif isinstance(value, STRING_TYPES):
+        try:
+            UUID(hex=value)
+        except ValueError:
+            raise Invalid("%s cannot be converted to a UUID" % value)
+    else:
+        raise Invalid("Expected string or UUID instance for `value`")
+
+
 # Shared schema declarations
 JOBTYPE_SCHEMA = Schema({
     Required("name"): STRINGS,
