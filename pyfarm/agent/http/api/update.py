@@ -30,15 +30,18 @@ except ImportError:  # pragma: no cover
 from os import makedirs
 from os.path import join, isdir
 
+from treq import get, collect
 from twisted.internet import reactor
 from twisted.web.server import NOT_DONE_YET
 import twisted.python.failure
-from treq import get, collect
+
+from voluptuous import Schema, Required
 
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.agent.http.core.client import post, http_retry_delay
+from pyfarm.agent.http.core.client import http_retry_delay
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import STRINGS
 
 logger = getLogger("agent.http.update")
 
@@ -69,6 +72,9 @@ class Update(APIResource):
             Content-Type: application/json
 
     """
+    SCHEMAS = {
+        "POST": Schema({
+            Required("version"): STRINGS})}
     isLeaf = False  # this is not really a collection of things
 
     def post(self, **kwargs):
@@ -88,7 +94,7 @@ class Update(APIResource):
             deferred.addErrback(update_failed)
 
         def update_failed(arg):
-            logger.error("Dowloading update failed: %r", arg)
+            logger.error("Downloading update failed: %r", arg)
             if isinstance(arg, twisted.python.failure.Failure):
                 logger.error("Traceback: %s", arg.getTraceback())
             reactor.callLater(http_retry_delay(),

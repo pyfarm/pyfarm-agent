@@ -337,7 +337,7 @@ class TestMethods(RequestTestCase):
 
 class TestResponse(RequestTestCase):
     def setUp(self):
-        RequestTestCase.setUp(self)
+        super(TestResponse, self).setUp()
         self.callbacks = set()
 
     def test_instance_type(self):

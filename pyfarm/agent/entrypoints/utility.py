@@ -22,6 +22,7 @@ Small objects and functions which facilitate operations
 on the main entry point class.
 """
 
+import atexit
 import os
 import sys
 from argparse import _StoreAction, _StoreTrueAction
@@ -41,7 +42,6 @@ from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import system
-from pyfarm.agent.utility import rmpath
 
 logger = getLogger("agent.cmd")
 
@@ -82,12 +82,13 @@ class SetConfigConst(_StoreTrueAction):
     it meant to always set a constant value (much like 'store_true' would)
     """
     def __init__(self, *args, **kwargs):
+        value = kwargs.pop("value")
         self.key = kwargs.pop("key")
-        self.value = kwargs.pop("value")
         super(SetConfigConst, self).__init__(*args, **kwargs)
+        self.const = value
 
     def __call__(self, parser, namespace, values, option_string=None):
-        config[self.key] = self.value
+        config[self.key] = self.const
         super(SetConfigConst, self).__call__(
             parser, namespace, values, option_string=option_string)
 
@@ -211,7 +212,7 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
         raise ValueError("input_systemid's range is 0 to %s" % SYSTEMID_MAX)
 
     if cache_path is None:
-        cache_path = config["agent_systemid_cache"]
+        cache_path = config["agent_systemid_cache"]  # pragma: no cover
 
     write_failed = False
     if systemid == "auto":
@@ -223,20 +224,28 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
 
                 # There's something wrong with the data in the cache
                 # file
-                except ValueError:
+                except ValueError:  # pragma: no cover
                     logger.warning(
                         "Failed to read cached system identifier from %s, "
                         "this file will be removed.", cache_file.name)
-                    rmpath(cache_path)
+
+                    try:
+                        os.remove(cache_path)
+                    except (IOError, OSError) as e:
+                        if e.errno != ENOENT:
+                            logger.warning(
+                                "Failed to remove %s: %s.  Will retry on "
+                                "shutdown.", cache_path, e)
+                            atexit.register(os.remove, cache_path)
 
                     # overwrite because there's a problem with the
                     # stored value
                     write_always = True
-                else:
+                else:  # pragma: no cover
                     logger.info("Loaded system identifier %s from %s",
                                 systemid, cache_file.name)
 
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # pragma: no cover
             # If the file exists there may be something wrong with it,
             # try to remove it.
             if e.errno != ENOENT:
@@ -246,14 +255,22 @@ def get_system_identifier(systemid, cache_path=None, write_always=False):
             write_failed = True
 
     if isinstance(systemid, INTEGER_TYPES) \
-            and not 0 < systemid <= SYSTEMID_MAX:
+            and not 0 < systemid <= SYSTEMID_MAX:  # pragma: no cover
         logger.warning(
             "System identifier from cache is not in range is "
             "0 to 281474976710655.  Cache file will be deleted.")
-        rmpath(cache_path)
+        try:
+            os.remove(cache_path)
+        except (IOError, OSError) as e:
+            if e.errno != ENOENT:
+                logger.warning(
+                    "Failed to remove %s: %s.  Will retry on "
+                    "shutdown.", cache_path, e)
+                atexit.register(os.remove, cache_path)
+
         write_always = True
 
-    if write_failed or write_always:
+    if write_failed or write_always:  # pragma: no cover
         # Create the parent directory if it does not exist
         parent_dir = dirname(cache_path)
         try:

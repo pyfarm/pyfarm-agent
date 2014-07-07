@@ -22,7 +22,7 @@ from pyfarm.agent.tasks import ScheduledTaskManager
 
 class TestScheduledTasks(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestScheduledTasks, self).setUp()
         self.count = 0
 
     def test_basic_register(self):

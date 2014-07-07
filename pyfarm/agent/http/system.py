@@ -16,7 +16,11 @@
 
 import time
 from datetime import timedelta
-from httplib import OK
+
+try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
 
 import psutil
 from twisted.web.server import NOT_DONE_YET
@@ -56,27 +60,27 @@ class Index(Resource):
             if config["state"] == value:
                 state = key.title()
                 break
-        else:
+        else:  # pragma: no cover
             raise KeyError("failed to find state")
 
         total_swap = memory.total_swap()
         ram_allocated = (memory.ram_used() / float(config["agent_ram"])) * 100
         swap_allocated = (memory.swap_used() / total_swap) * 100
 
-        if ram_allocated >= 100:
+        if ram_allocated >= 100:  # pragma: no cover
             ram_css = "danger"
-        elif ram_allocated >= 75:
+        elif ram_allocated >= 75:  # pragma: no cover
             ram_css = "warning"
-        elif ram_allocated >= 50:
+        elif ram_allocated >= 50:  # pragma: no cover
             ram_css = "info"
         else:
             ram_css = None
 
-        if swap_allocated >= 20:
+        if swap_allocated >= 20:  # pragma: no cover
             swap_css = "danger"
-        elif swap_allocated >= 10:
+        elif swap_allocated >= 10:  # pragma: no cover
             swap_css = "warning"
-        elif swap_allocated >= 5:
+        elif swap_allocated >= 5:  # pragma: no cover
             swap_css = "info"
         else:
             swap_css = None
@@ -141,8 +145,8 @@ class Configuration(Resource):
 
     # fields that a user can edit
     EDITABLE_FIELDS = (
-        "agent_cpus", "hostname", "agent_http_retry_delay",
-        "ip", "master_api", "master", "agent_ram_check_interval", "agent_ram",
+        "agent_cpus", "agent_hostname", "agent_http_retry_delay",
+        "master_api", "master", "agent_ram_check_interval", "agent_ram",
         "agent_ram_report_delta", "agent_time_offset", "state",
         "agent_http_retry_delay")
 

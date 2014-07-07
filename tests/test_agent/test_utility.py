@@ -16,14 +16,16 @@
 
 import os
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dumps as dumps_
 from uuid import uuid1
 
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo.system import system_identifier
-from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility import default_json_encoder, dumps, uuid
+from pyfarm.agent.testutil import TestCase, FakeRequest
+from pyfarm.agent.utility import (
+    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
+    quote_url, request_from_master, total_seconds)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -41,7 +43,7 @@ class TestDefaultJsonEncoder(TestCase):
 
 class TestDumpsJson(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestDumpsJson, self).setUp()
         self.data = {
             os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
 
@@ -70,9 +72,107 @@ class TestDumpsJson(TestCase):
         self.assertEqual(
             dumps(data), dumps_(data, default=default_json_encoder))
 
+    def test_dumps_uuid(self):
+        data = {"uuid": uuid()}
+        self.assertEqual(dumps(data), dumps({"uuid": str(data["uuid"])}))
+
 
 class TestGeneral(TestCase):
     def test_uuid(self):
         internal_uuid = uuid().hex
         stduuid = uuid1(node=system_identifier()).hex
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
+
+    def test_request_from_master(self):
+        request = FakeRequest(
+            self, "GET", "/",
+            headers={"User-Agent": config["master_user_agent"]})
+        self.assertTrue(request_from_master(request))
+
+    def test_request_not_from_master(self):
+        request = FakeRequest(
+            self, "GET", "/",
+            headers={"User-Agent": "foobar"})
+        self.assertFalse(request_from_master(request))
+
+    def test_total_seconds(self):
+        self.assertEqual(total_seconds(timedelta(seconds=60)), 60)
+
+
+class TestCSVBase(TestCase):
+    def get_row(self):
+        return [os.urandom(16).encode("hex"), os.urandom(16).encode("hex"),
+                os.urandom(16).encode("hex"), os.urandom(16).encode("hex")]
+
+    def get_writer(self):
+        stream = open(self.create_test_file(), "w")
+        return UnicodeCSVWriter(stream), stream.name
+
+
+class TestCSVWriter(TestCSVBase):
+    def test_writerow(self):
+        writer, path = self.get_writer()
+        row = self.get_row()
+        writer.writerow(row)
+        writer.stream.close()
+        with open(path, "r") as stream:
+            written_row = stream.read()
+        self.assertEqual(written_row.strip(), ",".join(row))
+
+    def test_writerows(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        with open(path, "r") as stream:
+            written_rows = stream.read()
+
+        self.assertEqual(
+            written_rows.strip(), "\r\n".join([",".join(row) for row in rows]))
+
+
+class TestCSVReader(TestCSVBase):
+    def test_iter(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        reader = UnicodeCSVReader(open(path))
+
+        written_rows = []
+        for written_row in reader:
+            written_rows.append(written_row)
+        self.assertEqual(written_rows, rows)
+
+    def test_next(self):
+        writer, path = self.get_writer()
+        rows = [self.get_row() for _ in range(5)]
+        writer.writerows(rows)
+        writer.stream.close()
+        reader = UnicodeCSVReader(open(path))
+
+        written_rows = []
+        while True:
+            try:
+                written_rows.append(reader.next())
+            except StopIteration:
+                break
+        self.assertEqual(written_rows, rows)
+
+
+class TestQuoteURL(TestCase):
+    def test_simple_with_scheme(self):
+        self.assertEqual(quote_url("http://foobar"),  "http://foobar")
+
+    def test_simple_without_scheme(self):
+        self.assertEqual(quote_url("/foobar"),  "/foobar")
+
+    def test_parameters(self):
+        self.assertEqual(
+            quote_url("/foobar?first=1&second=2"),
+            "/foobar?first=1&second=2")
+
+    def test_fragment(self):
+        self.assertEqual(
+            quote_url("/foobar?first=1&second=2#abcd"),
+            "/foobar?first=1&second=2#abcd")

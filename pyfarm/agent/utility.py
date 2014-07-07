@@ -22,18 +22,14 @@ Top level utilities for the agent to use internally.  Many of these
 are copied over from the master (which we can't import here).
 """
 
-import atexit
 import csv
 import codecs
 import cStringIO
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dumps as _dumps
-from os import remove
-from os.path import isfile, isdir
-from shutil import rmtree
 from UserDict import UserDict
-from uuid import uuid1
+from uuid import UUID, uuid1
 
 try:
     from urlparse import urlsplit
@@ -47,14 +43,12 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
-from pyfarm.core.config import read_env
 from voluptuous import Schema, Any, Required
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 
-MASTER_USERAGENT = read_env("PYFARM_MASTER_USERAGENT", "PyFarm/1.0 (master)")
 logger = getLogger("agent.util")
 STRINGS = Any(*STRING_TYPES)
 try:
@@ -84,6 +78,8 @@ def default_json_encoder(obj):
         return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
+    elif isinstance(obj, UUID):
+        return str(obj)
 
 
 def quote_url(source_url):
@@ -130,7 +126,7 @@ def dumps(*args, **kwargs):
 
 def request_from_master(request):
     """Returns True if the request appears to be coming from the master"""
-    return request.getHeader("User-Agent") == MASTER_USERAGENT
+    return request.getHeader("User-Agent") == config["master_user_agent"]
 
 
 # Unicode CSV reader/writers from the standard library docs:
@@ -196,49 +192,15 @@ class UnicodeCSVWriter(object):
             self.writerow(row)
 
 
-def rmpath(path, exit_retry=False):
+def total_seconds(td):
     """
-    Deletes the provided ``path`` from disk.  This function will not
-    raise any exceptions so it's a safe option to use if you're trying
-    to delete a file or directory and don't necessarily care if you're
-    successful.
-
-    :param string path:
-        The path to delete from disk.  This may be either
-        a directory or file and will be ignored if it does
-        not exist.
-
-    :param bool exit_retry:
-        If True then try deleting ``path`` again when the interpreter
-        exists.  On some platforms, such a Windows, failure to delete
-        the path while the interpreter is active is a common issue.
+    Returns the total number of seconds in the time delta
+    object.  This function is provided for backwards
+    comparability with Python 2.6.
     """
-    if isfile(path):
-        try:
-            remove(path)
-        except (OSError, IOError) as e:
-            if exit_retry:
-                logger.debug(
-                    "Will try to delete path %r at shutdown.", path)
-                atexit.register(rmpath, path, exit_retry=False)
-            else:
-                logger.debug("Failed to delete file %r: %r", path, e)
-        else:
-            logger.debug("Deleted file %r", path)
-
-        return
-
-    if isdir(path):
-        try:
-            rmtree(path)
-        except (OSError, IOError) as e:
-            if exit_retry:
-                logger.debug(
-                    "Will try to delete directory %r at shutdown.", path)
-                atexit.register(rmpath, path, exit_retry=False)
-            else:
-                logger.debug("Failed to delete directory %r: %r", path, e)
-        else:
-            logger.debug("Deleted directory %r", path)
-        return
-
+    assert isinstance(td, timedelta)
+    try:
+        return td.total_seconds()
+    except AttributeError:  # pragma: no cover
+        return (
+           td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6

@@ -379,7 +379,7 @@ def request(method, url, **kwargs):
 
     try:
         deferred = treq.request(method, quote_url(url), **kwargs)
-    except NotImplementedError:
+    except NotImplementedError:  # pragma: no cover
         logger.error(
             "Attempting to access a url over SSL but you don't have the "
             "proper libraries installed.  Please install the PyOpenSSL and "

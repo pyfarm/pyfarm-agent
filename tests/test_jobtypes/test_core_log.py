@@ -16,8 +16,7 @@
 
 from collections import deque
 from datetime import datetime
-from os import urandom
-from tempfile import mkdtemp, gettempdir
+from os import urandom, remove
 from os.path import join, isfile, isdir, abspath
 
 from twisted.internet import reactor
@@ -55,25 +54,22 @@ class TestModuleLevel(TestCase):
         self.assertEqual(CREATE_LOG_LOCK.__class__.__name__, "lock")
 
     def test_open_log_creates_dir(self):
-        outdir = join(mkdtemp(), urandom(8).encode("hex"))
+        outdir, _ = self.create_test_directory(0)
         outfile = join(outdir, "test.log")
-        self.add_cleanup_path(outdir)
         open_log(outfile)
         self.assertTrue(isdir(outdir))
 
     def test_open_log_creates_file(self):
-        outdir = join(mkdtemp(), urandom(8).encode("hex"))
+        outdir, _ = self.create_test_directory(0)
         outfile = join(outdir, "test.log")
-        self.add_cleanup_path(outdir)
         result = open_log(outfile)
         self.assertTrue(isfile(outfile))
         self.assertIsInstance(result, file)
         self.assertEqual(result.mode, "w")
 
     def test_file_exists(self):
-        outdir = join(mkdtemp(), urandom(8).encode("hex"))
+        outdir, _ = self.create_test_directory(0)
         outfile = join(outdir, "test.log")
-        self.add_cleanup_path(outdir)
         open_log(outfile)
 
         with self.assertRaisesRegexp(OSError, ".*exists.*"):
@@ -130,12 +126,10 @@ class TestLoggerPool(TestCase):
             self.pool.stop()
 
     def create_test_file(self, create=True):
+        path = super(TestLoggerPool, self).create_test_file()
         if not create:
-            path = join(gettempdir(), urandom(8).encode("hex"))
-            self.add_cleanup_path(path)
-            return path
-        else:
-            return super(TestLoggerPool, self).create_test_file()
+            remove(path)
+        return path
 
     def test_existing_pool(self):
         self.assertIsInstance(logpool, LoggerPool)

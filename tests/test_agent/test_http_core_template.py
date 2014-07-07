@@ -17,6 +17,7 @@
 from jinja2 import Environment as _Environment, BytecodeCache
 from twisted.internet.defer import Deferred
 
+from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.template import (
     InMemoryCache, Environment, DeferredTemplate, Loader, load)
@@ -36,11 +37,16 @@ class TestMemoryCache(TestCase):
 
 class TestEnvironment(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestEnvironment, self).setUp()
         self._created_agent_id = False
         self._created_state = False
-        config["state"] = "online"
-        config["agent-id"] = 0
+
+    def prepare_config(self):
+        super(TestEnvironment, self).prepare_config()
+        config.update({
+            "state": AgentState.ONLINE,
+            "agent-id": 0
+        })
 
     def test_parent_class(self):
         self.assertIsInstance(Environment(), _Environment)
@@ -63,12 +69,12 @@ class TestEnvironment(TestCase):
 
 class TestLoader(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestLoader, self).setUp()
         self._loader_environment = Loader.environment
         Loader.environment = None
 
     def tearDown(self):
-        TestCase.tearDown(self)
+        super(TestLoader, self).tearDown()
         Loader.environment = self._loader_environment
 
     def test_load_creates_environment(self):

@@ -126,10 +126,10 @@ def hostname(trust_name_from_ips=True):
     local_hostname = socket.gethostname()
     local_fqdn_query = socket.getfqdn()
 
-    if local_fqdn_query in reverse_hostnames:
+    if local_fqdn_query in reverse_hostnames:  # pragma: no cover
         name = local_fqdn_query
 
-    elif local_hostname in reverse_hostnames:
+    elif local_hostname in reverse_hostnames:  # pragma: no cover
         name = local_hostname
 
     else:
