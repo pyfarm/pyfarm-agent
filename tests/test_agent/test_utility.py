@@ -20,12 +20,28 @@ from datetime import datetime, timedelta
 from json import dumps as dumps_
 from uuid import uuid1
 
+from voluptuous import Invalid
+
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url, request_from_master, total_seconds)
+    quote_url, request_from_master, total_seconds, validate_environment)
+
+
+class TestValidateEnvironment(TestCase):
+    def test_type(self):
+        with self.assertRaisesRegexp(Invalid, "Expected a dictionary"):
+            validate_environment(None)
+
+    def test_value(self):
+        with self.assertRaisesRegexp(Invalid, "Value.*string.*"):
+            validate_environment({"foo": None})
+
+    def test_key(self):
+        with self.assertRaisesRegexp(Invalid, "Key.*string.*"):
+            validate_environment({1: None})
 
 
 class TestDefaultJsonEncoder(TestCase):

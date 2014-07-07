@@ -43,7 +43,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
-from voluptuous import Schema, Any, Required
+from voluptuous import Schema, Any, Required, Optional, Invalid
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
@@ -58,6 +58,22 @@ except NameError:  # pragma: no cover
     WHOLE_NUMBERS = int
     NUMBERS = Any(*(int, float, Decimal))
 
+
+def validate_environment(values):
+    """
+    Ensures that ``values`` is a dictionary and that it only
+    contains string keys and values.
+    """
+    if not isinstance(values, dict):
+        raise Invalid("Expected a dictionary")
+
+    for key, value in values.items():
+        if not isinstance(key, STRING_TYPES):
+            raise Invalid("Key %r must be a string" % key)
+
+        if not isinstance(value, STRING_TYPES):
+            raise Invalid("Value %r for key %r must be a string" % (key, value))
+
 # Shared schema declarations
 JOBTYPE_SCHEMA = Schema({
     Required("name"): STRINGS,
@@ -66,6 +82,18 @@ TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("frame"): NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
+JOB_SCHEMA = Schema({
+    Required("id"): WHOLE_NUMBERS,
+    Required("by"): NUMBERS,
+    Optional("batch"): WHOLE_NUMBERS,
+    Optional("user"): STRINGS,
+    Optional("ram"): WHOLE_NUMBERS,
+    Optional("ram_warning"): WHOLE_NUMBERS,
+    Optional("ram_max"): WHOLE_NUMBERS,
+    Optional("cpus"): WHOLE_NUMBERS,
+    Optional("data"): dict,
+    Optional("environ"): validate_environment,
+    Optional("title"): STRINGS})
 
 
 def uuid():
