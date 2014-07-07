@@ -383,6 +383,7 @@ class TestCase(_TestCase):
         config.update({
             "jobtypes": {},
             "agent-id": randint(1, 50000),
+            "current_assignments": {},
             "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
