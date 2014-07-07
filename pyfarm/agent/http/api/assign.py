@@ -27,7 +27,7 @@ from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import request_from_master
+from pyfarm.agent.utility import request_from_master, uuid
 from pyfarm.agent.sysinfo.memory import ram_free
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
@@ -50,11 +50,6 @@ def validate_environment(values):
 
         if not isinstance(value, STRING_TYPES):
             raise Invalid("Value %r for key %r must be a string" % (key, value))
-
-
-class HandlePost(object):
-    def __init__(self, data):
-        self.data = data
 
 
 class Assign(APIResource):
@@ -96,7 +91,8 @@ class Assign(APIResource):
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")
 
-        if "restart_requested" in config and config["restart_requested"] is True:
+        if "restart_requested" in config \
+                and config["restart_requested"] is True:
             logger.error("Rejecting assignment because of scheduled restart.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
@@ -105,11 +101,11 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        if "agent-id" not in config:
+        elif "agent-id" not in config:
             logger.error(
                 "Agent has not yet connected to the master or `agent-id` "
                 "has not been set yet.")
-            request.setResponseCode(BAD_REQUEST)
+            request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
                 {"error": "agent-id has not been set in the config"})
             request.finish()
@@ -147,13 +143,18 @@ class Assign(APIResource):
             return NOT_DONE_YET
 
         # Check for double assignments
+        try:
+            current_assignments = config["current_assignments"].itervalues
+        except AttributeError:  # pragma: no cover
+            current_assignments = config["current_assignments"].values
+
         existing_task_ids = set()
-        for assignment in config["current_assignments"].itervalues():
+        new_task_ids = set(task["id"] for task in data["tasks"])
+
+        for assignment in current_assignments():
             for task in assignment["tasks"]:
                 existing_task_ids.add(task["id"])
-        new_task_ids = set()
-        for task in data["tasks"]:
-            new_task_ids.add(task["id"])
+
         if existing_task_ids & new_task_ids:
             request.setResponseCode(CONFLICT)
             request.write(
@@ -163,25 +164,25 @@ class Assign(APIResource):
             return NOT_DONE_YET
 
         # Seems inefficient, but the assignments dict is unlikely to be large
-        index = 0
-        while index in config["current_assignments"]:
-            index += 1
-        config["current_assignments"][index] = data
+        assignment_uuid = uuid()
+        config["current_assignments"][assignment_uuid] = data
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
         # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
+        request.write({"id": assignment_uuid})
         request.finish()
 
-        def remove_assignment(index):
-            del config["current_assignments"][index]
+        def remove_assignment(_, assign_id):
+            logger.debug("Removing assignment %s", assign_id)
+            del config["current_assignments"][assign_id]
 
-        def restart_if_necessary():
+        def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
                 config["agent"].stop()
 
-        def loaded_jobtype(jobtype_class):
+        def loaded_jobtype(jobtype_class, assign_id):
             instance = jobtype_class(data)
 
             if not isinstance(instance, JobType):
@@ -190,15 +191,14 @@ class Assign(APIResource):
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
             deferred = instance._start()
-            deferred.addCallback(lambda _: remove_assignment(index))
-            deferred.addErrback(lambda _: remove_assignment(index))
-            deferred.addCallback(lambda _: restart_if_necessary())
-            deferred.addErrback(lambda _: restart_if_necessary())
+            deferred.addBoth(remove_assignment, assign_id)
+            deferred.addBoth(restart_if_necessary)
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
         # are handled internally in this case.
         jobtype_loader = JobType.load(data)
-        jobtype_loader.addCallback(loaded_jobtype)
+        jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
+        jobtype_loader.addErrback(remove_assignment, assignment_uuid)
 
         return NOT_DONE_YET

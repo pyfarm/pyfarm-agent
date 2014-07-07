@@ -18,24 +18,29 @@ import time
 from datetime import timedelta, datetime
 
 try:
-    from httplib import ACCEPTED, OK
-except ImportError:
-    from http.client import ACCEPTED, OK
+    from httplib import ACCEPTED, OK, BAD_REQUEST
+except ImportError:  # pragma: no cover
+    from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
+from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
+from voluptuous import Schema, Optional
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.utility import dumps, total_seconds
 
 logger = getLogger("agent.http.state")
 
 
 class Stop(APIResource):
     isLeaf = False  # this is not really a collection of things
+    SCHEMAS = {
+        "POST": Schema({
+            Optional("wait"): bool})}
 
     def post(self, **kwargs):
         request = kwargs["request"]
@@ -45,14 +50,16 @@ class Stop(APIResource):
 
         # TODO: need to wire this up to the real deferred object in stop()
         if data.get("wait"):
-            def finished(*_):
-                request.finish()
-            if stopping is not None:
-                stopping.addCallback(request)
-            else:
-                logger.warning("NOT IMPLEMENTED: wait for stop")
+            def finished(_, finish_request):
+                finish_request.setResponseCode(OK)
+                finish_request.finish()
+
+            if isinstance(stopping, Deferred):
+                stopping.addCallback(finished, request)
+            else:  # pragma: no cover
                 request.setResponseCode(OK)
                 request.finish()
+
         else:
             request.setResponseCode(ACCEPTED)
             request.finish()
@@ -72,13 +79,13 @@ class Status(APIResource):
 
         # Determine the last time we talked to the master (if ever)
         contacted = config.master_contacted(update=False)
-        if isinstance(contacted, datetime):
+        if isinstance(contacted, datetime):  # pragma: no cover
             contacted = datetime.utcnow() - contacted
 
         # Determine the last time we announced ourselves to the
-        # master (if never)
+        # master (if ever)
         last_announce = config.get("last_announce", None)
-        if isinstance(last_announce, datetime):
+        if isinstance(last_announce, datetime):  # pragma: no cover
             last_announce = datetime.utcnow() - last_announce
 
         return dumps(
@@ -95,6 +102,6 @@ class Status(APIResource):
              "last_master_contact": contacted,
              "last_announce": last_announce,
              "agent_lock_file": config["agent_lock_file"],
-             "uptime": timedelta(
-                 seconds=time.time() - config["start"]).total_seconds(),
+             "uptime": total_seconds(
+                 timedelta(seconds=time.time() - config["start"])),
              "jobs": list(config["jobtypes"].keys())})

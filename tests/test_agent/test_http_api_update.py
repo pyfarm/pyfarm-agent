@@ -6,7 +6,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,21 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from twisted.web.server import NOT_DONE_YET
+try:
+    from httplib import ACCEPTED, OK, BAD_REQUEST
+except ImportError:  # pragma: no cover
+    from http.client import ACCEPTED, OK, BAD_REQUEST
 
-from pyfarm.agent.http.core.resource import Resource
+
+from pyfarm.agent.http.api.update import Update
+from pyfarm.agent.testutil import BaseAPITestCase
 
 
-# TODO: long-polling json so logging output can be watched from the web ui
-class Logging(Resource):
-    TEMPLATE = "logging.html"
+class TestUpdate(BaseAPITestCase):
+    URI = "/updates"
+    CLASS = Update
 
-    def get(self, **kwargs):
-        request = kwargs["request"]
+    # TODO: finish tests (needs to create files on master too)
 
-        def cb(result):
-            request.write(result)
-            request.finish()
-        deferred = self.template.render()
-        deferred.addCallback(cb)
-        return NOT_DONE_YET

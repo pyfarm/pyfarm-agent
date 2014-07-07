@@ -14,29 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser as _ArgumentParser
+
 from collections import namedtuple
 from functools import partial
 
+from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.argtypes import (
-    assert_instance, ip, port, integer, direxists, number, enum)
-from pyfarm.agent.testutil import TestCase
+    assert_instance, ip, port, integer, direxists, number, enum,
+    system_identifier)
+from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 DummyArgs = namedtuple("DummyArgs", ["uid"])
 
 
-class ErrorCapturingParser(_ArgumentParser):
-    def __init__(self, *args, **kwargs):
-        super(ErrorCapturingParser, self).__init__(*args, **kwargs)
-        self.errors = []
-
-    def error(self, message):
-        self.errors.append(message)
-
-
 class BaseTestArgTypes(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(BaseTestArgTypes, self).setUp()
         self.args = None
         self.parser = ErrorCapturingParser()
 
@@ -75,7 +68,7 @@ class TestAssertInstance(TestCase):
 
 class TestIp(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestIp, self).setUp()
         self.parser.add_argument("--ip", type=partial(ip, instance=self))
 
     def test_valid(self):
@@ -88,13 +81,26 @@ class TestIp(BaseTestArgTypes):
 
 
 class TestPort(BaseTestArgTypes):
-    def setUp(self):
-        BaseTestArgTypes.setUp(self)
-        self.parser.add_argument("--port", type=partial(port, instance=self))
-        self.parser.add_argument(
-            "--uid", type=partial(integer, instance=self, min_=0))
+    def add_arguments(self, add_uid=True, add_port=True):
+        if add_port:
+            self.parser.add_argument(
+                "--port", type=partial(port, instance=self))
+
+        if add_uid:
+            self.parser.add_argument(
+                "--uid", type=partial(integer, instance=self, min_=0))
+
+    def test_uid_not_provided(self):
+        self.add_arguments(add_uid=False)
+        self.args = self.parser.parse_args(["--port", "49152"])
+        self.assertEqual(self.parser.errors, [])
+        self.assertEqual(self.args.port, 49152)
+        self.args = self.parser.parse_args(["--port", "0"])
+        self.assertEqual(
+            self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_min(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=1000)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "49152"])
         self.assertEqual(self.parser.errors, [])
@@ -104,6 +110,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_max(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=1000)
         self.args = self.parser.parse_args(["--uid", "1000", "--port", "65535"])
         self.assertEqual(self.parser.errors, [])
@@ -113,6 +120,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_root_min(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "1"])
         self.assertEqual(self.parser.errors, [])
@@ -122,6 +130,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_valid_root_max(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "65535"])
         self.assertEqual(self.parser.errors, [])
@@ -131,6 +140,7 @@ class TestPort(BaseTestArgTypes):
             self.parser.errors, ["valid port range is 1 to 65535"])
 
     def test_port_not_a_number(self):
+        self.add_arguments()
         self.args = DummyArgs(uid=0)
         self.args = self.parser.parse_args(["--uid", "0", "--port", "!"])
         self.assertEqual(
@@ -139,7 +149,7 @@ class TestPort(BaseTestArgTypes):
 
 class TestDirectory(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestDirectory, self).setUp()
         self.parser.add_argument(
             "--dir", type=partial(direxists, instance=self, flag="dir"))
 
@@ -159,7 +169,7 @@ class TestDirectory(BaseTestArgTypes):
 
 class TestNumber(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestNumber, self).setUp()
         self.parser.add_argument(
             "--num",
             type=partial(
@@ -168,6 +178,10 @@ class TestNumber(BaseTestArgTypes):
             "--inf",
             type=partial(
                 number, instance=self, types=int, allow_inf=True, flag="inf"))
+
+    def test_auto(self):
+        self.args = self.parser.parse_args(["--num", "auto"])
+        self.assertEqual(self.args.num, "auto")
 
     def test_infinite(self):
         self.args = self.parser.parse_args(["--inf", "infinite"])
@@ -199,7 +213,7 @@ class TestNumber(BaseTestArgTypes):
 
 class TestEnum(BaseTestArgTypes):
     def setUp(self):
-        BaseTestArgTypes.setUp(self)
+        super(TestEnum, self).setUp()
         _enum = namedtuple("Enum", ["a", "b", "c"])
         self.enum = _enum(a="one", b="two", c="three")
         self.parser.add_argument(
@@ -218,3 +232,35 @@ class TestEnum(BaseTestArgTypes):
         self.args = self.parser.parse_args(["--enum", "one"])
         self.assertEqual(self.parser.errors, [])
         self.assertEqual(self.args.enum, "one")
+
+
+class TestSystemIdentifier(BaseTestArgTypes):
+    def setUp(self):
+        super(TestSystemIdentifier, self).setUp()
+        self.parser.add_argument(
+            "--systemid",
+            type=partial(system_identifier, instance=self))
+
+    def test_auto(self):
+        self.args = self.parser.parse_args(["--systemid", "auto"])
+        self.assertEqual(self.parser.errors, [])
+        self.assertEqual(self.args.systemid, "auto")
+
+    def test_unable_to_parse(self):
+        self.args = self.parser.parse_args(["--systemid", "!"])
+        self.assertEqual(
+            self.parser.errors,
+            ["failed to convert value provided to --systemid to an integer"])
+
+    def test_less_than_zero(self):
+        self.args = self.parser.parse_args(["--systemid", "-1"])
+        self.assertEqual(
+            self.parser.errors,
+            ["valid range for --systemid is 0 to 281474976710655"])
+
+    def test_greater_than_max(self):
+        systemid = SYSTEMID_MAX + 1
+        self.args = self.parser.parse_args(["--systemid", str(systemid)])
+        self.assertEqual(
+            self.parser.errors,
+            ["valid range for --systemid is 0 to 281474976710655"])

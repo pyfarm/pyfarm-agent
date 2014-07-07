@@ -70,11 +70,11 @@ class TestSite(TestCase):
 
 class TestStaticPath(TestCase):
     def setUp(self):
-        TestCase.tearDown(self)
+        super(TestStaticPath, self).setUp()
         self.allow_directory_listing = StaticPath.ALLOW_DIRECTORY_LISTING
 
     def tearDown(self):
-        TestCase.tearDown(self)
+        super(TestStaticPath, self).tearDown()
         StaticPath.ALLOW_DIRECTORY_LISTING = self.allow_directory_listing
 
     def test_path_does_not_exist(self):

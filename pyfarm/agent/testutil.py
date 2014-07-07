@@ -14,14 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import logging
+import json
 import os
 import re
 import socket
 import sys
+import shutil
 import tempfile
-from functools import wraps
+import time
+from argparse import ArgumentParser
+from datetime import datetime
+from functools import wraps, partial
+from os.path import basename, isfile
 from random import randint, choice
+from StringIO import StringIO
 from urllib import urlopen
 
 try:
@@ -60,14 +68,18 @@ except ImportError:  # copied from Python 2.7's source
                          (expected_regexp.pattern, str(exc_value)))
             return True
 
+from voluptuous import Schema
 from twisted.internet.base import DelayedCall
+from twisted.internet.defer import Deferred, succeed
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.http.core.template import DeferredTemplate
 from pyfarm.agent.sysinfo import memory, cpu, system
-from pyfarm.agent.utility import rmpath
+from pyfarm.agent.utility import dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -97,7 +109,102 @@ class skipIf(object):
         return wrapper
 
 
+class FakeRequestHeaders(object):
+    def __init__(self, test, headers):
+        self.test = test
+        self.test.assertIsInstance(headers, dict)
+
+        for key, value in headers.items():
+            headers[key.lower()] = value
+
+        self.headers = headers
+
+    def getRawHeaders(self, header):
+        return self.headers.get(header)
+
+
+class FakeRequest(object):
+    def __init__(self, test, method, uri, headers=None, data=None):
+        if headers is None:
+            headers = {}
+
+        if "Content-Type" not in headers:
+            headers.update({"Content-Type": ["application/json"]})
+
+        if data is not None:
+            data = dumps(data)
+
+        self.test = test
+        self.method = method
+        self.uri = uri
+        self.code = None
+        self.finished = None
+        self.requestHeaders = FakeRequestHeaders(test, headers)
+        self.content = StringIO()
+        self._response = StringIO()
+
+        if isinstance(data, STRING_TYPES):
+            self.content.write(data)
+            self.content.seek(0)
+
+    def getHeader(self, header):
+        return self.requestHeaders.getRawHeaders(header)
+
+    def setResponseCode(self, code):
+        self.test.assertIsNone(
+            self.finished, "finished() called before setResponseCode()")
+        self.code = code
+
+    def write(self, data):
+        self.test.assertIsNone(
+            self.finished, "finished() called before write()")
+        if not isinstance(data, STRING_TYPES):
+            data = dumps(data)
+        self._response.write(data)
+
+    def finish(self):
+        self.test.assertIsNone(self.finished, "finish() already called")
+        self._response.seek(0)
+        self.finished = True
+
+    def response(self):
+        self.test.assertIsNotNone(self.finished, "finish() not called")
+        if not self._response.len:
+            raise ValueError("Not content.")
+
+        try:
+            response = json.load(self._response)
+        except ValueError:
+            self._response.seek(0)
+            response = self._response.read()
+
+        self._response.seek(0)
+        return response
+
+
+class FakeAgent(object):
+    def __init__(self, stopped=None):
+        if stopped is None:
+            stopped = Deferred()
+        self.stopped = stopped
+
+    def stop(self):
+        if isinstance(self.stopped, Deferred):
+            self.stopped.callback(None)
+        return self.stopped
+
+
+class ErrorCapturingParser(ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        super(ErrorCapturingParser, self).__init__(*args, **kwargs)
+        self.errors = []
+
+    def error(self, message):
+        self.errors.append(message)
+
+
 class TestCase(_TestCase):
+    POP_CONFIG_KEYS = []
     RAND_LENGTH = 8
 
     # Global timeout for all test cases.  If an individual test takes
@@ -135,6 +242,22 @@ class TestCase(_TestCase):
             return context
         with context:
             callable_obj(*args, **kwargs)
+
+    def assertDateAlmostEqual(
+            self, date1, date2,
+            second_deviation=0, microsecond_deviation=1000000 / 2):
+        self.assertIsInstance(date1, datetime)
+        self.assertIsInstance(date2, datetime)
+        self.assertEqual(date1.year, date2.year)
+        self.assertEqual(date1.month, date2.month)
+        self.assertEqual(date1.day, date2.day)
+        self.assertEqual(date1.hour, date2.hour)
+        self.assertEqual(date1.minute, date2.minute)
+        self.assertEqual(date1.second, date2.second)
+        self.assertApproximates(
+            date1.second, date2.second, second_deviation)
+        self.assertApproximates(
+            date1.microsecond, date2.microsecond, microsecond_deviation)
 
     # back ports of some of Python 2.7's unittest features
     if PY26:
@@ -174,12 +297,35 @@ class TestCase(_TestCase):
             raise SkipTest(reason)
 
     def setUp(self):
+        super(TestCase, self).setUp()
+
+        try:
+            self._pop_config_keys
+        except AttributeError:
+            self._pop_config_keys = []
+
+        self._pop_config_keys.extend(self.POP_CONFIG_KEYS)
+        self._pop_config_keys.extend([
+            "agent",
+            "jobs",
+            "jobtypes",
+            "restart_requested",
+            "current_assignments",
+            "last_master_contact"])
+
         DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
         config_logger.disabled = 1
-        config.pop("agent", None)
+        self.prepare_config()
+        config_logger.disabled = 0
+
+    def prepare_config(self):
+        for key in self._pop_config_keys:
+            config.pop(key, None)
+
         config.update({
+            "jobtypes": {},
             "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
@@ -188,31 +334,58 @@ class TestCase(_TestCase):
             "agent_ram": int(memory.total_ram()),
             "agent_cpus": cpu.total_cpus(),
             "agent_api_port": randint(10000, 50000),
-            "free-ram": int(memory.ram_free()),
+            "free_ram": int(memory.ram_free()),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
+            "start": time.time(),
             "agent_pretty_json": False,
             "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
-        config_logger.disabled = 0
 
-    def add_cleanup_path(self, path):
-        self.addCleanup(rmpath, path, exit_retry=True)
+    def _rmdir(self, path, on_exit=True):
+        try:
+            shutil.rmtree(path)
+        except (IOError, OSError):
+            if on_exit:
+                atexit.register(self._rmdir, path, on_exit=False)
 
-    def create_test_file(self, content="Hello, World!", suffix=".txt"):
-        fd, path = tempfile.mkstemp(suffix=suffix)
-        self.add_cleanup_path(path)
-        with open(path, "w") as stream:
+    def create_test_file(self, content=None, dir=None, suffix=""):
+        """
+        Creates a test file on disk using :func:`tempfile.mkstemp`
+        and uses the lower level file interfaces to manage it.  This
+        is done to ensure we have more control of the file descriptor
+        itself so on platforms such as Windows we don't have to worry
+        about running out of file handles.
+        """
+        fd, path = tempfile.mkstemp(suffix=suffix, dir=dir, text=True)
+
+        if content is not None:
+            stream = os.fdopen(fd, "w")
             stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+            try:
+                os.close(stream.fileno())
+            except (IOError, OSError):
+                pass
+        else:
+            try:
+                os.close(fd)
+            except (IOError, OSError):
+                pass
+
+        # self.addCleanup(self._closefd, fd)
         return path
 
     def create_test_directory(self, count=10):
         directory = tempfile.mkdtemp()
-        self.add_cleanup_path(directory)
+        self.addCleanup(self._rmdir, directory)
+
         files = []
-        for i in range(count):
-            fd, tmpfile = tempfile.mkstemp(dir=directory)
-            files.append(tmpfile)
+        for _ in range(count):
+            files.append(self.create_test_file(dir=directory))
+
         return directory, files
 
 
@@ -250,3 +423,112 @@ class BaseRequestTestCase(TestCase):
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(
                 "Failed to send an http request to %s" % self.base_url)
+
+
+class BaseHTTPTestCase(TestCase):
+    URI = NotImplemented
+    CLASS = NotImplemented
+    CONTENT_TYPES = NotImplemented
+
+    # Only run the real _run if we're inside a child
+    # class.
+    def _run(self, methodName, result):
+        if self.CLASS is NotImplemented:
+            return succeed(True)
+
+        if self.CLASS is not NotImplemented and self.URI is NotImplemented:
+            self.fail("URI not set")
+
+        self.assertIsInstance(self.CONTENT_TYPES, list, "CONTENT_TYPES not set")
+        return super(BaseHTTPTestCase, self)._run(methodName, result)
+
+    def setUp(self):
+        super(BaseHTTPTestCase, self).setUp()
+        self.agent = config["agent"] = FakeAgent()
+        self.assertIsNotNone(self.CLASS, "CLASS not set")
+
+    def instance_class(self):
+        return self.CLASS()
+
+    def test_instance(self):
+        self.instance_class()
+
+    def test_leaf(self):
+        if self.URI.endswith("/"):
+            self.assertTrue(self.CLASS.isLeaf)
+        else:
+            self.assertFalse(self.CLASS.isLeaf)
+
+    def test_implements_methods(self):
+        instance = self.instance_class()
+        for method_name in instance.methods:
+            if method_name == "head":
+                continue
+
+            self.assertTrue(
+                hasattr(instance, method_name),
+                "%s does not have method %s" % (self.CLASS, method_name))
+            self.assertTrue(callable(getattr(instance, method_name)))
+
+    def test_content_types(self):
+        self.assertIsInstance(self.CLASS.CONTENT_TYPES, set)
+        for content_type in self.CONTENT_TYPES:
+            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
+                          "missing content type %s" % content_type)
+
+    def test_methods_exist_for_schema(self):
+        self.assertIsInstance(self.CLASS.SCHEMAS, dict)
+        instance = self.instance_class()
+        methods = set(method.upper() for method in instance.methods)
+        for method, schema in self.CLASS.SCHEMAS.items():
+            self.assertIsInstance(schema, Schema)
+            self.assertEqual(
+                method.upper(), method,
+                "method name in schema must be upper case")
+            self.assertNotEqual(method, "GET", "cannot have schema for GET")
+            self.assertIn(method, methods)
+
+    def test_missing_schemas(self):
+        missing_schemas = []
+        for method in self.CLASS.LOAD_DATA_FOR_METHODS:
+            if method not in self.CLASS.SCHEMAS:
+                missing_schemas.append(method)
+
+        if missing_schemas:
+            self.skipTest(
+                "WARNING: Missing schema(s) for %s"
+                % ", ".join(missing_schemas))
+
+
+class BaseAPITestCase(BaseHTTPTestCase):
+    CONTENT_TYPES = ["application/json"]
+
+    def setUp(self):
+        super(BaseAPITestCase, self).setUp()
+        self.assertIsNotNone(self.URI, "URI not set")
+        self.get = partial(FakeRequest, self, "GET", self.URI)
+        self.post = partial(FakeRequest, self, "POST", self.URI)
+        self.put = partial(FakeRequest, self, "PUT", self.URI)
+
+    def test_parent(self):
+        self.assertIsInstance(self.instance_class(), APIResource)
+
+
+class BaseHTMLTestCase(BaseHTTPTestCase):
+    CONTENT_TYPES = ["text/html", "application/json"]
+
+    def setUp(self):
+        super(BaseHTMLTestCase, self).setUp()
+        self.get = partial(FakeRequest, self, "GET")
+        self.post = partial(FakeRequest, self, "POST")
+        self.put = partial(FakeRequest, self, "PUT")
+
+    def test_template_set(self):
+        self.assertIsNot(self.CLASS.TEMPLATE, NotImplemented)
+
+    def test_template_loaded(self):
+        instance = self.instance_class()
+        template = instance.template
+        self.assertIsInstance(template, DeferredTemplate)
+        self.assertEqual(basename(template.filename), self.CLASS.TEMPLATE)
+        self.assertTrue(isfile(template.filename))

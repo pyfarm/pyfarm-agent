@@ -14,48 +14,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ctypes
 import os
 import socket
-import tempfile
 import time
 import psutil
+import subprocess
+import sys
 import uuid
 from os.path import isfile
 
 try:
     import pwd
-except ImportError:
-    import getpass
+except ImportError:  # pragma: no cover
     pwd = NotImplemented
+
+try:  # pragma: no cover
+    import win32api
+    from win32com.shell import shell
+except ImportError:  # pragma: no cover
+    win32api = NotImplemented
+
+try:
+    import getpass
+except ImportError:  # pragma: no cover
+    getpass = NotImplemented
+
+try:
+    from os import getuid
+except ImportError:  # pragma: no cover
+    getuid = NotImplemented
 
 import netifaces
 
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import LINUX
-from pyfarm.agent.testutil import TestCase
+from pyfarm.core.enums import LINUX, WINDOWS
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, network, cpu, memory, user
 
 
-class BaseSystem(TestCase):
-    def test_user(self):
-        if pwd is not NotImplemented:
-            username = pwd.getpwuid(os.getuid())[0]
-        else:
-            username = getpass.getuser()
-
-        self.assertEqual(user.username(), username)
-
+class TestSystem(TestCase):
     def test_uptime(self):
         t1 = system.uptime()
         t2 = time.time() - psutil.boot_time()
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_case_sensitive_filesystem(self):
-        fd, path = tempfile.mkstemp()
+        path = self.create_test_file()
         self.assertEqual(
             not all(map(isfile, [path, path.lower(), path.upper()])),
             system.filesystem_is_case_sensitive())
-        self.add_cleanup_path(path)
 
     def test_case_sensitive_environment(self):
         envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
@@ -91,7 +99,7 @@ class BaseSystem(TestCase):
             system.machine_architecture("foobar")
 
 
-class Network(TestCase):
+class TestNetwork(TestCase):
     def test_hostname_ignore_dns_mappings(self):
         reverse_hostnames = set()
         for address in network.addresses():
@@ -156,17 +164,32 @@ class Network(TestCase):
         self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
 
 
-class Processor(TestCase):
+class TestCPU(TestCase):
     def test_count(self):
         self.assertEqual(psutil.cpu_count(), cpu.total_cpus())
 
-    def test_usertime(self):
+    def test_load(self):
+        # Make several attempts to test cpu.load().  Because this
+        # depends on the system load at the time we make a few
+        # attempts to get the results we expect.
+        for _ in range(15):
+            load = psutil.cpu_percent(.25) / cpu.total_cpus()
+            try:
+                self.assertApproximates(cpu.load(.25), load, .75)
+            except AssertionError:
+                continue
+            else:
+                break
+        else:
+            self.fail("Failed get a non-failing result after several attempts")
+
+    def test_user_time(self):
         self.assertEqual(psutil.cpu_times().user <= cpu.user_time(), True)
 
-    def test_systemtime(self):
+    def test_system_time(self):
         self.assertEqual(psutil.cpu_times().system <= cpu.system_time(), True)
 
-    def test_idletime(self):
+    def test_idle_time(self):
         self.assertEqual(psutil.cpu_times().idle <= cpu.idle_time(), True)
 
     def test_iowait(self):
@@ -176,7 +199,7 @@ class Processor(TestCase):
             self.assertEqual(cpu.iowait(), None)
 
 
-class Memory(TestCase):
+class TestMemory(TestCase):
     def test_totalram(self):
         self.assertEqual(memory.total_ram(),
                          convert.bytetomb(psutil.virtual_memory().total))
@@ -188,36 +211,73 @@ class Memory(TestCase):
     def test_swapused(self):
         v1 = convert.bytetomb(psutil.swap_memory().used)
         v2 = memory.swap_used()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_swapfree(self):
         v1 = convert.bytetomb(psutil.swap_memory().free)
         v2 = memory.swap_free()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_ramused(self):
         v1 = convert.bytetomb(psutil.virtual_memory().used)
         v2 = memory.ram_used()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
         v2 = memory.ram_free()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_process_memory(self):
         process = psutil.Process()
         v1 = convert.bytetomb(process.memory_info().rss)
         v2 = memory.process_memory()
-        self.assertEqual(v1-v2 < 5, True)
+        self.assertApproximates(v1, v2, 5)
 
     def test_total_consumption(self):
+        # Spawn a child process so we have something
+        # to iterate over
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"])
         parent = psutil.Process()
-        total = parent.memory_info().rss
+        start_total = total = parent.memory_info().rss
 
         for child_process in parent.children(recursive=True):
             total += child_process.memory_info().rss
 
+        # These should not be equal if we've iterated
+        # over any children at all.
+        self.assertNotEqual(start_total, total)
+
         v1 = convert.bytetomb(total)
         v2 = memory.total_consumption()
-        self.assertEqual(v1-v2 < 5, True)
+        child.kill()
+        self.assertApproximates(v1, v2, 5)
+
+
+class TestUser(TestCase):
+    @skipIf(pwd is NotImplemented, "pwd is NotImplemented")
+    def test_username_pwd(self):
+        self.assertEqual(pwd.getpwuid(os.getuid())[0], user.username())
+
+    @skipIf(win32api is NotImplemented, "win32api is NotImplemented")
+    def test_username_win32api(self):
+        self.assertEqual(win32api.GetUserName(), user.username())
+
+    @skipIf(getpass is NotImplemented, "getpass is NotImplemented")
+    def test_username_getpass(self):
+        self.assertEqual(getpass.getuser(), user.username())
+
+    @skipIf(getuid is NotImplemented, "getuid is NotImplemented")
+    def test_administrator_getuid(self):
+        self.assertEqual(getuid() == 0, user.is_administrator())
+
+    @skipIf(win32api is NotImplemented, "win32api is NotImplemented")
+    def test_administrator_win32api(self):
+        self.assertEqual(shell.IsUserAnAdmin(), user.is_administrator())
+
+    @skipIf(win32api is NotImplemented and not WINDOWS,
+            "win32api is NotImplemented and not WINDOWS")
+    def test_administrator_no_win32api_and_windows(self):
+        self.assertEqual(ctypes.windll.shell32.IsUserAnAdmin() != 0,
+                         user.is_administrator())

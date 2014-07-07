@@ -73,6 +73,11 @@ master:
 master_api_version: 1
 master_api: http://$master/api/v$master_api_version
 
+# The user agent the master uses to talke to the agent's
+# REST api.  This value should not be modified unless
+# there's a specific reason to do so.
+master_user_agent: PyFarm/1.0 (master)
+
 # Controls how often the agent should reannounce itself
 # to the master.  The agent may be in contact with the master
 # more often than this however during long period of

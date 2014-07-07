@@ -225,6 +225,9 @@ class LoggingConfiguration(Configuration):
             Setting this value to False will just return the current value
             instead of updating the value too.
         """
+        if not update and "last_master_contact" not in self:
+            return None
+
         if announcement:
             self["last_announce"] = datetime.utcnow()
 

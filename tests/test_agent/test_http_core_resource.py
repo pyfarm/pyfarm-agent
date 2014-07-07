@@ -97,17 +97,26 @@ class PostResourceWithSchema(PostResource):
 
 class TestResourceBase(TestCase):
     def setUp(self):
-        TestCase.setUp(self)
+        super(TestResourceBase, self).setUp()
         self._template = Resource.TEMPLATE
         self._content_types = Resource.CONTENT_TYPES
 
     def tearDown(self):
-        TestCase.tearDown(self)
+        super(TestResourceBase, self).tearDown()
         Resource.TEMPLATE = self._template
         Resource.CONTENT_TYPES = self._content_types
 
 
 class TestResourceInternals(TestResourceBase):
+    def setUp(self):
+        super(TestResourceInternals, self).setUp()
+        self._schemas = Resource.SCHEMAS.copy()
+
+    def tearDown(self):
+        super(TestResourceInternals, self).tearDown()
+        Resource.SCHEMAS.clear()
+        Resource.SCHEMAS.update(self._schemas)
+
     def test_classvar_template(self):
         self.assertIs(Resource.TEMPLATE, NotImplemented)
 
@@ -198,7 +207,6 @@ class TestResourceInternals(TestResourceBase):
             request.data,
             dumps({"error":
                        "Can only handle text/html or application/json here"}))
-
 
 
 class TestResourceRendering(TestResourceBase):

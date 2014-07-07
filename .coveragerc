@@ -9,9 +9,18 @@ exclude_lines =
     raise AssertionError
     raise NotImplementedError
     if __name__ == .__main__.:
+    log.*\.debug.*
+    log.*\.info.*
+    log.*\.warning.*
+    log.*\.critical.*
+    log.*\.fatal.*
+    log.*\.log.*
 omit =
     *pyfarm*__init__*
     *pyfarm*testutil.py*
     *pyfarm/agent/http/templates/*
     *pyfarm/agent/http/static/*
     *pyfarm/agent/logger/*
+    *pyfarm/agent/entrypoints/development.py*
+    *pyfarm/agent/entrypoints/main.py*
+    *pyfarm/agent/entrypoints/supervisor.py*

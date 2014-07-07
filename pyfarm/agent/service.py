@@ -55,7 +55,6 @@ from pyfarm.agent.http.api.update import Update
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
-from pyfarm.agent.http.log import Logging
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
@@ -232,8 +231,8 @@ class Agent(object):
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet
 
-        if "remote-ip" in config:
-            data.update(remote_ip=config["remote-ip"])
+        if "remote_ip" in config:
+            data.update(remote_ip=config["remote_ip"])
 
         if "projects" in config:
            data.update(projects=config["projects"])
@@ -257,7 +256,6 @@ class Agent(object):
         # external endpoints
         root.putChild("", Index())
         root.putChild("configuration", Configuration())
-        root.putChild("logging", Logging())
 
         # api endpoints
         api = root.putChild("api", APIRoot())
@@ -270,7 +268,7 @@ class Agent(object):
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
 
-        # Enpoints which are generally used for status
+        # Endpoints which are generally used for status
         # and operations.
         v1.putChild("status", Status())
         v1.putChild("stop", Stop())

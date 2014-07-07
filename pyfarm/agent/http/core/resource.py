@@ -71,7 +71,6 @@ class Resource(_Resource):
 
     # Used by APIResource
     SCHEMAS = {}
-    POP_EMPTY_VALUES = True
 
     def __init__(self):
         _Resource.__init__(self)
@@ -201,37 +200,6 @@ class Resource(_Resource):
                     # and if we do does it validate.
                     schema = self.SCHEMAS.get(request.method)
                     if isinstance(schema, Schema):
-                        if self.POP_EMPTY_VALUES:
-                            try:
-                                items = data.iteritems
-                            except AttributeError:  # pragma: no cover
-                                items = data.items
-
-                            # Remove any empty values from the request
-                            # because it will make processing later on
-                            # faster and simpler.
-                            pop_keys = set()
-                            for key, value in items():
-                                if value is None:
-                                    pop_keys.add(value)
-
-                                elif isinstance(value, dict):
-                                    try:
-                                        subitems = value.iteritems
-                                    except AttributeError:  # pragma: no cover
-                                        subitems = value.items
-
-                                    pop_subkeys = set()
-                                    for subkey, subvalue in subitems():
-                                        if subvalue is None:
-                                            pop_subkeys.add(subkey)
-
-                                    for pop_subkey in pop_subkeys:
-                                        value.pop(pop_subkey, None)
-
-                            for pop_key in pop_keys:
-                                data.pop(pop_key, None)
-
                         try:
                             schema(data)
                         except Invalid as e:

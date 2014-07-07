@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 
 try:
     from httplib import OK, CREATED
@@ -42,6 +43,7 @@ class TestAgentBasicMethods(TestCase):
         self.assertIsNone(agent.agent_api())
 
     def test_system_data(self):
+        config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
             "current_assignments": {},
             "systemid": system_identifier(),
@@ -49,16 +51,16 @@ class TestAgentBasicMethods(TestCase):
             "version": config.version,
             "ram": config["agent_ram"],
             "cpus": config["agent_cpus"],
+            "remote_ip": config["remote_ip"],
             "port": config["agent_api_port"],
-            "free_ram": config["free-ram"],
             "time_offset": config["agent_time_offset"],
             "state": config["state"]}
 
         agent = Agent()
-        self.assertEqual(agent.system_data(), expected)
-        config["remote-ip"] = expected["remote_ip"] = \
-            os.urandom(16).encode("hex")
-        self.assertEqual(agent.system_data(), expected)
+        system_data = agent.system_data()
+        self.assertApproximates(
+            system_data.pop("free_ram"), config["free_ram"], 64)
+        self.assertEqual(system_data, expected)
 
 
 class TestRunAgent(TestCase):

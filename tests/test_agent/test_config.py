@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from os import urandom
 from random import randint
 
@@ -152,6 +153,39 @@ class TestLoggingConfiguration(TestCase):
                 config.update(1)
 
 
+class TestMasterContacted(TestCase):
+    def test_no_update(self):
+        config = LoggingConfiguration()
+        config.clear()
+        self.assertIsNone(config.master_contacted(update=False))
+        self.assertNotIn("last_announce", config)
+        self.assertNotIn("last_master_contact", config)
+
+    def test_announce(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        config.master_contacted(announcement=True)
+        self.assertDateAlmostEqual(now, config["last_announce"])
+
+    def test_update(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        result = config.master_contacted(update=True, announcement=False)
+        self.assertDateAlmostEqual(now, result)
+        self.assertIs(result, config["last_master_contact"])
+
+    def test_update_default(self):
+        config = LoggingConfiguration()
+        config.clear()
+        now = datetime.utcnow()
+        result = config.master_contacted()
+        self.assertDateAlmostEqual(now, result)
+        self.assertIs(result, config["last_master_contact"])
+        self.assertNotIn("last_announce", config)
+
+
 class TestConfigurationExceptions(TestCase):
     def test_change_type_assert_missing_value(self):
         config = LoggingConfiguration()
@@ -225,3 +259,21 @@ class TestCallbackConfiguration(TestCase):
             (LoggingConfiguration.CREATED, "foo", True),
             (LoggingConfiguration.MODIFIED, "foo", False),
             (LoggingConfiguration.DELETED, "foo", NOTSET)])
+
+    def test_clear(self):
+        callback = lambda *_: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config.clear(callbacks=False)
+        self.assertEqual(config, {})
+        self.assertIs(config.callbacks["foo"][0], callback)
+
+    def test_clear_callbacks(self):
+        callback = lambda *_: None
+        config = ConfigurationWithCallbacks()
+        config.register_callback("foo", callback)
+        config["foo"] = True
+        config.clear(callbacks=True)
+        self.assertEqual(config, {})
+        self.assertEqual(config.callbacks, {})

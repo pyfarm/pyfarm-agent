@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
     pwd = NotImplemented
 
 # Windows
-try:
+try:  # pragma: no cover
     import win32api
     from win32com.shell import shell
 except ImportError:  # pragma: no cover
@@ -46,12 +46,17 @@ try:
 except ImportError:  # pragma: no cover
     getpass = NotImplemented
 
+try:
+    from os import getuid
+except ImportError:  # pragma: no cover
+    getuid = NotImplemented
+
 
 from pyfarm.agent.sysinfo.system import operating_system
-from pyfarm.core.enums import WINDOWS, LINUX, MAC
+from pyfarm.core.enums import WINDOWS
 
 
-def username():  # pragma: no cover
+def username():
     """
     Returns the current user name using the most native api
     we can import. On Linux for example this will use the :mod:`pwd`
@@ -59,24 +64,24 @@ def username():  # pragma: no cover
     """
     if pwd is not NotImplemented:
         return pwd.getpwuid(os.getuid())[0]
-    elif win32api is not NotImplemented:
+    elif win32api is not NotImplemented:  # pragma: no cover
         return win32api.GetUserName()
-    elif getpass is not NotImplemented:
+    elif getpass is not NotImplemented:  # pragma: no cover
         return getpass.getuser()
     else:
         raise NotImplementedError("neither `getpass` or `pwd` were imported")
 
 
-def is_administrator():  # pragma: no cover
+def is_administrator():
     """
     Return True if the current user is root (Linux) or running as an
     Administrator (Windows).
     """
-    if LINUX or MAC:
-        return os.getuid() == 0
-    elif win32api is not NotImplemented:
+    if getuid is not NotImplemented:
+        return getuid() == 0
+    elif win32api is not NotImplemented:  # pragma: no cover
         return shell.IsUserAnAdmin()
-    elif win32api is NotImplemented and WINDOWS:
+    elif win32api is NotImplemented and WINDOWS:  # pragma: no cover
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
     else:
         raise NotImplementedError(
