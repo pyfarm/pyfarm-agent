@@ -51,7 +51,8 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
-    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid)
+    WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid,
+    validate_uuid)
 from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import (
@@ -88,6 +89,7 @@ class JobType(Cache, Process, TypeChecks):
         Stores the cached job types
     """
     ASSIGNMENT_SCHEMA = Schema({
+        Required("id"): validate_uuid,
         Required("job"): JOB_SCHEMA,
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
@@ -96,11 +98,8 @@ class JobType(Cache, Process, TypeChecks):
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
-        # changes we just use a simple uuid to represent ourselves in the
-        # config dictionary.
+        # changes we just use a simple uuid to represent ourselves.
         self.uuid = uuid()
-        config["jobtypes"][self.uuid] = self
-
         self.processes = {}
         self.failed_processes = set()
         self.failed_tasks = set()
@@ -109,6 +108,12 @@ class JobType(Cache, Process, TypeChecks):
         self.start_called = False
         self.stop_called = False
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
+
+        # Add our instance to the job type instance tracker dictionary
+        # as well as the dictionary containing the current assignment.
+        config["jobtypes"][self.uuid] = self
+        config["current_assignments"][assignment["id"]]["jobtype"].update(
+            id=self.uuid)
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
@@ -520,8 +525,12 @@ class JobType(Cache, Process, TypeChecks):
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
 
+        def remove_from_jobtypes(_, id):
+            logger.debug("Removed instance of job type %s", id)
+            config["jobtypes"].pop(id)
+
         stopped = self.stopped
-        stopped.addCallback(config["jobtypes"].pop, self.uuid)
+        stopped.addCallback(remove_from_jobtypes, self.uuid)
         return stopped
 
     def format_log_message(self, message, stream_type=None):
