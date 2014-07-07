@@ -80,10 +80,10 @@ def validate_uuid(value):
     Ensures that ``value`` can be converted to or is a UUID object.
     """
     if isinstance(value, UUID):
-        pass
+        return value
     elif isinstance(value, STRING_TYPES):
         try:
-            UUID(hex=value)
+            return UUID(hex=value)
         except ValueError:
             raise Invalid("%s cannot be converted to a UUID" % value)
     else:
