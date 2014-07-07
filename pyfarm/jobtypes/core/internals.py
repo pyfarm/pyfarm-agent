@@ -137,7 +137,7 @@ class Cache(object):
             if isfile(filename):  # pragma: no cover
                 logcache.warning("%s is already cached on disk", filename)
                 jobtype.pop("code", None)
-                return filename, jobtype
+                return jobtype, filename
 
             try:
                 with open(filename, "w") as stream:
@@ -154,17 +154,17 @@ class Cache(object):
                     stream.write(jobtype["code"])
 
                 jobtype.pop("code", None)
-                return tmpfilepath, jobtype
+                return jobtype, tmpfilepath
 
             else:
                 logger.debug(
                     "Wrote job type %s version %s to %s",
                     jobtype["name"], jobtype["version"], filename)
                 jobtype.pop("code", None)
-                return filename, jobtype
+                return jobtype, filename
 
         def written_to_disk(results):
-            filename, jobtype = results
+            jobtype, filename = results
             cls.cache[cache_key] = (jobtype, filename)
             logcache.info("Created cache for %r at %s", cache_key, filename)
             success.callback((jobtype, filename))
