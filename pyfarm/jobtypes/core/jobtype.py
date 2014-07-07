@@ -178,9 +178,19 @@ class JobType(Cache, Process, TypeChecks):
         cache_key = (
             assignment["jobtype"]["name"], assignment["jobtype"]["version"])
 
-        def load_jobtype(jobtype, filepath):
+        def load_jobtype(*args):
+            # TODO: FIX THIS
+            try:
+                jobtype, filepath = args
+            except ValueError:
+                jobtype, filepath = args, None
+
             if isinstance(jobtype, tuple):
-                jobtype, _ = jobtype
+                try:
+                    jobtype, filepath = jobtype[0][0], None
+                except KeyError:
+                    jobtype, filepath = jobtype[0], None
+
 
             module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
                 jobtype["classname"], jobtype["name"], jobtype["version"])
