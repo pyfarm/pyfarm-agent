@@ -51,7 +51,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
-    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, uuid)
+    STRINGS, WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid)
 from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import (
@@ -88,10 +88,7 @@ class JobType(Cache, Process, TypeChecks):
         Stores the cached job types
     """
     ASSIGNMENT_SCHEMA = Schema({
-        Required("job"): Schema({
-            Required("id"): WHOLE_NUMBERS,
-            Optional("title"): STRINGS,
-            Optional("data"): dict}),
+        Required("job"): JOB_SCHEMA,
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
 
@@ -176,8 +173,10 @@ class JobType(Cache, Process, TypeChecks):
         cache_key = (
             assignment["jobtype"]["name"], assignment["jobtype"]["version"])
 
-        def load_jobtype(args):
-            jobtype, filepath = args
+        def load_jobtype(jobtype, filepath):
+            if isinstance(jobtype, tuple):
+                jobtype, _ = jobtype
+
             module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
                 jobtype["classname"], jobtype["name"], jobtype["version"])
 
@@ -212,7 +211,7 @@ class JobType(Cache, Process, TypeChecks):
                         response.request.retry)
 
                 if not config["jobtype_enable_cache"]:
-                    return load_jobtype((response.json(), None))
+                    return load_jobtype(response.json(), None)
                 else:
                     # When the download is complete, cache the results
                     caching = cls._cache_jobtype(cache_key, response.json())
@@ -224,7 +223,7 @@ class JobType(Cache, Process, TypeChecks):
                 assignment["jobtype"]["version"])
             download.addCallback(download_complete)
         else:
-            load_jobtype((cls.cache[cache_key], None))
+            load_jobtype(cls.cache[cache_key], None)
 
         return result
 
