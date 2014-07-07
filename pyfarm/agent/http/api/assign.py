@@ -21,35 +21,17 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
 
 from twisted.web.server import NOT_DONE_YET
-from voluptuous import Invalid, Schema, Required, Optional
+from voluptuous import Schema, Required
 
-from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master, uuid
 from pyfarm.agent.sysinfo.memory import ram_free
-from pyfarm.agent.utility import (
-    STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
+from pyfarm.agent.utility import JOBTYPE_SCHEMA, TASKS_SCHEMA, JOB_SCHEMA
 from pyfarm.jobtypes.core.jobtype import JobType
 
 logger = getLogger("agent.http.assign")
-
-
-def validate_environment(values):
-    """
-    Ensures that ``values`` is a dictionary and that it only
-    contains string keys and values.
-    """
-    if not isinstance(values, dict):
-        raise Invalid("Expected a dictionary")
-
-    for key, value in values.items():
-        if not isinstance(key, STRING_TYPES):
-            raise Invalid("Key %r must be a string" % key)
-
-        if not isinstance(value, STRING_TYPES):
-            raise Invalid("Value %r for key %r must be a string" % (key, value))
 
 
 class Assign(APIResource):
@@ -61,18 +43,7 @@ class Assign(APIResource):
     # or not based on the agent's internal code.
     SCHEMAS = {
         "POST": Schema({
-            Required("job"): Schema({
-                Required("id"): WHOLE_NUMBERS,
-                Required("by"): NUMBERS,
-                Optional("batch"): WHOLE_NUMBERS,
-                Optional("user"): STRINGS,
-                Optional("ram"): WHOLE_NUMBERS,
-                Optional("ram_warning"): WHOLE_NUMBERS,
-                Optional("ram_max"): WHOLE_NUMBERS,
-                Optional("cpus"): WHOLE_NUMBERS,
-                Optional("data"): dict,
-                Optional("environ"): validate_environment,
-                Optional("title"): STRINGS}),
+            Required("job"): JOB_SCHEMA,
             Required("jobtype"): JOBTYPE_SCHEMA,
             Required("tasks"): TASKS_SCHEMA})}
 
@@ -174,7 +145,10 @@ class Assign(APIResource):
         request.write({"id": assignment_uuid})
         request.finish()
 
-        def remove_assignment(_, assign_id):
+        def remove_assignment(result, assign_id):
+            if hasattr(result, "getTraceback"):
+                logger.error(result.getTraceback())
+
             logger.debug("Removing assignment %s", assign_id)
             del config["current_assignments"][assign_id]
 
