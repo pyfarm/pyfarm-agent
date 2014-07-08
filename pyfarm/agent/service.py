@@ -177,7 +177,7 @@ class Agent(object):
                 "state": config["state"],
                 "current_assignments": config.get(
                     "current_assignments", {}),  # may not be set yet
-                "free_ram": int(memory.ram_free())})
+                "free_ram": memory.ram_free()})
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -225,7 +225,7 @@ class Agent(object):
             "ram": int(config["agent_ram"]),
             "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
-            "free_ram": int(memory.ram_free()),
+            "free_ram": memory.ram_free(),
             "time_offset": config["agent_time_offset"] or 0,
             "state": config["state"],
             "current_assignments": config.get(
@@ -391,7 +391,7 @@ class Agent(object):
                     self.agent_api(),
                     data={
                         "state": AgentState.OFFLINE,
-                        "free_ram": int(memory.ram_free()),
+                        "free_ram": memory.ram_free(),
                         "current_assignments": config["current_assignments"]},
                     callback=results_from_post,
                     errback=error_while_posting)
@@ -659,7 +659,7 @@ class Agent(object):
                 self.register_shutdown_events = True
 
             # set the initial free_ram
-            config["free_ram"] = int(memory.ram_free())
+            config["free_ram"] = memory.ram_free()
 
             config.master_contacted()
             svclog.debug(

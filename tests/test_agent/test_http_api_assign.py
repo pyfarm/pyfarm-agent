@@ -131,7 +131,7 @@ class TestAssign(BaseAPITestCase):
             "agent-id has not been set in the config")
 
     def test_not_enough_ram(self):
-        self.data["job"]["ram"] = int(total_ram() * 10)
+        self.data["job"]["ram"] = total_ram() * 10
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})

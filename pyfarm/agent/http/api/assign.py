@@ -86,7 +86,7 @@ class Assign(APIResource):
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
         # entries in `config` could be slightly out of sync with the system.
-        memory_free = int(ram_free())
+        memory_free = ram_free()
         cpus = config["cpus"]
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")

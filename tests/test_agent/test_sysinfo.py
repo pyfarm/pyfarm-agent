@@ -202,7 +202,7 @@ class TestCPU(TestCase):
 class TestMemory(TestCase):
     def test_totalram(self):
         self.assertEqual(memory.total_ram(),
-                         convert.bytetomb(psutil.virtual_memory().total))
+                         int(convert.bytetomb(psutil.virtual_memory().total)))
 
     def test_ramused(self):
         v1 = memory.total_ram() - memory.ram_free()
