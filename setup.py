@@ -80,7 +80,7 @@ agent_package_data_roots = (
 
 jobtype_root = join("pyfarm", "jobtypes")
 jobtype_root_package_data_roots = (
-    join(jobtype_root, "etc"))
+    join(jobtype_root, "etc"), )
 
 setup(
     name="pyfarm.agent",
