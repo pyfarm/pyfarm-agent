@@ -28,7 +28,7 @@ from pyfarm.core.utility import convert
 
 def ram_used():
     """Amount of swap currently free"""
-    return convert.bytetomb(psutil.virtual_memory().used)
+    return total_ram() - ram_free()
 
 
 def ram_free():
