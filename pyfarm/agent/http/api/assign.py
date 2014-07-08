@@ -28,7 +28,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master, uuid
-from pyfarm.agent.sysinfo.memory import ram_free
+from pyfarm.agent.sysinfo.memory import free_ram
 from pyfarm.agent.utility import (
     STRINGS, WHOLE_NUMBERS, NUMBERS, JOBTYPE_SCHEMA, TASKS_SCHEMA)
 from pyfarm.jobtypes.core.jobtype import JobType
@@ -86,7 +86,7 @@ class Assign(APIResource):
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
         # entries in `config` could be slightly out of sync with the system.
-        memory_free = ram_free()
+        memory_free = free_ram()
         cpus = config["cpus"]
         requires_ram = data["job"].get("ram")
         requires_cpus = data["job"].get("cpus")

@@ -177,7 +177,7 @@ class Agent(object):
                 "state": config["state"],
                 "current_assignments": config.get(
                     "current_assignments", {}),  # may not be set yet
-                "free_ram": memory.ram_free()})
+                "free_ram": memory.free_ram()})
 
     def system_data(self, requery_timeoffset=False):
         """
@@ -225,7 +225,7 @@ class Agent(object):
             "ram": int(config["agent_ram"]),
             "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
-            "free_ram": memory.ram_free(),
+            "free_ram": memory.free_ram(),
             "time_offset": config["agent_time_offset"] or 0,
             "state": config["state"],
             "current_assignments": config.get(
@@ -391,7 +391,7 @@ class Agent(object):
                     self.agent_api(),
                     data={
                         "state": AgentState.OFFLINE,
-                        "free_ram": memory.ram_free(),
+                        "free_ram": memory.free_ram(),
                         "current_assignments": config["current_assignments"]},
                     callback=results_from_post,
                     errback=error_while_posting)
@@ -455,9 +455,9 @@ class Agent(object):
                     failure)
                 finished.errback(failure)
 
-        # Post our current state to the master.  We're only posting ram_free
+        # Post our current state to the master.  We're only posting free_ram
         # and state here because all other fields would be updated the next
-        # time the agent starts up.  ram_free would be too but having it
+        # time the agent starts up.  free_ram would be too but having it
         # here is beneficial in cases where the agent terminated abnormally.
         post_update()
 
@@ -659,7 +659,7 @@ class Agent(object):
                 self.register_shutdown_events = True
 
             # set the initial free_ram
-            config["free_ram"] = memory.ram_free()
+            config["free_ram"] = memory.free_ram()
 
             config.master_contacted()
             svclog.debug(

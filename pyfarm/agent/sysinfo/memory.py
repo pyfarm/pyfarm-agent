@@ -26,12 +26,12 @@ import psutil
 from pyfarm.core.utility import convert
 
 
-def ram_used():
+def used_ram():
     """Amount of physical memory currently in use by applications"""
-    return total_ram() - ram_free()
+    return total_ram() - free_ram()
 
 
-def ram_free():
+def free_ram():
     """Amount of physical memory free for application use"""
     return int(convert.bytetomb(psutil.virtual_memory().available))
 

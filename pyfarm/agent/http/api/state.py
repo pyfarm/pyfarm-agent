@@ -91,7 +91,7 @@ class Status(APIResource):
         return dumps(
             {"state": config["state"],
              "agent_hostname": config["agent_hostname"],
-             "free_ram": memory.ram_free(),
+             "free_ram": memory.free_ram(),
              "agent_process_ram": memory.process_memory(),
              "consumed_ram": memory.total_consumption(),
              "child_processes": direct_child_processes,

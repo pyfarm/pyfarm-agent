@@ -131,6 +131,6 @@ class TestStatus(BaseAPITestCase):
         self.assertApproximates(
             data.pop("uptime"), expected_data.pop("uptime"), .5)
         self.assertApproximates(
-            data.pop("free_ram"), memory.ram_free(), 25)
+            data.pop("free_ram"), memory.free_ram(), 25)
 
         self.assertEqual(data, expected_data)

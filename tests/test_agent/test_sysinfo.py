@@ -205,13 +205,13 @@ class TestMemory(TestCase):
                          int(convert.bytetomb(psutil.virtual_memory().total)))
 
     def test_ramused(self):
-        v1 = memory.total_ram() - memory.ram_free()
-        v2 = memory.ram_used()
+        v1 = memory.total_ram() - memory.free_ram()
+        v2 = memory.used_ram()
         self.assertApproximates(v1, v2, 5)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
-        v2 = memory.ram_free()
+        v2 = memory.free_ram()
         self.assertApproximates(v1, v2, 5)
 
     def test_process_memory(self):

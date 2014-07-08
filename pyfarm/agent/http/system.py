@@ -63,7 +63,7 @@ class Index(Resource):
         else:  # pragma: no cover
             raise KeyError("failed to find state")
 
-        ram_allocated = int((memory.ram_used() / float(config["agent_ram"])) * 100)
+        ram_allocated = int((memory.used_ram() / float(config["agent_ram"])) * 100)
 
         if ram_allocated >= 100:  # pragma: no cover
             ram_css = "danger"
@@ -78,7 +78,7 @@ class Index(Resource):
             ("RAM Used",
                 "%.2f%% (%s of %s)" % (
                     ram_allocated,
-                    memory.ram_used(),
+                    memory.used_ram(),
                     mb((config["agent_ram"]))), ram_css),
             ("System RAM", memory.total_ram(), None),
             ("System RAM (reported)", mb(config["agent_ram"]), None),
