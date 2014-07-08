@@ -133,5 +133,5 @@ setup(
         "Topic :: System :: Distributed Computing"])
 
 if sys.platform.startswith("win"):
-    print "WARNING:  Please be sure you've install the OpenSSL Library as " \
-          "some modules may break on Windows without it."
+    print("WARNING:  Please be sure you've install the OpenSSL Library as "
+          "some modules may break on Windows without it.")
