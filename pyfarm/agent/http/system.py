@@ -63,9 +63,7 @@ class Index(Resource):
         else:  # pragma: no cover
             raise KeyError("failed to find state")
 
-        total_swap = memory.total_swap()
         ram_allocated = (memory.ram_used() / float(config["agent_ram"])) * 100
-        swap_allocated = (memory.swap_used() / total_swap) * 100
 
         if ram_allocated >= 100:  # pragma: no cover
             ram_css = "danger"
@@ -76,25 +74,12 @@ class Index(Resource):
         else:
             ram_css = None
 
-        if swap_allocated >= 20:  # pragma: no cover
-            swap_css = "danger"
-        elif swap_allocated >= 10:  # pragma: no cover
-            swap_css = "warning"
-        elif swap_allocated >= 5:  # pragma: no cover
-            swap_css = "info"
-        else:
-            swap_css = None
-
         memory_info = [
             ("RAM Used",
                 "%.2f%% (%s of %s)" % (
                     ram_allocated,
                     int(memory.ram_used()),
                     mb((config["agent_ram"]))), ram_css),
-            ("SWAP Used",
-                "%.2f%% (%s of %s)" % (
-                    swap_allocated,
-                    int(memory.swap_used()), mb((total_swap))), swap_css),
             ("System RAM", mb(memory.total_ram()), None),
             ("System RAM (reported)", mb(config["agent_ram"]), None),
             ("Agent RAM Usage", mb(memory.process_memory()), None)]

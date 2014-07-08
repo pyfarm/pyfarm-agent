@@ -26,16 +26,6 @@ import psutil
 from pyfarm.core.utility import convert
 
 
-def swap_used():
-    """Amount of swap currently in use"""
-    return convert.bytetomb(psutil.swap_memory().used)
-
-
-def swap_free():
-    """Amount of swap currently free"""
-    return convert.bytetomb(psutil.swap_memory().free)
-
-
 def ram_used():
     """Amount of swap currently free"""
     return convert.bytetomb(psutil.virtual_memory().used)
@@ -49,11 +39,6 @@ def ram_free():
 def total_ram():
     """Total physical memory (ram) installed on the system"""
     return convert.bytetomb(psutil.virtual_memory().total)
-
-
-def total_swap():
-    """Total virtual memory (swap) installed on the system"""
-    return convert.bytetomb(psutil.swap_memory().total)
 
 
 def process_memory():
