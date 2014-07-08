@@ -66,6 +66,9 @@ else:
 def get_package_data(parent, roots):
     output = []
     for top in roots:
+        if top.startswith("/"):
+            raise ValueError("get_package_data was given an absolute path or "
+                             "the filesystem root to traverse, refusing.")
         for root, dirs, files in walk(top):
             for filename in files:
                 output.append(join(root, filename).split(parent)[-1][1:])
