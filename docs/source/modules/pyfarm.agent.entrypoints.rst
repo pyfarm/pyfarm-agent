@@ -9,6 +9,7 @@ Submodules
    pyfarm.agent.entrypoints.argtypes
    pyfarm.agent.entrypoints.development
    pyfarm.agent.entrypoints.main
+   pyfarm.agent.entrypoints.parser
    pyfarm.agent.entrypoints.supervisor
    pyfarm.agent.entrypoints.utility
 
