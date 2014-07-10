@@ -62,9 +62,8 @@ from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.parser import AgentArgumentParser
-from pyfarm.agent.entrypoints.argtypes import (
-    ip, port, uidgid, enum, number, system_identifier)
+from pyfarm.agent.entrypoints.parser import (
+    AgentArgumentParser, ip, port,  uidgid, enum, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
     start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import memory, cpu

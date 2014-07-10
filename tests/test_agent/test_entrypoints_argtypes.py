@@ -19,7 +19,7 @@ from collections import namedtuple
 from functools import partial
 
 from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
-from pyfarm.agent.entrypoints.argtypes import (
+from pyfarm.agent.entrypoints.parser import (
     assert_parser, ip, port, integer, direxists, number, enum,
     system_identifier)
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
