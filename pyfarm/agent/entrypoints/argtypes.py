@@ -22,8 +22,9 @@ Provides functions which are used to parser and/or convert
 arguments from the argparse object.
 """
 
-
+import os
 from argparse import ArgumentParser
+from errno import EEXIST
 from functools import partial, wraps
 from os.path import isdir
 
@@ -169,9 +170,19 @@ def uidgid(value=None, flag=None,
 
 
 @assert_parser
-def direxists(path, parser=None, flag=None):
+def direxists(path, parser=None, flag=None, create=False):
     """checks to make sure the directory exists"""
-    if not isdir(path):
+    if create:
+        try:
+            os.makedirs(path)
+        except OSError as e:
+            if e.errno != EEXIST:
+                parser.error(
+                    "Failed to create directory %s: %s" % (path, e))
+        else:
+            logger.debug("Created %s", path)
+
+    elif not isdir(path):
         parser.error(
             "--%s, path does not exist or is not "
             "a directory: %s" % (flag, path))
