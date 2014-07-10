@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
 import signal
 import subprocess
@@ -23,7 +22,7 @@ import time
 import shutil
 import zipfile
 from functools import partial
-from os.path import join
+from os.path import join, isdir, isfile
 
 # Platform specific imports.  These should either all fail or
 # import without problems so we're grouping them together.
@@ -41,7 +40,8 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.enums import INTEGER_TYPES, OS
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.utility import start_daemon_posix, SetConfig
+from pyfarm.agent.entrypoints.parser import AgentArgumentParser
+from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.logger import getLogger
 
 logger = getLogger("agent.supervisor")
@@ -64,26 +64,23 @@ def supervisor():
 
     logger.debug("supervisor_args: %s", supervisor_args)
 
-    parser = argparse.ArgumentParser(
+    parser = AgentArgumentParser(
         description="Start and monitor the agent process")
     parser.add_argument("--updates-drop-dir",
-                        default=config["agent_updates_dir"],
-                        action=partial(
-                            SetConfig, key="agent_updates_dir", isfile=True),
+                        config="agent_updates_dir",
+                        type=isdir, type_kwargs=dict(create=True),
                         help="Where to look for agent updates")
     parser.add_argument("--agent-package-dir",
+                        type=isdir, type_kwargs=dict(create=True),
                         help="Path to the actual agent code")
-    parser.add_argument("--pidfile", default=config["supervisor_lock_file"],
-                        action=partial(
-                            SetConfig, key="supervisor_lock_file", isfile=True),
+    parser.add_argument("--pidfile", config="supervisor_lock_file",
                         help="The file to store the process id in. "
                              "[default: %(default)s]")
     parser.add_argument("-n", "--no-daemon", default=False, action="store_true",
+                        config=False,
                         help="If provided then do not run the process in the "
                              "background.")
-    parser.add_argument("--chdir", default=config["agent_chdir"],
-                        action=partial(
-                            SetConfig, key="agent_chdir", isfile=True),
+    parser.add_argument("--chdir", config="agent_chdir", type=isdir,
                         help="The directory to chdir to upon launch.")
     parser.add_argument("--uid", type=int,
                         help="The user id to run the supervisor as.  "
