@@ -70,7 +70,7 @@ def port(value, parser=None, get_uid=None):
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
-        parser.error("failed to convert --port to a number")
+        parser.error("failed to convert port to a number")
     else:
         try:
             low_port = 1 if get_uid() == 0 else 49152
@@ -86,7 +86,7 @@ def port(value, parser=None, get_uid=None):
         return value
 
 @assert_parser
-def system_identifier(value, parser=None):
+def system_identifier(value, parser=None, flag=None):
     """validates a --systemid value"""
     if value == "auto":
         return value
@@ -95,11 +95,10 @@ def system_identifier(value, parser=None):
         value = convert.ston(value)
     except (ValueError, SyntaxError):
         parser.error(
-            "failed to convert value provided to --systemid to an integer")
+            "failed to convert value provided to %s to an integer" % flag)
     else:
         if 0 > value or value > SYSTEMID_MAX:
-            parser.error(
-                "valid range for --systemid is 0 to %s" % SYSTEMID_MAX)
+            parser.error("valid range for %s is 0 to %s" % (flag, SYSTEMID_MAX))
 
         return value
 
@@ -122,7 +121,7 @@ def uidgid(value=None, flag=None,
         assert set_id is not None
 
         if set_id is NotImplemented:
-            logger.info("--%s is ignored on %s" % (flag, OS.title()))
+            logger.info("%s is ignored on %s" % (flag, OS.title()))
             return
 
         elif not value:
@@ -132,7 +131,7 @@ def uidgid(value=None, flag=None,
         try:
             value = convert.ston(value)
         except ValueError:
-            parser.error("failed to convert --%s to a number" % flag)
+            parser.error("failed to convert %s to a number" % flag)
 
         # make sure the id actually exists
         try:
@@ -184,7 +183,7 @@ def direxists(path, parser=None, flag=None, create=False):
 
     elif not isdir(path):
         parser.error(
-            "--%s, path does not exist or is not "
+            "%s, path does not exist or is not "
             "a directory: %s" % (flag, path))
 
     return path
@@ -231,7 +230,7 @@ def enum(value, parser=None, enum=None, flag=None):
 
     if value not in enum:
         parser.error(
-            "invalid enum value %s for --%s, valid values are %s" % (
+            "invalid enum value %s for %s, valid values are %s" % (
                 value, flag, list(enum)))
 
     return value
