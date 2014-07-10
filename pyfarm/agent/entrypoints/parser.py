@@ -24,50 +24,86 @@ automatically.
 """
 
 from argparse import (
-    ArgumentParser, _StoreAction, _StoreConstAction, _SubParsersAction,
-    _StoreTrueAction, _StoreFalseAction, _AppendAction, _AppendConstAction)
+    SUPPRESS, ArgumentParser, _StoreAction, _StoreConstAction,
+    _SubParsersAction, _StoreTrueAction, _StoreFalseAction, _AppendAction,
+    _AppendConstAction)
+from functools import partial
+
+from pyfarm.agent.config import config
 
 
-class StoreAction(_StoreAction):
+class ActionMixin(object):
+    """
+    A mixin which overrides the ``__init__`` and ``__call__``
+    methods on an action so we can:
+
+        * Setup attributes to manipulate the config object when the
+          arguments are parsed
+        * Ensure we all required arguments are present
+        * Convert the ``type`` keyword into an internal representation
+          so we don't require as much work when we add arguments to
+          the parser
+    """
     def __init__(self, *args, **kwargs):
         self.config = kwargs.pop("config", None)
-        super(StoreAction, self).__init__(*args, **kwargs)
+        type_ = kwargs.get("type")
+        type_kwargs = kwargs.pop("type_kwargs", {})
+
+        if type_ is not None:
+            assert AgentArgumentParser.parser is not None
+
+            partial_kwargs = {"parser": AgentArgumentParser.parser}
+            partial_kwargs.update(type_kwargs)
+
+            if "flag" not in partial_kwargs:
+                # Convert one of the option string, preferably the
+                # one starting with --, and use that as the flag
+                # in the type function
+                option_strings = kwargs.get("option_strings", [])
+                assert len(option_strings) >= 1
+                option = option_strings[0]
+
+                for option_string in option_strings:
+                    if option.startswith("--"):
+                        option = option_string
+                        break
+
+                partial_kwargs.update(flag=option)
+
+            kwargs.update(type=partial(type_, **partial_kwargs))
+
+        super(ActionMixin, self).__init__(*args, **kwargs)
+
+        # If we're not suppressing this configuration value then there's
+        # some keywords we expect to be passed into add_argument()
+        if self.dest != SUPPRESS:
+            if not self.help:
+                raise AssertionError(
+                    "`help` keyword missing for %s" % self.option_strings)
+
+            if self.config is None:
+                raise AssertionError(
+                    "`config` keyword missing for %s" % self.option_strings)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        super(ActionMixin, self).__call__(
+            parser, namespace, values, option_string=option_string)
+
+        if self.dest != SUPPRESS:
+            config[self.config] = getattr(namespace, self.dest)
 
 
-class SubParsersAction(_SubParsersAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(SubParsersAction, self).__init__(*args, **kwargs)
-
-
-class StoreConstAction(_StoreConstAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(StoreConstAction, self).__init__(*args, **kwargs)
-
-
-class StoreTrueAction(_StoreTrueAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(StoreTrueAction, self).__init__(*args, **kwargs)
-
-
-class StoreFalseAction(_StoreFalseAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(StoreFalseAction, self).__init__(*args, **kwargs)
-
-
-class AppendAction(_AppendAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(AppendAction, self).__init__(*args, **kwargs)
-
-
-class AppendConstAction(_AppendConstAction):
-    def __init__(self, *args, **kwargs):
-        self.config = kwargs.pop("config", None)
-        super(AppendConstAction, self).__init__(*args, **kwargs)
+# Create some classes which mix the class above and the
+# original action so we can set attributes and work with
+# the configuration
+mix_action = lambda class_: type(class_.__name__, (ActionMixin, class_), {})
+StoreAction = mix_action(_StoreAction)
+SubParsersAction = mix_action(_SubParsersAction)
+StoreConstAction = mix_action(_StoreConstAction)
+StoreTrueAction = mix_action(_StoreTrueAction)
+StoreFalseAction = mix_action(_StoreFalseAction)
+AppendAction = mix_action(_AppendAction)
+AppendConstAction = mix_action(_AppendConstAction)
 
 
 class AgentArgumentParser(ArgumentParser):
@@ -75,15 +111,24 @@ class AgentArgumentParser(ArgumentParser):
     A modified :class:`ArgumentParser` which interfaces with
     the agent's configuration.
     """
-    # We create a class level mapping because every call to
-    # create subparsers will instance this same class.
-    config_map = {}
+    parser = None
+
+    def __new__(cls, *args, **kwargs):
+        instance = object.__new__(cls)
+
+        # Only the first parser we create, which is also
+        # the one that creates other parsers, will setup
+        # the instance attribute
+        if cls.parser is None:
+            cls.parser = instance
+
+        return instance
 
     def __init__(self, *args, **kwargs):
         super(AgentArgumentParser, self).__init__(*args, **kwargs)
 
-        # Re-register actions with our actions which handle
-        # the config value properly.
+        # Override the relevant actions with out own so
+        # we have more control of what they're doing
         self.register("action", None, StoreAction)
         self.register("action", "store", StoreAction)
         self.register("action", "store_const", StoreConstAction)
@@ -92,18 +137,3 @@ class AgentArgumentParser(ArgumentParser):
         self.register("action", "append", AppendAction)
         self.register("action", "append_const", AppendConstAction)
         self.register("action", "parsers", SubParsersAction)
-
-    def add_argument(self, *args, **kwargs):
-        """
-        Custom implementation of the builtin :meth:`ArgumentParser.add_argument`
-        method.  This implementation ensures that for every command line flag
-        added we're able to map the resulting value back to the agent's
-        global configuration.
-        """
-        config = kwargs.pop("config", None)
-        action = super(AgentArgumentParser, self).add_argument(*args, **kwargs)
-
-        if action.dest != "help" and config is None:
-            raise AssertionError("`config` keyword required")
-
-        return action
