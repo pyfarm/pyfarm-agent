@@ -30,7 +30,7 @@ from argparse import (
     _AppendConstAction)
 from errno import EEXIST
 from functools import partial, wraps
-from os.path import isdir, abspath
+from os.path import isdir, isfile, abspath
 
 from netaddr import AddrFormatError, IPAddress
 
@@ -197,6 +197,15 @@ def direxists(path, parser=None, flag=None, create=False):
 
 
 @assert_parser
+def fileexists(path, parser=None, flag=None):
+    """checks to make sure the provided file exists"""
+    if not isfile(path):
+        parser.error(
+            "Path %r, which was provided to %s, does not exist" % (path, flag))
+
+    return abspath(path)
+
+@assert_parser
 def number(value, types=None, parser=None, allow_inf=False, min_=1,
            flag=None):
     """convert the given value to a number"""
@@ -262,7 +271,8 @@ class ActionMixin(object):
     # options and better error handling.
     TYPE_MAPPING = {
         int: integer,
-        isdir: direxists}
+        isdir: direxists,
+        isfile: fileexists}
 
     def __init__(self, *args, **kwargs):
         self.config = kwargs.pop("config", None)
