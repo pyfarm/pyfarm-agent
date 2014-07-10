@@ -6,7 +6,6 @@ Submodules
 
 .. toctree::
 
-   pyfarm.agent.entrypoints.argtypes
    pyfarm.agent.entrypoints.development
    pyfarm.agent.entrypoints.main
    pyfarm.agent.entrypoints.parser
