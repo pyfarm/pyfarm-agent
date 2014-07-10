@@ -38,55 +38,54 @@ INFINITE = set(["inf", "infinite", "unlimited"])
 logger = getLogger("agent.cmd.args")
 
 
-def assert_instance(func):
+def assert_parser(func):
     """
     ensures that the instance argument passed along to the validation
     function contains data we expect
     """
     @wraps(func)
     def run(*args, **kwargs):
-        instance = kwargs.get("instance")
-        assert instance is not None
-        assert hasattr(instance, "args") and hasattr(instance, "parser")
-        assert isinstance(instance.parser, ArgumentParser)
+        parser = kwargs.get("parser")
+        assert parser is not None and isinstance(parser, ArgumentParser)
         return func(*args, **kwargs)
     return run
 
 
-@assert_instance
-def ip(value, instance=None):
+@assert_parser
+def ip(value, parser=None):
     """make sure the ip address provided is valid"""
     try:
         IPAddress(value)
     except (ValueError, AddrFormatError):
-        instance.parser.error("%s is not a valid ip address" % value)
+        parser.error("%s is not a valid ip address" % value)
     else:
         return value
 
 
-@assert_instance
-def port(value, instance=None):
+@assert_parser
+def port(value, parser=None, get_uid=None):
     """convert and check to make sure the provided port is valid"""
+    assert callable(get_uid)
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
-        instance.parser.error("failed to convert --port to a number")
+        parser.error("failed to convert --port to a number")
     else:
         try:
-            low_port = 1 if instance.args.uid == 0 else 49152
+            low_port = 1 if get_uid() == 0 else 49152
         except AttributeError:
             low_port = 49152
 
         high_port = 65535
 
         if low_port > value or value > high_port:
-            instance.parser.error(
+            parser.error(
                 "valid port range is %s to %s" % (low_port, high_port))
 
         return value
 
-@assert_instance
-def system_identifier(value, instance=None):
+@assert_parser
+def system_identifier(value, parser=None):
     """validates a --systemid value"""
     if value == "auto":
         return value
@@ -94,11 +93,11 @@ def system_identifier(value, instance=None):
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
-        instance.parser.error(
+        parser.error(
             "failed to convert value provided to --systemid to an integer")
     else:
         if 0 > value or value > SYSTEMID_MAX:
-            instance.parser.error(
+            parser.error(
                 "valid range for --systemid is 0 to %s" % SYSTEMID_MAX)
 
         return value
@@ -107,10 +106,10 @@ def system_identifier(value, instance=None):
 # may require access to external network resources, and internally is
 # covered for the most part by other tests.
 # TODO: find a reliable way to test uidgid()
-@assert_instance
+@assert_parser
 def uidgid(value=None, flag=None,
            get_id=None, check_id=None, set_id=None,
-           instance=None):  # pragma: no cover
+           parser=None):  # pragma: no cover
         """
         Retrieves and validates the user or group id for a command line flag
         """
@@ -132,13 +131,13 @@ def uidgid(value=None, flag=None,
         try:
             value = convert.ston(value)
         except ValueError:
-            instance.parser.error("failed to convert --%s to a number" % flag)
+            parser.error("failed to convert --%s to a number" % flag)
 
         # make sure the id actually exists
         try:
             check_id(value)
         except KeyError:
-            instance.parser.error(
+            parser.error(
                 "%s %s does not seem to exist" % (flag, value))
 
         # get the uid/gid of the current process
@@ -152,7 +151,7 @@ def uidgid(value=None, flag=None,
         try:
             set_id(value)
         except OSError:
-            instance.parser.error(
+            parser.error(
                 "Failed to set %s to %s, please make sure you have "
                 "the necessary permissions to perform this action.  "
                 "Typically you must be running as root." % (flag, value))
@@ -163,25 +162,25 @@ def uidgid(value=None, flag=None,
         try:
             set_id(original_id)
         except OSError:
-            instance.parser.error(
+            parser.error(
                 "failed to set %s back to the original value" % flag)
 
         return value
 
 
-@assert_instance
-def direxists(path, instance=None, flag=None):
+@assert_parser
+def direxists(path, parser=None, flag=None):
     """checks to make sure the directory exists"""
     if not isdir(path):
-        instance.parser.error(
+        parser.error(
             "--%s, path does not exist or is not "
             "a directory: %s" % (flag, path))
 
     return path
 
 
-@assert_instance
-def number(value, types=None, instance=None, allow_inf=False, min_=1,
+@assert_parser
+def number(value, types=None, parser=None, allow_inf=False, min_=1,
            flag=None):
     """convert the given value to a number"""
     if value == "auto":
@@ -195,32 +194,32 @@ def number(value, types=None, instance=None, allow_inf=False, min_=1,
         return float("inf")
 
     elif value.lower() in INFINITE and not allow_inf:
-        instance.parser.error("--%s does not allow an infinite value" % flag)
+        parser.error("%s does not allow an infinite value" % flag)
 
     try:
         value = convert.ston(value, types=types or NUMERIC_TYPES)
         if min_ is not None and value < min_:
-            instance.parser.error(
-                "--%s's value must be greater than %s" % (flag, min_))
+            parser.error(
+                "%s's value must be greater than %s" % (flag, min_))
         return value
 
     except SyntaxError:  # could not even parse the string as code
-        instance.parser.error(
-            "--%s failed to convert %s to a number" % (flag, repr(value)))
+        parser.error(
+            "%s failed to convert %s to a number" % (flag, repr(value)))
 
     except ValueError:  # it's a number, but not the right type
-        instance.parser.error(
-            "--%s, %s is not an instance of %s" % (flag, repr(value), types))
+        parser.error(
+            "%s, %s is not an instance of %s" % (flag, repr(value), types))
 
 
-@assert_instance
-def enum(value, instance=None, enum=None, flag=None):
+@assert_parser
+def enum(value, parser=None, enum=None, flag=None):
     """ensures that ``value`` is a valid entry in ``enum``"""
     assert enum is not None
     value = value.lower()
 
     if value not in enum:
-        instance.parser.error(
+        parser.error(
             "invalid enum value %s for --%s, valid values are %s" % (
                 value, flag, list(enum)))
 

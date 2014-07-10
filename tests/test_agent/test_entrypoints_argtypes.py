@@ -20,7 +20,7 @@ from functools import partial
 
 from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.argtypes import (
-    assert_instance, ip, port, integer, direxists, number, enum,
+    assert_parser, ip, port, integer, direxists, number, enum,
     system_identifier)
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
@@ -36,7 +36,7 @@ class BaseTestArgTypes(TestCase):
 
 class TestAssertInstance(TestCase):
     def test_instance_set(self):
-        @assert_instance
+        @assert_parser
         def function(instance=None):
             pass
 
@@ -44,7 +44,7 @@ class TestAssertInstance(TestCase):
             function(instance=None)
 
     def test_has_args_and_parser(self):
-        @assert_instance
+        @assert_parser
         def function(instance=None):
             return True
 
