@@ -351,8 +351,10 @@ class AgentArgumentParser(ArgumentParser):
         # Only the first parser we create, which is also
         # the one that creates other parsers, will setup
         # the instance attribute
-        if cls.parser is None:
-            cls.parser = instance
+        # NOTE: We use the full class here so even if this is
+        # sublassed we still get the same class
+        if AgentArgumentParser.parser is None:
+            AgentArgumentParser.parser = instance
 
         return instance
 
