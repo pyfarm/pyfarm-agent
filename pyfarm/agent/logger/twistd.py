@@ -121,13 +121,15 @@ class Observer(object):
         """
         for fname, flevel in CONFIGURATION["levels"]:
             if level > self.max_level or level > flevel:
-                return True
+                return False
 
             if (fname == name or fnmatch(name, fname)) and flevel > level:
-                return True
+                return False
 
         if message == "Log opened.":
-            return True
+            return False
+
+        return True
 
     def emit(self, event):
         """
