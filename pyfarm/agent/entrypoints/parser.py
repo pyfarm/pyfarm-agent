@@ -30,8 +30,11 @@ from argparse import (
 from functools import partial
 from os.path import isdir
 
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.argtypes import integer, direxists
+
+logger = getLogger("agent.parser")
 
 
 class ActionMixin(object):
@@ -58,7 +61,7 @@ class ActionMixin(object):
         type_ = kwargs.get("type")
         type_kwargs = kwargs.pop("type_kwargs", {})
 
-        if self.config is not None:
+        if self.config not in (False, None):
             if self.config not in config and "default" not in kwargs:
                 raise AssertionError(
                     "Config value `%s` does not exist and no default was "
@@ -102,16 +105,18 @@ class ActionMixin(object):
 
             if self.config is None:
                 raise AssertionError(
-                    "`config` keyword missing for %s" % self.option_strings)
+                    "The config keyword is missing for %s.  Please provide one "
+                    "or set config to False." % self.option_strings)
 
     def __call__(self, parser, namespace, values, option_string=None):
         super(ActionMixin, self).__call__(
             parser, namespace, values, option_string=option_string)
 
-        if self.dest != SUPPRESS:
+        if self.dest != SUPPRESS and self.config not in (False, None):
             config[self.config] = getattr(namespace, self.dest)
 
 
+#
 # Create some classes which mix the class above and the
 # original action so we can set attributes and work with
 # the configuration
