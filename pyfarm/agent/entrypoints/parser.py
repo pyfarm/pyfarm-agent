@@ -28,8 +28,10 @@ from argparse import (
     _SubParsersAction, _StoreTrueAction, _StoreFalseAction, _AppendAction,
     _AppendConstAction)
 from functools import partial
+from os.path import isdir
 
 from pyfarm.agent.config import config
+from pyfarm.agent.entrypoints.argtypes import integer, direxists
 
 
 class ActionMixin(object):
@@ -44,13 +46,30 @@ class ActionMixin(object):
           so we don't require as much work when we add arguments to
           the parser
     """
+    # Maps standard Python functions to some more advanced internal
+    # functions.  Our internal versions have several additional
+    # options and better error handling.
+    TYPE_MAPPING = {
+        int: integer,
+        isdir: direxists}
+
     def __init__(self, *args, **kwargs):
         self.config = kwargs.pop("config", None)
         type_ = kwargs.get("type")
         type_kwargs = kwargs.pop("type_kwargs", {})
 
+        if self.config is not None:
+            if self.config not in config and "default" not in kwargs:
+                raise AssertionError(
+                    "Config value `%s` does not exist and no default was "
+                    "provided.  Please either setup a default in the config "
+                    "or provide a default to the argument parser" % self.config)
+
+            kwargs.update(default=config[self.config])
+
         if type_ is not None:
             assert AgentArgumentParser.parser is not None
+            type_ = self.TYPE_MAPPING.get(type_, type_)
 
             partial_kwargs = {"parser": AgentArgumentParser.parser}
             partial_kwargs.update(type_kwargs)
