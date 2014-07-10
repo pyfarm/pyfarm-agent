@@ -66,6 +66,9 @@ else:
 def get_package_data(parent, roots):
     output = []
     for top in roots:
+        if top.startswith("/"):
+            raise ValueError("get_package_data was given an absolute path or "
+                             "the filesystem root to traverse, refusing.")
         for root, dirs, files in walk(top):
             for filename in files:
                 output.append(join(root, filename).split(parent)[-1][1:])
@@ -80,7 +83,7 @@ agent_package_data_roots = (
 
 jobtype_root = join("pyfarm", "jobtypes")
 jobtype_root_package_data_roots = (
-    join(jobtype_root, "etc"))
+    join(jobtype_root, "etc"), )
 
 setup(
     name="pyfarm.agent",
@@ -130,5 +133,5 @@ setup(
         "Topic :: System :: Distributed Computing"])
 
 if sys.platform.startswith("win"):
-    print "WARNING:  Please be sure you've install the OpenSSL Library as " \
-          "some modules may break on Windows without it."
+    print("WARNING:  Please be sure you've install the OpenSSL Library as "
+          "some modules may break on Windows without it.")
