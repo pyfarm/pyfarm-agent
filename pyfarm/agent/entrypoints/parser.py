@@ -314,8 +314,8 @@ class ActionMixin(object):
 
         super(ActionMixin, self).__init__(*args, **kwargs)
 
-        # If we're not suppressing this configuration value then there's
-        # some keywords we expect to be passed into add_argument()
+        # Before we run the parser, assert that certain flags are
+        # set on each action object.
         if self.dest != SUPPRESS:
             if not self.help:
                 raise AssertionError(
@@ -330,6 +330,9 @@ class ActionMixin(object):
         super(ActionMixin, self).__call__(
             parser, namespace, values, option_string=option_string)
 
+        # Set the config value based upon the value which was set
+        # on the resulting action.  This will be done when parser_args()
+        # is called.
         if self.dest != SUPPRESS and self.config not in (False, None):
             config[self.config] = getattr(namespace, self.dest)
 
@@ -355,20 +358,12 @@ class AgentArgumentParser(ArgumentParser):
     """
     parser = None
 
-    def __new__(cls, *args, **kwargs):
-        instance = object.__new__(cls)
-
-        # Only the first parser we create, which is also
-        # the one that creates other parsers, will setup
-        # the instance attribute
-        # NOTE: We use the full class here so even if this is
-        # sublassed we still get the same class
-        if AgentArgumentParser.parser is None:
-            AgentArgumentParser.parser = instance
-
-        return instance
-
     def __init__(self, *args, **kwargs):
+        # This is the first time we've instanced the class
+        # and we'll use this in the argtype functions above.
+        if AgentArgumentParser.parser is None:
+            AgentArgumentParser.parser = self
+
         super(AgentArgumentParser, self).__init__(*args, **kwargs)
 
         # Override the relevant actions with out own so
