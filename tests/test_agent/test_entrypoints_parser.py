@@ -14,12 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import tempfile
 from collections import namedtuple
-from functools import partial
 from os import urandom
-from os.path import join
 
 from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.parser import (
@@ -27,14 +23,12 @@ from pyfarm.agent.entrypoints.parser import (
     system_identifier)
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
-DummyArgs = namedtuple("DummyArgs", ["uid"])
 
-
-class BaseTestArgTypes(TestCase):
-    def setUp(self):
-        super(BaseTestArgTypes, self).setUp()
-        self.args = None
-        self.parser = ErrorCapturingParser()
+class ArgTestCase(TestCase):
+    def addarg(self, parser, *args, **kwargs):
+        kwargs.setdefault("help", "<no help>")
+        kwargs.setdefault("config", False)
+        return parser.add_argument(*args, **kwargs)
 
 
 class TestAssertInstance(TestCase):
@@ -46,215 +40,218 @@ class TestAssertInstance(TestCase):
         with self.assertRaises(AssertionError):
             function(instance=None)
 
-    def test_has_args_and_parser(self):
-        @assert_parser
-        def function(instance=None):
-            return True
 
-        self.parser = ErrorCapturingParser()
-        self.args = self.parser.parse_args()
-        args = self.args
-        parser = self.parser
-        del self.args
-        del self.parser
-
-        with self.assertRaises(AssertionError):
-            function(instance=self)
-
-        self.parser = parser
-        with self.assertRaises(AssertionError):
-            function(instance=self)
-
-        self.args = args
-
-
-class TestIp(BaseTestArgTypes):
-    def setUp(self):
-        super(TestIp, self).setUp()
-        self.parser.add_argument("--ip", type=ip, config=False, help="foo")
-
+class TestIp(ArgTestCase):
     def test_valid(self):
-        self.args = self.parser.parse_args(["--ip", "127.0.0.1"])
-        self.assertEqual(self.args.ip, "127.0.0.1")
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--ip", type=ip)
+        args = parser.parse_args(["--ip", "127.0.0.1"])
+        self.assertEqual(args.ip, "127.0.0.1")
 
     def test_invalid(self):
-        self.args = self.parser.parse_args(["--ip", "!"])
-        self.assertEqual(self.parser.errors, ["! is not a valid ip address"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--ip", type=ip)
+        parser.parse_args(["--ip", "!"])
+        self.assertEqual(
+            parser.errors, ["! is not a valid ip address for --ip"])
 
 
-class TestPort(BaseTestArgTypes):
-    def add_arguments(self, add_uid=True, add_port=True):
+class TestPort(ArgTestCase):
+    def add_arguments(self, parser, add_uid=True, add_port=True, uid=0):
         if add_port:
-            self.parser.add_argument(
-                "--port", type=partial(port, instance=self))
+            self.addarg(parser, "--port",
+                        type=port, type_kwargs=dict(get_uid=lambda: uid))
 
         if add_uid:
-            self.parser.add_argument(
-                "--uid", type=partial(integer, instance=self, min_=0))
+            self.addarg(parser, "--uid",
+                        type=int, type_kwargs=dict(min_=0))
 
     def test_uid_not_provided(self):
-        self.add_arguments(add_uid=False)
-        self.args = self.parser.parse_args(["--port", "49152"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.port, 49152)
-        self.args = self.parser.parse_args(["--port", "0"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, add_uid=False, uid=1000)
+        args = parser.parse_args(["--port", "49152"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.port, 49152)
+        parser.parse_args(["--port", "0"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 49152 to 65535"])
+            parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_min(self):
-        self.add_arguments()
-        self.args = DummyArgs(uid=1000)
-        self.args = self.parser.parse_args(["--uid", "1000", "--port", "49152"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.port, 49152)
-        self.args = self.parser.parse_args(["--uid", "1000", "--port", "49151"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, uid=1000)
+        args = parser.parse_args(["--uid", "1000", "--port", "49152"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.port, 49152)
+        parser.parse_args(["--uid", "1000", "--port", "49151"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 49152 to 65535"])
+            parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_non_root_max(self):
-        self.add_arguments()
-        self.args = DummyArgs(uid=1000)
-        self.args = self.parser.parse_args(["--uid", "1000", "--port", "65535"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.port, 65535)
-        self.args = self.parser.parse_args(["--uid", "1000", "--port", "65536"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, uid=1000)
+        args = parser.parse_args(["--uid", "1000", "--port", "65535"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.port, 65535)
+        parser.parse_args(["--uid", "1000", "--port", "65536"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 49152 to 65535"])
+            parser.errors, ["valid port range is 49152 to 65535"])
 
     def test_valid_root_min(self):
-        self.add_arguments()
-        self.args = DummyArgs(uid=0)
-        self.args = self.parser.parse_args(["--uid", "0", "--port", "1"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.port, 1)
-        self.args = self.parser.parse_args(["--uid", "0", "--port", "0"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, uid=0)
+        args = parser.parse_args(["--uid", "0", "--port", "1"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.port, 1)
+        parser.parse_args(["--uid", "0", "--port", "0"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 1 to 65535"])
+            parser.errors, ["valid port range is 1 to 65535"])
 
     def test_valid_root_max(self):
-        self.add_arguments()
-        self.args = DummyArgs(uid=0)
-        self.args = self.parser.parse_args(["--uid", "0", "--port", "65535"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.port, 65535)
-        self.args = self.parser.parse_args(["--uid", "0", "--port", "65536"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, uid=0)
+        args = parser.parse_args(["--uid", "0", "--port", "65535"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.port, 65535)
+        parser.parse_args(["--uid", "0", "--port", "65536"])
         self.assertEqual(
-            self.parser.errors, ["valid port range is 1 to 65535"])
+            parser.errors, ["valid port range is 1 to 65535"])
 
     def test_port_not_a_number(self):
-        self.add_arguments()
-        self.args = DummyArgs(uid=0)
-        self.args = self.parser.parse_args(["--uid", "0", "--port", "!"])
+        parser = ErrorCapturingParser()
+        self.add_arguments(parser, uid=0)
+        parser.parse_args(["--uid", "0", "--port", "!"])
         self.assertEqual(
-            self.parser.errors, ["failed to convert --port to a number"])
+            parser.errors, ["--port requires a number"])
 
 
-class TestDirectory(BaseTestArgTypes):
-    def setUp(self):
-        super(TestDirectory, self).setUp()
-        self.parser.add_argument(
-            "--dir", type=direxists, help="foo", config=False)
-
+class TestDirectory(ArgTestCase):
     def test_directory_exists(self):
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--dir", type=direxists)
         directory, _ = self.create_test_directory(count=1)
-        self.args = self.parser.parse_args(["--dir", directory])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.dir, directory)
+        args = parser.parse_args(["--dir", directory])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.dir, directory)
+
+    def test_directory_missing(self):
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--dir", type=direxists)
+        directory = urandom(16).encode("hex")
+        parser.parse_args(["--dir", directory])
+        self.assertEqual(
+            parser.errors,
+            ["--dir, path does not exist or is "
+             "not a directory: %s" % directory])
 
 
-class TestNumber(BaseTestArgTypes):
-    def setUp(self):
-        super(TestNumber, self).setUp()
-        self.parser.add_argument(
-            "--num",
-            type=partial(
-                number, instance=self, types=int, flag="num"))
-        self.parser.add_argument(
-            "--inf",
-            type=partial(
-                number, instance=self, types=int, allow_inf=True, flag="inf"))
-
+class TestNumber(ArgTestCase):
     def test_auto(self):
-        self.args = self.parser.parse_args(["--num", "auto"])
-        self.assertEqual(self.args.num, "auto")
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--num", type=number)
+        args = parser.parse_args(["--num", "auto"])
+        self.assertEqual(args.num, "auto")
 
     def test_infinite(self):
-        self.args = self.parser.parse_args(["--inf", "infinite"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.inf, float("inf"))
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--num",
+                    type=number, type_kwargs=dict(allow_inf=True))
+        args = parser.parse_args(["--num", "infinite"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.num, float("inf"))
 
     def test_infinite_not_allowed(self):
-        self.args = self.parser.parse_args(["--num", "infinite"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--num",
+                    type=number, type_kwargs=dict(allow_inf=False))
+        parser.parse_args(["--num", "infinite"])
         self.assertIn(
-            "--num does not allow an infinite value", self.parser.errors)
+            "--num does not allow an infinite value", parser.errors)
 
     def test_unable_to_parse(self):
-        self.args = self.parser.parse_args(["--num", "!"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--num", type=number)
+        parser.parse_args(["--num", "!"])
         self.assertEqual(
-            self.parser.errors, ["--num failed to convert '!' to a number"])
-
-    def test_not_a_number(self):
-        self.args = self.parser.parse_args(["--num", "a"])
-        self.assertEqual(
-            self.parser.errors,
-            ["--num, 'a' is not an instance of <type 'int'>"])
+            parser.errors, ["--num failed to convert '!' to a number"])
 
     def test_less_than_minimum(self):
-        self.args = self.parser.parse_args(["--num", "0"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--num", type=number, type_kwargs=dict(min_=1))
+        parser.parse_args(["--num", "0"])
         self.assertEqual(
-            self.parser.errors,
+            parser.errors,
             ["--num's value must be greater than 1"])
 
 
-class TestEnum(BaseTestArgTypes):
+class TestInteger(ArgTestCase):
+    def test_disallow_float(self):
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--int", type=int)
+        parser.parse_args(["--int", "3.14159"])
+        self.assertEqual(
+            parser.errors,
+            ["--int, '3.14159' is not an instance of <type 'int'>"])
+
+
+
+
+class TestEnum(ArgTestCase):
     def setUp(self):
         super(TestEnum, self).setUp()
-        _enum = namedtuple("Enum", ["a", "b", "c"])
-        self.enum = _enum(a="one", b="two", c="three")
-        self.parser.add_argument(
-            "--enum", type=enum, config=False, help="foo",
-            type_kwargs=dict(enum=self.enum))
+        self._enum = namedtuple("Enum", ["a", "b", "c"])
 
     def test_invalid(self):
-        self.args = self.parser.parse_args(["--enum", "foo"])
+        parser = ErrorCapturingParser()
+        self.addarg(
+            parser,
+            "--enum", type=enum,
+            type_kwargs=dict(enum=self._enum(a="one", b="two", c="three")))
+        parser.parse_args(["--enum", "foo"])
         self.assertEqual(
-            self.parser.errors,
+            parser.errors,
             ["invalid enum value foo for --enum, valid values "
              "are ['one', 'two', 'three']"])
 
     def test_valid(self):
-        self.args = self.parser.parse_args(["--enum", "one"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.enum, "one")
+        parser = ErrorCapturingParser()
+        self.addarg(
+            parser,
+            "--enum", type=enum,
+            type_kwargs=dict(enum=self._enum(a="one", b="two", c="three")))
+        args = parser.parse_args(["--enum", "one"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.enum, "one")
 
 
-class TestSystemIdentifier(BaseTestArgTypes):
-    def setUp(self):
-        super(TestSystemIdentifier, self).setUp()
-        self.parser.add_argument(
-            "--systemid",
-            type=partial(system_identifier, instance=self))
-
+class TestSystemIdentifier(ArgTestCase):
     def test_auto(self):
-        self.args = self.parser.parse_args(["--systemid", "auto"])
-        self.assertEqual(self.parser.errors, [])
-        self.assertEqual(self.args.systemid, "auto")
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--systemid", type=system_identifier)
+        args = parser.parse_args(["--systemid", "auto"])
+        self.assertEqual(parser.errors, [])
+        self.assertEqual(args.systemid, "auto")
 
     def test_unable_to_parse(self):
-        self.args = self.parser.parse_args(["--systemid", "!"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--systemid", type=system_identifier)
+        parser.parse_args(["--systemid", "!"])
         self.assertEqual(
-            self.parser.errors,
+            parser.errors,
             ["failed to convert value provided to --systemid to an integer"])
 
     def test_less_than_zero(self):
-        self.args = self.parser.parse_args(["--systemid", "-1"])
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--systemid", type=system_identifier)
+        parser.parse_args(["--systemid", "-1"])
         self.assertEqual(
-            self.parser.errors,
+            parser.errors,
             ["valid range for --systemid is 0 to 281474976710655"])
 
     def test_greater_than_max(self):
+        parser = ErrorCapturingParser()
+        self.addarg(parser, "--systemid", type=system_identifier)
         systemid = SYSTEMID_MAX + 1
-        self.args = self.parser.parse_args(["--systemid", str(systemid)])
+        parser.parse_args(["--systemid", str(systemid)])
         self.assertEqual(
-            self.parser.errors,
+            parser.errors,
             ["valid range for --systemid is 0 to 281474976710655"])
