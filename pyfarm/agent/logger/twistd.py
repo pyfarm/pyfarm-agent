@@ -109,11 +109,6 @@ class Observer(object):
         self.datefmt = CONFIGURATION["datefmt"]
         self.format = CONFIGURATION["format"]
 
-        for fname, flevel in CONFIGURATION["levels"]:
-            if fname == "":
-                self.max_level = flevel
-                break
-
     def filter(self, name, level, message):
         """
         Return ``True`` if the given log line should be
@@ -123,7 +118,7 @@ class Observer(object):
             return True
 
         for fname, flevel in CONFIGURATION["levels"]:
-            if level > self.max_level or level > flevel:
+            if fname == "" and flevel > level:
                 return True
 
             if (fname == name or fnmatch(name, fname)) and flevel > level:
