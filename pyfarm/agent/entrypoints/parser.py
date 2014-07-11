@@ -287,7 +287,11 @@ class ActionMixin(object):
                     "provided.  Please either setup a default in the config "
                     "or provide a default to the argument parser" % self.config)
 
-            kwargs.update(default=config[self.config])
+            if self.config in config:
+                kwargs.update(default=config[self.config])
+
+        # Update the config with the default
+        config[self.config] = kwargs["default"]
 
         if type_ is not None:
             assert self.parser is not None
