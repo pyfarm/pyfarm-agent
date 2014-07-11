@@ -60,24 +60,24 @@ def assert_parser(func):
 
 
 @assert_parser
-def ip(value, parser=None):
+def ip(value, parser=None, flag=None):
     """make sure the ip address provided is valid"""
     try:
         IPAddress(value)
     except (ValueError, AddrFormatError):
-        parser.error("%s is not a valid ip address" % value)
+        parser.error("%s is not a valid ip address for %s" % (value, flag))
     else:
         return value
 
 
 @assert_parser
-def port(value, parser=None, get_uid=None):
+def port(value, parser=None, get_uid=None, flag=None):
     """convert and check to make sure the provided port is valid"""
     assert callable(get_uid)
     try:
         value = convert.ston(value)
     except (ValueError, SyntaxError):
-        parser.error("failed to convert port to a number")
+        parser.error("%s requires a number" % flag)
     else:
         try:
             low_port = 1 if get_uid() == 0 else 49152
