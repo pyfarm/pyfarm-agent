@@ -19,8 +19,7 @@ from os import urandom
 
 from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.parser import (
-    assert_parser, ip, port, integer, direxists, number, enum,
-    system_identifier)
+    assert_parser, ip, port, direxists, number, enum, system_identifier)
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 
@@ -191,8 +190,6 @@ class TestInteger(ArgTestCase):
         self.assertEqual(
             parser.errors,
             ["--int, '3.14159' is not an instance of <type 'int'>"])
-
-
 
 
 class TestEnum(ArgTestCase):
