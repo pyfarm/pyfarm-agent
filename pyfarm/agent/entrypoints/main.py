@@ -125,6 +125,7 @@ class AgentEntryPoint(object):
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
             "--systemid", config="agent_systemid", type=system_identifier,
+            default="auto",
             help="The system identification value.  This is used to help "
                  "identify the system itself to the master when the agent "
                  "connects. [default: %(default)s]")
