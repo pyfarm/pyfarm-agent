@@ -104,7 +104,7 @@ def system_identifier(value, parser=None, flag=None):
         parser.error(
             "failed to convert value provided to %s to an integer" % flag)
     else:
-        if 0 > value or value > SYSTEMID_MAX:
+        if 0 >= value or value > SYSTEMID_MAX:
             parser.error("valid range for %s is 0 to %s" % (flag, SYSTEMID_MAX))
 
         return value
@@ -287,11 +287,13 @@ class ActionMixin(object):
                     "provided.  Please either setup a default in the config "
                     "or provide a default to the argument parser" % self.config)
 
-            if self.config in config:
-                kwargs.update(default=config[self.config])
-
-            # Update the config with the default
-            config[self.config] = kwargs["default"]
+            # Update the config with the default if one
+            # was provided
+            if "default" in kwargs:
+                default = kwargs["default"]
+                if callable(kwargs["default"]):
+                    default = default()
+                config[self.config] = default
 
         if type_ is not None:
             assert self.parser is not None
