@@ -99,7 +99,7 @@ class LoggingConfiguration(Configuration):
         """
         if value == "auto":
             if key == "agent_ram":
-                return int(memory.total_ram())
+                return memory.total_ram()
 
             if key == "agent_cpus":
                 return cpu.total_cpus()
