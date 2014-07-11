@@ -124,12 +124,12 @@ class Observer(object):
 
         for fname, flevel in CONFIGURATION["levels"]:
             if level > self.max_level or level > flevel:
-                return False
+                return True
 
             if (fname == name or fnmatch(name, fname)) and flevel > level:
-                return False
+                return True
 
-        return True
+        return False
 
     def emit(self, event):
         """
