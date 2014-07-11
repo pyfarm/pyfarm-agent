@@ -202,30 +202,16 @@ class TestCPU(TestCase):
 class TestMemory(TestCase):
     def test_totalram(self):
         self.assertEqual(memory.total_ram(),
-                         convert.bytetomb(psutil.virtual_memory().total))
-
-    def test_totalswap(self):
-        self.assertEqual(memory.total_swap(),
-                         convert.bytetomb(psutil.swap_memory().total))
-
-    def test_swapused(self):
-        v1 = convert.bytetomb(psutil.swap_memory().used)
-        v2 = memory.swap_used()
-        self.assertApproximates(v1, v2, 5)
-
-    def test_swapfree(self):
-        v1 = convert.bytetomb(psutil.swap_memory().free)
-        v2 = memory.swap_free()
-        self.assertApproximates(v1, v2, 5)
+                         int(convert.bytetomb(psutil.virtual_memory().total)))
 
     def test_ramused(self):
-        v1 = convert.bytetomb(psutil.virtual_memory().used)
-        v2 = memory.ram_used()
+        v1 = memory.total_ram() - memory.free_ram()
+        v2 = memory.used_ram()
         self.assertApproximates(v1, v2, 5)
 
     def test_ramfree(self):
         v1 = convert.bytetomb(psutil.virtual_memory().available)
-        v2 = memory.ram_free()
+        v2 = memory.free_ram()
         self.assertApproximates(v1, v2, 5)
 
     def test_process_memory(self):

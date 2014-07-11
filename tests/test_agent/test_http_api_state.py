@@ -109,8 +109,8 @@ class TestStatus(BaseAPITestCase):
         expected_data = {
             "state": config["state"],
             "agent_hostname": config["agent_hostname"],
-            "agent_process_ram": int(memory.process_memory()),
-            "consumed_ram": int(memory.total_consumption()),
+            "agent_process_ram": memory.process_memory(),
+            "consumed_ram": memory.total_consumption(),
             "child_processes": direct_child_processes,
             "grandchild_processes": grandchild_processes,
             "pids": config["pids"],
@@ -131,6 +131,6 @@ class TestStatus(BaseAPITestCase):
         self.assertApproximates(
             data.pop("uptime"), expected_data.pop("uptime"), .5)
         self.assertApproximates(
-            data.pop("free_ram"), int(memory.ram_free()), 25)
+            data.pop("free_ram"), memory.free_ram(), 25)
 
         self.assertEqual(data, expected_data)

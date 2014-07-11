@@ -239,13 +239,13 @@ class AgentEntryPoint(object):
             description="Command line flags which describe the hardware of "
                         "the agent.")
         start_hardware_group.add_argument(
-            "--cpus", default=int(cpu.total_cpus()),
+            "--cpus", default=cpu.total_cpus(),
             config="agent_cpus", type=int,
             help="The total amount of cpus installed on the "
                  "system.  Defaults to the number of cpus installed "
                  "on the system.")
         start_hardware_group.add_argument(
-            "--ram", default=int(memory.total_ram()),
+            "--ram", default=memory.total_ram(),
             config="agent_ram", type=int,
             help="The total amount of ram installed on the system in "
                  "megabytes.  Defaults to the amount of ram the "
