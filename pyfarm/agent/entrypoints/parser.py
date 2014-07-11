@@ -275,6 +275,7 @@ class ActionMixin(object):
         isfile: fileexists}
 
     def __init__(self, *args, **kwargs):
+        self.parser = kwargs.pop("parser")
         self.config = kwargs.pop("config", None)
         type_ = kwargs.get("type")
         type_kwargs = kwargs.pop("type_kwargs", {})
@@ -289,10 +290,10 @@ class ActionMixin(object):
             kwargs.update(default=config[self.config])
 
         if type_ is not None:
-            assert AgentArgumentParser.parser is not None
+            assert self.parser is not None
             type_ = self.TYPE_MAPPING.get(type_, type_)
 
-            partial_kwargs = {"parser": AgentArgumentParser.parser}
+            partial_kwargs = {"parser": self.parser}
             partial_kwargs.update(type_kwargs)
 
             if "flag" not in partial_kwargs:
@@ -356,23 +357,24 @@ class AgentArgumentParser(ArgumentParser):
     A modified :class:`ArgumentParser` which interfaces with
     the agent's configuration.
     """
-    parser = None
-
     def __init__(self, *args, **kwargs):
-        # This is the first time we've instanced the class
-        # and we'll use this in the argtype functions above.
-        if AgentArgumentParser.parser is None:
-            AgentArgumentParser.parser = self
-
         super(AgentArgumentParser, self).__init__(*args, **kwargs)
 
         # Override the relevant actions with out own so
         # we have more control of what they're doing
-        self.register("action", None, StoreAction)
-        self.register("action", "store", StoreAction)
-        self.register("action", "store_const", StoreConstAction)
-        self.register("action", "store_true", StoreTrueAction)
-        self.register("action", "store_false", StoreFalseAction)
-        self.register("action", "append", AppendAction)
-        self.register("action", "append_const", AppendConstAction)
-        self.register("action", "parsers", SubParsersAction)
+        self.register("action", None,
+                      partial(StoreAction, parser=self))
+        self.register("action", "store",
+                      partial(StoreAction, parser=self))
+        self.register("action", "store_const",
+                      partial(StoreConstAction, parser=self))
+        self.register("action", "store_true",
+                      partial(StoreTrueAction, parser=self))
+        self.register("action", "store_false",
+                      partial(StoreFalseAction, parser=self))
+        self.register("action", "append",
+                      partial(AppendAction, parser=self))
+        self.register("action", "append_const",
+                      partial(AppendConstAction, parser=self))
+        self.register("action", "parsers",
+                      partial(SubParsersAction, parser=self))
