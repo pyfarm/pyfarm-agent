@@ -276,11 +276,11 @@ class ActionMixin(object):
 
     def __init__(self, *args, **kwargs):
         self.parser = kwargs.pop("parser")
-        self.config = kwargs.pop("config", NOTSET)
+        self.config = kwargs.pop("config", False)
         type_ = kwargs.get("type")
         type_kwargs = kwargs.pop("type_kwargs", {})
 
-        if self.config is not NOTSET:
+        if self.config is not False:
             if self.config not in config and "default" not in kwargs:
                 raise AssertionError(
                     "Config value `%s` does not exist and no default was "
