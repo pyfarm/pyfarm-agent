@@ -40,7 +40,7 @@ import requests
 from pyfarm.core.enums import NUMERIC_TYPES
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.argtypes import integer, number
+from pyfarm.agent.entrypoints.parser import integer, number
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import dumps
 

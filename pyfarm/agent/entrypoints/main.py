@@ -24,13 +24,10 @@ The main module which constructs the entrypoint for the
 
 from __future__ import division
 
-import argparse
-
 import os
 import sys
 import time
 
-from functools import partial
 from json import dumps
 
 from os.path import dirname, isfile, isdir
@@ -65,10 +62,10 @@ from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.argtypes import (
-    ip, port, uidgid, direxists, enum, integer, number, system_identifier)
+from pyfarm.agent.entrypoints.parser import (
+    AgentArgumentParser, ip, port,  uidgid, enum, number, system_identifier)
 from pyfarm.agent.entrypoints.utility import (
-    SetConfig, SetConfigConst, start_daemon_posix, get_system_identifier)
+    start_daemon_posix, get_system_identifier)
 from pyfarm.agent.sysinfo import memory, cpu
 
 
@@ -81,7 +78,7 @@ class AgentEntryPoint(object):
     """Main object for parsing command line options"""
     def __init__(self):
         self.args = None
-        self.parser = argparse.ArgumentParser(
+        self.parser = AgentArgumentParser(
             usage="%(prog)s [status|start|stop]",
             epilog="%(prog)s is a command line client for working with a "
                    "local agent.  You can use it to stop, start, and report "
@@ -108,37 +105,32 @@ class AgentEntryPoint(object):
             description="Main flags which control the network services running "
                         "on the agent.")
         global_network.add_argument(
-            "--port", default=config["agent_api_port"],
-            action=partial(SetConfig, key="agent_api_port"),
-            type=partial(port, instance=self),
+            "--port", config="agent_api_port", type=port,
+            type_kwargs=dict(get_uid=lambda: self.args.uid == 0),
             help="The port number which the agent is either running on or "
                  "will run on when started.  This port is also reported the "
                  "master when an agent starts. [default: %(default)s]")
         global_network.add_argument(
-            "--host", default=config["agent_hostname"],
-            action=partial(SetConfig, key="agent_hostname"),
+            "--host", config="agent_hostname",
             help="The host to communicate with or hostname to present to the "
                  "master when starting.  Defaults to the fully qualified "
                  "hostname.")
         global_network.add_argument(
-            "--agent-api-username", default="agent",
+            "--agent-api-username", default="agent", config=False,
             help="The username required to access or manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--agent-api-password", default="agent",
+            "--agent-api-password", default="agent", config=False,
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid", default=config["agent_systemid"],
-            type=partial(system_identifier, instance=self),
-            action=partial(SetConfig, key="agent_systemid"),
+            "--systemid", config="agent_systemid", type=system_identifier,
+            default=config["agent_systemid"],
             help="The system identification value.  This is used to help "
                  "identify the system itself to the master when the agent "
                  "connects. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid-cache",
-            default=config["agent_systemid_cache"],
-            action=partial(SetConfig, key="agent_systemid_cache"),
+            "--systemid-cache", config="agent_systemid_cache",
             help="The location to cache the value for --systemid. "
                  "[default: %(default)s]")
 
@@ -147,19 +139,16 @@ class AgentEntryPoint(object):
             "Network Resources",
             description="Resources which the agent will be communicating with.")
         global_apis.add_argument(
-            "--master", default=config["master"],
-            action=partial(SetConfig, key="master"),
+            "--master", config="master",
             help="This is a convenience flag which will allow you to set the "
                  "hostname for the master.  By default this value will be "
                  "substituted in --master-api")
         global_apis.add_argument(
-            "--master-api", default=config["master_api"],
-            action=partial(SetConfig, key="master_api"),
+            "--master-api", config="master_api",
             help="The location where the master's REST api is located. "
                  "[default: %(default)s]")
         global_apis.add_argument(
-            "--master-api-version", default=config["master_api_version"],
-            action=partial(SetConfig, key="master_api_version"),
+            "--master-api-version", config="master_api_version",
             help="Sets the version of the master's REST api the agent should"
                  "use [default: %(default)s]")
 
@@ -173,30 +162,23 @@ class AgentEntryPoint(object):
                         "They also assist in maintaining the 'running state' "
                         "via a process id file.")
         global_process.add_argument(
-            "--pidfile",
-            default=config["agent_lock_file"],
-            action=partial(SetConfig, key="agent_lock_file", isfile=True),
+            "--pidfile", config="agent_lock_file",
             help="The file to store the process id in. [default: %(default)s]")
         global_process.add_argument(
             "-n", "--no-daemon", default=False, action="store_true",
+            config=False,
             help="If provided then do not run the process in the background.")
         global_process.add_argument(
-            "--chdir",
-            type=partial(direxists, instance=self, flag="chdir"),
-            action=partial(SetConfig, key="agent_chdir", isfile=True),
+            "--chdir", config="agent_chdir", type=isdir,
             help="The working directory to change the agent into upon launch")
         global_process.add_argument(
-            "--uid",
-            type=partial(
-                uidgid, flag="uid",
-                get_id=getuid, check_id=getpwuid, set_id=setuid, instance=self),
+            "--uid", type=uidgid, config=False,
+            type_kwargs=dict(get_id=getuid, check_id=getpwuid, set_id=setuid),
             help="The user id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
         global_process.add_argument(
-            "--gid",
-            type=partial(
-                uidgid, flag="uid",
-                get_id=getgid, check_id=getgrgid, set_id=setgid, instance=self),
+            "--gid", type=uidgid, config=False,
+            type_kwargs=dict(get_id=getgid, check_id=getgrgid, set_id=setgid),
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
 
@@ -207,55 +189,47 @@ class AgentEntryPoint(object):
                         "hardware, state, and certain timing and scheduling "
                         "attributes.")
         start_general_group.add_argument(
-            "--projects", default=[], nargs="+",
+            "--projects", default=[], nargs="+", config=False,
             help="The project or projects this agent is dedicated to.  By "
                  "default the agent will service any project however specific "
                  "projects may be specified.  For example if you wish this "
                  "agent to service 'Foo Part I' and 'Foo Part II' only just "
                  "specify it as `--projects \"Foo Part I\" \"Foo Part II\"`")
         start_general_group.add_argument(
-            "--state", default=AgentState.ONLINE,
-            type=partial(enum, instance=self, enum=AgentState, flag="state"),
+            "--state", default=AgentState.ONLINE, config=False,
+            type=enum, type_kwargs=dict(enum=AgentState),
             help="The current agent state, valid values are "
                  "" + str(list(AgentState)) + ". [default: %(default)s]")
         start_general_group.add_argument(
-            "--time-offset", default=config["agent_time_offset"],
-            type=partial(integer, instance=self, flag="time-offset", min_=0),
-            action=partial(SetConfig, key="agent_time_offset"),
+            "--time-offset", config="agent_time_offset",
+            type=int, type_kwargs=dict(min_=0),
             help="If provided then don't talk to the NTP server at all to "
                  "calculate the time offset.  If you know for a fact that this "
                  "host's time is always up to date then setting this to 0 is "
                  "probably a safe bet.")
         start_general_group.add_argument(
-            "--ntp-server", default=config["agent_ntp_server"],
-            action=partial(SetConfig, key="agent_ntp_server"),
+            "--ntp-server", config="agent_ntp_server",
             help="The default network time server this agent should query to "
                  "retrieve the real time.  This will be used to help determine "
                  "the agent's clock skew if any.  Setting this value to '' "
                  "will effectively disable this query. [default: %(default)s]")
         start_general_group.add_argument(
-            "--ntp-server-version", default=config["agent_ntp_server_version"],
-            action=partial(SetConfig, key="agent_ntp_server_version"),
-            type=partial(integer, instance=self, flag="ntp-server-version"),
+            "--ntp-server-version", config="agent_ntp_server_version",
+            type=int,
             help="The version of the NTP server in case it's running an older"
                  "or newer version. [default: %(default)s]")
         start_general_group.add_argument(
-            "--no-pretty-json", default=config["agent_pretty_json"],
-            action=partial(
-                SetConfigConst, key="agent_pretty_json", value=False),
+            "--no-pretty-json", config="agent_pretty_json",
+            action="store_false",
             help="If provided do not dump human readable json via the agent's "
                  "REST api")
         start_general_group.add_argument(
-            "--shutdown-timeout",
-            default=config["agent_shutdown_timeout"],
-            action=partial(SetConfig, key="agent_shutdown_timeout"),
-            type=partial(
-                integer, instance=self, flag="shutdown_timeout", min_=0),
+            "--shutdown-timeout", config="agent_shutdown_timeout",
+            type=int, type_kwargs=dict(min_=0),
             help="How many seconds the agent should spend attempting to inform "
                  "the master that it's shutting down.")
         start_general_group.add_argument(
-            "--updates-drop-dir", default=config["agent_updates_dir"],
-            action=partial(SetConfig, key="agent_updates_dir"),
+            "--updates-drop-dir", config="agent_updates_dir",
             help="The directory to drop downloaded updates in. This should be "
             "the same directory pyfarm-supervisor will look for updates in. "
             "[default: %(default)s]")
@@ -267,15 +241,13 @@ class AgentEntryPoint(object):
                         "the agent.")
         start_hardware_group.add_argument(
             "--cpus", default=cpu.total_cpus(),
-            action=partial(SetConfig, key="agent_cpus"),
-            type=partial(integer, instance=self, flag="cpus"),
+            config="agent_cpus", type=int,
             help="The total amount of cpus installed on the "
                  "system.  Defaults to the number of cpus installed "
                  "on the system.")
         start_hardware_group.add_argument(
             "--ram", default=memory.total_ram(),
-            action=partial(SetConfig, key="agent_ram"),
-            type=partial(integer, instance=self, flag="ram"),
+            config="agent_ram", type=int,
             help="The total amount of ram installed on the system in "
                  "megabytes.  Defaults to the amount of ram the "
                  "system has installed.")
@@ -287,9 +259,7 @@ class AgentEntryPoint(object):
                         "intervals should occur.")
         start_interval_group.add_argument(
             "--ram-check-interval",
-            default=config["agent_ram_check_interval"],
-            action=partial(SetConfig, key="agent_ram_check_interval"),
-            type=partial(integer, instance=self, flag="ram-check-interval"),
+            config="agent_ram_check_interval", type=int,
             help="How often ram resources should be checked for changes. "
                  "The amount of memory currently being consumed on the system "
                  "is checked after certain events occur such as a process but "
@@ -297,10 +267,7 @@ class AgentEntryPoint(object):
                  "when no such events are occurring. [default: %(default)s]")
         start_interval_group.add_argument(
             "--ram-max-report-frequency",
-            default=config["agent_ram_max_report_frequency"],
-            type=partial(
-                integer, instance=self, flag="ram-max-report-interval"),
-            action=partial(SetConfig, key="agent_ram_max_report_frequency"),
+            config="agent_ram_max_report_frequency", type=int,
             help="This is a limiter that prevents the agent from reporting "
                  "memory changes to the master more often than a specific "
                  "time interval.  This is done in order to ensure that when "
@@ -308,16 +275,11 @@ class AgentEntryPoint(object):
                  "in ram usage only one or two will be reported to the "
                  "master. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--ram-report-delta", default=config["agent_ram_report_delta"],
-            type=partial(integer, instance=self, flag="ram-report-delta"),
-            action=partial(SetConfig, key="agent_ram_report_delta"),
+            "--ram-report-delta", config="agent_ram_report_delta", type=int,
             help="Only report a change in ram if the value has changed "
                  "at least this many megabytes. [default: %(default)s]")
         start_interval_group.add_argument(
-            "--master-reannounce",
-            default=config["agent_master_reannounce"],
-            action=partial(SetConfig, key="agent_master_reannounce"),
-            type=partial(integer, instance=self, flag="master-reannounce"),
+            "--master-reannounce", config="agent_master_reannounce", type=int,
             help="Controls how often the agent should reannounce itself "
                  "to the master.  The agent may be in contact with the master "
                  "more often than this however during long period of "
@@ -330,23 +292,18 @@ class AgentEntryPoint(object):
             description="Settings which control logging of the agent's parent "
                         "process and/or any subprocess it runs.")
         logging_group.add_argument(
-            "--log",
-            default=config["agent_log"],
-            action=partial(SetConfig, key="agent_log", isfile=True),
+            "--log", config="agent_log",
             help="If provided log all output from the agent to this path.  "
                  "This will append to any existing log data.  [default: "
                  "%(default)s]")
         logging_group.add_argument(
-            "--capture-process-output",
-            default=config["jobtype_capture_process_output"],
-            action=partial(
-                SetConfigConst, key="jobtype_capture_process_output",
-                value=True),
+            "--capture-process-output", config="jobtype_capture_process_output",
+            action="store_true",
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", default=config["agent_task_logs"],
-            action=partial(SetConfig, key="agent_task_logs", isfile=True),
+            "--task-log-dir", config="agent_task_logs",
+            type=isdir, type_kwargs=dict(create=True),
             help="The directory tasks should log to.")
 
         # network options for the agent when start is called
@@ -355,7 +312,7 @@ class AgentEntryPoint(object):
             description="Controls how the agent is seen or interacted with "
                         "by external services such as the master.")
         start_network.add_argument(
-            "--ip-remote", type=partial(ip, instance=self),
+            "--ip-remote", type=ip, config=False,
             help="The remote IPv4 address to report.  In situation where the "
                  "agent is behind a firewall this value will typically be "
                  "different.")
@@ -368,33 +325,25 @@ class AgentEntryPoint(object):
                         "master's REST api and how it should run it's own "
                         "REST api.")
         start_http_group.add_argument(
-            "--html-templates-reload",
-            default=config["agent_html_template_reload"],
-            action=partial(
-                SetConfigConst, key="agent_html_template_reload", value=True),
+            "--html-templates-reload", config="agent_html_template_reload",
+            action="store_true",
             help="If provided then force Jinja2, the html template system, "
                  "to check the file system for changes with every request. "
                  "This flag should not be used in production but is useful "
                  "for development and debugging purposes.")
         start_http_group.add_argument(
-            "--static-files", default=config["agent_static_root"],
-            type=partial(direxists, instance=self, flag="static-files"),
-            action=partial(SetConfig, key="agent_static_root", isfile=True),
+            "--static-files", config="agent_static_root", type=isdir,
             help="The default location where the agent's http server should "
                  "find static files to serve.")
         start_http_group.add_argument(
-            "--http-retry-delay", default=config["agent_http_retry_delay"],
-            type=partial(number, instance=self),
-            action=partial(SetConfig, key="agent_http_retry_delay"),
+            "--http-retry-delay", config="agent_http_retry_delay", type=number,
             help="If a http request to the master has failed, wait this amount "
                  "of time before trying again")
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
-            "--jobtype-no-cache",
-            default=config["jobtype_enable_cache"],
-            action=partial(
-                SetConfigConst, key="jobtype_enable_cache", value=False),
+            "--jobtype-no-cache", config="jobtype_enable_cache",
+            action="store_true",
             help="If provided then do not cache job types, always directly "
                  "retrieve them.  This is beneficial if you're testing the "
                  "agent or a new job type class.")
@@ -404,7 +353,7 @@ class AgentEntryPoint(object):
             "optional flags",
             description="Flags that control how the agent is stopped")
         stop_group.add_argument(
-            "--no-wait", default=False, action="store_true",
+            "--no-wait", default=False, action="store_true", config=False,
             help="If provided then don't wait on the agent to shut itself "
                  "down.  By default we would want to wait on each task to stop "
                  "so we can catch any errors and then finally wait on the "

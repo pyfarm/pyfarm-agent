@@ -24,7 +24,6 @@ import sys
 import shutil
 import tempfile
 import time
-from argparse import ArgumentParser
 from datetime import datetime
 from functools import wraps, partial
 from os.path import basename, isfile
@@ -76,6 +75,7 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.core.template import DeferredTemplate
 from pyfarm.agent.sysinfo import memory, cpu, system
@@ -194,7 +194,7 @@ class FakeAgent(object):
         return self.stopped
 
 
-class ErrorCapturingParser(ArgumentParser):
+class ErrorCapturingParser(AgentArgumentParser):
     def __init__(self, *args, **kwargs):
         super(ErrorCapturingParser, self).__init__(*args, **kwargs)
         self.errors = []
