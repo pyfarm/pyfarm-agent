@@ -34,7 +34,7 @@ from os.path import isdir, isfile, abspath
 
 from netaddr import AddrFormatError, IPAddress
 
-from pyfarm.core.enums import OS, NUMERIC_TYPES
+from pyfarm.core.enums import OS, NUMERIC_TYPES, NOTSET
 from pyfarm.core.utility import convert
 
 from pyfarm.agent.logger import getLogger
@@ -276,11 +276,11 @@ class ActionMixin(object):
 
     def __init__(self, *args, **kwargs):
         self.parser = kwargs.pop("parser")
-        self.config = kwargs.pop("config", None)
+        self.config = kwargs.pop("config", NOTSET)
         type_ = kwargs.get("type")
         type_kwargs = kwargs.pop("type_kwargs", {})
 
-        if self.config not in (False, None):
+        if self.config is not NOTSET:
             if self.config not in config and "default" not in kwargs:
                 raise AssertionError(
                     "Config value `%s` does not exist and no default was "
@@ -290,8 +290,8 @@ class ActionMixin(object):
             if self.config in config:
                 kwargs.update(default=config[self.config])
 
-        # Update the config with the default
-        config[self.config] = kwargs["default"]
+            # Update the config with the default
+            config[self.config] = kwargs["default"]
 
         if type_ is not None:
             assert self.parser is not None
