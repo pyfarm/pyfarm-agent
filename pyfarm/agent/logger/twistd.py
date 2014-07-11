@@ -119,15 +119,15 @@ class Observer(object):
         Return ``True`` if the given log line should be
         filtered out.
         """
+        if message == "Log opened.":
+            return True
+
         for fname, flevel in CONFIGURATION["levels"]:
             if level > self.max_level or level > flevel:
                 return False
 
             if (fname == name or fnmatch(name, fname)) and flevel > level:
                 return False
-
-        if message == "Log opened.":
-            return False
 
         return True
 
