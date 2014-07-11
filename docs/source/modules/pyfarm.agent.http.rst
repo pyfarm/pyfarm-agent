@@ -14,9 +14,6 @@ Submodules
 
 .. toctree::
 
-   pyfarm.agent.http.log
-   pyfarm.agent.http.processes
-   pyfarm.agent.http.shutdown
    pyfarm.agent.http.system
 
 Module contents

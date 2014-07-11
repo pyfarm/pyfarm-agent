@@ -47,10 +47,10 @@ General Configuration:
                         query to retrieve the real time. This will be used to
                         help determine the agent's clock skew if any. Setting
                         this value to '' will effectively disable this query.
-                        [default: pool.ntp.org]
+                        [default: None]
   --ntp-server-version NTP_SERVER_VERSION
                         The version of the NTP server in case it's running an
-                        olderor newer version. [default: 2]
+                        olderor newer version. [default: None]
   --no-pretty-json      If provided do not dump human readable json via the
                         agent's REST api
   --shutdown-timeout SHUTDOWN_TIMEOUT
@@ -59,8 +59,7 @@ General Configuration:
   --updates-drop-dir UPDATES_DROP_DIR
                         The directory to drop downloaded updates in. This
                         should be the same directory pyfarm-supervisor will
-                        look for updates in. [default:
-                        /tmp/pyfarm/agent/updates]
+                        look for updates in. [default: None]
 
 Physical Hardware:
   Command line flags which describe the hardware of the agent.
@@ -81,17 +80,17 @@ Interval Controls:
                         system is checked after certain events occur such as a
                         process but this flag specifically controls how often
                         we should check when no such events are occurring.
-                        [default: 30]
+                        [default: None]
   --ram-max-report-frequency RAM_MAX_REPORT_FREQUENCY
                         This is a limiter that prevents the agent from
                         reporting memory changes to the master more often than
                         a specific time interval. This is done in order to
                         ensure that when 100s of events fire in a short period
                         of time cause changes in ram usage only one or two
-                        will be reported to the master. [default: 10]
+                        will be reported to the master. [default: None]
   --ram-report-delta RAM_REPORT_DELTA
                         Only report a change in ram if the value has changed
-                        at least this many megabytes. [default: 100]
+                        at least this many megabytes. [default: None]
   --master-reannounce MASTER_REANNOUNCE
                         Controls how often the agent should reannounce itself
                         to the master. The agent may be in contact with the
@@ -105,7 +104,7 @@ Logging Options:
 
   --log LOG             If provided log all output from the agent to this
                         path. This will append to any existing log data.
-                        [default: /tmp/pyfarm/agent/logs/agent.log]
+                        [default: None]
   --capture-process-output
                         If provided then all log output from each process
                         launched by the agent will be sent through agent's

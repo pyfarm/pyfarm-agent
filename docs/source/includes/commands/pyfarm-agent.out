@@ -15,7 +15,7 @@ Agent Network Service:
   --port PORT           The port number which the agent is either running on
                         or will run on when started. This port is also
                         reported the master when an agent starts. [default:
-                        50000]
+                        None]
   --host HOST           The host to communicate with or hostname to present to
                         the master when starting. Defaults to the fully
                         qualified hostname.
@@ -30,7 +30,7 @@ Agent Network Service:
                         agent connects. [default: auto]
   --systemid-cache SYSTEMID_CACHE
                         The location to cache the value for --systemid.
-                        [default: /tmp/pyfarm/agent/systemid.cache]
+                        [default: None]
 
 Network Resources:
   Resources which the agent will be communicating with.
@@ -40,10 +40,10 @@ Network Resources:
                         will be substituted in --master-api
   --master-api MASTER_API
                         The location where the master's REST api is located.
-                        [default: http://None/api/v1]
+                        [default: None]
   --master-api-version MASTER_API_VERSION
                         Sets the version of the master's REST api the agent
-                        shoulduse [default: 1]
+                        shoulduse [default: None]
 
 Process Control:
   These settings apply to the parent process of the agent and contribute to
@@ -51,8 +51,7 @@ Process Control:
   environment. They also assist in maintaining the 'running state' via a
   process id file.
 
-  --pidfile PIDFILE     The file to store the process id in. [default:
-                        /tmp/pyfarm/agent/lock/agent.pid]
+  --pidfile PIDFILE     The file to store the process id in. [default: None]
   -n, --no-daemon       If provided then do not run the process in the
                         background.
   --chdir CHDIR         The working directory to change the agent into upon
