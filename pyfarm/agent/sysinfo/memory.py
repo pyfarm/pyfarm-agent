@@ -26,40 +26,25 @@ import psutil
 from pyfarm.core.utility import convert
 
 
-def swap_used():
-    """Amount of swap currently in use"""
-    return convert.bytetomb(psutil.swap_memory().used)
+def used_ram():
+    """Amount of physical memory currently in use by applications"""
+    return total_ram() - free_ram()
 
 
-def swap_free():
-    """Amount of swap currently free"""
-    return convert.bytetomb(psutil.swap_memory().free)
-
-
-def ram_used():
-    """Amount of swap currently free"""
-    return convert.bytetomb(psutil.virtual_memory().used)
-
-
-def ram_free():
-    """Amount of ram currently free"""
-    return convert.bytetomb(psutil.virtual_memory().available)
+def free_ram():
+    """Amount of physical memory free for application use"""
+    return int(convert.bytetomb(psutil.virtual_memory().available))
 
 
 def total_ram():
-    """Total physical memory (ram) installed on the system"""
-    return convert.bytetomb(psutil.virtual_memory().total)
-
-
-def total_swap():
-    """Total virtual memory (swap) installed on the system"""
-    return convert.bytetomb(psutil.swap_memory().total)
+    """Total physical memory installed on the system"""
+    return int(convert.bytetomb(psutil.virtual_memory().total))
 
 
 def process_memory():
-    """Total amount of ram in use by this process"""
+    """Total amount of memory in use by this process"""
     process = psutil.Process()
-    return convert.bytetomb(process.memory_info().rss)
+    return int(convert.bytetomb(process.memory_info().rss))
 
 
 def total_consumption():
@@ -74,4 +59,4 @@ def total_consumption():
     for child_process in parent.children(recursive=True):
         total += child_process.memory_info().rss
 
-    return convert.bytetomb(total)
+    return int(convert.bytetomb(total))

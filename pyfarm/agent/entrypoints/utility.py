@@ -25,9 +25,8 @@ on the main entry point class.
 import atexit
 import os
 import sys
-from argparse import _StoreAction, _StoreTrueAction
 from errno import EEXIST, ENOENT
-from os.path import dirname, abspath
+from os.path import dirname
 
 try:
     from os import setuid, setgid, fork
@@ -46,51 +45,6 @@ from pyfarm.agent.sysinfo import system
 logger = getLogger("agent.cmd")
 
 SYSTEMID_MAX = 281474976710655
-
-
-class SetConfig(_StoreAction):
-    """
-    An action which can be used by an argument parser to update
-    the configuration object when a flag on the command line is
-    set
-
-    >>> from functools import partial
-    >>> from argparse import ArgumentParser
-    >>> from pyfarm.agent.config import config
-    >>> parser = ArgumentParser()
-    >>> parser.add_argument("--foo", action=partial(SetConfig, key="foobar"))
-    >>> parser.parse_args(["--foo", "bar"])
-    >>> assert "foobar" in config and config["foobar"] == "bar"
-    """
-    def __init__(self, *args, **kwargs):
-        self.key = kwargs.pop("key")
-        self.isfile = kwargs.pop("isfile", False)
-        super(SetConfig, self).__init__(*args, **kwargs)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        if self.isfile:
-            values = abspath(values)
-
-        config[self.key] = values
-        super(SetConfig, self).__call__(
-            parser, namespace, values, option_string=option_string)
-
-
-class SetConfigConst(_StoreTrueAction):
-    """
-    Performs the same actions as :class:`SetConfig` except
-    it meant to always set a constant value (much like 'store_true' would)
-    """
-    def __init__(self, *args, **kwargs):
-        value = kwargs.pop("value")
-        self.key = kwargs.pop("key")
-        super(SetConfigConst, self).__init__(*args, **kwargs)
-        self.const = value
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        config[self.key] = self.const
-        super(SetConfigConst, self).__call__(
-            parser, namespace, values, option_string=option_string)
 
 
 # This is a Linux specific test and will be hard to get due to the nature

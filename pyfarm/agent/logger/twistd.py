@@ -114,14 +114,16 @@ class Observer(object):
         Return ``True`` if the given log line should be
         filtered out.
         """
+        if message == "Log opened.":
+            return True
+
 
         for fname, flevel in CONFIGURATION["levels"]:
             if fname in (name, "") or fnmatch(name, fname):
                 if flevel > level:
                     return True
 
-        if message == "Log opened.":
-            return True
+        return False
 
     def emit(self, event):
         """

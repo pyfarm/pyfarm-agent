@@ -24,7 +24,6 @@ import sys
 import shutil
 import tempfile
 import time
-from argparse import ArgumentParser
 from datetime import datetime
 from functools import wraps, partial
 from os import urandom
@@ -86,6 +85,7 @@ except ImportError:  # copied from Python 2.7's source
 
 from voluptuous import Schema
 from twisted.internet.defer import Deferred, succeed
+from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.core.template import DeferredTemplate
 from pyfarm.agent.utility import dumps
@@ -250,7 +250,7 @@ class FakeAgent(object):
         return self.stopped
 
 
-class ErrorCapturingParser(ArgumentParser):
+class ErrorCapturingParser(AgentArgumentParser):
     def __init__(self, *args, **kwargs):
         super(ErrorCapturingParser, self).__init__(*args, **kwargs)
         self.errors = []
@@ -389,10 +389,10 @@ class TestCase(_TestCase):
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
             "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
-            "agent_ram": int(memory.total_ram()),
+            "agent_ram": memory.total_ram(),
             "agent_cpus": cpu.total_cpus(),
             "agent_api_port": randint(10000, 50000),
-            "free_ram": int(memory.ram_free()),
+            "free_ram": memory.free_ram(),
             "agent_time_offset": randint(-50, 50),
             "state": choice(AgentState),
             "start": time.time(),

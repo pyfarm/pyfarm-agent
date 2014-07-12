@@ -14,14 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import partial
 from os import urandom, environ
-from os.path import abspath
 
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.utility import (
-    SYSTEMID_MAX, get_system_identifier, SetConfig, SetConfigConst)
+from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX, get_system_identifier
 from pyfarm.agent.sysinfo import network, system
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser, skipIf
 
@@ -94,63 +91,28 @@ class TestSystemIdentifier(TestCase):
         self.assertEqual(result, system.system_identifier())
 
 
-class TestSetConfig(TestCase):
-    def test_requires_key(self):
-        with self.assertRaises(KeyError):
-            SetConfig()
-
-    def test_set_config(self):
+class TestConfigWithParser(TestCase):
+    def test_set(self):
         key = urandom(16).encode("hex")
         value = urandom(16).encode("hex")
         parser = ErrorCapturingParser()
-        parser.add_argument(
-            "--foo", action=partial(SetConfig, key=key))
-        self.assertNotIn(key, config)
+        parser.add_argument("--foo", config=key, help=key, default=False)
+        self.assertIn(key, config)
         args = parser.parse_args(["--foo", value])
         self.assertEqual(args.foo, value)
         self.assertIn(key, config)
         self.assertEqual(config[key], value)
 
-    def test_set_config_abspath(self):
-        key = urandom(16).encode("hex")
-        path = urandom(16).encode("hex")
-        parser = ErrorCapturingParser()
-        parser.add_argument(
-            "--foo", action=partial(SetConfig, key=key, isfile=True))
-        self.assertNotIn(key, config)
-        args = parser.parse_args(["--foo", path])
-        self.assertEqual(args.foo, abspath(path))
-        self.assertIn(key, config)
-        self.assertEqual(config[key], abspath(path))
-
-
-class TestSetConfigConst(TestCase):
-    def test_requires_key(self):
-        with self.assertRaises(KeyError):
-            SetConfigConst()
-
-    def test_requires_value(self):
-        with self.assertRaises(KeyError):
-            SetConfigConst(key="foo")
-
-    def test_set_true(self):
+    def test_uses_default(self):
         key = urandom(16).encode("hex")
         parser = ErrorCapturingParser()
-        parser.add_argument(
-            "--foo", action=partial(SetConfigConst, key=key, value=True))
-        self.assertNotIn(key, config)
-        args = parser.parse_args(["--foo"])
-        self.assertEqual(args.foo, True)
-        self.assertIn(key, config)
-        self.assertEqual(config[key], True)
-
-    def test_set_false(self):
-        key = urandom(16).encode("hex")
-        parser = ErrorCapturingParser()
-        parser.add_argument(
-            "--foo", action=partial(SetConfigConst, key=key, value=False))
-        self.assertNotIn(key, config)
-        args = parser.parse_args(["--foo"])
+        parser.add_argument("--foo", config=key, help=key, default=False)
+        args = parser.parse_args()
         self.assertEqual(args.foo, False)
-        self.assertIn(key, config)
         self.assertEqual(config[key], False)
+
+    def test_requires_default(self):
+        parser = ErrorCapturingParser()
+        with self.assertRaisesRegexp(
+                AssertionError, ".*no default was provided.*"):
+            parser.add_argument("--foo", config="foo", help="foo")
