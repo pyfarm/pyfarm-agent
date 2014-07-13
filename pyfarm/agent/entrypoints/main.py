@@ -319,7 +319,7 @@ class AgentEntryPoint(object):
 
         start_manhole = start.add_argument_group(
             "Manhole Service",
-            description="Controls the manhole service which allow a telnet "
+            description="Controls the manhole service which allows a telnet "
                         "connection to be made directly into the agent as "
                         "it's running.")
         start_manhole.add_argument(
