@@ -58,14 +58,6 @@ class LoggingManhole(ColoredManhole):
         peer = self.terminal.transport.getPeer()
         logger.info("Connection made from %s@%s", peer.host, peer.port)
         super(LoggingManhole, self).connectionMade()
-        self.keyHandlers.pop(CTRL_D, None    ) #= self.handle_QUIT
-
-    # def handle_QUIT(self):
-    #     self.terminal.eraseLine()
-    #     super(LoggingManhole, self).handle_QUIT()
-
-    def dataReceived(self):
-        pass
 
     def connectionLost(self, reason):
         peer = self.terminal.transport.getPeer()
@@ -77,7 +69,7 @@ class LoggingManhole(ColoredManhole):
         peer = self.terminal.transport.getPeer()
         logger.info("%s@%s - %s", peer.host, peer.port, line)
 
-        if line.strip() in ("exit", "exit()", "quit", "\q"):
+        if line.strip() in ("exit", "exit()", "quit", "quit()", "\q"):
             self.handle_QUIT()
         else:
             super(LoggingManhole, self).lineReceived(line)
@@ -162,7 +154,6 @@ def manhole_factory(namespace, username, password):
 
     namespace.setdefault("pp", pprint)
     namespace.setdefault("show", show)
-    namespace.setdefault("exit", lambda: print("Please use Ctrl-D to exit."))
 
     realm = TelnetRealm()
     TelnetRealm.NAMESPACE = namespace
