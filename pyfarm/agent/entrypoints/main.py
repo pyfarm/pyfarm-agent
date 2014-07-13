@@ -317,6 +317,29 @@ class AgentEntryPoint(object):
                  "agent is behind a firewall this value will typically be "
                  "different.")
 
+        start_manhole = start.add_argument_group(
+            "Manhole Service",
+            description="Controls the manhole service which allow a telnet "
+                        "connection to be made directly into the agent as "
+                        "it's running.")
+        start_manhole.add_argument(
+            "--enable-manhole", config="agent_manhole",
+            action="store_true",
+            help="When provided the manhole service will be started once the "
+                 "reactor is running.")
+        start_manhole.add_argument(
+            "--manhole-port", config="agent_manhole_port", type=port,
+            type_kwargs=dict(get_uid=lambda: self.args.uid == 0),
+            help="The port the manhole service should run on if enabled.")
+        start_manhole.add_argument(
+            "--manhole-username", config="agent_manhole_username",
+            help="The telnet username that's allowed to connect to the "
+                 "manhole service running on the agent.")
+        start_manhole.add_argument(
+            "--manhole-password", config="agent_manhole_password",
+            help="The telnet password to use when connecting to the "
+                 "manhole service running on the agent.")
+
         # various options for how the agent will interact with the
         # master server
         start_http_group = start.add_argument_group(
