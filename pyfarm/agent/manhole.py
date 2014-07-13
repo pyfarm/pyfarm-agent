@@ -32,7 +32,7 @@ from pprint import pprint
 from inspect import ismethod
 
 from twisted.conch.insults.insults import ServerProtocol
-from twisted.conch.manhole import ColoredManhole, CTRL_D
+from twisted.conch.manhole import ColoredManhole
 from twisted.conch.telnet import (
     ITelnetProtocol, TelnetBootstrapProtocol, AuthenticatingTelnetProtocol,
     TelnetTransport)
