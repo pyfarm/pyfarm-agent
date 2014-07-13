@@ -17,6 +17,7 @@ Submodules
 .. toctree::
 
    pyfarm.agent.config
+   pyfarm.agent.manhole
    pyfarm.agent.service
    pyfarm.agent.tasks
    pyfarm.agent.testutil
