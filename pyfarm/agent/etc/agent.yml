@@ -158,3 +158,11 @@ agent_manhole: False
 agent_manhole_port: 50001
 agent_manhole_username: admin
 agent_manhole_password: admin
+
+# NOTE: The following values are used by the unittests and should be
+# generally ignored for anything other than development.
+agent_unittest:
+  dns_test_hostname: example.com
+  client_redirect_target: http://example.com
+  client_api_test_url_https: https://httpbin.org
+  client_api_test_url_http: http://httpbin.org
