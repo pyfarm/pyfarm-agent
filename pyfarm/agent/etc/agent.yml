@@ -140,3 +140,14 @@ agent_time_offset: auto
 agent_ram: auto
 agent_cpus: auto
 agent_hostname: auto
+
+# When True this will enable a telnet connection
+# to the agent which will present a Python interpreter
+# upon connection.  This is mainly used for debugging
+# and direct manipulation of the agent.  You can use
+# the show() function once connected to see what
+# objects are available.
+agent_manhole: False
+agent_manhole_port: 50001
+agent_manhole_user: admin
+agent_manhole_password: admin

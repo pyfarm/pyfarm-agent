@@ -540,8 +540,7 @@ class AgentEntryPoint(object):
         # Setup the agent, register stop(), then run the agent
         service = Agent()
         signal.signal(signal.SIGINT, service.sigint_handler)
-        service.start()
-
+        reactor.callWhenRunning(service.start)
         reactor.run()
 
     def stop(self):
