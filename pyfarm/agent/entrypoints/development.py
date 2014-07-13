@@ -332,6 +332,12 @@ def fake_work():
             "version": jobtype_version},
         "tasks": job_tasks}
 
+    # Drop any keys which don't have values since this
+    # would break the schema validation in the agent.
+    for key in list(assignment_data["job"]):
+        if assignment_data["job"][key] is None:
+            del assignment_data["job"][key]
+
     response = session.post(
         args.agent_api + "/assign",
         data=dumps(assignment_data))
