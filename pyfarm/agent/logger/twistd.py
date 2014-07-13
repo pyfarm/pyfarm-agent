@@ -117,7 +117,6 @@ class Observer(object):
         if message == "Log opened.":
             return True
 
-
         for fname, flevel in CONFIGURATION["levels"]:
             if fname in (name, "") or fnmatch(name, fname):
                 if flevel > level:
