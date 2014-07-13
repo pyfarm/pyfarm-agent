@@ -149,5 +149,5 @@ agent_hostname: auto
 # objects are available.
 agent_manhole: False
 agent_manhole_port: 50001
-agent_manhole_user: admin
+agent_manhole_username: admin
 agent_manhole_password: admin

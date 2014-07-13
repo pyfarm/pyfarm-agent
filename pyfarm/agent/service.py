@@ -332,7 +332,7 @@ class Agent(object):
         """
         if config["agent_manhole"]:
             self._start_manhole(config["agent_manhole_port"],
-                                config["agent_manhole_user"],
+                                config["agent_manhole_username"],
                                 config["agent_manhole_password"])
 
         # setup the internal http server so external entities can
