@@ -75,7 +75,7 @@ class Agent(object):
         # so parts of this instance are accessible elsewhere
         assert "agent" not in config
         config["agent"] = self
-        self.http = None
+        self.services = {}
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
         self.shutting_down = False
@@ -276,6 +276,47 @@ class Agent(object):
 
         return root
 
+    def _start_manhole(self, port, username, password):
+        """
+        Starts the manhole server so we can connect to the agent
+        over telnet
+        """
+        if "manhole" in self.services:
+            svclog.warning(
+                "Telnet manhole service is already running on port %s",
+                self.services["manhole"].port)
+            return
+
+        svclog.info("Starting telnet manhole on port %s", port)
+
+        # Since we don't always need this module we import
+        # it here to save on memory and other resources
+        from pyfarm.agent.manhole import manhole_factory
+
+        # Contains the things which will be in the top level
+        # namespace of the Python interpreter.
+        namespace = {
+            "config": config, "agent": self,
+            "jobtypes": config["jobtypes"],
+            "current_assignments": config["current_assignments"]}
+
+        factory = manhole_factory(namespace, username, password)
+        self.services["manhole"] = reactor.listenTCP(port, factory)
+
+    def _start_http_api(self, port):
+        """
+        Starts the HTTP api so the master can communicate
+        with the agent.
+        """
+        if "api" in self.services:
+            svclog.warning(
+                "HTTP API service already running on port %s",
+                self.services["api"].port)
+            return
+
+        http_resource = self.build_http_resource()
+        self.services["api"] = reactor.listenTCP(port, Site(http_resource))
+
     def start(self, shutdown_events=True, http_server=True):
         """
         Internal code which starts the agent, registers it with the master,
@@ -289,12 +330,15 @@ class Agent(object):
             If True then construct and serve the externally facing http
             server.
         """
+        if config["agent_manhole"]:
+            self._start_manhole(config["agent_manhole_port"],
+                                config["agent_manhole_username"],
+                                config["agent_manhole_password"])
+
         # setup the internal http server so external entities can
         # interact with the service.
         if http_server:
-            http_resource = self.build_http_resource()
-            self.http = Site(http_resource)
-            reactor.listenTCP(config["agent_api_port"], self.http)
+            self._start_http_api(config["agent_api_port"])
 
         # Update the configuration with this pid (which may be different
         # than the original pid).

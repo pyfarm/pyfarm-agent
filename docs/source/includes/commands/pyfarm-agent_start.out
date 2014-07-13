@@ -16,6 +16,10 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--capture-process-output]
                                               [--task-log-dir TASK_LOG_DIR]
                                               [--ip-remote IP_REMOTE]
+                                              [--enable-manhole]
+                                              [--manhole-port MANHOLE_PORT]
+                                              [--manhole-username MANHOLE_USERNAME]
+                                              [--manhole-password MANHOLE_PASSWORD]
                                               [--html-templates-reload]
                                               [--static-files STATIC_FILES]
                                               [--http-retry-delay HTTP_RETRY_DELAY]
@@ -120,6 +124,21 @@ Network Service:
                         The remote IPv4 address to report. In situation where
                         the agent is behind a firewall this value will
                         typically be different.
+
+Manhole Service:
+  Controls the manhole service which allow a telnet connection to be made
+  directly into the agent as it's running.
+
+  --enable-manhole      When provided the manhole service will be started once
+                        the reactor is running.
+  --manhole-port MANHOLE_PORT
+                        The port the manhole service should run on if enabled.
+  --manhole-username MANHOLE_USERNAME
+                        The telnet username that's allowed to connect to the
+                        manhole service running on the agent.
+  --manhole-password MANHOLE_PASSWORD
+                        The telnet password to use when connecting to the
+                        manhole service running on the agent.
 
 HTTP Configuration:
   Options for how the agent will interact with the master's REST api and how

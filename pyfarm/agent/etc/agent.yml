@@ -148,10 +148,13 @@ agent_ram: auto
 agent_cpus: auto
 agent_hostname: auto
 
-# NOTE: The following values are used by the unittests and should be
-# generally ignored for anything other than development.
-agent_unittest:
-    dns_test_hostname: example.com
-    client_redirect_target: http://example.com
-    client_api_test_url_https: https://httpbin.org
-    client_api_test_url_http: http://httpbin.org
+# When True this will enable a telnet connection
+# to the agent which will present a Python interpreter
+# upon connection.  This is mainly used for debugging
+# and direct manipulation of the agent.  You can use
+# the show() function once connected to see what
+# objects are available.
+agent_manhole: False
+agent_manhole_port: 50001
+agent_manhole_username: admin
+agent_manhole_password: admin
