@@ -65,7 +65,6 @@ class LoggingManhole(ColoredManhole):
         super(LoggingManhole, self).connectionLost(reason)
 
     def lineReceived(self, line):
-        print("\xec" in line)
         peer = self.terminal.transport.getPeer()
         logger.info("%s@%s - %s", peer.host, peer.port, line)
 
