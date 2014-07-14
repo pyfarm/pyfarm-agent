@@ -640,7 +640,7 @@ class JobType(Cache, Process, TypeChecks):
                 error = None
 
             url = "%s/jobs/%s/tasks/%s" % (
-                config["master-api"], self.assignment["job"]["id"], task["id"])
+                config["master_api"], self.assignment["job"]["id"], task["id"])
             data = {"state": state}
 
             # If the error has been set then update the data we're
