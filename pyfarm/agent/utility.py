@@ -117,14 +117,39 @@ def uuid():
     return uuid1(node=config["agent_systemid"])
 
 
-def default_json_encoder(obj):
+def default_json_encoder(obj, return_obj=False):
     if isinstance(obj, Decimal):
         return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, UUID):
         return str(obj)
+    elif return_obj:
+        return obj
 
+
+def json_safe(source):
+    """
+    Recursively converts ``source`` into something that should be safe for
+    :func:`json.dumps` to handle.  This is used in conjunction with
+    :func:`default_json_encoder` to also convert keys to something the json
+    encoder can understand.
+    """
+    if not isinstance(source, dict):
+        return source
+
+    result = {}
+
+    try:
+        items = source.iteritems
+    except AttributeError:  # pragma: no cover
+        items = source.items
+
+    for k, v in items():
+        result[default_json_encoder(k, return_obj=True)] = \
+            default_json_encoder(json_safe(v), return_obj=True)
+
+    return result
 
 def quote_url(source_url):
     """
