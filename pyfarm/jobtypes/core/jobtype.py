@@ -69,6 +69,30 @@ ProcessData = namedtuple(
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
+class CommandData(object):
+    """
+    Stores data to be returned by :meth:`JobType.get_command_data`.  The
+    same instances of this class are also used by
+    :meth:`JobType.spawn_process` too.
+    """
+    def __init__(self, command, *arguments, **kwargs):
+        self.command = command
+        self.arguments = arguments
+        self.env = kwargs.pop("env", {})
+        self.cwd = kwargs.pop("cwd", None)
+        self.user = kwargs.pop("user", None)
+        self.group = kwargs.pop("group", None)
+        if kwargs:
+            raise ValueError("Unexpected keywords present "
+                             "in kwargs: %s" % kwargs.keys())
+
+        if self.cwd is None:
+            if not config["agent_chdir"]:
+                self.cwd = os.getcwd()
+            else:
+                self.cwd = config["agent_chdir"]
+
+
 class JobType(Cache, Process, TypeChecks):
     """
     Base class for all other job types.  This class is intended
@@ -251,7 +275,7 @@ class JobType(Cache, Process, TypeChecks):
             "cpus": config["cpus"],
             "ram": config["ram"],
             "total_ram": int(memory.total_ram()),
-            "free_ram": int(memory.ram_free()),
+            "free_ram": int(memory.free_ram()),
             "consumed_ram": int(memory.total_consumption()),
             "admin": is_administrator(),
             "user": username(),
@@ -371,9 +395,7 @@ class JobType(Cache, Process, TypeChecks):
         return Template(expanduser(value)).safe_substitute(**environment)
 
     # TODO: finish implementation, remove process_inputs fully
-    def spawn_process(
-            self, command, arguments, working_dir, environment,
-            user, group):
+    def spawn_process(self, command):
         """
         Starts one child process using input from :meth:`command_data`.
         Job types should never start child processes through any other
@@ -390,20 +412,26 @@ class JobType(Cache, Process, TypeChecks):
             group without root access.  This error will only occur on
             Linux or Unix platforms.
         """
-        self._check_spawn_process_inputs(
-            command, arguments, working_dir, environment,
-            user, group)
+        if not isinstance(command, CommandData):
+            raise TypeError(
+                "Expected `CommandData` instances from get_command_data()")
 
-        uid, gid = self._get_uid_gid(user, group)
+        self._check_spawn_process_inputs(
+            command.command, command.arguments,
+            command.cwd, command.env,
+            command.user, command.group)
+
+        uid, gid = self._get_uid_gid(command.user, command.group)
         process_protocol = ProcessProtocol(
-            self, command, arguments, working_dir, environment, uid, gid)
+            self, command.command, command.arguments, command.cwd,
+            command.env, uid, gid)
 
         if not isinstance(process_protocol, ProcessProtocol):
             raise TypeError("Expected ProcessProtocol for `protocol`")
 
         # NOTE: `env` should always be None, see the comment below
         # for more details
-        kwargs = {"args": arguments, "env": None}
+        kwargs = {"args": command.arguments, "env": None}
 
         if uid is not None:
             kwargs.update(uid=uid)
@@ -424,7 +452,7 @@ class JobType(Cache, Process, TypeChecks):
             #   /api/twisted.internet.interfaces.IReactorProcess.html
             # For more detailed information on how specific platforms handle
             # the environment.
-            with ReplaceEnvironment(environment):
+            with ReplaceEnvironment(command.env):
                 reactor.spawnProcess(process_protocol, command, **kwargs)
 
         # Capture the protocol instance so we can keep track
@@ -446,10 +474,12 @@ class JobType(Cache, Process, TypeChecks):
         else:
             self.start_called = True
 
-        # between tasks and processes we have to change how we notify
-        # the master (and how we cancel other tasks which are queued)
-        for process_inputs in self.get_command_data():
-            self.spawn_process(*process_inputs)
+        command_data = self.get_command_data()
+        if isinstance(command_data, CommandData):
+            command_data = [command_data]
+
+        for entry in command_data:
+            self.spawn_process(entry)
 
         return self.started
 
