@@ -729,10 +729,17 @@ class JobType(Cache, Process, TypeChecks):
 
     def process_stopped(self, protocol, reason):
         """
-        Called by :meth:`.ProcessProtocol.processEnded` when a process
-        stopped running.
+        Overridable method called when a child process stopped running.
+
+        Default implementation will mark all tasks in the current assignment as
+        done or failed of there was at least one failed process
         """
-        self._process_stopped(protocol, reason)
+        if len(self.failed_processes) == 0:
+            for task in self.assignment["tasks"]:
+                self.set_task_state(task, WorkState.DONE)
+        else:
+            for task in self.assignment["tasks"]:
+                self.set_task_state(task, WorkState.FAILED)
 
     def process_started(self, protocol):
         """
