@@ -75,7 +75,7 @@ class CommandData(object):
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
-        self.arguments = tuple(arguments)
+        self.arguments = [str(x) for x in arguments]
         self.env = kwargs.pop("env", {})
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
