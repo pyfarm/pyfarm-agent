@@ -782,9 +782,9 @@ class JobType(Cache, Process, TypeChecks):
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
             for line in lines:
-                if protocol.id in self.stdout_line_fragments:
-                    line_out = self.stdout_line_fragments[protocol.id] + line
-                    del self.stdout_line_fragments[protocol.id]
+                if protocol.pid in self.stdout_line_fragments:
+                    line_out = self.stdout_line_fragments[protocol.pid] + line
+                    del self.stdout_line_fragments[protocol.pid]
                     if len(line_out) > 0 and line_out[-1] == "\r":
                         line_out = line_out[:-1]
                     self.received_stdout_line(protocol, line_out)
@@ -793,12 +793,12 @@ class JobType(Cache, Process, TypeChecks):
                         line = line[:-1]
                     self.received_stdout_line(protocol, line)
             if ends_on_fragment:
-                self.stdout_line_fragments[protocol.id] = dangling_fragment
+                self.stdout_line_fragments[protocol.pid] = dangling_fragment
         else:
             if protocol.id in self.stdout_line_fragments:
-                self.stdout_line_fragments[protocol.id] += stdout
+                self.stdout_line_fragments[protocol.pid] += stdout
             else:
-                self.stdout_line_fragments[protocol.id] = stdout
+                self.stdout_line_fragments[protocol.pid] = stdout
 
     def received_stdout_line(self, protocol, line):
         """
