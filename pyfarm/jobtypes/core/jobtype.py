@@ -454,7 +454,9 @@ class JobType(Cache, Process, TypeChecks):
             # For more detailed information on how specific platforms handle
             # the environment.
             with ReplaceEnvironment(command.env):
-                reactor.spawnProcess(process_protocol, command, **kwargs)
+                logger.debug("Starting process with command data %r, kwargs: %r",
+                             command, kwargs)
+                reactor.spawnProcess(process_protocol, command.command, **kwargs)
 
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
