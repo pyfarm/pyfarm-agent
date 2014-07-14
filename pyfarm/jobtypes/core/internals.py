@@ -301,6 +301,7 @@ class Process(object):
         event loop.
         """
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
+        del self.processes[protocol.uuid]
 
         if self.is_successful(reason):
             logpool.log(
