@@ -27,7 +27,7 @@ import os
 from collections import namedtuple
 from datetime import datetime
 from string import Template
-from os.path import join, expanduser
+from os.path import join, expanduser, basename
 from functools import partial
 
 try:
@@ -430,7 +430,9 @@ class JobType(Cache, Process, TypeChecks):
 
         # WARNING: `env` should always be None, see the comment below
         # for more details
-        kwargs = {"args": command.arguments, "env": None}
+        # The first argument should always be the command name by convention
+        arguments = [basename(command.command)] + list(command.arguments)
+        kwargs = {"args": arguments, "env": None}
 
         if uid is not None:
             kwargs.update(uid=uid)
