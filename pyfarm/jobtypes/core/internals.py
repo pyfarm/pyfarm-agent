@@ -22,7 +22,9 @@ Contains classes which contain internal methods for
 the :class:`pyfarm.jobtypes.core.jobtype.JobType` class.
 """
 
+import imp
 import os
+import sys
 import tempfile
 from errno import EEXIST
 from datetime import datetime
@@ -109,6 +111,10 @@ class Cache(object):
             cls.CACHE_DIRECTORY, "%s_%s.py" % (cache_key, classname)))
 
     @classmethod
+    def _cache_key(cls, assignment):
+        return assignment["jobtype"]["name"], assignment["jobtype"]["version"]
+
+    @classmethod
     def _cache_jobtype(cls, cache_key, jobtype):
         """
         Once the job type is downloaded this classmethod is called
@@ -187,6 +193,33 @@ class Cache(object):
         writer = threads.deferToThread(write_to_disk, filename)
         writer.addCallbacks(written_to_disk, failed_to_write_to_disk)
         return success
+
+    @classmethod
+    def _module_for_jobtype(cls, jobtype):
+        return "pyfarm.jobtypes.cached.%s%s%s" % (
+            jobtype["classname"], jobtype["name"], jobtype["version"])
+
+    @classmethod
+    def _load_jobtype(cls, jobtype, filepath):
+        def load_jobtype(jobtype_data, path):
+            module_name = cls._module_for_jobtype(jobtype_data)
+
+            # Create or load the module
+            if filepath is not None:
+                module = imp.load_source(module_name, path)
+            else:
+                logcache.warning(
+                    "Loading (%s, %s) directly from memoy",
+                    jobtype_data["name"], jobtype_data["version"])
+                module = imp.new_module(module_name)
+                exec jobtype_data["code"] in module.__dict__
+                sys.modules[module_name] = module
+
+            return getattr(module, jobtype_data["classname"])
+
+        # Load the job type itself in a thread so we limit disk I/O
+        # and other blocking issues in the main thread.
+        return threads.deferToThread(load_jobtype, jobtype, filepath)
 
 
 class Process(object):

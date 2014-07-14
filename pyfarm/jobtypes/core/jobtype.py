@@ -175,46 +175,7 @@ class JobType(Cache, Process, TypeChecks):
         cls.ASSIGNMENT_SCHEMA(assignment)
 
         result = Deferred()
-        cache_key = (
-            assignment["jobtype"]["name"], assignment["jobtype"]["version"])
-
-        def load_jobtype(*args):
-            # TODO: FIX THIS
-            try:
-                jobtype, filepath = args
-            except ValueError:
-                jobtype, filepath = args, None
-
-            if isinstance(jobtype, tuple):
-                try:
-                    jobtype, filepath = jobtype[0][0], None
-                except KeyError:
-                    jobtype, filepath = jobtype[0], None
-
-
-            module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
-                jobtype["classname"], jobtype["name"], jobtype["version"])
-
-            if filepath is not None:
-                # If we've made it to this point we have to assume
-                # we have access to the file.
-                module = imp.load_source(module_name, filepath)
-            else:
-                # TODO: this needs testing
-                logcache.warning(
-                    "Loading (%s, %s) directly from memory",
-                    jobtype["name"], jobtype["version"])
-                module = imp.new_module(module_name)
-
-                # WARNING: This is dangerous and only used as a last
-                # resort.  There's probably something wrong with the
-                # file system.
-                exec jobtype["code"] in module.__dict__
-
-                sys.modules[module_name] = module
-
-            # Finally, send the results to the callback
-            result.callback(getattr(module, jobtype["classname"]))
+        cache_key = cls._cache_key(assignment)
 
         if config["jobtype_enable_cache"] or cache_key not in cls.cache:
             def download_complete(response):
@@ -225,12 +186,17 @@ class JobType(Cache, Process, TypeChecks):
                         http_retry_delay(),
                         response.request.retry)
 
+                downloaded_data = response.json()
+
                 if not config["jobtype_enable_cache"]:
-                    return load_jobtype(response.json(), None)
+                    deferred = cls._load_jobtype(downloaded_data, None)
+                    deferred.chainDeferred(result)
                 else:
                     # When the download is complete, cache the results
-                    caching = cls._cache_jobtype(cache_key, response.json())
-                    caching.addCallback(load_jobtype)
+                    caching = cls._cache_jobtype(cache_key, downloaded_data)
+                    caching.addCallback(
+                        lambda result: cls._load_jobtype(*result))
+                    caching.chainDeferred(result)
 
             # Start the download
             download = cls._download_jobtype(
@@ -238,7 +204,8 @@ class JobType(Cache, Process, TypeChecks):
                 assignment["jobtype"]["version"])
             download.addCallback(download_complete)
         else:
-            load_jobtype(cls.cache[cache_key], None)
+            deferred = cls._load_jobtype(cls.cache[cache_key], None)
+            deferred.chainDeferred(result)
 
         return result
 
