@@ -20,4 +20,4 @@ from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 class FakeRender(JobType):
     def get_command_data(self):
-        return CommandData("python", ("-c", "print 'hello world'"))
+        return CommandData("python", "-c", "print 'hello world'")

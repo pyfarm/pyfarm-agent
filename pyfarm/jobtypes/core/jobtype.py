@@ -23,9 +23,7 @@ other job types are built.  All other job types must
 inherit from the :class:`JobType` class in this modle.
 """
 
-import imp
 import os
-import sys
 from collections import namedtuple
 from datetime import datetime
 from string import Template
@@ -77,7 +75,7 @@ class CommandData(object):
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
-        self.arguments = arguments
+        self.arguments = tuple(arguments)
         self.env = kwargs.pop("env", {})
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
@@ -331,7 +329,7 @@ class JobType(Cache, Process, TypeChecks):
             create_time = datetime.utcnow()
 
         return join(
-            config["task-log-dir"],
+            config["agent_task_logs"],
             "%s_%s_%s.csv" % (
                 create_time.strftime("%G%m%d%H%M%S"),
                 self.assignment["job"]["id"], protocol_uuid))
@@ -412,6 +410,7 @@ class JobType(Cache, Process, TypeChecks):
             group without root access.  This error will only occur on
             Linux or Unix platforms.
         """
+
         if not isinstance(command, CommandData):
             raise TypeError(
                 "Expected `CommandData` instances from get_command_data()")
@@ -429,7 +428,7 @@ class JobType(Cache, Process, TypeChecks):
         if not isinstance(process_protocol, ProcessProtocol):
             raise TypeError("Expected ProcessProtocol for `protocol`")
 
-        # NOTE: `env` should always be None, see the comment below
+        # WARNING: `env` should always be None, see the comment below
         # for more details
         kwargs = {"args": command.arguments, "env": None}
 
@@ -442,7 +441,7 @@ class JobType(Cache, Process, TypeChecks):
         self.processes[process_protocol.uuid] = ProcessData(
             protocol=process_protocol, started=Deferred(), stopped=Deferred())
 
-        def spawn_process():
+        def spawn_process(_):
             # reactor.spawnProcess does different things with the environment
             # depending on what platform you're on and what you're passing in.
             # To avoid inconsistent behavior, we replace os.environ with
@@ -458,9 +457,12 @@ class JobType(Cache, Process, TypeChecks):
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
         # logging thread.
+        result = Deferred()
         log_path = self.get_csvlog_path(process_protocol.uuid)
         deferred = logpool.open_log(process_protocol, log_path)
         deferred.addCallback(spawn_process)
+        deferred.chainDeferred(result)
+        return result
 
     def start(self):
         """
@@ -713,7 +715,7 @@ class JobType(Cache, Process, TypeChecks):
         """
         if reason == 0:
             return True
-        elif isinstance(reason, WHOLE_NUMBERS):
+        elif isinstance(reason, INTEGER_TYPES):
             return False
         elif hasattr(reason, "type"):
             return (

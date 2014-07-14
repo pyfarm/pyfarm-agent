@@ -30,6 +30,7 @@ from errno import EEXIST
 from datetime import datetime
 from os.path import dirname, isdir, join, isfile
 from string import Template
+from uuid import UUID
 
 try:
     from httplib import OK, INTERNAL_SERVER_ERROR
@@ -307,7 +308,7 @@ class Process(object):
                 "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
-            self.failed_processes.append((protocol, reason))
+            self.failed_processes.add((protocol, reason))
             logpool.log(
                 protocol.uuid, STDOUT,
                 "Process has not terminated successfully, code %s" %
@@ -424,10 +425,10 @@ class TypeChecks(object):
         if not isinstance(path, STRING_TYPES):
             raise TypeError("Expected string for `path`")
 
-    def _check_csvlog_path_inputs(self, tasks, now):
+    def _check_csvlog_path_inputs(self, protocol_uuid, now):
         """Checks input arguments for :meth:`get_csvlog_path`"""
-        if not isinstance(tasks, ITERABLE_CONTAINERS):
-            raise TypeError("Expected tuple, list or set for `tasks`")
+        if not isinstance(protocol_uuid, UUID):
+            raise TypeError("Expected UUID for `protocol_uuid`")
 
         if now is not None and not isinstance(now, datetime):
             raise TypeError("Expected None or datetime for `now`")
