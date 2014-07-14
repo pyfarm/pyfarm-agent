@@ -178,31 +178,11 @@ class JobType(Cache, Process, TypeChecks):
         cache_key = cls._cache_key(assignment)
 
         if config["jobtype_enable_cache"] or cache_key not in cls.cache:
-            def download_complete(response):
-                # Server is offline or experiencing issues right
-                # now so we should retry the request.
-                if response.code >= INTERNAL_SERVER_ERROR:
-                    return reactor.callLater(
-                        http_retry_delay(),
-                        response.request.retry)
-
-                downloaded_data = response.json()
-
-                if not config["jobtype_enable_cache"]:
-                    deferred = cls._load_jobtype(downloaded_data, None)
-                    deferred.chainDeferred(result)
-                else:
-                    # When the download is complete, cache the results
-                    caching = cls._cache_jobtype(cache_key, downloaded_data)
-                    caching.addCallback(
-                        lambda result: cls._load_jobtype(*result))
-                    caching.chainDeferred(result)
-
-            # Start the download
             download = cls._download_jobtype(
                 assignment["jobtype"]["name"],
                 assignment["jobtype"]["version"])
-            download.addCallback(download_complete)
+            download.addCallback(cls._jobtype_download_complete, cache_key)
+            download.chainDeferred(result)
         else:
             deferred = cls._load_jobtype(cls.cache[cache_key], None)
             deferred.chainDeferred(result)

@@ -32,6 +32,11 @@ from os.path import dirname, isdir, join, isfile
 from string import Template
 
 try:
+    from httplib import OK, INTERNAL_SERVER_ERROR
+except ImportError:  # pragma: no cover
+    from http.client import OK, INTERNAL_SERVER_ERROR
+
+try:
     import pwd
     import grp
 except ImportError:  # pragma: no cover
@@ -113,6 +118,31 @@ class Cache(object):
     @classmethod
     def _cache_key(cls, assignment):
         return assignment["jobtype"]["name"], assignment["jobtype"]["version"]
+
+    @classmethod
+    def _jobtype_download_complete(cls, response, cache_key):
+        result = Deferred()
+
+        # Server is offline or experiencing issues right
+        # now so we should retry the request.
+        if response.code >= INTERNAL_SERVER_ERROR:
+            return reactor.callLater(
+                http_retry_delay(),
+                response.request.retry)
+
+        downloaded_data = response.json()
+
+        if not config["jobtype_enable_cache"]:
+            deferred = cls._load_jobtype(downloaded_data, None)
+            deferred.chainDeferred(result)
+        else:
+            # When the download is complete, cache the results
+            caching = cls._cache_jobtype(cache_key, downloaded_data)
+            caching.addCallback(
+                lambda result: cls._load_jobtype(*result))
+            caching.chainDeferred(result)
+        return result
+
 
     @classmethod
     def _cache_jobtype(cls, cache_key, jobtype):
