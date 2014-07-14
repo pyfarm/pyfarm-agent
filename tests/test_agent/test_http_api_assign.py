@@ -140,7 +140,6 @@ class TestAssign(BaseAPITestCase):
         self.assertEqual(request.code, BAD_REQUEST)
         self.assertEqual(result, NOT_DONE_YET)
         response = request.response()
-        self.assertEqual(response["agent_cpus"], config["cpus"])
         self.assertEqual(response["requires_cpus"], int(total_cpus() * 10))
         self.assertEqual(response["error"], "Not enough cpus")
 
@@ -199,6 +198,8 @@ class TestAssign(BaseAPITestCase):
         # Update the original test data with the new assignment data
         # and make sure it matches
         test_data.update(id=response_id)
+        # TODO: this fails with the latest code, may have something to
+        # do with the new deferreds
         test_data["jobtype"].update(id=current_assignment["jobtype"]["id"])
         self.assertEqual(current_assignment, test_data)
         self.assertIn(current_assignment["jobtype"]["id"], config["jobtypes"])

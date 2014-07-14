@@ -50,7 +50,7 @@ class FakeProcess(Process):
     def __init__(self):
         self.start_called = False
         self.stop_called = False
-        self.failed_processes = []
+        self.failed_processes = set()
 
     def start(self):
         self.start_called = True
@@ -167,7 +167,7 @@ class TestProcess(TestCase):
         result = FakeProcessResult(value=FakeExitCode(exitCode=0))
         self.process._process_stopped(self.protocol, result)
         self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
-        self.assertEqual(self.process.failed_processes, [])
+        self.assertEqual(self.process.failed_processes, set())
 
     def test_process_stopped_failure(self):
         result = FakeProcessResult(value=FakeExitCode(exitCode=1))
@@ -272,18 +272,18 @@ class TestMiscTypeChecks(TestCase):
 
     def test_csvlog_path_tasks(self):
         checks = TypeChecks()
-        for objtype in ITERABLE_CONTAINERS:
-            checks._check_csvlog_path_inputs(objtype(), None)
+        checks._check_csvlog_path_inputs(uuid(), None)
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*tasks.*"):
+        with self.assertRaisesRegexp(
+                TypeError, "Expected UUID for `protocol_uuid`"):
             checks._check_csvlog_path_inputs(None, None)
 
     def test_csvlog_path_time(self):
         checks = TypeChecks()
-        for objtype in ITERABLE_CONTAINERS:
-            checks._check_csvlog_path_inputs(objtype(), None)
+        checks._check_csvlog_path_inputs(uuid(), None)
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*now.*"):
+        with self.assertRaisesRegexp(
+                TypeError, "Expected UUID for `protocol_uuid`"):
             checks._check_csvlog_path_inputs([], "")
 
     def test_command_list(self):
