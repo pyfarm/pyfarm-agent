@@ -27,7 +27,7 @@ import os
 from collections import namedtuple
 from datetime import datetime
 from string import Template
-from os.path import join, expanduser
+from os.path import join, expanduser, basename
 from functools import partial
 
 try:
@@ -75,7 +75,7 @@ class CommandData(object):
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
-        self.arguments = tuple(arguments)
+        self.arguments = [str(x) for x in arguments]
         self.env = kwargs.pop("env", {})
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
@@ -430,7 +430,9 @@ class JobType(Cache, Process, TypeChecks):
 
         # WARNING: `env` should always be None, see the comment below
         # for more details
-        kwargs = {"args": command.arguments, "env": None}
+        # The first argument should always be the command name by convention
+        arguments = [basename(command.command)] + list(command.arguments)
+        kwargs = {"args": arguments, "env": None}
 
         if uid is not None:
             kwargs.update(uid=uid)
@@ -452,7 +454,9 @@ class JobType(Cache, Process, TypeChecks):
             # For more detailed information on how specific platforms handle
             # the environment.
             with ReplaceEnvironment(command.env):
-                reactor.spawnProcess(process_protocol, command, **kwargs)
+                logger.debug("Starting process with command data %r, kwargs: %r",
+                             command, kwargs)
+                reactor.spawnProcess(process_protocol, command.command, **kwargs)
 
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
@@ -636,7 +640,7 @@ class JobType(Cache, Process, TypeChecks):
                 error = None
 
             url = "%s/jobs/%s/tasks/%s" % (
-                config["master-api"], self.assignment["job"]["id"], task["id"])
+                config["master_api"], self.assignment["job"]["id"], task["id"])
             data = {"state": state}
 
             # If the error has been set then update the data we're
@@ -727,10 +731,17 @@ class JobType(Cache, Process, TypeChecks):
 
     def process_stopped(self, protocol, reason):
         """
-        Called by :meth:`.ProcessProtocol.processEnded` when a process
-        stopped running.
+        Overridable method called when a child process stopped running.
+
+        Default implementation will mark all tasks in the current assignment as
+        done or failed of there was at least one failed process
         """
-        self._process_stopped(protocol, reason)
+        if len(self.failed_processes) == 0:
+            for task in self.assignment["tasks"]:
+                self.set_task_state(task, WorkState.DONE)
+        else:
+            for task in self.assignment["tasks"]:
+                self.set_task_state(task, WorkState.FAILED)
 
     def process_started(self, protocol):
         """
@@ -771,9 +782,9 @@ class JobType(Cache, Process, TypeChecks):
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
             for line in lines:
-                if protocol.id in self.stdout_line_fragments:
-                    line_out = self.stdout_line_fragments[protocol.id] + line
-                    del self.stdout_line_fragments[protocol.id]
+                if protocol.pid in self.stdout_line_fragments:
+                    line_out = self.stdout_line_fragments[protocol.pid] + line
+                    del self.stdout_line_fragments[protocol.pid]
                     if len(line_out) > 0 and line_out[-1] == "\r":
                         line_out = line_out[:-1]
                     self.received_stdout_line(protocol, line_out)
@@ -782,12 +793,12 @@ class JobType(Cache, Process, TypeChecks):
                         line = line[:-1]
                     self.received_stdout_line(protocol, line)
             if ends_on_fragment:
-                self.stdout_line_fragments[protocol.id] = dangling_fragment
+                self.stdout_line_fragments[protocol.pid] = dangling_fragment
         else:
             if protocol.id in self.stdout_line_fragments:
-                self.stdout_line_fragments[protocol.id] += stdout
+                self.stdout_line_fragments[protocol.pid] += stdout
             else:
-                self.stdout_line_fragments[protocol.id] = stdout
+                self.stdout_line_fragments[protocol.pid] = stdout
 
     def received_stdout_line(self, protocol, line):
         """

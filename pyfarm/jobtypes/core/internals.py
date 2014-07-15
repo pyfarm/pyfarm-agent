@@ -301,6 +301,7 @@ class Process(object):
         event loop.
         """
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
+        del self.processes[protocol.uuid]
 
         if self.is_successful(reason):
             logpool.log(
@@ -313,6 +314,8 @@ class Process(object):
                 protocol.uuid, STDOUT,
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
+
+        self.process_stopped(protocol, reason)
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
