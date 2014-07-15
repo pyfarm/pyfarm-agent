@@ -258,7 +258,19 @@ class Process(object):
     logging = {}
 
     def _start(self):
-        return self.start()
+        def start_assignment(_):
+            # Make sure _start() is not called twice
+            if self.start_called:
+                raise RuntimeError("%s has already been started" % self)
+            else:
+                self.start_called = True
+                self.start()
+                self.started_deferred.callback(None)
+
+        self.started_deferred = Deferred()
+        self.stopped_deferred = Deferred()
+        reactor.callLater(0, start_assignment, None)
+        return self.started_deferred, self.stopped_deferred
 
     def _stop(self):
         return self.stop()
@@ -316,6 +328,12 @@ class Process(object):
                 reason.value.exitCode)
 
         self.process_stopped(protocol, reason)
+
+        # If there are no processes running at this point, we assume
+        # the assign is finished
+        if len(self.processes) == 0:
+            # TODO Mark tasks that have not yet been marked otherwise as FAILED
+            self.stopped_deferred.callback(None)
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
