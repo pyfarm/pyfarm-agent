@@ -132,7 +132,7 @@ class ProcessProtocol(_ProcessProtocol):
         up the last bit of resources.
         """
         self._ended = True
-        self.jobtype.process_stopped(self, reason)
+        self.jobtype._process_stopped(self, reason)
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
