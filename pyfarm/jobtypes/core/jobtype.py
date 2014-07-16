@@ -151,42 +151,6 @@ class JobType(Cache, Process, TypeChecks):
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
-    @property
-    def started(self):
-        """
-        Property which returns a deferred that will fire a callback
-        when all processes have started.  Even if the process/processes
-        have already started the callback will still fire.
-
-        .. note::
-            If new processes are created after accessing this property
-            they will **not** be tracked in the deferred callback.
-        """
-        deferreds = []
-
-        for process_id, process in self.processes.items():
-            deferreds.append(process.started)
-
-        return DeferredList(deferreds)
-
-    @property
-    def stopped(self):
-        """
-        Property which returns a deferred that will fire a callback
-        when all processes have finished.  Even if the process/processes
-        have already finished the callback will still fire.
-
-        .. note::
-            If new processes are created after accessing this property
-            they will **not** be tracked in the deferred callback.
-        """
-        deferreds = []
-
-        for process_id, process in self.processes.items():
-            deferreds.append(process.stopped)
-
-        return DeferredList(deferreds)
-
     @classmethod
     def load(cls, assignment):
         """
@@ -475,19 +439,12 @@ class JobType(Cache, Process, TypeChecks):
         prepare and start one more more processes.
         """
         # Make sure start() is not called twice
-        if self.start_called:
-            raise RuntimeError("%s has already been started" % self)
-        else:
-            self.start_called = True
-
         command_data = self.get_command_data()
         if isinstance(command_data, CommandData):
             command_data = [command_data]
 
         for entry in command_data:
             self.spawn_process(entry)
-
-        return self.started
 
     def stop(self, signal="KILL"):
         """
@@ -517,14 +474,6 @@ class JobType(Cache, Process, TypeChecks):
 
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
-
-        def remove_from_jobtypes(_, id):
-            logger.debug("Removed instance of job type %s", id)
-            config["jobtypes"].pop(id)
-
-        stopped = self.stopped
-        stopped.addCallback(remove_from_jobtypes, self.uuid)
-        return stopped
 
     def format_log_message(self, message, stream_type=None):
         """

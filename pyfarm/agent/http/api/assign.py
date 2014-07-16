@@ -187,10 +187,8 @@ class Assign(APIResource):
                     "Expected a subclass of "
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
-            start_deferred = instance._start()
-            start_deferred.addBoth(assignment_started, assign_id)
-            start_deferred.addBoth(restart_if_necessary)
-            stopped_deferred = instance._stop()
+            started_deferred, stopped_deferred = instance._start()
+            started_deferred.addBoth(assignment_started, assign_id)
             stopped_deferred.addBoth(assignment_stopped, assign_id)
             stopped_deferred.addBoth(restart_if_necessary)
 
