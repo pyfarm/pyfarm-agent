@@ -263,8 +263,9 @@ class Process(object):
             if self.start_called:
                 raise RuntimeError("%s has already been started" % self)
             else:
-                self.start_called = True
+                logger.debug("Calling start() for assignment %s", self)
                 self.start()
+                self.start_called = True
                 self.started_deferred.callback(None)
 
         self.started_deferred = Deferred()
