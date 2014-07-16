@@ -334,6 +334,12 @@ class Process(object):
         # the assign is finished
         if len(self.processes) == 0:
             # TODO Mark tasks that have not yet been marked otherwise as FAILED
+            if not self.failed_processes:
+                logger.info("Processes in assignment %s stopped, no failures",
+                            self)
+            else:
+                logger.warning("There was at least one failed process in "
+                               "assignment %s", self)
             self.stopped_deferred.callback(None)
 
     # complete coverage provided by other tests
