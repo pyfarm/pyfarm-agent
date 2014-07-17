@@ -398,7 +398,7 @@ class Agent(object):
                             len(config["jobtypes"]))
 
                 for jobtype_id, jobtype in config["jobtypes"].copy().items():
-                    if not jobtype.processes and jobtype.failed_processes:
+                    if not jobtype.processes:
                         svclog.error(
                             "%r has not removed itself, forcing removal",
                             jobtype)
