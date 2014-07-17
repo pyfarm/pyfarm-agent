@@ -693,10 +693,13 @@ class JobType(Cache, Process, TypeChecks):
 
     def process_started(self, protocol):
         """
-        Called by :meth:`.ProcessProtocol.connectionMade` when a process has
-        started running.
+        Overridable method called when a child process started running.
+
+        Default implementation will mark all tasks in the current assignment
+        as running.
         """
-        self._process_started(protocol)
+        for task in self.assignment["tasks"]:
+            self.set_task_state(task, WorkState.RUNNING)
 
     def received_stdout(self, protocol, stdout):
         """
