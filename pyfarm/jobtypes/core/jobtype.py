@@ -298,7 +298,7 @@ class JobType(Cache, Process, TypeChecks):
             create_time = datetime.utcnow()
 
         return join(
-            config["agent_task_logs"],
+            config["jobtype_task_logs"],
             "%s_%s_%s.csv" % (
                 create_time.strftime("%G%m%d%H%M%S"),
                 self.assignment["job"]["id"], protocol_uuid))

@@ -302,7 +302,7 @@ class AgentEntryPoint(object):
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", config="agent_task_logs",
+            "--task-log-dir", config="jobtype_task_logs",
             type=isdir, type_kwargs=dict(create=True),
             help="The directory tasks should log to.")
 
@@ -487,12 +487,12 @@ class AgentEntryPoint(object):
 
         logger.info("Starting agent")
 
-        if not isdir(config["agent_task_logs"]):
-            logger.debug("Creating %s", config["agent_task_logs"])
+        if not isdir(config["jobtype_task_logs"]):
+            logger.debug("Creating %s", config["jobtype_task_logs"])
             try:
-                os.makedirs(config["agent_task_logs"])
+                os.makedirs(config["jobtype_task_logs"])
             except OSError:
-                logger.error("Failed to create %s", config["agent_task_logs"])
+                logger.error("Failed to create %s", config["jobtype_task_logs"])
                 return 1
 
         # create the directory for log

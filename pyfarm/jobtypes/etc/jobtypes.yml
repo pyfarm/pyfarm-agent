@@ -23,6 +23,9 @@ jobtype_enable_cache: True
 # with each process.
 jobtype_capture_process_output: False
 
+# The location where tasks should be logged
+jobtype_task_logs: $agent_logs_root/tasks
+
 # store cached source code from the master.  Note
 # that $temp will be expanded to the local system's
 # temp directory.  If this directory does not exist
