@@ -390,7 +390,7 @@ class Agent(object):
             self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
-            for uuid, jobtype in config["jobtypes"].copy().items():
+            for uuid, jobtype in config["jobtypes"].items():
                 jobtype.stop()
 
             def wait_on_stopped():
