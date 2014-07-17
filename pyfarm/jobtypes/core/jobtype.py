@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, INTERNAL_SERVER_ERROR
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
@@ -49,8 +49,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
-    WHOLE_NUMBERS, TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid,
-    validate_uuid)
+    TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid, validate_uuid)
 from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import (
