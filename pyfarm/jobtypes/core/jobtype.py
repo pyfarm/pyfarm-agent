@@ -677,6 +677,14 @@ class JobType(Cache, Process, TypeChecks):
             raise NotImplementedError(
                 "Don't know how to handle is_successful(%r)" % reason)
 
+    def before_start(self):
+        """
+        Overridable method called directly before start() itself is called.
+
+        By default this method does nothing.
+        """
+        pass
+
     def process_stopped(self, protocol, reason):
         """
         Overridable method called when a child process stopped running.

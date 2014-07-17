@@ -264,6 +264,7 @@ class Process(object):
                 raise RuntimeError("%s has already been started" % self)
             else:
                 logger.debug("Calling start() for assignment %s", self)
+                self._before_start()
                 self.start()
                 self.start_called = True
                 self.started_deferred.callback(None)
@@ -291,6 +292,10 @@ class Process(object):
                 group, "group", "get_gid", grp, "grp")
 
         return uid, gid
+
+    def _before_start(self):
+        logger.info("%r.before_start()", self)
+        self.before_start()
 
     def _process_started(self, protocol):
         """
