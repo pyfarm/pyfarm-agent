@@ -68,9 +68,7 @@ class Cache(object):
     cache = {}
     JOBTYPE_VERSION_URL = \
         "%(master_api)s/jobtypes/%(name)s/versions/%(version)s"
-    CACHE_DIRECTORY = Template(
-        config.get("jobtype_cache_directory", "")).safe_substitute(
-        temp=tempfile.gettempdir())
+    CACHE_DIRECTORY = config.get("jobtype_cache_directory", "")
 
     if not CACHE_DIRECTORY:  # pragma: no cover
         CACHE_DIRECTORY = None  # make sure it's None
@@ -112,9 +110,10 @@ class Cache(object):
         return result
 
     @classmethod
-    def _cache_filepath(cls, cache_key, classname):
+    def _cache_filepath(cls, cache_key, classname, version):
         return str(join(
-            cls.CACHE_DIRECTORY, "%s_%s.py" % (cache_key, classname)))
+            cls.CACHE_DIRECTORY, "%s_%s_v%s.py" % (
+                cache_key, classname, version)))
 
     @classmethod
     def _cache_key(cls, assignment):
@@ -157,7 +156,8 @@ class Cache(object):
 
         assert isinstance(cache_key, STRING_TYPES)
         assert isinstance(jobtype, dict)
-        filename = cls._cache_filepath(cache_key, jobtype["classname"])
+        filename = cls._cache_filepath(
+            cache_key, jobtype["classname"], jobtype["version"])
         success = Deferred()
         jobtype = jobtype.copy()
 
