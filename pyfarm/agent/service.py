@@ -263,7 +263,7 @@ class Agent(object):
         v1 = api.putChild("v1", APIRoot())
 
         # Top level api endpoints
-        v1.putChild("assign", Assign())
+        v1.putChild("assign", Assign(self))
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
