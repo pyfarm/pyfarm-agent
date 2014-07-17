@@ -168,6 +168,14 @@ class LoggerPool(ThreadPool):
         deferred.addCallback(log_created, protocol)
         return deferred
 
+    def close_log(self, protocol_id):
+        """Closes the file handle for the given protocol id."""
+        log = self.logs.pop(protocol_id, None)
+        if log is not None:
+            self.flush(log)
+            log.file.close_log()
+            logger.info("Closed %s", log.file.name)
+
     def log(self, protocol_id, streamno, message):
         """
         Places a single message to be handled by the worker threads into
@@ -234,14 +242,6 @@ class LoggerPool(ThreadPool):
 
         return log
 
-    def close(self, protocol_id):
-        """Closes the file handle for the given protocol id."""
-        log = self.logs.pop(protocol_id, None)
-        if log is not None:
-            self.flush(log)
-            log.file.close()
-            logger.info("Closed %s", log.file.name)
-
     def stop(self):
         """
         Flushes any remaining data, closes the underlying files, then stops
@@ -256,7 +256,7 @@ class LoggerPool(ThreadPool):
         self.stopped = True
 
         for protocol_id in list(self.logs.keys()):
-            self.close(protocol_id)
+            self.close_log(protocol_id)
 
         ThreadPool.stop(self)
 
