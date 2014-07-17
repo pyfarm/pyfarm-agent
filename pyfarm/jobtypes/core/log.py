@@ -168,12 +168,12 @@ class LoggerPool(ThreadPool):
         deferred.addCallback(log_created, protocol)
         return deferred
 
-    def close_log(self, protocol_id):
+    def close_log(self, protocol):
         """Closes the file handle for the given protocol id."""
-        log = self.logs.pop(protocol_id, None)
+        log = self.logs.pop(protocol.uuid, None)
         if log is not None:
             self.flush(log)
-            log.file.close_log()
+            log.file.close()
             logger.info("Closed %s", log.file.name)
 
     def log(self, protocol_id, streamno, message):
