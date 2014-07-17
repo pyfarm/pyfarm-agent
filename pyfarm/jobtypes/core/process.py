@@ -73,25 +73,21 @@ class ProcessProtocol(_ProcessProtocol):
     necessary to run and manage a process.  More specifically, this helps
     to act as plumbing between the process being run and the job type.
     """
-    def __init__(
-            self, jobtype, command, arguments, environment, working_dir,
-            uid, gid):
+    def __init__(self, jobtype):
         self.jobtype = jobtype
-        self.command = command
-        self.arguments = arguments
-        self.environment = environment
-        self.working_dir = working_dir
-        self.uid = uid
-        self.gid = gid
-        self.uuid = uuid()
-        self._ended = False
+
+        # Internal only attributes, __uuid itself is a property so
+        # it can't be accidentally modified later.
+        self.__ended = False
+        self.__uuid = uuid()
 
     def __repr__(self):
         return \
-            "Process(pid=%r, command=%r, args=%r, working_dir=%r, " \
-            "uid=%r, gid=%r)" % (
-            self.pid, self.command, self.arguments, self.working_dir,
-            self.uid, self.gid)
+            "ProcessProtocol(uuid=%s, pid=%r)" % (self.uuid, self.pid)
+
+    @property
+    def uuid(self):
+        return self.__uuid
 
     @property
     def pid(self):
@@ -109,7 +105,7 @@ class ProcessProtocol(_ProcessProtocol):
         # ended but not died yet.  So we have this
         # check just in case this property is called
         # during this state.
-        if self._ended:
+        if self.__ended:
             return None
 
         try:
@@ -131,7 +127,7 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self._ended = True
+        self.__ended = True
         self.jobtype._process_stopped(self, reason)
 
     def outReceived(self, data):
