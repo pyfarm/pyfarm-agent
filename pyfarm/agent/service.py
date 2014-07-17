@@ -390,25 +390,26 @@ class Agent(object):
             self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
-            stopping_jobtypes = []
             for uuid, jobtype in config["jobtypes"].copy().items():
-                stopping = jobtype.stop()
-                if isinstance(stopping, Deferred):
-                    stopping_jobtypes.append(stopping)
+                jobtype.stop()
 
-            if stopping_jobtypes:
-                wait_on_stopping = DeferredList(stopping_jobtypes)
-                if "agent-id" in config:
-                    wait_on_stopping.addCallback(self.post_shutdown_to_master)
+            def wait_on_stopped():
+                svclog.info("Waiting on %s job types to terminate",
+                            len(config["jobtypes"]))
+
+                for jobtype_id, jobtype in config["jobtypes"].copy().items():
+                    if not jobtype.processes and jobtype.failed_processes:
+                        svclog.error(
+                            "%r has not removed itself, forcing removal",
+                            jobtype)
+                        config["jobtypes"].pop(jobtype_id)
+
+                if config["jobtypes"]:
+                    reactor.callLater(1, wait_on_stopped)
                 else:
-                    wait_on_stopping.addCallback(reactor.stop)
-            elif "agent-id" in config:
-                self.post_shutdown_to_master()
-            else:
-                reactor.callLater(1, reactor.stop)
+                    self.post_shutdown_to_master()
 
-            # TODO: stop running tasks, informing master for each
-            # TODO: chain task stoppage callback to start shutdown_post_update
+            wait_on_stopped()
 
     def sigint_handler(self, *_):
         self.stop()
@@ -506,8 +507,7 @@ class Agent(object):
         post_update()
 
         if stop_reactor:
-            finished.addCallback(lambda *_: reactor.stop())
-            finished.addErrback(lambda *_: reactor.stop())
+            finished.addBoth(lambda *_: reactor.stop())
 
         return finished
 
