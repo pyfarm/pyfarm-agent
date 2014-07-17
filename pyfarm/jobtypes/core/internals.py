@@ -314,7 +314,7 @@ class Process(object):
         event loop.
         """
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
-        del self.processes[protocol.uuid]
+        process_data = self.processes.pop(protocol.uuid)
 
         if self.is_successful(reason):
             logpool.log(
@@ -330,6 +330,7 @@ class Process(object):
 
         self.process_stopped(protocol, reason)
         logpool.close_log(protocol)
+        process_data.stopped.callback(reason)
 
         # If there are no processes running at this point, we assume
         # the assign is finished
