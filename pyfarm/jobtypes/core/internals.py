@@ -329,6 +329,7 @@ class Process(object):
                 reason.value.exitCode)
 
         self.process_stopped(protocol, reason)
+        logpool.close_log(protocol)
 
         # If there are no processes running at this point, we assume
         # the assign is finished
