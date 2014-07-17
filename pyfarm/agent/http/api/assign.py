@@ -47,6 +47,9 @@ class Assign(APIResource):
             Required("jobtype"): JOBTYPE_SCHEMA,
             Required("tasks"): TASKS_SCHEMA})}
 
+    def __init__(self, agent):
+        self.agent = agent
+
     def post(self, **kwargs):
         request = kwargs["request"]
         request_data = kwargs["data"]
@@ -61,6 +64,16 @@ class Assign(APIResource):
         cpus = config["agent_cpus"]
         requires_ram = request_data["job"].get("ram")
         requires_cpus = request_data["job"].get("cpus")
+
+        if self.agent.shutting_down:
+            logger.error("Rejecting assignment because the agent is in the "
+                         "process of shutting down.")
+            request.setResponseCode(SERVICE_UNAVAILABLE)
+            request.write(
+                {"error": "Agent cannot accept assignments because it is "
+                          "shutting down"})
+            request.finish()
+            return NOT_DONE_YET
 
         if "restart_requested" in config \
                 and config["restart_requested"] is True:
