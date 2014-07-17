@@ -390,7 +390,7 @@ class Agent(object):
             self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
-            for uuid, jobtype in config["jobtypes"].copy().items():
+            for uuid, jobtype in config["jobtypes"].items():
                 jobtype.stop()
 
             def wait_on_stopped():
@@ -398,7 +398,7 @@ class Agent(object):
                             len(config["jobtypes"]))
 
                 for jobtype_id, jobtype in config["jobtypes"].copy().items():
-                    if not jobtype.processes and jobtype.failed_processes:
+                    if not jobtype.processes:
                         svclog.error(
                             "%r has not removed itself, forcing removal",
                             jobtype)
@@ -406,8 +406,10 @@ class Agent(object):
 
                 if config["jobtypes"]:
                     reactor.callLater(1, wait_on_stopped)
-                else:
+                elif self.agent_api() is not None:
                     self.post_shutdown_to_master()
+                else:
+                    reactor.stop()
 
             wait_on_stopped()
 
@@ -519,17 +521,22 @@ class Agent(object):
         """
         delay = http_retry_delay()
 
-        if failure.type is ConnectionRefusedError:
+        if failure.type is ConnectionRefusedError and not self.shutting_down:
             svclog.error(
                 "Failed to POST agent to master, the connection was refused. "
                 "Retrying in %s seconds", delay)
-        else:
+        elif not self.shutting_down:
             svclog.error(
                 "Unhandled error when trying to POST the agent to the master. "
                 "The error was %s.  Retrying in %s seconds.", failure, delay)
+        else:
+            svclog.error(
+                "Failed to POST agent to master. Not retrying, because the "
+                "agent is shutting down.")
 
-        return reactor.callLater(
-            http_retry_delay(), self.post_agent_to_master)
+        if not self.shutting_down:
+            return reactor.callLater(
+                http_retry_delay(), self.post_agent_to_master)
 
     def callback_post_agent_to_master(self, response):
         """
