@@ -53,6 +53,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.log import STDOUT, logpool
+from pyfarm.jobtypes.core.process import ReplaceEnvironment
 
 USER_GROUP_TYPES = tuple(
     list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)])
@@ -257,14 +258,40 @@ class Process(object):
     """Methods related to process control and management"""
     logging = {}
 
+    def _before_spawn_process(self, command, protocol):
+        logger.debug(
+            "%r._before_spawn_process(%r, %r)", self, command, protocol)
+        self.before_spawn_process(command, protocol)
+
+    def _spawn_twisted_process(
+            self, _, command, process_protocol, kwargs):
+        """
+        Handles the spawning of the process itself using
+        :func:`reactor.spawnProcess`.
+
+        :param tuple _:
+            An ignored argument containing the protocol id and
+            csv log file
+        """
+        self._before_spawn_process(command, process_protocol)
+
+        # The way Twisted handles the env keyword varies by platform.  To
+        kwargs.setdefault("env", None)
+        if kwargs["env"] is not None:
+            raise RuntimeError(
+                "The `env` keyword should always be set to None.")
+
+        with ReplaceEnvironment(command.env):
+            reactor.spawnProcess(process_protocol, command.command, **kwargs)
+
     def _start(self):
         def start_assignment(_):
             # Make sure _start() is not called twice
             if self.start_called:
                 raise RuntimeError("%s has already been started" % self)
             else:
-                logger.debug("Calling start() for assignment %s", self)
                 self._before_start()
+                logger.debug("%r.start()")
                 self.start()
                 self.start_called = True
                 self.started_deferred.callback(None)
@@ -294,7 +321,7 @@ class Process(object):
         return uid, gid
 
     def _before_start(self):
-        logger.info("%r.before_start()", self)
+        logger.debug("%r._before_start()", self)
         self.before_start()
 
     def _process_started(self, protocol):
@@ -302,7 +329,7 @@ class Process(object):
         Called by :meth:`.ProcessProtocol.connectionMade` when a process has
         started running.
         """
-        logger.info("%r started", protocol)
+        logger.debug("%r._process_started(%r)", self, protocol)
         logpool.log(protocol.uuid, STDOUT, "Started %r" % protocol)
         proess_data = self.processes[protocol.uuid]
         proess_data.started.callback(protocol)

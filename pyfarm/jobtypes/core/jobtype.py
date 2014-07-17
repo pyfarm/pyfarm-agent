@@ -26,9 +26,10 @@ inherit from the :class:`JobType` class in this modle.
 import os
 from collections import namedtuple
 from datetime import datetime
+from functools import partial
 from string import Template
 from os.path import join, expanduser, basename
-from functools import partial
+from pprint import pformat
 
 try:
     from httplib import OK, INTERNAL_SERVER_ERROR
@@ -52,8 +53,7 @@ from pyfarm.agent.utility import (
     TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid, validate_uuid)
 from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
-from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ReplaceEnvironment)
+from pyfarm.jobtypes.core.process import ProcessProtocol
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
@@ -74,7 +74,7 @@ class CommandData(object):
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
-        self.arguments = [str(x) for x in arguments]
+        self.arguments = tuple(map(str, arguments))
         self.env = kwargs.pop("env", {})
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
@@ -88,6 +88,11 @@ class CommandData(object):
                 self.cwd = os.getcwd()
             else:
                 self.cwd = config["agent_chdir"]
+
+    def __repr__(self):
+        return "Command(command=%r, arguments=%r, cwd=%r, user=%r, group=%r, " \
+               "env=%r)" % (self.command, self.arguments, self.cwd,
+                            self.user, self.group, self.env)
 
 
 class JobType(Cache, Process, TypeChecks):
@@ -109,6 +114,7 @@ class JobType(Cache, Process, TypeChecks):
     :attribute cache:
         Stores the cached job types
     """
+    PROCESS_PROTOCOL = ProcessProtocol
     ASSIGNMENT_SCHEMA = Schema({
         Required("id"): validate_uuid,
         Required("job"): JOB_SCHEMA,
@@ -384,9 +390,7 @@ class JobType(Cache, Process, TypeChecks):
             command.user, command.group)
 
         uid, gid = self._get_uid_gid(command.user, command.group)
-        process_protocol = ProcessProtocol(
-            self, command.command, command.arguments, command.cwd,
-            command.env, uid, gid)
+        process_protocol = self.PROCESS_PROTOCOL(self)
 
         if not isinstance(process_protocol, ProcessProtocol):
             raise TypeError("Expected ProcessProtocol for `protocol`")
@@ -406,28 +410,14 @@ class JobType(Cache, Process, TypeChecks):
         self.processes[process_protocol.uuid] = ProcessData(
             protocol=process_protocol, started=Deferred(), stopped=Deferred())
 
-        def spawn_process(_):
-            # reactor.spawnProcess does different things with the environment
-            # depending on what platform you're on and what you're passing in.
-            # To avoid inconsistent behavior, we replace os.environ with
-            # our own environment so we can launch the process.  After launching
-            # we replace the original environment.  See
-            #   http://twistedmatrix.com/documents/current
-            #   /api/twisted.internet.interfaces.IReactorProcess.html
-            # For more detailed information on how specific platforms handle
-            # the environment.
-            with ReplaceEnvironment(command.env):
-                logger.debug("Starting process with command data %r, kwargs: %r",
-                             command, kwargs)
-                reactor.spawnProcess(process_protocol, command.command, **kwargs)
-
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
         # logging thread.
         result = Deferred()
         log_path = self.get_csvlog_path(process_protocol.uuid)
         deferred = logpool.open_log(process_protocol, log_path)
-        deferred.addCallback(spawn_process)
+        deferred.addCallback(
+            self._spawn_twisted_process, command, process_protocol, kwargs)
         deferred.chainDeferred(result)
         return result
 
@@ -684,6 +674,35 @@ class JobType(Cache, Process, TypeChecks):
         By default this method does nothing.
         """
         pass
+
+    def before_spawn_process(self, command, protocol):
+        """
+        Overridable method called directly before a process is spawned.
+
+        By default this method does nothing except log information about
+        the command we're about to launch both the the agent's log and to
+        the log file on disk.
+
+        :param CommandData command:
+            An instance of :class:`CommandData` which contains the
+            environment to use, command and arguments.  Modifications to
+            this object will be applied to the process being spawned.
+
+        :param ProcessProtocol protocol:
+            An instance of :class:`pyfarm.jobtypes.core.process.ProcessProtocol`
+            which contains the protocol used to communicate between the
+            process and this job type.
+        """
+        logger.info("Spawning %r", command)
+        logpool.log(protocol.uuid, STDERR,
+                    "Command: %s" % command.command)
+        logpool.log(protocol.uuid, STDERR,
+                    "Arguments: %s" % (command.arguments, ))
+        logpool.log(protocol.uuid, STDERR, "Work Dir: %s" % command.cwd)
+        logpool.log(protocol.uuid, STDERR, "User/Group: %s %s" % (
+                    command.user, command.group))
+        logpool.log(protocol.uuid, STDERR, "Environment:")
+        logpool.log(protocol.uuid, STDERR, pformat(command.env, indent=4))
 
     def process_stopped(self, protocol, reason):
         """
