@@ -292,16 +292,16 @@ class Process(object):
 
         return uid, gid
 
-    # TODO: set state
     def _process_started(self, protocol):
         """
-        Internal implementation for :meth:`process_started`.
-
-        This method logs the start of a process and informs the master of
-        the state change.
+        Called by :meth:`.ProcessProtocol.connectionMade` when a process has
+        started running.
         """
         logger.info("%r started", protocol)
         logpool.log(protocol.uuid, STDOUT, "Started %r" % protocol)
+        proess_data = self.processes[protocol.uuid]
+        proess_data.started.callback(protocol)
+        self.process_started(protocol)
 
     def _process_stopped(self, protocol, reason):
         """
