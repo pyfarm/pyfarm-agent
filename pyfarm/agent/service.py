@@ -406,8 +406,10 @@ class Agent(object):
 
                 if config["jobtypes"]:
                     reactor.callLater(1, wait_on_stopped)
-                else:
+                elif self.agent_api() is not None:
                     self.post_shutdown_to_master()
+                else:
+                    reactor.stop()
 
             wait_on_stopped()
 
