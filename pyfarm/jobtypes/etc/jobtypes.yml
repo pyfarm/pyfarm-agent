@@ -28,7 +28,7 @@ jobtype_capture_process_output: False
 # temp directory.  If this directory does not exist
 # it will be created.  Leaving this value blank will
 # disable job type caching.
-jobtype_cache_directory: $temp/pyfarm/jobtypes/cache
+jobtype_cache_directory: $temp/jobtype_cache
 
 # If True then expand environment variables in file paths.
 jobtype_expandvars: True
