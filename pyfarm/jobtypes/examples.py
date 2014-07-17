@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 
-class FakeRender(JobType):
+class PythonHelloWorld(JobType):
     def get_command_data(self):
-        return CommandData("python", "-c", "print 'hello world'")
+        return CommandData(sys.executable, "-c", "print 'hello world'")
