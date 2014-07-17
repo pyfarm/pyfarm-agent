@@ -21,4 +21,6 @@ from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 class PythonHelloWorld(JobType):
     def get_command_data(self):
-        return CommandData(sys.executable, "-c", "print 'hello world'")
+        return CommandData(
+            sys.executable,
+            "-c", "import time; time.sleep(3); print 'hello world'")
