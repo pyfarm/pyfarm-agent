@@ -567,8 +567,8 @@ class JobType(Cache, Process, TypeChecks):
             if state == WorkState.FAILED:
                 error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
-                if task not in self.failed_tasks:
-                    self.failed_tasks.add(task)
+                if task["id"] not in self.failed_tasks:
+                    self.failed_tasks.add(task["id"])
 
             # `error` shouldn't be set if the state is not a failure
             elif error is not None:
@@ -623,9 +623,10 @@ class JobType(Cache, Process, TypeChecks):
                             and task_id not in self.finished_tasks:
                         self.finished_tasks.add(task_id)
 
-            def error_callback(cburl, cbdata, _):
+            def error_callback(cburl, cbdata, failure_reason):
                 logger.error(
-                    "Error while posting state update for task, retrying")
+                    "Error while posting state update for task, %s, retrying",
+                    failure_reason)
                 post_update(cburl, cbdata, delay=http_retry_delay())
 
             # Initial attempt to make an update with an explicit zero
