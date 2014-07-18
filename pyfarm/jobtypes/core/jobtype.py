@@ -25,10 +25,10 @@ inherit from the :class:`JobType` class in this modle.
 
 import os
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 from string import Template
-from os.path import join, expanduser, basename
+from os.path import expanduser, basename, abspath
 from pprint import pformat
 
 try:
@@ -284,24 +284,46 @@ class JobType(Cache, Process, TypeChecks):
         self._check_command_list_inputs(cmdlist)
         return tuple(map(self.expandvars, cmdlist))
 
-    # TODO: This needs more command line arguments and configuration options
     def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
         Returns the path to the comma separated value (csv) log file.
         The agent stores logs from processes in a csv format so we can store
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
+
+        .. note::
+
+            This method should not attempt to create the parent directories
+            of the resulting path.  This is already handled by the logger
+            pool in a non-blocking fashion.
         """
         self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
         if create_time is None:
             create_time = datetime.utcnow()
+        assert isinstance(create_time, datetime)
 
-        return join(
-            config["jobtype_task_logs"],
-            "%s_%s_%s.csv" % (
-                create_time.strftime("%G%m%d%H%M%S"),
-                self.assignment["job"]["id"], protocol_uuid))
+        # Include the agent's time offset in create_time for accuracy.
+        create_time += timedelta(seconds=config["agent_time_offset"])
+
+        # The default string template implementation cannot
+        # handle cases where you have $VARS$LIKE_$THIS.  So we
+        # instead iterate over a dictionary and use .replace()
+        template_data = {
+            "YEAR": str(create_time.year),
+            "MONTH": "%02d" % create_time.month,
+            "DAY": "%02d" % create_time.day,
+            "HOUR": "%02d" % create_time.hour,
+            "MINUTE": "%02d" % create_time.minute,
+            "SECOND": "%02d" % create_time.second,
+            "JOB": str(self.assignment["job"]["id"]),
+            "PROCESS": protocol_uuid.hex}
+
+        filename = config["jobtype_task_log_filename"]
+        for key, value in template_data.items():
+            filename = filename.replace("$" + key, value)
+
+        return abspath(filename)
 
     # TODO: internal implementation like the doc string says
     # TODO: reflow the doc string text for a better layout
