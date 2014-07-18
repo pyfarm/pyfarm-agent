@@ -361,7 +361,7 @@ class Process(object):
                 reason.value.exitCode)
 
         self.process_stopped(protocol, reason)
-        logpool.close_log(protocol)
+        logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
         # If there are no processes running at this point, we assume
