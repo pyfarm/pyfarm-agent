@@ -161,24 +161,18 @@ class Assign(APIResource):
         request.finish()
         logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
 
-        def assignment_started(result, assign_id):
+        def assignment_failed(result, assign_id):
             # TODO: report error to master
-            if hasattr(result, "getTraceback"):
-                logger.error(result.getTraceback())
-                logger.error(
-                    "Assignment %s failed to start, removing.", assign_id)
-                config["current_assignments"].pop(assign_id)
-            else:
-                logger.debug("Assignment %s has started", assign_id)
+            logger.error(
+                "Assignment %s failed, removing.", assign_id)
+            logger.error(result.getTraceback())
+            config["current_assignments"].pop(assign_id)
+
+        def assignment_started(result, assign_id):
+            logger.debug("Assignment %s has started", assign_id)
 
         def assignment_stopped(result, assign_id):
-            # TODO: report error to master
-            if hasattr(result, "getTraceback"):
-                logger.error(result.getTraceback())
-                logger.error("Assignment %s failed, removing.", assign_id)
-            else:
-                logger.debug("Assignment %s has stopped", assign_id)
-
+            logger.debug("Assignment %s has stopped", assign_id)
             config["current_assignments"].pop(assign_id)
 
         def restart_if_necessary(_):  # pragma: no cover
@@ -201,8 +195,10 @@ class Assign(APIResource):
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
             started_deferred, stopped_deferred = instance._start()
-            started_deferred.addBoth(assignment_started, assign_id)
-            stopped_deferred.addBoth(assignment_stopped, assign_id)
+            started_deferred.addCallback(assignment_started, assign_id)
+            started_deferred.addErrback(assignment_failed, assign_id)
+            stopped_deferred.addCallback(assignment_stopped, assign_id)
+            stopped_deferred.addErrback(assignment_failed, assign_id)
             stopped_deferred.addBoth(restart_if_necessary)
 
         # Load the job type then pass the class along to the
