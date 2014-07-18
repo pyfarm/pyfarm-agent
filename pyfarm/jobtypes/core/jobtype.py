@@ -420,7 +420,12 @@ class JobType(Cache, Process, TypeChecks):
         # WARNING: `env` should always be None, see the comment below
         # for more details
         # The first argument should always be the command name by convention
-        arguments = [basename(command.command)] + list(command.arguments)
+        # Under Windows, this needs to be the whole path, under POSIX only the
+        # basename.
+        if pyfarm.core.enums.WINDOWS:
+            arguments = [command.command] + list(command.arguments)
+        else:
+            arguments = [basename(command.command)] + list(command.arguments)
         kwargs = {"args": arguments, "env": None}
 
         if uid is not None:
