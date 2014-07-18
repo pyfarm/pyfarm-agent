@@ -131,7 +131,7 @@ class JobType(Cache, Process, TypeChecks):
         self.failed_processes = set()
         self.failed_tasks = set()
         self.finished_tasks = set()
-        self.stdout_line_fragments = []
+        self.stdout_line_fragments = {}
         self.start_called = False
         self.stop_called = False
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
