@@ -453,7 +453,6 @@ class JobType(Cache, Process, TypeChecks):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
-        # Make sure start() is not called twice
         command_data = self.get_command_data()
         if isinstance(command_data, CommandData):
             command_data = [command_data]
