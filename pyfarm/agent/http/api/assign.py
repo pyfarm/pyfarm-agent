@@ -168,10 +168,10 @@ class Assign(APIResource):
             logger.error(result.getTraceback())
             config["current_assignments"].pop(assign_id)
 
-        def assignment_started(result, assign_id):
+        def assignment_started(_, assign_id):
             logger.debug("Assignment %s has started", assign_id)
 
-        def assignment_stopped(result, assign_id):
+        def assignment_stopped(_, assign_id):
             logger.debug("Assignment %s has stopped", assign_id)
             config["current_assignments"].pop(assign_id)
 
