@@ -434,9 +434,6 @@ class JobType(Cache, Process, TypeChecks):
         if gid is not None:
             kwargs.update(gid=gid)
 
-        self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred())
-
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
         # logging thread.
@@ -446,6 +443,8 @@ class JobType(Cache, Process, TypeChecks):
         deferred.addCallback(
             self._spawn_twisted_process, command, process_protocol, kwargs)
         deferred.chainDeferred(result)
+        self.processes[process_protocol.uuid] = ProcessData(
+            protocol=process_protocol, started=Deferred(), stopped=Deferred())
         return result
 
     def start(self):
