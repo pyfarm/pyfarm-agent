@@ -42,7 +42,7 @@ from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
 
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post, http_retry_delay
@@ -422,7 +422,7 @@ class JobType(Cache, Process, TypeChecks):
         # The first argument should always be the command name by convention
         # Under Windows, this needs to be the whole path, under POSIX only the
         # basename.
-        if pyfarm.core.enums.WINDOWS:
+        if WINDOWS:
             arguments = [command.command] + list(command.arguments)
         else:
             arguments = [basename(command.command)] + list(command.arguments)
