@@ -118,6 +118,9 @@ class Agent(object):
             svclog.debug("Agent is already trying to announce itself.")
             return
 
+        if self.shutting_down:
+            return False
+
         contacted = config.master_contacted(update=False)
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["agent_master_reannounce"]
@@ -139,12 +142,16 @@ class Agent(object):
                 svclog.info("Announced self to the master server.")
 
             elif response.code >= INTERNAL_SERVER_ERROR:
-                delay = random() + random()
-                svclog.warning(
-                    "Could not announce self to the master server, "
-                    "internal server error: %s.  Retrying in %s seconds.",
-                    response.data(), delay)
-                reactor.callLater(delay, response.request.retry)
+                if not self.shutting_down:
+                    delay = http_retry_delay()
+                    svclog.warning(
+                        "Could not announce self to the master server, "
+                        "internal server error: %s.  Retrying in %s seconds.",
+                        response.data(), delay)
+                    reactor.callLater(delay, response.request.retry)
+                else:
+                    svclog.warning("Could not announce to master. Not retrying "
+                                   "because of pending shutdown")
 
             # If this is a client problem retrying the request
             # is unlikely to fix the issue so we stop here
@@ -539,11 +546,17 @@ class Agent(object):
         # Master might be down or some other internal problem
         # that might eventually be fixed.  Retry the request.
         if response.code >= 500:
-            delay = http_retry_delay()
-            svclog.warning(
-                "Failed to post to master due to a server side error "
-                "error %s, retrying in %s seconds", response.code, delay)
-            reactor.callLater(delay, self.post_agent_to_master)
+            if not self.shutting_down:
+                delay = http_retry_delay()
+                svclog.warning(
+                    "Failed to post to master due to a server side error "
+                    "error %s, retrying in %s seconds", response.code, delay)
+                reactor.callLater(delay, self.post_agent_to_master)
+            else:
+                svclog.warning(
+                    "Failed to post to master due to a server side error "
+                    "error %s. Not retrying, because the agent is shutting down",
+                    response.code)
 
         # Master is up but is rejecting our request because there's something
         # wrong with it.  Do not retry the request.
