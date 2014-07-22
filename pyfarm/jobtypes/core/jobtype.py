@@ -383,7 +383,6 @@ class JobType(Cache, Process, TypeChecks):
 
         return Template(expanduser(value)).safe_substitute(**environment)
 
-    # TODO: finish implementation, remove process_inputs fully
     def spawn_process(self, command):
         """
         Starts one child process using input from :meth:`command_data`.
@@ -401,17 +400,6 @@ class JobType(Cache, Process, TypeChecks):
             group without root access.  This error will only occur on
             Linux or Unix platforms.
         """
-
-        if not isinstance(command, CommandData):
-            raise TypeError(
-                "Expected `CommandData` instances from get_command_data()")
-
-        self._check_spawn_process_inputs(
-            command.command, command.arguments,
-            command.cwd, command.env,
-            command.user, command.group)
-
-        uid, gid = self._get_uid_gid(command.user, command.group)
         process_protocol = self.PROCESS_PROTOCOL(self)
 
         if not isinstance(process_protocol, ProcessProtocol):
@@ -419,14 +407,16 @@ class JobType(Cache, Process, TypeChecks):
 
         # WARNING: `env` should always be None, see the comment below
         # for more details
-        # The first argument should always be the command name by convention
+        # The first argument should always be the command name by convention.
         # Under Windows, this needs to be the whole path, under POSIX only the
         # basename.
         if WINDOWS:
             arguments = [command.command] + list(command.arguments)
         else:
             arguments = [basename(command.command)] + list(command.arguments)
+
         kwargs = {"args": arguments, "env": None}
+        uid, gid = self._get_uid_gid(command.user, command.group)
 
         if uid is not None:
             kwargs.update(uid=uid)
@@ -454,11 +444,21 @@ class JobType(Cache, Process, TypeChecks):
         prepare and start one more more processes.
         """
         command_data = self.get_command_data()
+
         if isinstance(command_data, CommandData):
             command_data = [command_data]
 
-        for entry in command_data:
-            self.spawn_process(entry)
+        for command in command_data:
+            if not isinstance(command, CommandData):
+                raise TypeError(
+                    "Expected `CommandData` instances from get_command_data()")
+
+            self._check_spawn_process_inputs(
+                command.command, command.arguments,
+                command.cwd, command.env,
+                command.user, command.group)
+
+            self.spawn_process(command)
 
     def stop(self, signal="KILL"):
         """
