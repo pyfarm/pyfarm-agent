@@ -131,7 +131,7 @@ class JobType(Cache, Process, TypeChecks):
         self.failed_processes = set()
         self.failed_tasks = set()
         self.finished_tasks = set()
-        self.stdout_line_fragments = []
+        self.stdout_line_fragments = {}
         self.start_called = False
         self.stop_called = False
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
@@ -420,7 +420,12 @@ class JobType(Cache, Process, TypeChecks):
         # WARNING: `env` should always be None, see the comment below
         # for more details
         # The first argument should always be the command name by convention
-        arguments = [basename(command.command)] + list(command.arguments)
+        # Under Windows, this needs to be the whole path, under POSIX only the
+        # basename.
+        if pyfarm.core.enums.WINDOWS:
+            arguments = [command.command] + list(command.arguments)
+        else:
+            arguments = [basename(command.command)] + list(command.arguments)
         kwargs = {"args": arguments, "env": None}
 
         if uid is not None:
@@ -428,9 +433,6 @@ class JobType(Cache, Process, TypeChecks):
 
         if gid is not None:
             kwargs.update(gid=gid)
-
-        self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred())
 
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
@@ -441,6 +443,8 @@ class JobType(Cache, Process, TypeChecks):
         deferred.addCallback(
             self._spawn_twisted_process, command, process_protocol, kwargs)
         deferred.chainDeferred(result)
+        self.processes[process_protocol.uuid] = ProcessData(
+            protocol=process_protocol, started=Deferred(), stopped=Deferred())
         return result
 
     def start(self):
@@ -449,7 +453,6 @@ class JobType(Cache, Process, TypeChecks):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
-        # Make sure start() is not called twice
         command_data = self.get_command_data()
         if isinstance(command_data, CommandData):
             command_data = [command_data]
