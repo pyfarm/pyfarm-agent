@@ -28,7 +28,7 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 from functools import partial
 from string import Template
-from os.path import expanduser, basename, abspath
+from os.path import expanduser, basename, abspath, isdir
 from pprint import pformat
 
 try:
@@ -51,7 +51,8 @@ from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid, validate_uuid)
-from pyfarm.jobtypes.core.internals import Cache, Process, TypeChecks
+from pyfarm.jobtypes.core.internals import (
+    USER_GROUP_TYPES, Cache, Process, TypeChecks)
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import ProcessProtocol
 
@@ -79,9 +80,47 @@ class CommandData(object):
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
         self.group = kwargs.pop("group", None)
+
         if kwargs:
-            raise ValueError("Unexpected keywords present "
-                             "in kwargs: %s" % kwargs.keys())
+            raise ValueError(
+                "Unexpected keywords present in kwargs: %s" % kwargs.keys())
+
+    def __repr__(self):
+        return "Command(command=%r, arguments=%r, cwd=%r, user=%r, group=%r, " \
+               "env=%r)" % (self.command, self.arguments, self.cwd,
+                            self.user, self.group, self.env)
+
+    def validate(self):
+        """
+        Validates that the attributes on an instance of this class contain
+        values we expect.  This method is called externally by the job type in
+        :meth:`JobType.start` and may correct some instance attributes.
+        """
+        if not isinstance(self.command, STRING_TYPES):
+            raise TypeError("Expected a string for `command`")
+
+        if not isinstance(self.env, dict):
+            raise TypeError("Expected a dictionary for `env`")
+
+        if not isinstance(self.user, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `user`")
+
+        if not isinstance(self.group, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `group`")
+
+        if WINDOWS:  # pragma: no cover
+            if self.user is not None:
+                logger.warning("`user` is ignored on Windows")
+                self.user = None
+
+            if self.group is not None:
+                logger.warning("`group` is ignored on Windows")
+                self.group = None
+
+        elif self.user is not None or self.group is not None \
+                and not is_administrator():
+            raise EnvironmentError(
+                "Cannot change user or group without being admin.")
 
         if self.cwd is None:
             if not config["agent_chdir"]:
@@ -89,10 +128,13 @@ class CommandData(object):
             else:
                 self.cwd = config["agent_chdir"]
 
-    def __repr__(self):
-        return "Command(command=%r, arguments=%r, cwd=%r, user=%r, group=%r, " \
-               "env=%r)" % (self.command, self.arguments, self.cwd,
-                            self.user, self.group, self.env)
+        if isinstance(self.cwd, STRING_TYPES):
+            if not isdir(self.cwd):
+                raise OSError(
+                    "`cwd` %s does not exist" % self.cwd)
+
+        elif self.cwd is not None:
+            raise TypeError("Expected a string for `cwd`")
 
 
 class JobType(Cache, Process, TypeChecks):
@@ -435,6 +477,7 @@ class JobType(Cache, Process, TypeChecks):
         deferred.chainDeferred(result)
         self.processes[process_protocol.uuid] = ProcessData(
             protocol=process_protocol, started=Deferred(), stopped=Deferred())
+
         return result
 
     def start(self):
@@ -453,11 +496,7 @@ class JobType(Cache, Process, TypeChecks):
                 raise TypeError(
                     "Expected `CommandData` instances from get_command_data()")
 
-            self._check_spawn_process_inputs(
-                command.command, command.arguments,
-                command.cwd, command.env,
-                command.user, command.group)
-
+            command.validate()
             self.spawn_process(command)
 
     def stop(self, signal="KILL"):
