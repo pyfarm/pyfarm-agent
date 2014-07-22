@@ -126,7 +126,7 @@ Network Service:
                         typically be different.
 
 Manhole Service:
-  Controls the manhole service which allow a telnet connection to be made
+  Controls the manhole service which allows a telnet connection to be made
   directly into the agent as it's running.
 
   --enable-manhole      When provided the manhole service will be started once
