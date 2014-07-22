@@ -469,6 +469,8 @@ class JobType(Cache, Process, TypeChecks):
         # Capture the protocol instance so we can keep track
         # of the process we're about to spawn and start the
         # logging thread.
+        # TODO: return data from this function, we don't want to be working
+        # with Deferred object in a public method
         result = Deferred()
         log_path = self.get_csvlog_path(process_protocol.uuid)
         deferred = logpool.open_log(process_protocol, log_path)
