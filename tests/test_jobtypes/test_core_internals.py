@@ -154,7 +154,7 @@ class TestProcess(TestCase):
 
     @skipIf(grp is NotImplemented, "grp module is NotImplemented")
     def test_uid_gid_mapper(self):
-        uid, gid = self.process._get_uid_gid(
+        uid, gid = self.process.get_uid_gid(
             "root", grp.getgrnam("root").gr_name)
         self.assertEqual(uid, 0)
         self.assertEqual(gid, 0)
