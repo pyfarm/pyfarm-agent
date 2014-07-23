@@ -214,6 +214,6 @@ class Assign(APIResource):
         # are handled internally in this case.
         jobtype_loader = JobType.load(request_data)
         jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
-        jobtype_loader.addErrback(assignment_stopped, assignment_uuid)
+        jobtype_loader.addErrback(assignment_failed, assignment_uuid)
 
         return NOT_DONE_YET
