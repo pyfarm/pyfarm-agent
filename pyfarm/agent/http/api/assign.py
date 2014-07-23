@@ -166,14 +166,22 @@ class Assign(APIResource):
             logger.error(
                 "Assignment %s failed, removing.", assign_id)
             logger.error(result.getTraceback())
-            config["current_assignments"].pop(assign_id)
+            assignment = config["current_assignments"].pop(assign_id)
+            if "jobtype" in assignment:
+                jobtype_id = assignment["jobtype"].pop("id", None)
+                if jobtype_id:
+                    config["jobtypes"].pop(jobtype_id, None)
 
         def assignment_started(_, assign_id):
             logger.debug("Assignment %s has started", assign_id)
 
         def assignment_stopped(_, assign_id):
             logger.debug("Assignment %s has stopped", assign_id)
-            config["current_assignments"].pop(assign_id)
+            assignment = config["current_assignments"].pop(assign_id)
+            if "jobtype" in assignment:
+                jobtype_id = assignment["jobtype"].pop("id", None)
+                if jobtype_id:
+                    config["jobtypes"].pop(jobtype_id, None)
 
         def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
