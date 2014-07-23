@@ -45,7 +45,7 @@ except ImportError:  # pragma: no cover
     grp = NotImplemented
 
 from twisted.internet import reactor, threads
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS, WorkState
 from pyfarm.agent.config import config
@@ -122,8 +122,6 @@ class Cache(object):
 
     @classmethod
     def _jobtype_download_complete(cls, response, cache_key):
-        result = Deferred()
-
         # Server is offline or experiencing issues right
         # now so we should retry the request.
         if response.code >= INTERNAL_SERVER_ERROR:
@@ -134,15 +132,14 @@ class Cache(object):
         downloaded_data = response.json()
 
         if not config["jobtype_enable_cache"]:
-            deferred = cls._load_jobtype(downloaded_data, None)
-            deferred.chainDeferred(result)
+            return cls._load_jobtype(downloaded_data, None)
+
         else:
             # When the download is complete, cache the results
             caching = cls._cache_jobtype(cache_key, downloaded_data)
             caching.addCallback(
                 lambda result: cls._load_jobtype(*result))
-            caching.chainDeferred(result)
-        return result
+            return caching
 
 
     @classmethod
@@ -238,11 +235,17 @@ class Cache(object):
 
             # Create or load the module
             if filepath is not None:
-                module = imp.load_source(module_name, path)
+                try:
+                    module = imp.load_source(module_name, path)
+                except ImportError as e:
+                    logger.error(e)
+                    raise
             else:
+                print "!!!==============="
                 logcache.warning(
-                    "Loading (%s, %s) directly from memoy",
+                    "Loading (%s, %s) directly from memory",
                     jobtype_data["name"], jobtype_data["version"])
+
                 module = imp.new_module(module_name)
                 exec jobtype_data["code"] in module.__dict__
                 sys.modules[module_name] = module
@@ -257,6 +260,38 @@ class Cache(object):
 class Process(object):
     """Methods related to process control and management"""
     logging = {}
+
+    def __init__(self):
+        self.start_called = False
+        self.stop_called = False
+        self._stopped_deferred = None
+        self._start_deferred = None
+
+    @property
+    def stopped_deferred(self):
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+        return self._stopped_deferred
+
+    @property
+    def start_deferred(self):
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+        return self._stopped_deferred
+
+    @stopped_deferred.setter
+    def stopped_deferred(self, value):
+        assert self.start_called
+        assert self._stopped_deferred is None
+        assert isinstance(value, Deferred)
+        self._stopped_deferred = value
+
+    @start_deferred.setter
+    def start_deferred(self, value):
+        assert self.start_called
+        assert self._start_deferred is None
+        assert isinstance(value, Deferred)
+        self._start_deferred = value
 
     def _before_spawn_process(self, command, protocol):
         logger.debug(
@@ -285,26 +320,29 @@ class Process(object):
             reactor.spawnProcess(process_protocol, command.command, **kwargs)
 
     def _start(self):
-        def start_assignment(_):
-            # Make sure _start() is not called twice
-            if self.start_called:
-                raise RuntimeError("%s has already been started" % self)
-            else:
-                self._before_start()
-                logger.debug("%r.start()", self.__class__.__name__)
-                self.start()
-                self.start_called = True
-                self.started_deferred.callback(None)
+        # Make sure _start() is not called twice
+        if self.start_called:
+            raise RuntimeError("%s has already been started" % self)
 
-        self.started_deferred = Deferred()
+        self._before_start()
+        logger.debug("%r.start()", self.__class__.__name__)
+        started = DeferredList(self.start())
+        self.start_called = True
+        self.started_deferred = started
         self.stopped_deferred = Deferred()
-        reactor.callLater(0, start_assignment, None)
         return self.started_deferred, self.stopped_deferred
 
     def _stop(self):
+        if self.stop_called:
+            raise RuntimeError("%s has already been stopped" % self)
+
         return self.stop()
 
-    def _get_uid_gid(self, user, group):
+    def get_uid_gid(self, user, group):
+        """
+        Overridable method to convert a named user and group into their
+        respective user and group ids.
+        """
         uid = None
         gid = None
 
@@ -438,7 +476,7 @@ class Process(object):
 class TypeChecks(object):
     def _check_spawn_process_inputs(
             self, command, arguments, working_dir, environment, user, group):
-        """Checks input arguments for :meth:`spawn_process"""
+        """Checks input arguments for :meth:`spawn_process_inputs"""
         if not isinstance(command, STRING_TYPES):
             raise TypeError("Expected a string for `command`")
 
