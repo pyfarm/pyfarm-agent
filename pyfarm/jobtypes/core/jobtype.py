@@ -71,7 +71,7 @@ class CommandData(object):
     """
     Stores data to be returned by :meth:`JobType.get_command_data`.  The
     same instances of this class are also used by
-    :meth:`JobType.spawn_process` too.
+    :meth:`JobType.spawn_process_inputs` too.
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
@@ -164,6 +164,8 @@ class JobType(Cache, Process, TypeChecks):
         Optional("tasks"): TASKS_SCHEMA})
 
     def __init__(self, assignment):
+        super(JobType, self).__init__()
+
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
@@ -174,8 +176,6 @@ class JobType(Cache, Process, TypeChecks):
         self.failed_tasks = set()
         self.finished_tasks = set()
         self.stdout_line_fragments = {}
-        self.start_called = False
-        self.stop_called = False
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
         # Add our instance to the job type instance tracker dictionary
@@ -207,7 +207,6 @@ class JobType(Cache, Process, TypeChecks):
         """
         cls.ASSIGNMENT_SCHEMA(assignment)
 
-        result = Deferred()
         cache_key = cls._cache_key(assignment)
 
         if config["jobtype_enable_cache"] or cache_key not in cls.cache:
@@ -215,12 +214,9 @@ class JobType(Cache, Process, TypeChecks):
                 assignment["jobtype"]["name"],
                 assignment["jobtype"]["version"])
             download.addCallback(cls._jobtype_download_complete, cache_key)
-            download.chainDeferred(result)
+            return download
         else:
-            deferred = cls._load_jobtype(cls.cache[cache_key], None)
-            deferred.chainDeferred(result)
-
-        return result
+            return cls._load_jobtype(cls.cache[cache_key], None)
 
     def node(self):
         """
@@ -425,81 +421,89 @@ class JobType(Cache, Process, TypeChecks):
 
         return Template(expanduser(value)).safe_substitute(**environment)
 
-    def spawn_process(self, command):
+    def spawn_process_inputs(self, command):
         """
-        Starts one child process using input from :meth:`command_data`.
-        Job types should never start child processes through any other
-        means.  The only exception to this rule is code that resides in
-        :meth:`prepare_for_job`, which should use
-        :meth:`spawn_persistent_job_process` instead.
+        Overridable method that takes an instance if :class:`CommandData`
+        and produces a tuple or list containing the process arguments
+        and keyword arguments for :func:`twisted.internet.reactor.spawnProcess`.
 
-        :raises OSError:
-            Raised if `working_dir` was provided but the provided
-            path does not exist
+        This method is free to manipulate the attributes and other data stored
+        on ``command`` to change things like the environment or command
+        being run.
 
-        :raises EnvironmentError:
-            Raised if an attempt is made to change the user or
-            group without root access.  This error will only occur on
-            Linux or Unix platforms.
+        The first argument in the resulting tuple or list from this method
+        in the should always be the command name by convention. Under Windows,
+        this needs to be the whole path, under POSIX only the basename.
         """
-        process_protocol = self.PROCESS_PROTOCOL(self)
-
-        if not isinstance(process_protocol, ProcessProtocol):
-            raise TypeError("Expected ProcessProtocol for `protocol`")
-
-        # WARNING: `env` should always be None, see the comment below
-        # for more details
-        # The first argument should always be the command name by convention.
-        # Under Windows, this needs to be the whole path, under POSIX only the
-        # basename.
         if WINDOWS:
-            arguments = [command.command] + list(command.arguments)
+            return [command.command] + list(command.arguments), {}
         else:
-            arguments = [basename(command.command)] + list(command.arguments)
-
-        kwargs = {"args": arguments, "env": None}
-        uid, gid = self._get_uid_gid(command.user, command.group)
-
-        if uid is not None:
-            kwargs.update(uid=uid)
-
-        if gid is not None:
-            kwargs.update(gid=gid)
-
-        # Capture the protocol instance so we can keep track
-        # of the process we're about to spawn and start the
-        # logging thread.
-        # TODO: return data from this function, we don't want to be working
-        # with Deferred object in a public method
-        result = Deferred()
-        log_path = self.get_csvlog_path(process_protocol.uuid)
-        deferred = logpool.open_log(process_protocol, log_path)
-        deferred.addCallback(
-            self._spawn_twisted_process, command, process_protocol, kwargs)
-        deferred.chainDeferred(result)
-        self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred())
-
-        return result
+            return [basename(command.command)] + list(command.arguments), {}
 
     def start(self):
         """
-        This method is called when the job type should start
-        working.  Depending on the job type's implementation this will
-        prepare and start one more more processes.
+        This method is called when the job type should start working.  The
+        end result of this method is usually to start one child process with
+        input from :meth:`get_command_data`, processes should not be spawned
+        using any other means.
         """
         command_data = self.get_command_data()
 
         if isinstance(command_data, CommandData):
             command_data = [command_data]
 
+        results = []
         for command in command_data:
             if not isinstance(command, CommandData):
                 raise TypeError(
                     "Expected `CommandData` instances from get_command_data()")
 
+            process_protocol = self.PROCESS_PROTOCOL(self)
+
+            if not isinstance(process_protocol, ProcessProtocol):
+                raise TypeError("Expected ProcessProtocol for `protocol`")
+
             command.validate()
-            self.spawn_process(command)
+            arguments, kwargs = self.spawn_process_inputs(command)
+
+            if not isinstance(kwargs, dict):
+                raise TypeError(
+                    "Expected dictionary for keywords from "
+                    "spawn_process_inputs()")
+
+            if "env" in kwargs:
+                raise ValueError(
+                    "Due to how different platforms handle the environment "
+                    "when the process is spawned `env` must not be set in the "
+                    "keywords.")
+
+            # `env` must always be None because of how it behaves on different
+            # platforms.
+            #   http://twistedmatrix.com/documents/current/api/
+            #   twisted.internet.interfaces.IReactorProcess.spawnProcess.html
+            kwargs["env"] = None
+            kwargs.setdefault("args", arguments)
+
+            # Set default uid/gid.
+            uid, gid = self.get_uid_gid(command.user, command.group)
+            if uid is not None:
+                kwargs.setdefault("uid", uid)
+
+            if gid is not None:
+                kwargs.setdefault("uid", uid)
+
+            # Open a log file and when finished with that, call the method
+            # to spawn the process.
+            log_path = self.get_csvlog_path(process_protocol.uuid)
+            deferred = logpool.open_log(process_protocol, log_path)
+            deferred.addCallback(
+                self._spawn_twisted_process, command, process_protocol, kwargs)
+            self.processes[process_protocol.uuid] = ProcessData(
+                protocol=process_protocol,
+                started=Deferred(), stopped=Deferred())
+            results.append(deferred)
+
+        return results
 
     def stop(self, signal="KILL"):
         """
@@ -516,8 +520,8 @@ class JobType(Cache, Process, TypeChecks):
 
         if self.stop_called:
             raise RuntimeError("%s has already been stopped" % self)
-        else:
-            self.stop_called = True
+
+        self.stop_called = True
 
         for process_id, process in self.processes.iteritems():
             if signal == "KILL":
@@ -767,7 +771,7 @@ class JobType(Cache, Process, TypeChecks):
                     "Arguments: %s" % (command.arguments, ))
         logpool.log(protocol.uuid, STDERR, "Work Dir: %s" % command.cwd)
         logpool.log(protocol.uuid, STDERR, "User/Group: %s %s" % (
-                    command.user, command.group))
+            command.user, command.group))
         logpool.log(protocol.uuid, STDERR, "Environment:")
         logpool.log(protocol.uuid, STDERR, pformat(command.env, indent=4))
 
