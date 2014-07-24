@@ -243,8 +243,11 @@ class Cache(object):
                              filepath)
                 try:
                     module = imp.load_source(module_name, path)
-                except ImportError as e:
-                    logger.error(e)
+                except:
+                    type = sys.exc_info()[0]
+                    value = sys.exc_info()[1]
+                    logger.error("Importing module from jobtype file failed: "
+                                 "%s, value: %s", type, value)
                     raise
             else:
                 print "!!!==============="
