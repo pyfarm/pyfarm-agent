@@ -218,14 +218,17 @@ class JobType(Cache, Process, TypeChecks):
         cls.ASSIGNMENT_SCHEMA(assignment)
 
         cache_key = cls._cache_key(assignment)
+        logger.debug("Cache key for assignment is %s", cache_key)
 
         if config["jobtype_enable_cache"] or cache_key not in cls.cache:
+            logger.debug("Jobtype not in cache or cache disabled")
             download = cls._download_jobtype(
                 assignment["jobtype"]["name"],
                 assignment["jobtype"]["version"])
             download.addCallback(cls._jobtype_download_complete, cache_key)
             return download
         else:
+            logger.debug("Caching jobtype")
             return cls._load_jobtype(cls.cache[cache_key], None)
 
     def node(self):

@@ -125,6 +125,8 @@ class Cache(object):
         # Server is offline or experiencing issues right
         # now so we should retry the request.
         if response.code >= INTERNAL_SERVER_ERROR:
+            logger.debug(
+                "Could not download jobtype because of internal server error.")
             return reactor.callLater(
                 http_retry_delay(),
                 response.request.retry)
@@ -132,10 +134,12 @@ class Cache(object):
         downloaded_data = response.json()
 
         if not config["jobtype_enable_cache"]:
+            logger.debug("Jobtype cache is disabled, loading the jobtype.")
             return cls._load_jobtype(downloaded_data, None)
 
         else:
             # When the download is complete, cache the results
+            logger.debug("Caching the jobtype locally.")
             caching = cls._cache_jobtype(cache_key, downloaded_data)
             caching.addCallback(
                 lambda result: cls._load_jobtype(*result))
@@ -235,10 +239,15 @@ class Cache(object):
 
             # Create or load the module
             if filepath is not None:
+                logger.debug("Attempting to load module from file path %s",
+                             filepath)
                 try:
                     module = imp.load_source(module_name, path)
-                except ImportError as e:
-                    logger.error(e)
+                except Exception as e:
+                    type = sys.exc_info()[0]
+                    value = sys.exc_info()[1]
+                    logger.error("Importing module from jobtype file failed: "
+                                 "%s, value: %s", type, value)
                     raise
             else:
                 logcache.warning(
@@ -249,6 +258,8 @@ class Cache(object):
                 exec jobtype_data["code"] in module.__dict__
                 sys.modules[module_name] = module
 
+            logger.debug("Returning class %s from module",
+                         jobtype_data["classname"])
             return getattr(module, jobtype_data["classname"])
 
         # Load the job type itself in a thread so we limit disk I/O
