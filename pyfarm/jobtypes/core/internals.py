@@ -336,9 +336,14 @@ class Process(object):
 
         self._before_start()
         logger.debug("%r.start()", self.__class__.__name__)
-        started = DeferredList(self.start())
+        self.start()
         self.start_called = True
-        self.started_deferred = started
+        logger.debug("Collecting started deferreds from spawned processes")
+        started_deferreds = []
+        for process in self.processes.values():
+            started_deferreds.append(process.started)
+        logger.debug("Making deferred list self.started_deferred")
+        self.started_deferred = DeferredList(started_deferreds)
         self.stopped_deferred = Deferred()
         return self.started_deferred, self.stopped_deferred
 
