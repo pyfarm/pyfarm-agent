@@ -243,7 +243,7 @@ class Cache(object):
                              filepath)
                 try:
                     module = imp.load_source(module_name, path)
-                except:
+                except Exception as e:
                     type = sys.exc_info()[0]
                     value = sys.exc_info()[1]
                     logger.error("Importing module from jobtype file failed: "
