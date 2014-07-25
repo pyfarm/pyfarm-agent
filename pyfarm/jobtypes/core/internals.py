@@ -241,7 +241,6 @@ class Cache(object):
                     logger.error(e)
                     raise
             else:
-                print "!!!==============="
                 logcache.warning(
                     "Loading (%s, %s) directly from memory",
                     jobtype_data["name"], jobtype_data["version"])
