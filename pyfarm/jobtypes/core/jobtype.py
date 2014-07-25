@@ -312,6 +312,25 @@ class JobType(Cache, Process, TypeChecks):
                 "Expected a dictionary for `jobtype_default_environment`, "
                 "ignoring the configuration value.")
 
+        # All keys and values must be strings.  Normally this is not an issue
+        # but it's possible to create an environment using the config which
+        # contains non-strings.
+        for key in environment:
+            if not isinstance(key, STRING_TYPES):
+                logger.warning(
+                    "Environment key %r is not a string.  It will be converted "
+                    "to a string.", key)
+
+                value = environment.pop(key)
+                key = str(key)
+                environment[key] = value
+
+            if not isinstance(environment[key], STRING_TYPES):
+                logger.warning(
+                    "Environment value for %r is not a string.  It will be "
+                    "converted to a string.", key)
+                environment[key] = str(environment[key])
+
         return environment
 
     def get_command_list(self, cmdlist):
