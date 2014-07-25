@@ -136,6 +136,16 @@ class CommandData(object):
         elif self.cwd is not None:
             raise TypeError("Expected a string for `cwd`")
 
+    def set_default_environment(self, value):
+        """
+        Sets the environment to ``value`` if the internal ``env`` attribute
+        is None.  By default this method is called by the job type and passed
+        in the results from :meth:`pyfarm.jobtype.core.JobType.get_environment`
+        """
+        if self.env is None:
+            assert isinstance(value, dict)
+            self.env = value
+
 
 class JobType(Cache, Process, TypeChecks):
     """
@@ -506,6 +516,7 @@ class JobType(Cache, Process, TypeChecks):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
+        environment = self.get_environment()
         command_data = self.get_command_data()
 
         if isinstance(command_data, CommandData):
@@ -517,6 +528,7 @@ class JobType(Cache, Process, TypeChecks):
                     "Expected `CommandData` instances from get_command_data()")
 
             command.validate()
+            command.set_default_environment(environment)
             self._spawn_process(command)
 
     def stop(self, signal="KILL"):
