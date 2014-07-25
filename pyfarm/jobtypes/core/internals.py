@@ -473,44 +473,6 @@ class Process(object):
 
 
 class TypeChecks(object):
-    def _check_spawn_process_inputs(
-            self, command, arguments, working_dir, environment, user, group):
-        """Checks input arguments for :meth:`spawn_process_inputs"""
-        if not isinstance(command, STRING_TYPES):
-            raise TypeError("Expected a string for `command`")
-
-        if not isinstance(arguments, (list, tuple)):
-            raise TypeError("Expected a list or tuple for `arguments`")
-
-        if isinstance(working_dir, STRING_TYPES):
-            if not isdir(working_dir):
-                raise OSError(
-                    "`working_dir` %s does not exist" % working_dir)
-        else:
-            raise TypeError("Expected a string for `working_dir`")
-
-        if not isinstance(environment, dict):
-            raise TypeError("Expected a dictionary for `environment`")
-
-        if not isinstance(user, USER_GROUP_TYPES):
-            raise TypeError("Expected string, integer or None for `user`")
-
-        if not isinstance(group, USER_GROUP_TYPES):
-            raise TypeError("Expected string, integer or None for `group`")
-
-        admin = is_administrator()
-
-        if WINDOWS:  # pragma: no cover
-            if user is not None:
-                logger.warning("`user` is ignored on Windows")
-
-            if group is not None:
-                logger.warning("`group` is ignored on Windows")
-
-        elif user is not None or group is not None and not admin:
-            raise EnvironmentError(
-                "Cannot change user or group without being admin.")
-
     def _check_expandvars_inputs(self, value, environment):
         """Checks input arguments for :meth:`expandvars`"""
         if not isinstance(value, STRING_TYPES):
