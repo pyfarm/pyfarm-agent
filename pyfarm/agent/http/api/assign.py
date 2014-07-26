@@ -16,14 +16,21 @@
 # limitations under the License.
 
 try:
-    from httplib import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
+    from httplib import (
+        ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
 except ImportError:  # pragma: no cover
-    from http.client import ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE
+    from http.client import (
+        ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
+from traceback import format_exception
+from functools import partial
 
 from twisted.web.server import NOT_DONE_YET
+from twisted.internet import reactor
 from voluptuous import Schema, Required
 
+from pyfarm.core.enums import WorkState
 from pyfarm.agent.config import config
+from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master, uuid
@@ -187,6 +194,67 @@ class Assign(APIResource):
             if "restart_requested" in config and config["restart_requested"]:
                 config["agent"].stop()
 
+        def load_jobtype_failed(result, assign_id):
+            logger.error(
+                "Loading jobtype for assignment %s failed, removing.", assign_id)
+            traceback = result.getTraceback()
+            logger.debug("Got traceback")
+            logger.error(traceback)
+            assignment = config["current_assignments"].pop(assign_id)
+
+            # Mark all tasks as failed on master and set an error message
+            def result_callback(response):
+                logger.debug("Response code: ", response.code)
+
+            def result_errback(failure_reason):
+                logger.error(
+                    "Error while marking task as failed: ", failure_reason)
+
+            logger.debug("Marking tasks in assignment as failed")
+            def post_update(post_url, post_data, delay=0):
+                post_func = partial(post, post_url, data=post_data,
+                    callback=lambda x: result_callback(
+                        post_url, post_data, task["id"], x),
+                    errback=lambda x: error_callback(post_url, post_data, x))
+                reactor.callLater(delay, post_func)
+
+            def result_callback(cburl, cbdata, task_id, response):
+                if 500 <= response.code < 600:
+                    logger.error(
+                        "Error while marking task %s as failed on master, "
+                        "retrying", task_id)
+                    post_update(cburl, cbdata, delay=http_retry_delay())
+
+                elif response.code != OK:
+                    logger.error(
+                        "Could not mark task %s as failed, server response code "
+                        "was %s", task_id, response.code)
+
+                else:
+                    logger.info("Marked task %s as failed on master", task_id)
+
+            def error_callback(cburl, cbdata, failure_reason):
+                logger.error(
+                    "Error while marking task %s as failed, retrying",
+                    failure_reason)
+                post_update(cburl, cbdata, delay=http_retry_delay())
+
+            for task in assignment["tasks"]:
+                url = "%s/jobs/%s/tasks/%s" % (
+                    config["master_api"], assignment["job"]["id"], task["id"])
+                data = {
+                    "state": WorkState.FAILED,
+                    "last_error": traceback}
+                post_update(url, data)
+
+            # If the loading was partially successful for some reason, there
+            # might already be an entry for this jobtype in the config.
+            # Remove it if it exists.
+            if "jobtype" in assignment:
+                jobtype_id = assignment["jobtype"].pop("id", None)
+                if jobtype_id:
+                    config["jobtypes"].pop(jobtype_id, None)
+
         def loaded_jobtype(jobtype_class, assign_id):
             # TODO: report error to master
             if hasattr(jobtype_class, "getTraceback"):
@@ -214,6 +282,6 @@ class Assign(APIResource):
         # are handled internally in this case.
         jobtype_loader = JobType.load(request_data)
         jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
-        jobtype_loader.addErrback(assignment_failed, assignment_uuid)
+        jobtype_loader.addErrback(load_jobtype_failed, assignment_uuid)
 
         return NOT_DONE_YET
