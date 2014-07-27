@@ -273,7 +273,7 @@ def fake_work():
             args.master_api + "/jobs/",
             data=dumps({
                 "start": 1,
-                "end": 3,
+                "end": 1,
                 "title": "Fake Job - %s" % int(time.time()),
                 "jobtype": args.jobtype}))
         assert job.ok, job.json()
