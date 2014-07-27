@@ -23,8 +23,12 @@ other job types are built.  All other job types must
 inherit from the :class:`JobType` class in this modle.
 """
 
+import atexit
 import os
+import tempfile
+import shutil
 from collections import namedtuple
+from errno import EEXIST, ENOENT
 from datetime import datetime, timedelta
 from functools import partial
 from string import Template
@@ -176,6 +180,11 @@ class JobType(Cache, Process, TypeChecks):
     def __init__(self, assignment):
         super(JobType, self).__init__()
 
+        # Private attributes which persist with the instance.  These
+        # generally should not be modified directly.
+        self._tempdir = None  # the defacto tempdir for this instance
+        self._tempdirs = set()  # list of any temp directories created
+
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
@@ -305,6 +314,92 @@ class JobType(Cache, Process, TypeChecks):
     def assignments(self):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
+
+    def _remove_tempdirs(self, max_attempts=5):
+        """
+        Iterates over all temporary directories in ``_tempdirs`` and removes
+        them from disk.  This work will be done in a thread so it does not
+        block the reactor.
+        """
+        def rmdir(path, on_exit_handler=True):
+            logger.debug("Removing directory %s", path)
+
+            attempts = max_attempts
+            while attempts:
+                try:
+                    shutil.rmtree(path)
+                except OSError as e:
+                    attempts -= 1
+                    if e.errno == ENOENT:
+                        break
+
+                    elif e.errno != ENOENT:
+                        logger.error(
+                            "Failed to delete %s: %s (%s attempts remain)",
+                            path, e, attempts)
+                else:
+                    logger.debug("Removed directory %s", path)
+                    break
+
+            else:
+                # If break was never called then retry on shutdown.
+                if on_exit_handler:
+                    atexit.register(rmdir, path, on_exit_handler=False)
+                    logger.error(
+                        "Failed to delete %s, will retry on shutdown", path)
+                else:
+                    logger.error(
+                        "Failed to delete %s, no further attempts will be "
+                        "made", path)
+
+        # Delete each directory in a thread
+        for directory in self._tempdirs:
+            reactor.callInThread(rmdir, directory)
+
+    def tempdir(self, new=False, remove_on_finish=True):
+        """
+        Returns a temporary directory to be used within a job type.
+        By default once called the directory will be created on disk
+        and returned from this method.
+
+        Calling this method multiple times will return the same directory
+        instead of creating a new directory unless ``new`` is set to True.
+
+        :param bool new:
+            If set to ``True`` then return a new directory when called.  This
+            however will not replace the 'default' temp directory.
+
+        :param bool remove_on_finish:
+            If ``True`` then keep track of the directory returned so it
+            can be removed when the job type finishes.
+        """
+        if not new and self._tempdir is not None:
+            return self._tempdir
+
+        parent_dir = config["jobtype_tempdir_root"].replace(
+            "$JOBTYPE_UUID", str(self.uuid))
+
+        try:
+            os.makedirs(parent_dir)
+        except OSError as e:  # pragma: no cover
+            if e.errno != EEXIST:
+                logger.error("Failed to create %s: %s", parent_dir, e)
+                raise
+
+        self._tempdirs.add(parent_dir)
+        tempdir = tempfile.mkdtemp(dir=parent_dir)
+        logger.debug(
+            "%s.tempdir() created %s", self.__class__.__name__, tempdir)
+
+        # Keep track of the directory so we can cleanup all of them
+        # when the job type finishes.
+        if remove_on_finish:
+            self._tempdirs.add(tempdir)
+
+        if not new and self._tempdir is None:
+            self._tempdir = tempdir
+
+        return tempdir
 
     def get_environment(self):
         """

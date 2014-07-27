@@ -49,6 +49,10 @@ jobtype_task_log_filename:
 # disable job type caching.
 jobtype_cache_directory: $temp/jobtype_cache
 
+# The root directory that the default implementation of JobType.tempdir()
+# will create a path using tempfile.mkdtemp.
+jobtype_tempdir_root: $temp/tempdir/$JOBTYPE_UUID
+
 # If True then expand environment variables in file paths.
 jobtype_expandvars: True
 
