@@ -44,9 +44,9 @@ CONFIGURATION = {
     "datefmt": "%Y-%m-%d %H:%M:%S",
     "format": "%(asctime)s %(levelname)-8s - %(name)-15s - %(message)s",
 
-      # Defines the cutoff level for different loggers.  By default
-      # the only defined cutoff is for root ("").  Logger names
-      # should be defined using *'s to define matches.
+    # Defines the cutoff level for different loggers.  By default
+    # the only defined cutoff is for root ("").  Logger names
+    # should be defined using *'s to define matches.
     "levels": [
         ("", DEBUG),
         ("HTTP11ClientProtocol*", INFO)]}
