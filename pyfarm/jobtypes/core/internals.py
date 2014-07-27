@@ -47,11 +47,10 @@ except ImportError:  # pragma: no cover
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList
 
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, http_retry_delay
-from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.log import STDOUT, logpool
 from pyfarm.jobtypes.core.process import ReplaceEnvironment
 
