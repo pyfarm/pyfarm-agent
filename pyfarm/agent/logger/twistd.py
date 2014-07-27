@@ -25,13 +25,17 @@ way of handling log events.
 
 from __future__ import print_function
 
+import pdb
 import sys
+import logging
 from collections import deque
 from datetime import datetime
 from fnmatch import fnmatch
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR, FATAL, _levelNames
 
+from twisted.python.failure import Failure
 from twisted.python.log import textFromEventDict
+from twisted.internet.error import ProcessDone
 
 from pyfarm.core.enums import INTERACTIVE_INTERPRETER
 
@@ -63,6 +67,7 @@ class Observer(object):
     of log events.
     """
     INSTANCE = None
+    PDB_ON_UNHANDLED_ERROR = False
 
     if not INTERACTIVE_INTERPRETER:
         FORMATS = {
@@ -155,6 +160,20 @@ class Observer(object):
 
         if name == "-":
             name = "twisted"
+
+        # Log any unhandled error here because it's possible
+        # that it won't be handled in a callback
+        if event.get("isError") and "failure" in event:
+            if isinstance(event["failure"], Failure) \
+                    and event["failure"].type is ProcessDone:
+                message = "Ignoring previous error.  Error object was " \
+                          "'ProcessDone', nothing to do here."
+            else:
+                logging.exception(message)
+                if self.PDB_ON_UNHANDLED_ERROR:
+                    pdb.set_trace()
+
+                return
 
         if self.filter(name, levelno, message):
             return
