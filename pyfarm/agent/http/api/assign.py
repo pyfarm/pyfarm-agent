@@ -162,14 +162,12 @@ class Assign(APIResource):
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
-        # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
         request.write({"id": assignment_uuid})
         request.finish()
         logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
 
         def assignment_failed(result, assign_id):
-            # TODO: report error to master
             logger.error(
                 "Assignment %s failed, removing.", assign_id)
             logger.error(result.getTraceback())
@@ -276,6 +274,8 @@ class Assign(APIResource):
             stopped_deferred.addCallback(assignment_stopped, assign_id)
             stopped_deferred.addErrback(assignment_failed, assign_id)
             stopped_deferred.addBoth(restart_if_necessary)
+            stopped_deferred.addBoth(
+                lambda *args: instance._remove_tempdirs())
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
