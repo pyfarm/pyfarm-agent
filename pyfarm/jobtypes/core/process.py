@@ -30,6 +30,7 @@ from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import uuid
+from pyfarm.jobtypes.core.log import STDOUT, STDERR
 
 logger = getLogger("jobtypes.process")
 
@@ -132,11 +133,11 @@ class ProcessProtocol(_ProcessProtocol):
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
-        self.jobtype.received_stdout(self, data)
+        self.jobtype._process_output(self, data, STDOUT)
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
-        self.jobtype.received_stderr(self, data)
+        self.jobtype._process_output(self, data, STDERR)
 
     def kill(self):
         """Kills the underlying process, if running."""

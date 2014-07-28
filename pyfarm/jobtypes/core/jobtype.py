@@ -15,6 +15,8 @@
 # limitations under the License.
 
 """
+.. |ProcessProtocol| replace:: pyfarm.jobtypes.core.process.ProcessProtocol
+
 Job Type Core
 =============
 
@@ -195,6 +197,7 @@ class JobType(Cache, Process, TypeChecks):
         self.failed_tasks = set()
         self.finished_tasks = set()
         self.stdout_line_fragments = {}
+        self.stderr_line_fragments = {}
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
         # Add our instance to the job type instance tracker dictionary
@@ -658,19 +661,6 @@ class JobType(Cache, Process, TypeChecks):
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
 
-    def format_log_message(self, message, stream_type=None):
-        """
-        This method may be overridden to format a log message coming from
-        a process before we write out out to stdout or to disk.  By default
-        this method does nothing except return the original message.
-
-        :param int stream_type:
-            When not ``None`` this specifies if the message is from stderr
-            or stdout.  This value comes from :const:`.STDOUT` or
-            :const:`.STDERR`
-        """
-        return message
-
     def format_error(self, error):
         """
         Takes some kind of object, typically an instance of
@@ -923,108 +913,426 @@ class JobType(Cache, Process, TypeChecks):
         for task in self.assignment["tasks"]:
             self.set_task_state(task, WorkState.RUNNING)
 
-    def received_stdout(self, protocol, stdout):
+    def _process_output(self, protocol, output, stream):
         """
-        Called by :meth:`.ProcessProtocol.outReceived` when
-        we receive output on standard output (stdout) from a process.
-        Not to be overridden.
+        Called by :meth:`.ProcessProtocol.outReceived` and
+        :meth:`.ProcessProtocol.errReceived` whenever output is produced
+        by a process.  This method will wire up the proper calls under the
+        hood to process the output.
         """
-        new_stdout = self.preprocess_stdout(protocol, stdout)
-        if new_stdout is not None:
-            stdout = new_stdout
+        if stream == STDOUT:
+            line_fragments = self.stdout_line_fragments
+            preprocessor = self.preprocess_stdout
+            line_handler = self.handle_stdout_line
 
-        self.process_stdout(protocol, stdout)
+        elif stream == STDERR:
+            line_fragments = self.stderr_line_fragments
+            preprocessor = self.preprocess_stderr
+            line_handler = self.handle_stderr_line
+
+        else:
+            raise ValueError("Expected STDOUT or STDERR for `stream`")
+
+        # Proprocess before we call process_output
+        new_output = preprocessor(protocol, output)
+        if isinstance(new_output, STRING_TYPES):
+            output = new_output
+
+        self.process_output(protocol, output, line_fragments, line_handler)
 
     def preprocess_stdout(self, protocol, stdout):
+        """
+        **Overridable**.  Provides the ability to preprocess output to
+        ``stdout`` before any kind of formatting or additional processing
+        is performed.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced the output
+
+        :param string stdout:
+            The output to preprocess.  This may or may not be a single line and
+            is the output before we try and process individual lines.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will then be passed to :meth:`process_output`
+        """
         pass
 
-    def process_stdout(self, protocol, stdout):
+    def preprocess_stderr(self, protocol, stderr):
         """
-        Overridable function called when we receive data from a child process'
-        stdout.
-        The default implementation will split the output into lines and forward
-        those to received_stdout_line(), which will eventually forward it to
-        process_stdout_line()
+        **Overridable**.  Provides the ability to preprocess output to
+        ``stderr`` before any kind of formatting or additional processing
+        is performed.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced the output
+
+        :param string stderr:
+            The output to preprocess.  This may or may not be a single line and
+            is the output before we try and process individual lines.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will then be passed to :meth:`process_output`
+        """
+        pass
+
+    def process_output(self, protocol, output, line_fragments, line_handler):
+        """
+        This is a mid-level method which takes output from a process protocol
+        then splits and processes it to ensure we pass complete output lines
+        to the other methods.
+
+        Implementors who wish to process the output line by line should
+        override :meth:`preprocess_stdout_line`, :meth:`preprocess_stdout_line`,
+        :meth:`process_stdout_line` or :meth:`process_stderr_line` instead.
+        This method is a glue method between other parts of the job type and
+        should only be overridden if there's a problem or you want to change
+        how lines are split.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``output``
+
+        :param string output:
+            The blob of text or line produced
+
+        :param dict line_fragments:
+            The line fragment dictionary containing individual line
+            fragments.  This will be either ``self.stdout_line_fragments`` or
+            ``self.stderr_line_fragments``.
+
+        :param callable line_handler:
+            The function to handle any lines produced.  This will be either
+            :meth:`handle_stdout_line` or :meth:`handle_stderr_line`
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
         dangling_fragment = None
-        if "\n" in stdout:
+
+        if "\n" in output:
             ends_on_fragment = True
-            if stdout[-1] == "\n":
+
+            if output[-1] == "\n":
                 ends_on_fragment = False
-            lines = stdout.split("\n")
+
+            lines = output.split("\n")
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
+
             for line in lines:
-                if protocol.uuid in self.stdout_line_fragments:
-                    line_out = self.stdout_line_fragments[protocol.uuid] + line
-                    del self.stdout_line_fragments[protocol.uuid]
-                    if len(line_out) > 0 and line_out[-1] == "\r":
+                if protocol.uuid in line_fragments:
+                    line_out = line_fragments.pop(protocol.uuid)
+                    line_out += line
+                    if line_out and line_out[-1] == "\r":
                         line_out = line_out[:-1]
-                    self.received_stdout_line(protocol, line_out)
+
+                    line_handler(protocol, line_out)
+
                 else:
-                    if len(line) > 0 and line[-1] == "\r":
+                    if line and line[-1] == "\r":
                         line = line[:-1]
-                    self.received_stdout_line(protocol, line)
+
+                    line_handler(protocol, line)
+
             if ends_on_fragment:
-                self.stdout_line_fragments[protocol.uuid] = dangling_fragment
+                line_fragments[protocol.uuid] = dangling_fragment
         else:
-            if protocol.uuid in self.stdout_line_fragments:
-                self.stdout_line_fragments[protocol.uuid] += stdout
+            if protocol.uuid in line_fragments:
+                line_fragments[protocol.uuid] += output
+
             else:
-                self.stdout_line_fragments[protocol.uuid] = stdout
+                line_fragments[protocol.uuid] = output
 
-    def received_stdout_line(self, protocol, line):
+    def handle_stdout_line(self, protocol, stdout):
         """
-        Called when we receive a new line from stdout, and possibly stderr if
-        those methods have not been overridden as well.
+        **Overridable**.  Takes a :class:`.ProcessProtocol` instance and
+        ``stdout`` line produced by :meth:`process_output` and runs it through
+        all the steps necessary to preprocess, format, log and handle the line.
 
-        If ``--capture-process-output`` was set when the agent was launched
-        all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to
-        :meth:`_log_in_thread` so it can be stored in a file without
-        blocking the event loop.
+        The default implementation will run ``stdout`` through several methods
+        in order:
+
+            * :meth:`preprocess_stdout_line`
+            * :meth:`format_stdout_line`
+            * :meth:`log_stdout_line`
+            * :meth:`process_stdout_line`
+
+        .. warning::
+
+            This method is overridable however it's advisable to override
+            the methods above instead.  Unlike this method, which is more
+            generalized and invokes several other methods, the above provide
+            more targeted functionality.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stderr`` being emitted by the process
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        new_line = self.preprocess_stdout_line(protocol, line)
-        if new_line is not None:
-            line = new_line
+        # Preprocess
+        preprocessed = self.preprocess_stdout_line(protocol, stdout)
+        if preprocessed is not None:
+            stdout = preprocessed
 
-        line = self.format_log_message(line, stream_type=STDOUT)
+        # Format
+        formatted = self.format_stdout_line(protocol, stdout)
+        if formatted is not None:
+            stdout = formatted
+
+        # Log
+        self.log_stdout_line(protocol, stdout)
+
+        # Custom Processing
+        self.process_stdout_line(protocol, stdout)
+
+    def handle_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  Takes a :class:`.ProcessProtocol` instance and
+        ``stderr`` produced by :meth:`process_output` and runs it through all
+        the steps necessary to preprocess, format, log and handle the line.
+
+        The default implementation will run ``stderr`` through several methods
+        in order:
+
+            * :meth:`preprocess_stderr_line`
+            * :meth:`format_stderr_line`
+            * :meth:`log_stderr_line`
+            * :meth:`process_stderr_line`
+
+        .. warning::
+
+            This method is overridable however it's advisable to override
+            the methods above instead.  Unlike this method, which is more
+            generalized and invokes several other methods, the above provide
+            more targeted functionality.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stderr`` being emitted by the process
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
+        # Preprocess
+        preprocessed = self.preprocess_stderr_line(protocol, stderr)
+        if preprocessed is not None:
+            stderr = preprocessed
+
+        # Format
+        formatted = self.format_stderr_line(protocol, stderr)
+        if formatted is not None:
+            stderr = formatted
+
+        # Log
+        self.log_stderr_line(protocol, stderr)
+
+        # Custom Processing
+        self.process_stderr_line(protocol, stderr)
+
+    def preprocess_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  Provides the ability to manipulate ``stdout`` or
+        ``protocol`` before it's passed into any other line handling methods.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stdout`` before any formatting or logging
+            has occurred.
+            
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in line handling methods such
+            as :meth:`format_stdout_line`, :meth:`log_stdout_line` and
+            :meth:`process_stdout_line`.
+        """
+        pass
+
+    def preprocess_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  Formats a line from ``stdout`` before it's passed onto
+        methods such as :meth:`log_stdout_line` and :meth:`process_stdout_line`.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` before any formatting or logging
+            has occurred.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in line handling methods such
+            as :meth:`format_stderr_line`, :meth:`log_stderr_line` and
+            :meth:`process_stderr_line`.
+        """
+        pass
+
+    def format_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  Formats a line from ``stdout`` before it's passed onto
+        methods such as :meth:`log_stdout_line` and :meth:`process_stdout_line`.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stdout:
+            A complete line from process to format and return.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in :meth:`log_stdout_line` and
+            :meth:`process_stdout_line`
+        """
+        pass
+
+    def format_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  Formats a line from ``stderr`` before it's passed onto
+        methods such as :meth:`log_stderr_line` and :meth:`process_stderr_line`.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line from the process to format and return.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in :meth:`log_stderr_line` and
+            :meth:`process_stderr_line`
+        """
+        pass
+
+    def log_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  Called when we receive a complete line on stdout from
+        the process.
+
+        The default implementation will use the global logging pool to
+        log ``stdout`` to a file.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stdout`` that has been formatted and is ready
+            to log to a file.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
         if config["jobtype_capture_process_output"]:
-            process_stdout.info("task %r: %s", protocol.id, line)
+            process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
-            logpool.log(protocol.uuid, STDOUT, line)
+            logpool.log(protocol.uuid, STDOUT, stdout)
 
-        self.process_stdout_line(protocol, line)
-
-    def preprocess_stdout_line(self, protocol, line):
-        pass
-
-    def process_stdout_line(self, protocol, line):
+    def log_stderr_line(self, protocol, stderr):
         """
-        Overridable function called whenever we receive a new line from a child
-        process' stdout.
-        Default implementation does nothing.
-        """
-        pass
+        **Overridable**.  Called when we receive a complete line on stderr from
+        the process.
 
-    def _received_stderr(self, protocol, stderr):
-        """
-        Internal implementation for :meth:`received_stderr`.
+        The default implementation will use the global logging pool to
+        log ``stderr`` to a file.
 
-        If ``--capture-process-output`` was set when the agent was launched
-        all stderr output will be sent to the stdout of the agent itself.
-        In all other cases we send the data to to :meth:`_log_in_thread`
-        so it can be stored in a file without blocking the event loop.
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` that has been formatted and is ready
+            to log to a file.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        stderr = self.format_log_message(stderr, stream_type=STDERR)
         if config["jobtype_capture_process_output"]:
-            process_stderr.info("task %r: %s", protocol.id, stderr)
+            process_stdout.info("task %r: %s", protocol.id, stderr)
         else:
             logpool.log(protocol.uuid, STDERR, stderr)
 
-    def received_stderr(self, protocol, stderr):
+    def process_stderr_line(self, protocol, stderr):
         """
-        Called by :meth:`.ProcessProtocol.errReceived` when
-        we receive output on standard error (stderr) from a process.
+        **Overridable**.  This method is called when we receive a complete
+        line to ``stderr``.  The line will be preformatted and will already
+        have been sent for logging.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` after it has been formatted and
+            logged.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        self._received_stderr(protocol, stderr)
+        pass
+
+    def process_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  This method is called when we receive a complete
+        line to ``stdout``.  The line will be preformatted and will already
+        have been sent for logging.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stdout`` after it has been formatted and
+            logged.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
+        pass
