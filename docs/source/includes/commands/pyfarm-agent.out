@@ -60,6 +60,8 @@ Process Control:
                         ignored on Windows.*
   --gid GID             The group id to run the agent as. *This setting is
                         ignored on Windows.*
+  --pdb-on-unhandled    When set pdb.set_trace() will be called if an
+                        unhandled error is caught in the logger
 
 pyfarm-agent is a command line client for working with a local agent. You can
 use it to stop, start, and report the general status of a running agent
