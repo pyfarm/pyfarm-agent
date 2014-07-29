@@ -124,7 +124,7 @@ class ProcessProtocol(_ProcessProtocol):
     def processEnded(self, reason):
         """
         Called when the process has terminated and all file descriptors
-        have been closed.  :meth:`processExited` is called to however we
+        have been closed.  :meth:`processExited` is called, too, however we
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """

@@ -417,7 +417,7 @@ class Process(object):
         process_data.stopped.callback(reason)
 
         # If there are no processes running at this point, we assume
-        # the assign is finished
+        # the assignment is finished
         if len(self.processes) == 0:
             # TODO Mark tasks that have not yet been marked otherwise as FAILED
             if not self.failed_processes:
