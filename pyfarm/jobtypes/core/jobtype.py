@@ -898,10 +898,12 @@ class JobType(Cache, Process, TypeChecks):
         """
         if len(self.failed_processes) == 0:
             for task in self.assignment["tasks"]:
-                self.set_task_state(task, WorkState.DONE)
+                if task["id"] not in self.failed_tasks:
+                    self.set_task_state(task, WorkState.DONE)
         else:
             for task in self.assignment["tasks"]:
-                self.set_task_state(task, WorkState.FAILED)
+                if task["id"] not in self.finished_tasks:
+                    self.set_task_state(task, WorkState.FAILED)
 
     def process_started(self, protocol):
         """
