@@ -133,11 +133,19 @@ class ProcessProtocol(_ProcessProtocol):
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
-        self.jobtype._process_output(self, data, STDOUT)
+        try:
+            self.jobtype._process_output(self, data, STDOUT)
+        except Exception as e:
+            logger.error("Caught an exception from _process_output, "
+                         "traceback: %s", e.getTraceback())
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
-        self.jobtype._process_output(self, data, STDERR)
+        try:
+            self.jobtype._process_output(self, data, STDERR)
+        except Exception as e:
+            logger.error("Caught an exception from _process_output, "
+                         "traceback: %s", e.getTraceback())
 
     def kill(self):
         """Kills the underlying process, if running."""

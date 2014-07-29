@@ -412,7 +412,11 @@ class Process(object):
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
-        self.process_stopped(protocol, reason)
+        try:
+            self.process_stopped(protocol, reason)
+        except Exception as e:
+            logger.error("Exception caught from process_stopped, tracaback: %s",
+                         e.getTraceback())
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
