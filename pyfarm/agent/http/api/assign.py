@@ -162,6 +162,7 @@ class Assign(APIResource):
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
+        # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
         request.write({"id": assignment_uuid})
         request.finish()
