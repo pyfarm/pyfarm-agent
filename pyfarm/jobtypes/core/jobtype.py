@@ -900,10 +900,18 @@ class JobType(Cache, Process, TypeChecks):
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.failed_tasks:
                     self.set_task_state(task, WorkState.DONE)
+                else:
+                    logger.warning(
+                        "Task %r is already in failed tasks, not setting state "
+                        "to %s", task["id"], WorkState.DONE)
         else:
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.finished_tasks:
                     self.set_task_state(task, WorkState.FAILED)
+                else:
+                    logger.warning(
+                        "Task %r is already in finished tasks, not setting "
+                        "state to %s", task["id"], WorkState.FAILED)
 
     def process_started(self, protocol):
         """
