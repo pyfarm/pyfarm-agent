@@ -162,3 +162,6 @@ class ProcessProtocol(_ProcessProtocol):
             self.process.signalProcess("INT")
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot interrupt %s: %s.", self, e)
+
+    def running(self):
+        return self.pid is not None
