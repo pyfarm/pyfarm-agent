@@ -164,4 +164,5 @@ class ProcessProtocol(_ProcessProtocol):
             logger.warning("Cannot interrupt %s: %s.", self, e)
 
     def running(self):
+        """Method to determine whether the child process is currently running"""
         return self.pid is not None

@@ -429,6 +429,10 @@ class Process(object):
             self.stopped_deferred.callback(None)
 
     def _has_running_processes(self):
+        """
+        Internal functionto determine whether the batch represented by this
+        instance still has running child processes.
+        """
         for process in self.processes.values():
             if process.protocol.running():
                 return True
