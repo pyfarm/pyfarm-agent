@@ -429,12 +429,11 @@ class Process(object):
             self.stopped_deferred.callback(None)
 
     def _has_running_processes(self):
-        has_running_processes = False
         for process in self.processes.values():
             if process.protocol.running():
-                has_running_processes = True
+                return True
 
-        return has_running_processes
+        return False
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
