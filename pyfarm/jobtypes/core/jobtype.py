@@ -67,7 +67,7 @@ logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 ProcessData = namedtuple(
-    "ProcessData", ("protocol", "started", "stopped"))
+    "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
 
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
@@ -605,7 +605,8 @@ class JobType(Cache, Process, TypeChecks):
         deferred.addCallback(
             self._spawn_twisted_process, command, process_protocol, kwargs)
         self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred())
+            protocol=process_protocol, started=Deferred(), stopped=Deferred(),
+            log_identifier=basename(log_path))
 
         self._register_logfile_on_master(basename(log_path))
 
