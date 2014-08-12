@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, INTERNAL_SERVER_ERROR
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
@@ -600,16 +600,70 @@ class JobType(Cache, Process, TypeChecks):
         # logging thread.
         # TODO: return data from this function, we don't want to be working
         # with Deferred object in a public method
-        result = Deferred()
         log_path = self.get_csvlog_path(process_protocol.uuid)
         deferred = logpool.open_log(process_protocol, log_path)
         deferred.addCallback(
             self._spawn_twisted_process, command, process_protocol, kwargs)
-        deferred.chainDeferred(result)
         self.processes[process_protocol.uuid] = ProcessData(
             protocol=process_protocol, started=Deferred(), stopped=Deferred())
 
-        return result
+        self._register_logfile_on_master(basename(log_path))
+
+        return deferred
+
+    def _register_logfile_on_master(self, log_path):
+        def post_logfile(task, log_path, delay=0):
+            url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
+                config["master_api"], self.assignment["job"]["id"], task["id"],
+                task["attempt"])
+            data = {"identifier": log_path,
+                    "agent_id": self.node()["id"]}
+            post_func = partial(
+                post, url, data=data,
+                callback=lambda x: result_callback(log_path, task, x),
+                errback=lambda x: error_callback(log_path, task, x))
+            reactor.callLater(delay, post_func)
+
+        def result_callback(task, log_path, response):
+            if 500 <= response.code < 600:
+                delay = http_retry_delay()
+                logger.error(
+                    "Server side error while registering log file %s for "
+                    "task %s (frame %s) in job %s (id %s), status code: %s. "
+                    "Retrying. in %s seconds",
+                    log_path, task["id"], task["frame"],
+                    self.assignment["job"]["title"],
+                    self.assignment["job"]["id"], response.code)
+                post_logfile(task, log_path, delay=delay)
+
+            elif response.code != OK:
+                # Nothing else we could do about that, this is
+                # a problem on our end.
+                logger.error(
+                    "Could not register logfile %s for task %s (frame %s) in "
+                    "job %s (id %s), status code: %s. This is a client side "
+                    "error, giving up.",
+                    log_path, task["id"], task["frame"],
+                    self.assignment["job"]["title"],
+                    self.assignment["job"]["id"], response.code)
+
+            else:
+                logger.info("Registered logfile %s for task %s on master",
+                            log_path, task["id"])
+
+        def error_callback(log_path, task, failure_reason):
+            delay = http_retry_delay()
+            logger.error(
+                "Error while registering logfile %s for task %s on master: "
+                "\"%s\", retrying in %s seconds.",
+                log_path, task["id"], failure_reason, delay())
+            post_logfile(task, log_path, delay=delay)
+
+        deferreds = []
+        for task in self.assignment["tasks"]:
+            deferreds.append(post_logfile(task["id"], log_path))
+
+        return DeferredList(deferreds)
 
     def start(self):
         """
