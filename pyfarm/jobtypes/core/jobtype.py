@@ -491,8 +491,9 @@ class JobType(Cache, Process, TypeChecks):
         filename = config["jobtype_task_log_filename"]
         for key, value in template_data.items():
             filename = filename.replace("$" + key, value)
+        filepath = join(config["jobtype_task_logs"], filename)
 
-        return abspath(filename)
+        return abspath(filepath)
 
     # TODO: internal implementation like the doc string says
     # TODO: reflow the doc string text for a better layout

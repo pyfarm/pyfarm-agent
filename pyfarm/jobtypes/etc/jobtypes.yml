@@ -26,7 +26,7 @@ jobtype_capture_process_output: False
 # The location where tasks should be logged
 jobtype_task_logs: $agent_logs_root/tasks
 
-# The filepath to an individual log file.  This path supports several
+# The filename to an individual log file.  This filename supports several
 # internal variables:
 #
 #   $YEAR - The current year
@@ -38,9 +38,10 @@ jobtype_task_logs: $agent_logs_root/tasks
 #   $PROCESS - The uuid of the process object responsible for creating the log
 #
 # In addition to the above you can, as with any configuration variable,
-# also use environment variables in the path.
+# also use environment variables in the filename.
+# Path separators ("/" and "\") are not allowed.
 jobtype_task_log_filename:
-  $jobtype_task_logs/$YEAR/$MONTH/$DAY/$HOUR$MINUTE$SECOND_$JOB_$PROCESS.csv
+    $YEAR-$MONTH-$DAY_$HOUR-$MINUTE-$SECOND_$JOB_$PROCESS.csv
 
 # store cached source code from the master.  Note
 # that $temp will be expanded to the local system's
