@@ -458,7 +458,8 @@ class Process(object):
         def upload(url, log_identifier, delay=0):
             logfile = open(path, "r")
             if delay != 0:
-                reactor.callLater(delay, upload, log_identifier=log_identifier)
+                reactor.callLater(delay, upload, url,
+                                  log_identifier=log_identifier)
             else:
                 deferred = treq.put(url=url, data=logfile)
                 deferred.addCallback(lambda x: result_callback(
