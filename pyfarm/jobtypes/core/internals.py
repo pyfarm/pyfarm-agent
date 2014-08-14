@@ -461,7 +461,8 @@ class Process(object):
                 reactor.callLater(delay, upload, url,
                                   log_identifier=log_identifier)
             else:
-                deferred = treq.put(url=url, data=logfile)
+                deferred = treq.put(url=url, data=logfile,
+                                    headers={"Content-Type": ["text/csv"]})
                 deferred.addCallback(lambda x: result_callback(
                     url, log_identifier, x))
                 deferred.addErrback(lambda x: error_callback(
