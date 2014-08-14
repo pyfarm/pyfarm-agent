@@ -661,11 +661,8 @@ class JobType(Cache, Process, TypeChecks):
                 log_path, task["id"], failure_reason, delay)
             post_logfile(task, log_path, delay=delay)
 
-        deferreds = []
         for task in self.assignment["tasks"]:
-            deferreds.append(post_logfile(task["id"], log_path))
-
-        return DeferredList(deferreds)
+            post_logfile(task, log_path)
 
     def start(self):
         """
