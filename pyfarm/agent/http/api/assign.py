@@ -202,13 +202,6 @@ class Assign(APIResource):
             assignment = config["current_assignments"].pop(assign_id)
 
             # Mark all tasks as failed on master and set an error message
-            def result_callback(response):
-                logger.debug("Response code: ", response.code)
-
-            def result_errback(failure_reason):
-                logger.error(
-                    "Error while marking task as failed: ", failure_reason)
-
             logger.debug("Marking tasks in assignment as failed")
             def post_update(post_url, post_data, delay=0):
                 post_func = partial(post, post_url, data=post_data,
