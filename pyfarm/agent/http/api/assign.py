@@ -203,33 +203,34 @@ class Assign(APIResource):
 
             # Mark all tasks as failed on master and set an error message
             logger.debug("Marking tasks in assignment as failed")
-            def post_update(post_url, post_data, delay=0):
+            def post_update(post_url, post_data, task, delay=0):
                 post_func = partial(post, post_url, data=post_data,
                     callback=lambda x: result_callback(
-                        post_url, post_data, task["id"], x),
-                    errback=lambda x: error_callback(post_url, post_data, x))
+                        post_url, post_data, task, x),
+                    errback=lambda x: error_callback(
+                        post_url, post_data, task, x))
                 reactor.callLater(delay, post_func)
 
-            def result_callback(cburl, cbdata, task_id, response):
+            def result_callback(cburl, cbdata, task, response):
                 if 500 <= response.code < 600:
                     logger.error(
                         "Error while marking task %s as failed on master, "
-                        "retrying", task_id)
-                    post_update(cburl, cbdata, delay=http_retry_delay())
+                        "retrying", task["id"])
+                    post_update(cburl, cbdata, task, delay=http_retry_delay())
 
                 elif response.code != OK:
                     logger.error(
                         "Could not mark task %s as failed, server response code "
-                        "was %s", task_id, response.code)
+                        "was %s", task["id"], response.code)
 
                 else:
                     logger.info("Marked task %s as failed on master", task_id)
 
-            def error_callback(cburl, cbdata, failure_reason):
+            def error_callback(cburl, cbdata, task, failure_reason):
                 logger.error(
                     "Error while marking task %s as failed, retrying",
-                    failure_reason)
-                post_update(cburl, cbdata, delay=http_retry_delay())
+                    task["id"], failure_reason)
+                post_update(cburl, cbdata, task, delay=http_retry_delay())
 
             for task in assignment["tasks"]:
                 url = "%s/jobs/%s/tasks/%s" % (
@@ -237,7 +238,7 @@ class Assign(APIResource):
                 data = {
                     "state": WorkState.FAILED,
                     "last_error": traceback}
-                post_update(url, data)
+                post_update(url, data, task)
 
             # If the loading was partially successful for some reason, there
             # might already be an entry for this jobtype in the config.
