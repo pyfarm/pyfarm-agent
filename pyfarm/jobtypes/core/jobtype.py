@@ -635,7 +635,7 @@ class JobType(Cache, Process, TypeChecks):
                     "Retrying. in %s seconds",
                     log_path, task["id"], task["frame"],
                     self.assignment["job"]["title"],
-                    self.assignment["job"]["id"], response.code)
+                    self.assignment["job"]["id"], response.code, delay)
                 post_logfile(task, log_path, delay=delay)
 
             elif response.code != OK:
