@@ -34,7 +34,7 @@ from errno import EEXIST, ENOENT
 from datetime import datetime, timedelta
 from functools import partial
 from string import Template
-from os.path import expanduser, basename, abspath, isdir
+from os.path import expanduser, basename, abspath, isdir, join
 from pprint import pformat
 
 try:
