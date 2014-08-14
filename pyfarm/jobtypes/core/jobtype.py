@@ -299,11 +299,11 @@ class JobType(Cache, Process, TypeChecks):
 
         return {
             "master_api": config.get("master-api"),
-            "hostname": config["hostname"],
-            "systemid": config["systemid"],
-            "id": config["id"],
-            "cpus": config["cpus"],
-            "ram": config["ram"],
+            "hostname": config["agent_hostname"],
+            "systemid": config["agent_systemid"],
+            "id": int(config["agent-id"]),
+            "cpus": int(config["agent_cpus"]),
+            "ram": int(config["agent_ram"]),
             "total_ram": int(memory.total_ram()),
             "free_ram": int(memory.free_ram()),
             "consumed_ram": int(memory.total_consumption()),
