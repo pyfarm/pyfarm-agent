@@ -622,8 +622,8 @@ class JobType(Cache, Process, TypeChecks):
                     "agent_id": self.node()["id"]}
             post_func = partial(
                 post, url, data=data,
-                callback=lambda x: result_callback(log_path, task, x),
-                errback=lambda x: error_callback(log_path, task, x))
+                callback=lambda x: result_callback(task, log_path, x),
+                errback=lambda x: error_callback(task, log_path, x))
             reactor.callLater(delay, post_func)
 
         def result_callback(task, log_path, response):
@@ -653,7 +653,7 @@ class JobType(Cache, Process, TypeChecks):
                 logger.info("Registered logfile %s for task %s on master",
                             log_path, task["id"])
 
-        def error_callback(log_path, task, failure_reason):
+        def error_callback(task, log_path, failure_reason):
             delay = http_retry_delay()
             logger.error(
                 "Error while registering logfile %s for task %s on master: "
