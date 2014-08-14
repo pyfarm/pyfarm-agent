@@ -47,6 +47,8 @@ except ImportError:  # pragma: no cover
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList
 
+import treq
+
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
@@ -420,6 +422,8 @@ class Process(object):
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
+        self._upload_logfile(process_data.log_identifier)
+
         # If there are no processes running at this point, we assume
         # the assignment is finished
         if len(self.processes) == 0:
@@ -442,6 +446,59 @@ class Process(object):
                 return True
 
         return False
+
+    def _upload_logfile(self, log_identifier):
+        path = join(config["jobtype_task_logs"], log_identifier)
+        url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s/logfile" % (
+                config["master_api"], self.assignment["job"]["id"],
+                self.assignment["tasks"][0]["id"],
+                self.assignment["tasks"][0]["attempt"],
+                log_identifier)
+
+        def upload(url, log_identifier, delay=0):
+            logfile = open(path, "r")
+            if delay != 0:
+                reactor.callLater(delay, upload, log_identifier=log_identifier)
+            else:
+                deferred = treq.put(url=url, data=logfile)
+                deferred.addCallback(lambda x: result_callback(
+                    url, log_identifier, x))
+                deferred.addErrback(lambda x: error_callback(
+                    url, log_identifier, x))
+
+        def result_callback(url, log_identifier, response):
+            logger.debug("In Process._upload_logfile().result_callback()")
+            if 500 <= response.code < 600:
+                delay = http_retry_delay()
+                logger.error(
+                    "Server side error while uploading log file %s, "
+                    "status code: %s. Retrying. in %s seconds",
+                    log_identifier, response.code, delay)
+                upload(url, log_identifier, delay=delay)
+
+            elif response.code != OK:
+                # Nothing else we could do about that, this is
+                # a problem on our end.
+                logger.error(
+                    "Could not upload logfile %s status code: %s. "
+                    "This is a client side error, giving up.",
+                    log_identifier, response.code)
+
+            else:
+                logger.info("Uploaded logfile %s for to master",
+                            log_identifier)
+
+        def error_callback(url, log_identifier, failure_reason):
+            delay = http_retry_delay()
+            logger.error(
+                "Error while registering logfile %s on master: "
+                "%r, retrying in %s seconds.",
+                log_identifier, failure_reason, delay())
+            upload(url, log_identifier, delay=delay)
+
+        logger.info("Uploading log file %s to master, URL %r", log_identifier,
+                    url)
+        upload(url, log_identifier)
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
