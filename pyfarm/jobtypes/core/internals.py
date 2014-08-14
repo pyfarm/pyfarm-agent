@@ -33,9 +33,9 @@ from string import Template
 from uuid import UUID
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED
 
 try:
     import pwd
@@ -478,7 +478,7 @@ class Process(object):
                     log_identifier, response.code, delay)
                 upload(url, log_identifier, delay=delay)
 
-            elif response.code != OK:
+            elif response.code not in [OK, CREATED, ACCEPTED]:
                 # Nothing else we could do about that, this is
                 # a problem on our end.
                 logger.error(
