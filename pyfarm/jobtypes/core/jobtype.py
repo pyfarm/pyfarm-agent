@@ -472,7 +472,8 @@ class JobType(Cache, Process, TypeChecks):
         assert isinstance(create_time, datetime)
 
         # Include the agent's time offset in create_time for accuracy.
-        create_time += timedelta(seconds=config["agent_time_offset"])
+        if config["agent_time_offset"]:
+            create_time += timedelta(seconds=config["agent_time_offset"])
 
         # The default string template implementation cannot
         # handle cases where you have $VARS$LIKE_$THIS.  So we
