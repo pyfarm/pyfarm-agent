@@ -456,7 +456,7 @@ class Process(object):
                 log_identifier)
 
         def upload(url, log_identifier, delay=0):
-            logfile = open(path, "r")
+            logfile = open(path, "rb")
             if delay != 0:
                 reactor.callLater(delay, upload, url,
                                   log_identifier=log_identifier)
