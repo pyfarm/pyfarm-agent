@@ -495,7 +495,7 @@ class Process(object):
             logger.error(
                 "Error while registering logfile %s on master: "
                 "%r, retrying in %s seconds.",
-                log_identifier, failure_reason, delay())
+                log_identifier, failure_reason, delay)
             upload(url, log_identifier, delay=delay)
 
         logger.info("Uploading log file %s to master, URL %r", log_identifier,
