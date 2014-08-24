@@ -415,7 +415,7 @@ class Process(object):
         try:
             self.process_stopped(protocol, reason)
         except Exception as e:
-            logger.error("Exception caught from process_stopped, tracaback: %s",
+            logger.error("Exception caught from process_stopped, traceback: %s",
                          e.getTraceback())
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
@@ -428,7 +428,7 @@ class Process(object):
                 logger.info("Processes in assignment %s stopped, no failures",
                             self)
             else:
-                logger.warning("There was at least one failed process in "
+                logger.warning("There was at least one failed process in the "
                                "assignment %s", self)
             self.stopped_deferred.callback(None)
 

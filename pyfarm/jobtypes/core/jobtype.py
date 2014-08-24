@@ -299,11 +299,11 @@ class JobType(Cache, Process, TypeChecks):
 
         return {
             "master_api": config.get("master-api"),
-            "hostname": config["hostname"],
-            "systemid": config["systemid"],
-            "id": config["id"],
-            "cpus": config["cpus"],
-            "ram": config["ram"],
+            "hostname": config["agent_hostname"],
+            "systemid": config["agent_systemid"],
+            "id": int(config["agent-id"]),
+            "cpus": int(config["agent_cpus"]),
+            "ram": int(config["agent_ram"]),
             "total_ram": int(memory.total_ram()),
             "free_ram": int(memory.free_ram()),
             "consumed_ram": int(memory.total_consumption()),
@@ -472,7 +472,8 @@ class JobType(Cache, Process, TypeChecks):
         assert isinstance(create_time, datetime)
 
         # Include the agent's time offset in create_time for accuracy.
-        create_time += timedelta(seconds=config["agent_time_offset"])
+        if config["agent_time_offset"]:
+            create_time += timedelta(seconds=config["agent_time_offset"])
 
         # The default string template implementation cannot
         # handle cases where you have $VARS$LIKE_$THIS.  So we
@@ -513,8 +514,7 @@ class JobType(Cache, Process, TypeChecks):
     def map_path(self, path):
         """
         Takes a string argument.  Translates a given path for any OS to
-        what it should be on this particular node.  Might communicate with
-        the master to achieve this.
+        what it should be on this particular node.
         """
         self._check_map_path_inputs(path)
         path = self.expandvars(path)
