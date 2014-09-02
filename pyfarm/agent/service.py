@@ -51,6 +51,7 @@ from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.state import Status, Stop
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
+from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
@@ -277,6 +278,7 @@ class Agent(object):
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
+        v1.putChild("tasklogs", TaskLogs())
 
         # Endpoints which are generally used for status
         # and operations.
