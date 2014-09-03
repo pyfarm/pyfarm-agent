@@ -57,6 +57,10 @@ def total_consumption():
     total = parent.memory_info().rss
 
     for child_process in parent.children(recursive=True):
-        total += child_process.memory_info().rss
+        try:
+            total += child_process.memory_info().rss
+        # Catch possible race condition
+        except psutil.NoSuchProcess:
+            pass
 
     return int(convert.bytetomb(total))
