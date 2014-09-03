@@ -278,7 +278,7 @@ class Agent(object):
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
-        v1.putChild("tasklogs", TaskLogs())
+        v1.putChild("task_logs", TaskLogs())
 
         # Endpoints which are generally used for status
         # and operations.
