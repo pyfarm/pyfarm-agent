@@ -38,9 +38,9 @@ from os.path import expanduser, basename, abspath, isdir, join
 from pprint import pformat
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import OK, INTERNAL_SERVER_ERROR, CONFLICT
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
@@ -638,7 +638,9 @@ class JobType(Cache, Process, TypeChecks):
                     self.assignment["job"]["id"], response.code, delay)
                 post_logfile(task, log_path, delay=delay)
 
-            elif response.code != OK:
+            # The server will return CONFLICT if we try to register a logfile
+            # twice
+            elif response.code not in [OK, CONFLICT]:
                 # Nothing else we could do about that, this is
                 # a problem on our end.
                 logger.error(
