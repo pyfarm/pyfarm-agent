@@ -53,6 +53,15 @@ class Tasks(APIResource):
         return dumps(tasks)
 
     def delete(self, **kwargs):
+        """
+        HTTP endpoint for stopping and deleting an individual task from this
+        agent.
+        WARNING If the specified task is part of a multi-task assignment, all
+        tasks in this assignment will be stopped, not just the specified one.
+
+        This will try to asynchronously stop the assignment by killing all its
+        child processes. If that isn't successful, this will have no effect.
+        """
         request = kwargs["request"]
 
         # Postpath must be exactly one element, and that needs to be an integer
