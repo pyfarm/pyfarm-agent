@@ -33,6 +33,9 @@ from pyfarm.agent.utility import request_from_master
 
 class TaskLogs(APIResource):
     def get(self, **kwargs):
+        """
+        Get the contents of the specified task log
+        """
         request = kwargs["request"]
 
         if request_from_master(request):
