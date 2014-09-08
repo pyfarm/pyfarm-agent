@@ -278,8 +278,9 @@ class Assign(APIResource):
                 stopped_deferred.addBoth(restart_if_necessary)
                 stopped_deferred.addBoth(
                     lambda *args: instance._remove_tempdirs())
-            except Exception:
-                logger.error("Error on starting jobtype, stopping it now")
+            except Exception as e:
+                logger.error("Error on starting jobtype, stopping it now.  "
+                             "Error was: %s", e)
                 instance.stop()
                 assignment = config["current_assignments"].pop(assign_id)
                 if "jobtype" in assignment:
