@@ -59,12 +59,14 @@ class Tasks(APIResource):
         if len(request.postpath) != 1:
             request.setResponseCode(BAD_REQUEST)
             request.write({"error": "Did not specify a task id"})
+            return NOT_DONE_YET
 
         try:
             task_id = int(request.postpath[0])
         except ValueError:
             request.setResponseCode(BAD_REQUEST)
             request.write({"error": "Task id was not an integer"})
+            return NOT_DONE_YET
 
         try:
             current_assignments = config["current_assignments"].itervalues
