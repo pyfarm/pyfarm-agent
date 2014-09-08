@@ -385,7 +385,10 @@ class Process(object):
         logpool.log(protocol.uuid, STDOUT, "Started %r" % protocol)
         proess_data = self.processes[protocol.uuid]
         proess_data.started.callback(protocol)
-        self.process_started(protocol)
+        if not self.stop_called:
+            self.process_started(protocol)
+        else:
+            self.stop()
 
     def _process_stopped(self, protocol, reason):
         """

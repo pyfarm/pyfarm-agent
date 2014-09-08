@@ -643,10 +643,8 @@ class JobType(Cache, Process, TypeChecks):
             The signal to send the any running processes.  Valid options
             are KILL, TERM or INT.
         """
+        logger.debug("JobType.stop() called, signal: %s", signal)
         assert signal in ("KILL", "TERM", "INT")
-
-        if self.stop_called:
-            raise RuntimeError("%s has already been stopped" % self)
 
         self.stop_called = True
 

@@ -263,14 +263,24 @@ class Assign(APIResource):
                     "Expected a subclass of "
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
-            started_deferred, stopped_deferred = instance._start()
-            started_deferred.addCallback(assignment_started, assign_id)
-            started_deferred.addErrback(assignment_failed, assign_id)
-            stopped_deferred.addCallback(assignment_stopped, assign_id)
-            stopped_deferred.addErrback(assignment_failed, assign_id)
-            stopped_deferred.addBoth(restart_if_necessary)
-            stopped_deferred.addBoth(
-                lambda *args: instance._remove_tempdirs())
+            try:
+                started_deferred, stopped_deferred = instance._start()
+                started_deferred.addCallback(assignment_started, assign_id)
+                started_deferred.addErrback(assignment_failed, assign_id)
+                stopped_deferred.addCallback(assignment_stopped, assign_id)
+                stopped_deferred.addErrback(assignment_failed, assign_id)
+                stopped_deferred.addBoth(restart_if_necessary)
+                stopped_deferred.addBoth(
+                    lambda *args: instance._remove_tempdirs())
+            except Exception as e:
+                logger.error("Error on starting jobtype, stopping it now.  "
+                             "Error was: %s", e)
+                instance.stop()
+                assignment = config["current_assignments"].pop(assign_id)
+                if "jobtype" in assignment:
+                    jobtype_id = assignment["jobtype"].pop("id", None)
+                    if jobtype_id:
+                        config["jobtypes"].pop(jobtype_id, None)
 
         # Load the job type then pass the class along to the
         # callback.  No errback here because all the errors
