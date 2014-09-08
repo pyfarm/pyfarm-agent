@@ -19,10 +19,10 @@ from json import dumps
 
 try:
     from httplib import (
-        BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND)
+        BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND, ACCEPTED)
 except ImportError:  # pragma: no cover
     from http.client import (
-        BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND)
+        BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND, ACCEPTED)
 
 from twisted.web.server import NOT_DONE_YET
 
@@ -97,7 +97,7 @@ class Tasks(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        request.setResponseCode(NO_CONTENT)
+        request.setResponseCode(ACCEPTED)
         request.finish()
 
         return NOT_DONE_YET
