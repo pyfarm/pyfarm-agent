@@ -613,59 +613,6 @@ class JobType(Cache, Process, TypeChecks):
 
         return deferred
 
-    def _register_logfile_on_master(self, log_path):
-        def post_logfile(task, log_path, delay=0):
-            url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
-                config["master_api"], self.assignment["job"]["id"], task["id"],
-                task["attempt"])
-            data = {"identifier": log_path,
-                    "agent_id": self.node()["id"]}
-            post_func = partial(
-                post, url, data=data,
-                callback=lambda x: result_callback(task, log_path, x),
-                errback=lambda x: error_callback(task, log_path, x))
-            reactor.callLater(delay, post_func)
-
-        def result_callback(task, log_path, response):
-            if 500 <= response.code < 600:
-                delay = http_retry_delay()
-                logger.error(
-                    "Server side error while registering log file %s for "
-                    "task %s (frame %s) in job %s (id %s), status code: %s. "
-                    "Retrying. in %s seconds",
-                    log_path, task["id"], task["frame"],
-                    self.assignment["job"]["title"],
-                    self.assignment["job"]["id"], response.code, delay)
-                post_logfile(task, log_path, delay=delay)
-
-            # The server will return CONFLICT if we try to register a logfile
-            # twice
-            elif response.code not in [OK, CONFLICT, CREATED]:
-                # Nothing else we could do about that, this is
-                # a problem on our end.
-                logger.error(
-                    "Could not register logfile %s for task %s (frame %s) in "
-                    "job %s (id %s), status code: %s. This is a client side "
-                    "error, giving up.",
-                    log_path, task["id"], task["frame"],
-                    self.assignment["job"]["title"],
-                    self.assignment["job"]["id"], response.code)
-
-            else:
-                logger.info("Registered logfile %s for task %s on master",
-                            log_path, task["id"])
-
-        def error_callback(task, log_path, failure_reason):
-            delay = http_retry_delay()
-            logger.error(
-                "Error while registering logfile %s for task %s on master: "
-                "\"%s\", retrying in %s seconds.",
-                log_path, task["id"], failure_reason, delay)
-            post_logfile(task, log_path, delay=delay)
-
-        for task in self.assignment["tasks"]:
-            post_logfile(task, log_path)
-
     def start(self):
         """
         This method is called when the job type should start
