@@ -94,8 +94,7 @@ class Tasks(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        if ("jobtype" in assignment
-            and "id" in assignment["jobtype"]):
+        if ("jobtype" in assignment and "id" in assignment["jobtype"]):
             jobtype = config["jobtypes"][assignment["jobtype"]["id"]]
             logger.info("Stopping assignment %s", assignment["id"])
             jobtype.stop()
