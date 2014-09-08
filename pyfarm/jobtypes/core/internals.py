@@ -469,7 +469,6 @@ class Process(object):
                     url, log_identifier, x))
 
         def result_callback(url, log_identifier, response):
-            logger.debug("In Process._upload_logfile().result_callback()")
             if 500 <= response.code < 600:
                 delay = http_retry_delay()
                 logger.error(
