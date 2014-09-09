@@ -34,16 +34,16 @@ from errno import EEXIST, ENOENT
 from datetime import datetime, timedelta
 from functools import partial
 from string import Template
-from os.path import expanduser, basename, abspath, isdir
+from os.path import expanduser, basename, abspath, isdir, join
 from pprint import pformat
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
@@ -67,7 +67,7 @@ logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 ProcessData = namedtuple(
-    "ProcessData", ("protocol", "started", "stopped"))
+    "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
 
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
@@ -491,8 +491,9 @@ class JobType(Cache, Process, TypeChecks):
         filename = config["jobtype_task_log_filename"]
         for key, value in template_data.items():
             filename = filename.replace("$" + key, value)
+        filepath = join(config["jobtype_task_logs"], filename)
 
-        return abspath(filename)
+        return abspath(filepath)
 
     # TODO: internal implementation like the doc string says
     # TODO: reflow the doc string text for a better layout
@@ -600,16 +601,17 @@ class JobType(Cache, Process, TypeChecks):
         # logging thread.
         # TODO: return data from this function, we don't want to be working
         # with Deferred object in a public method
-        result = Deferred()
         log_path = self.get_csvlog_path(process_protocol.uuid)
         deferred = logpool.open_log(process_protocol, log_path)
         deferred.addCallback(
             self._spawn_twisted_process, command, process_protocol, kwargs)
-        deferred.chainDeferred(result)
         self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred())
+            protocol=process_protocol, started=Deferred(), stopped=Deferred(),
+            log_identifier=basename(log_path))
 
-        return result
+        self._register_logfile_on_master(basename(log_path))
+
+        return deferred
 
     def start(self):
         """

@@ -96,7 +96,8 @@ JOBTYPE_SCHEMA = Schema({
     Required("version"): WHOLE_NUMBERS})
 TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
-    Required("frame"): NUMBERS})
+    Required("frame"): NUMBERS,
+    Required("attempt"): WHOLE_NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 JOB_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,

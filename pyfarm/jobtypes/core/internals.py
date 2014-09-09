@@ -31,11 +31,14 @@ from datetime import datetime
 from os.path import dirname, isdir, join, isfile
 from string import Template
 from uuid import UUID
+from functools import partial
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import (
+        OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED, CONFLICT)
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import (
+        OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED, CONFLICT)
 
 try:
     import pwd
@@ -47,10 +50,12 @@ except ImportError:  # pragma: no cover
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList
 
+import treq
+
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.http.core.client import get, http_retry_delay
+from pyfarm.agent.http.core.client import get, post, http_retry_delay
 from pyfarm.jobtypes.core.log import STDOUT, logpool
 from pyfarm.jobtypes.core.process import ReplaceEnvironment
 
@@ -423,6 +428,8 @@ class Process(object):
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
+        self._upload_logfile(process_data.log_identifier)
+
         # If there are no processes running at this point, we assume
         # the assignment is finished
         if len(self.processes) == 0:
@@ -445,6 +452,113 @@ class Process(object):
                 return True
 
         return False
+
+    def _register_logfile_on_master(self, log_path):
+        def post_logfile(task, log_path, delay=0):
+            url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
+                config["master_api"], self.assignment["job"]["id"], task["id"],
+                task["attempt"])
+            data = {"identifier": log_path,
+                    "agent_id": self.node()["id"]}
+            post_func = partial(
+                post, url, data=data,
+                callback=lambda x: result_callback(task, log_path, x),
+                errback=lambda x: error_callback(task, log_path, x))
+            reactor.callLater(delay, post_func)
+
+        def result_callback(task, log_path, response):
+            if 500 <= response.code < 600:
+                delay = http_retry_delay()
+                logger.error(
+                    "Server side error while registering log file %s for "
+                    "task %s (frame %s) in job %s (id %s), status code: %s. "
+                    "Retrying. in %s seconds",
+                    log_path, task["id"], task["frame"],
+                    self.assignment["job"]["title"],
+                    self.assignment["job"]["id"], response.code, delay)
+                post_logfile(task, log_path, delay=delay)
+
+            # The server will return CONFLICT if we try to register a logfile
+            # twice
+            elif response.code not in [OK, CONFLICT, CREATED]:
+                # Nothing else we could do about that, this is
+                # a problem on our end.
+                logger.error(
+                    "Could not register logfile %s for task %s (frame %s) in "
+                    "job %s (id %s), status code: %s. This is a client side "
+                    "error, giving up.",
+                    log_path, task["id"], task["frame"],
+                    self.assignment["job"]["title"],
+                    self.assignment["job"]["id"], response.code)
+
+            else:
+                logger.info("Registered logfile %s for task %s on master",
+                            log_path, task["id"])
+
+        def error_callback(task, log_path, failure_reason):
+            delay = http_retry_delay()
+            logger.error(
+                "Error while registering logfile %s for task %s on master: "
+                "\"%s\", retrying in %s seconds.",
+                log_path, task["id"], failure_reason, delay)
+            post_logfile(task, log_path, delay=delay)
+
+        for task in self.assignment["tasks"]:
+            post_logfile(task, log_path)
+
+    def _upload_logfile(self, log_identifier):
+        path = join(config["jobtype_task_logs"], log_identifier)
+        url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s/logfile" % (
+                config["master_api"], self.assignment["job"]["id"],
+                self.assignment["tasks"][0]["id"],
+                self.assignment["tasks"][0]["attempt"],
+                log_identifier)
+
+        def upload(url, log_identifier, delay=0):
+            logfile = open(path, "rb")
+            if delay != 0:
+                reactor.callLater(delay, upload, url,
+                                  log_identifier=log_identifier)
+            else:
+                deferred = treq.put(url=url, data=logfile,
+                                    headers={"Content-Type": ["text/csv"]})
+                deferred.addCallback(lambda x: result_callback(
+                    url, log_identifier, x))
+                deferred.addErrback(lambda x: error_callback(
+                    url, log_identifier, x))
+
+        def result_callback(url, log_identifier, response):
+            if 500 <= response.code < 600:
+                delay = http_retry_delay()
+                logger.error(
+                    "Server side error while uploading log file %s, "
+                    "status code: %s. Retrying. in %s seconds",
+                    log_identifier, response.code, delay)
+                upload(url, log_identifier, delay=delay)
+
+            elif response.code not in [OK, CREATED, ACCEPTED]:
+                # Nothing else we could do about that, this is
+                # a problem on our end.
+                logger.error(
+                    "Could not upload logfile %s status code: %s. "
+                    "This is a client side error, giving up.",
+                    log_identifier, response.code)
+
+            else:
+                logger.info("Uploaded logfile %s for to master",
+                            log_identifier)
+
+        def error_callback(url, log_identifier, failure_reason):
+            delay = http_retry_delay()
+            logger.error(
+                "Error while registering logfile %s on master: "
+                "%r, retrying in %s seconds.",
+                log_identifier, failure_reason, delay)
+            upload(url, log_identifier, delay=delay)
+
+        logger.info("Uploading log file %s to master, URL %r", log_identifier,
+                    url)
+        upload(url, log_identifier)
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,

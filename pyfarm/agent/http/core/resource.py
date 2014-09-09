@@ -151,14 +151,6 @@ class Resource(_Resource):
             request.finish()
 
     def render(self, request):
-        # I this is a leaf, meaning the end of the uri branch, then
-        # make sure the uri ends with '/'.  Proper REST-like services
-        # differentiate between /foo and /foo/ but twisted generally does
-        # not care so we enforce it ourselves.
-        if self.isLeaf and not request.uri.endswith("/"):
-            self.error(request, NOT_FOUND, "%s does not exist" % request.uri)
-            return NOT_DONE_YET
-
         # make sure that the requested content type is supported
         content_type = self.content_types(request, default=["text/html",
                                                             "application/json"])
