@@ -128,8 +128,12 @@ class ProcessProtocol(_ProcessProtocol):
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self.__ended = True
-        self.jobtype._process_stopped(self, reason)
+        try:
+            self.__ended = True
+            self.jobtype._process_stopped(self, reason)
+        except Exception as e:
+            logger.error("Exception caught while running "
+                         "jobtype._process_stopped: %s", e)
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
@@ -149,7 +153,10 @@ class ProcessProtocol(_ProcessProtocol):
         """Kills the underlying process, if running."""
         logger.info("Killing %s", self)
         try:
-            self.process.signalProcess("KILL")
+            process = self.psutil_process
+            for child in process.children(recursive=True):
+                child.kill()
+            process.kill()
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot kill %s: %s.", self, e)
 
@@ -157,7 +164,10 @@ class ProcessProtocol(_ProcessProtocol):
         """Terminates the underlying process, if running."""
         logger.info("Terminating %s", self)
         try:
-            self.process.signalProcess("TERM")
+            process = self.psutil_process
+            for child in process.children(recursive=True):
+                child.terminate()
+            process.terminate()
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot terminate %s: %s.", self, e)
 
