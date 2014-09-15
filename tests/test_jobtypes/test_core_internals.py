@@ -16,9 +16,10 @@
 
 
 from collections import namedtuple
-from os import urandom, devnull
+from os import urandom, devnull, makedirs
 from os.path import isdir, join, isfile
 from tempfile import gettempdir
+from errno import EEXIST
 import re
 
 try:
@@ -32,6 +33,7 @@ from twisted.internet.defer import Deferred
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, WorkState
 from pyfarm.agent.testutil import (
     TestCase, skipIf, requires_master, create_jobtype)
+from pyfarm.agent.config import config
 from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import (
@@ -40,6 +42,8 @@ from pyfarm.jobtypes.core.log import logpool, CSVLog
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
 FakeProcessResult = namedtuple("FakeProcessResult", ("value", ))
+FakeProcessData = namedtuple(
+    "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
 
 
 class FakeProtocol(object):
@@ -52,6 +56,13 @@ class FakeProcess(Process):
         self.start_called = False
         self.stop_called = False
         self.failed_processes = set()
+        self.processes = {}
+        self.assignment = {
+            "job":  {"id": 1},
+            "tasks": [{"id": 1, "attempt": 1}]
+            }
+        self._stopped_deferred = None
+        self._start_deferred = None
 
     def start(self):
         self.start_called = True
@@ -61,6 +72,12 @@ class FakeProcess(Process):
 
     def is_successful(self, success):
         return success.value.exitCode == 0
+
+    def before_start(self):
+        pass
+
+    def process_started(self, protocol):
+        pass
 
 
 class TestImports(TestCase):
@@ -138,13 +155,25 @@ class TestProcess(TestCase):
 
         self.protocol = FakeProtocol()
         self.process = FakeProcess()
+        self.process.processes[self.protocol.uuid] = FakeProcessData(
+            self.protocol, Deferred(), Deferred(), "logid")
 
         # Clear the logger pool each time and make
         # sure it won't flush
         logpool.flush_lines = 1e10
         logpool.logs.clear()
-        logpool.logs[self.protocol.uuid] = CSVLog(open(devnull))
+        logpool.logs[self.protocol.uuid] = CSVLog(open(devnull, "w"))
         logpool.stopped = False
+
+        # Create a dummy logfile
+        logfile_path = join(config["jobtype_task_logs"], "logid")
+        try:
+            makedirs(config["jobtype_task_logs"])
+        except OSError as e:
+            if e.errno != EEXIST:
+                raise
+        with open(logfile_path, "w+") as file:
+            file.write("test")
 
     def test_start_called(self):
         self.process._start()
