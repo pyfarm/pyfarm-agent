@@ -19,6 +19,7 @@ from collections import namedtuple
 from os import urandom, devnull
 from os.path import isdir, join, isfile
 from tempfile import gettempdir
+import re
 
 try:
     from httplib import CREATED, OK
@@ -254,14 +255,16 @@ class TestMiscTypeChecks(TestCase):
         checks = TypeChecks()
         checks._check_expandvars_inputs("", {})
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*value.*"):
+        with self.assertRaisesRegexp(TypeError,
+                                     re.compile(".*for.*value.*")):
             checks._check_expandvars_inputs(None, None)
 
     def test_expandvars_environment_not_dict(self):
         checks = TypeChecks()
         checks._check_expandvars_inputs("", None)
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*environment.*"):
+        with self.assertRaisesRegexp(TypeError,
+                                     re.compile(".*for.*environment.*")):
             checks._check_expandvars_inputs("", 1)
 
     def test_map(self):
@@ -269,7 +272,7 @@ class TestMiscTypeChecks(TestCase):
         for objtype in STRING_TYPES:
             checks._check_map_path_inputs(objtype())
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*path.*"):
+        with self.assertRaisesRegexp(TypeError, re.compile(".*for.*path.*")):
             checks._check_map_path_inputs(None)
 
     def test_csvlog_path_tasks(self):
@@ -277,7 +280,7 @@ class TestMiscTypeChecks(TestCase):
         checks._check_csvlog_path_inputs(uuid(), None)
 
         with self.assertRaisesRegexp(
-                TypeError, "Expected UUID for `protocol_uuid`"):
+                TypeError, re.compile("Expected UUID for `protocol_uuid`")):
             checks._check_csvlog_path_inputs(None, None)
 
     def test_csvlog_path_time(self):
@@ -285,7 +288,7 @@ class TestMiscTypeChecks(TestCase):
         checks._check_csvlog_path_inputs(uuid(), None)
 
         with self.assertRaisesRegexp(
-                TypeError, "Expected UUID for `protocol_uuid`"):
+                TypeError, re.compile("Expected UUID for `protocol_uuid`")):
             checks._check_csvlog_path_inputs([], "")
 
     def test_command_list(self):
@@ -293,7 +296,7 @@ class TestMiscTypeChecks(TestCase):
         checks._check_command_list_inputs(tuple())
         checks._check_command_list_inputs([])
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*cmdlist.*"):
+        with self.assertRaisesRegexp(TypeError, re.compile(".*for.*cmdlist.*")):
             checks._check_command_list_inputs(None)
 
     def test_set_state_tasks(self):
@@ -301,7 +304,7 @@ class TestMiscTypeChecks(TestCase):
         for objtype in ITERABLE_CONTAINERS:
             checks._check_set_states_inputs(objtype(), WorkState.DONE)
 
-        with self.assertRaisesRegexp(TypeError, ".*for.*tasks.*"):
+        with self.assertRaisesRegexp(TypeError, re.compile(".*for.*tasks.*")):
             checks._check_set_states_inputs(None, None)
 
     def test_set_state_state(self):
@@ -309,5 +312,6 @@ class TestMiscTypeChecks(TestCase):
         for state in WorkState:
             checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), state)
 
-        with self.assertRaisesRegexp(ValueError, ".*Expected.*state.*"):
+        with self.assertRaisesRegexp(ValueError,
+                                     re.compile(".*Expected.*state.*")):
             checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
