@@ -114,10 +114,11 @@ class TestCache(TestCase):
     def test_cache(self):
         cache = Cache()
         classname = "Test%s" % urandom(8).encode("hex")
+        version = 1
         code = urandom(8).encode("hex")
         cache_key = "Key%s" % classname
-        filepath = cache._cache_filepath(cache_key, classname)
-        jobtype = {"classname": classname, "code": code}
+        filepath = cache._cache_filepath(cache_key, classname, version)
+        jobtype = {"classname": classname, "code": code, "version": version}
 
         def written(data):
             self.assertEqual(data[0]["classname"], classname)
