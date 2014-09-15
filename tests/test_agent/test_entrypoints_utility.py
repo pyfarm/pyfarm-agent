@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from os import urandom, environ
+import re
 
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
@@ -114,5 +115,5 @@ class TestConfigWithParser(TestCase):
     def test_requires_default(self):
         parser = ErrorCapturingParser()
         with self.assertRaisesRegexp(
-                AssertionError, ".*no default was provided.*"):
+                AssertionError, re.compile(".*no default was provided.*")):
             parser.add_argument("--foo", config="foo", help="foo")
