@@ -107,9 +107,9 @@ class TestCache(TestCase):
     def test_filename(self):
         cache = Cache()
         self.assertEqual(
-            cache._cache_filepath("foobar", "someclass"),
+            cache._cache_filepath("foobar", "someclass", 1),
             str(join(
-                Cache.CACHE_DIRECTORY, "foobar_someclass.py")))
+                Cache.CACHE_DIRECTORY, "foobar_someclass_v1.py")))
 
     def test_cache(self):
         cache = Cache()
