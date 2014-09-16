@@ -597,8 +597,11 @@ class Process(object):
                 reactor.callLater(delay, upload, url,
                                   log_identifier=log_identifier)
             else:
+                # FIXME persistent=False is a workaround to help with some
+                # problems in unit testing.
                 deferred = treq.put(url=url, data=logfile,
-                                    headers={"Content-Type": ["text/csv"]})
+                                    headers={"Content-Type": ["text/csv"]},
+                                    persistent=False)
                 deferred.addCallback(lambda x: result_callback(
                     url, log_identifier, x))
                 deferred.addErrback(lambda x: error_callback(
