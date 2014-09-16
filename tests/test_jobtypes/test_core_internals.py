@@ -172,8 +172,8 @@ class TestProcess(TestCase):
         except OSError as e:
             if e.errno != EEXIST:
                 raise
-        with open(logfile_path, "w+") as file:
-            file.write("test")
+        with open(logfile_path, "w+") as fakelog:
+            fakelog.write("test")
 
     def test_start_called(self):
         self.process._start()
