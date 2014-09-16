@@ -415,7 +415,7 @@ class Process(object):
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
-        self._upload_logfile(process_data.log_identifier)
+        upload_deferred = self._upload_logfile(process_data.log_identifier)
 
         # If there are no processes running at this point, we assume
         # the assignment is finished
@@ -428,6 +428,7 @@ class Process(object):
                 logger.warning("There was at least one failed process in the "
                                "assignment %s", self)
             self.stopped_deferred.callback(None)
+        return upload_deferred
 
     def _spawn_process(self, command):
         """
@@ -588,6 +589,7 @@ class Process(object):
                 self.assignment["tasks"][0]["id"],
                 self.assignment["tasks"][0]["attempt"],
                 log_identifier)
+        upload_deferred = Deferred()
 
         def upload(url, log_identifier, delay=0):
             logfile = open(path, "rb")
@@ -618,10 +620,24 @@ class Process(object):
                     "Could not upload logfile %s status code: %s. "
                     "This is a client side error, giving up.",
                     log_identifier, response.code)
+                try:
+                    upload_deferred.errback(ValueError(
+                        "Bad return code on uploading logfile: %s"
+                        % response.code))
+                except Exception as e:
+                    logger.error(
+                        "Caught exception calling upload_deferred.errback: %s",
+                        e)
 
             else:
                 logger.info("Uploaded logfile %s for to master",
                             log_identifier)
+                try:
+                    upload_deferred.callback(None)
+                except Exception as e:
+                    logger.error(
+                        "Caught exception calling upload_deferred.callback: %s",
+                        e)
 
         def error_callback(url, log_identifier, failure_reason):
             delay = http_retry_delay()
@@ -634,6 +650,7 @@ class Process(object):
         logger.info("Uploading log file %s to master, URL %r", log_identifier,
                     url)
         upload(url, log_identifier)
+        return upload_deferred
 
 
 class System(object):
