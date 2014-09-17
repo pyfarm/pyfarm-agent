@@ -91,46 +91,6 @@ class TestInit(TestCase):
         self.assertFalse(job.start_called)
 
 
-class TestProperties(TestCase):
-    def test_started(self):
-        job = JobType(fake_assignment())
-        protocol1 = FakeProcessProtocol()
-        protocol2 = FakeProcessProtocol()
-        process1 = job.processes[protocol1.uuid] = ProcessData(
-            protocol=protocol1, started=Deferred(), stopped=Deferred())
-        process2 = job.processes[protocol2.uuid] = ProcessData(
-            protocol=protocol2, started=Deferred(), stopped=Deferred())
-
-        def check_started(result):
-            self.assertIn((True, 1), result)
-            self.assertIn((True, 2), result)
-
-        started = job.started
-        started.addCallback(check_started)
-        process1.started.callback(1)
-        process2.started.callback(2)
-        return started
-
-    def test_stopped(self):
-        job = JobType(fake_assignment())
-        protocol1 = FakeProcessProtocol()
-        protocol2 = FakeProcessProtocol()
-        process1 = job.processes[protocol1.uuid] = ProcessData(
-            protocol=protocol1, started=Deferred(), stopped=Deferred())
-        process2 = job.processes[protocol2.uuid] = ProcessData(
-            protocol=protocol2, started=Deferred(), stopped=Deferred())
-
-        def check_stopped(result):
-            self.assertIn((True, -1), result)
-            self.assertIn((True, -2), result)
-
-        stopped = job.stopped
-        stopped.addCallback(check_stopped)
-        process1.stopped.callback(-1)
-        process2.stopped.callback(-2)
-        return stopped
-
-
 class TestJobTypeLoad(TestCase):
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
