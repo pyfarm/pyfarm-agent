@@ -41,7 +41,8 @@ def fake_assignment():
         "jobtype": {
             "name": "Foo",
             "version": 1},
-        "tasks": [{"id": 1, "frame": 1}, {"id": 1, "frame": 1}]}
+        "tasks": [{"id": 1, "frame": 1, "attempt": 1},
+                  {"id": 1, "frame": 1, "attempt": 1}]}
     config["current_assignments"][assignment_id] = assignment
     return assignment
 
