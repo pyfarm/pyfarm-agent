@@ -18,6 +18,7 @@ from collections import deque
 from datetime import datetime
 from os import urandom, remove
 from os.path import join, isfile, isdir, abspath
+import re
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -72,7 +73,7 @@ class TestModuleLevel(TestCase):
         outfile = join(outdir, "test.log")
         open_log(outfile)
 
-        with self.assertRaisesRegexp(OSError, ".*exists.*"):
+        with self.assertRaisesRegexp(OSError, re.compile(".*exists.*")):
             open_log(outfile)
 
 
