@@ -93,9 +93,12 @@ class TestAssign(BaseAPITestCase):
                 "name": "TestJobType" + urandom(16).encode("hex"),
                 "version": randint(1, 256)},
             "tasks": [
-                {"id": randint(0, 1024), "frame": randint(0, 1024)},
-                {"id": randint(0, 1024), "frame": randint(0, 1024)},
-                {"id": randint(0, 1024), "frame": randint(0, 1024)}]}
+                {"id": randint(0, 1024), "frame": randint(0, 1024),
+                 "attempt": 1},
+                {"id": randint(0, 1024), "frame": randint(0, 1024),
+                 "attempt": 1},
+                {"id": randint(0, 1024), "frame": randint(0, 1024),
+                 "attempt": 1}]}
 
     def prepare_config(self):
         super(TestAssign, self).prepare_config()
