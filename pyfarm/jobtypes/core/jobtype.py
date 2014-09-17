@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from voluptuous import Schema, Required, Optional
@@ -75,9 +75,47 @@ FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 class CommandData(object):
     """
-    Stores data to be returned by :meth:`JobType.get_command_data`.  The
-    same instances of this class are also used by
-    :meth:`JobType.spawn_process_inputs` too.
+    Stores data to be returned by :meth:`JobType.get_command_data`.  Instances
+    of this class are alosed used by :meth:`JobType.spawn_process_inputs` at
+    execution time.
+
+    .. note::
+
+        This class does not perform any key of path resolution by default.  It
+        is assumed this has already been done using something like
+        :meth:`JobType.map_path`
+
+    :arg string command:
+        The command that will be executed when the process runs.
+
+    :arg arguments:
+        Any additional arguments to be passed along to the command being
+        launched.
+
+    :keyword dict env:
+        If provided, this will be the environment to launch the command
+        with.  If this value is not provided then a default environment
+        will be setup using :meth:`set_default_environment` when
+        :meth:`JobType.start` is called.  :meth:`JobType.start` itself will
+        use :meth:`JobType.default_environment` to generate the default
+        environment.
+
+    :keyword string cwd:
+        The working directory the process should execute in.  If not provided
+        the process will execute in whatever the directory the agent is
+        running inside of.
+
+    :type user: string or integer
+    :keyword user:
+        The username or user id that the process should run as.  On Windows
+        this keyword is ignored and on Linux this requires the agent to be
+        executing as root.  The value provided here will be run through
+        :meth:`JobType.get_uid_gid` to map the incoming value to an integer.
+
+    :type group: string or integer
+    :keyword group:
+        Same as ``user`` above except this sets the group the process will
+        execute.
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
@@ -159,7 +197,17 @@ class JobType(Cache, Process, TypeChecks):
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
-    :attribute dict assignment:
+    :attribute CommandData COMMAND_DATA_CLASS:
+        If you need to provide your own class to represent command data you
+        should override this attribute.  This attribute is used by by methods
+        within this class to do type checking.
+
+    :attribute ProcessProtocol PROCESS_PROTOCOL:
+        The protocol object used to communicate with each process
+        spawned
+
+
+    :arg dict assignment:
         This attribute is a dictionary the keys "job", "jobtype" and "tasks".
         self.assignment["job"] is itself a dict with keys "id", "title",
         "data", "environ" and "by".  The most important of those is usually
@@ -168,10 +216,8 @@ class JobType(Cache, Process, TypeChecks):
         dicts representing the tasks in the current assignment.  Each of
         these dicts has the keys "id" and "frame".  The
         list is ordered by frame number.
-
-    :attribute cache:
-        Stores the cached job types
     """
+    COMMAND_DATA = CommandData
     PROCESS_PROTOCOL = ProcessProtocol
     ASSIGNMENT_SCHEMA = Schema({
         Required("id"): validate_uuid,
@@ -495,19 +541,33 @@ class JobType(Cache, Process, TypeChecks):
 
         return abspath(filepath)
 
-    # TODO: internal implementation like the doc string says
-    # TODO: reflow the doc string text for a better layout
     def get_command_data(self):
         """
-        Overridable.  Returns the command, arguments, environment,
-        working directory and optionally a freeform variable for the command
-        to execute the current assignment in the form of a CommandData
-        (currently ProcessInputs) object. Should not be used when this jobtype
-        requires more than one process for one assignment.  May not get called
-        at all if start() was overridden.  Should use map_path() on all paths.
-        Default implementation does nothing. For simple jobtypes that use
-        exactly one process per assignment, this is the most important method
-        to implement.
+        **Overridable**.  This method returns the arguments necessary for
+        executing a command.  For job types which execute a single process
+        per assignment, this is the most important method to implement.
+
+        .. warning::
+
+            This method should not be used when this jobtype requires more
+            than one process for one assignment and may not get called at all
+            if :meth:`start` was overridden.
+
+        The default implementation does nothing.  When overriding this method
+        you should return an instance of ``COMMAND_DATA_CLASS``:
+
+        .. code-block:: python
+
+            return self.COMMAND_DATA(
+                "/usr/bin/python", "-c", "print 'hello world'",
+                env={"FOO": "bar"}, user="bob")
+
+        See :class:`CommandData`'s class documentation for a full description
+        of possible arguments.
+
+        Please note however the default command data class, :class:`CommandData`
+        does not perform path expansion.  So instead you have to handle this
+        yourself with :meth:`map_path`.
         """
         raise NotImplementedError("`get_command_data` must be implemented")
 
@@ -622,13 +682,14 @@ class JobType(Cache, Process, TypeChecks):
         environment = self.get_environment()
         command_data = self.get_command_data()
 
-        if isinstance(command_data, CommandData):
+        if isinstance(command_data, self.COMMAND_DATA):
             command_data = [command_data]
 
         for command in command_data:
-            if not isinstance(command, CommandData):
+            if not isinstance(command, self.COMMAND_DATA):
                 raise TypeError(
-                    "Expected `CommandData` instances from get_command_data()")
+                    "Expected `%s` instances from "
+                    "get_command_data()" % self.COMMAND_DATA.__name__)
 
             command.validate()
             command.set_default_environment(environment)
@@ -650,7 +711,7 @@ class JobType(Cache, Process, TypeChecks):
 
         self.stop_called = True
 
-        for process_id, process in self.processes.iteritems():
+        for _, process in self.processes.iteritems():
             if signal == "KILL":
                 process.protocol.kill()
             elif signal == "TERM":
@@ -659,7 +720,7 @@ class JobType(Cache, Process, TypeChecks):
                 process.protocol.interrupt()
             else:
                 raise NotImplementedError(
-                    "Don't know how to handle signal %r" % signal)  
+                    "Don't know how to handle signal %r" % signal)
 
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
@@ -838,10 +899,13 @@ class JobType(Cache, Process, TypeChecks):
 
     def is_successful(self, reason):
         """
-        User-overridable method that determines whether the process
+        **Overridable**.  This method that determines whether the process
         referred to by a protocol instance has exited successfully.
-        Default implementation returns true if the process's return
-        code was 0 and false in all other cases.
+
+        The default implementation returns ``True`` if the process's return
+        code was 0 and false in all other cases.  If you need to modify this
+        behavior please be aware that ``reason`` may be an integer or an
+        object containing attributes with additional information.
         """
         if reason == 0:
             return True
@@ -855,17 +919,22 @@ class JobType(Cache, Process, TypeChecks):
             raise NotImplementedError(
                 "Don't know how to handle is_successful(%r)" % reason)
 
+    # TODO: This is not currently called anywhere
+    # TODO: When we do call this, make sure we don't need to update the docs
     def before_start(self):
         """
-        Overridable method called directly before start() itself is called.
+        **Overridable**.  This method called directly before :meth:`start`
+        itself is called.
 
-        By default this method does nothing.
+        The default implementation does nothing and values returned from
+        this method are ignored.
         """
         pass
 
     def before_spawn_process(self, command, protocol):
         """
-        Overridable method called directly before a process is spawned.
+        **Overridable**.  This method called directly before a process is
+        spawned.
 
         By default this method does nothing except log information about
         the command we're about to launch both the the agent's log and to
@@ -894,10 +963,11 @@ class JobType(Cache, Process, TypeChecks):
 
     def process_stopped(self, protocol, reason):
         """
-        Overridable method called when a child process stopped running.
+        **Overridable**.  This method called when a child process stopped
+        running.
 
-        Default implementation will mark all tasks in the current assignment as
-        done or failed of there was at least one failed process
+        The default implementation will mark all tasks in the current
+        assignment as done or failed of there was at least one failed process.
         """
         if len(self.failed_processes) == 0:
             for task in self.assignment["tasks"]:
@@ -918,10 +988,11 @@ class JobType(Cache, Process, TypeChecks):
 
     def process_started(self, protocol):
         """
-        Overridable method called when a child process started running.
+        **Overridable**.  This method is called when a child process started
+        running.
 
-        Default implementation will mark all tasks in the current assignment
-        as running.
+        The default implementation will mark all tasks in the current
+        assignment as running.
         """
         for task in self.assignment["tasks"]:
             self.set_task_state(task, WorkState.RUNNING)

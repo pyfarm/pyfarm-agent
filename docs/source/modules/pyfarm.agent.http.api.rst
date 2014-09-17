@@ -11,6 +11,7 @@ Submodules
    pyfarm.agent.http.api.config
    pyfarm.agent.http.api.log
    pyfarm.agent.http.api.state
+   pyfarm.agent.http.api.tasklogs
    pyfarm.agent.http.api.tasks
    pyfarm.agent.http.api.update
 
