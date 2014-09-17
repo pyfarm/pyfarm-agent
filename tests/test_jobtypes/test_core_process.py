@@ -53,7 +53,7 @@ class FakeJobType(object):
 
 class TestProcessBase(TestCase):
     def _launch_python(self, jobtype, script="i = 42"):
-        protocol = ProcessProtocol(jobtype, *[None] * 6)
+        protocol = ProcessProtocol(jobtype)
         reactor.spawnProcess(
             protocol, "python", ["python", "-c", script])
         return protocol
@@ -61,7 +61,7 @@ class TestProcessBase(TestCase):
 
 class TestProtocol(TestProcessBase):
     def test_subclass(self):
-        protocol = ProcessProtocol(*[None] * 7)
+        protocol = ProcessProtocol(None)
         self.assertIsInstance(protocol, _ProcessProtocol)
 
     def test_pid(self):
