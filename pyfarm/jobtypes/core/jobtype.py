@@ -657,6 +657,9 @@ class JobType(Cache, Process, TypeChecks):
                 process.protocol.terminate()
             elif signal == "INT":
                 process.protocol.interrupt()
+            else:
+                raise NotImplementedError(
+                    "Don't know how to handle signal %r" % signal)  
 
         # TODO: notify master of stopped task(s)
         # TODO: chain this callback to the completion of our request to master
