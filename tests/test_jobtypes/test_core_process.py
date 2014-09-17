@@ -54,7 +54,7 @@ class TestProcessBase(TestCase):
     def _launch_python(self, jobtype, script="i = 42"):
         protocol = ProcessProtocol(jobtype)
         reactor.spawnProcess(
-            protocol, "python", ["python", "-c", script])
+            protocol, "python2", ["python", "-c", script])
         return protocol
 
 
