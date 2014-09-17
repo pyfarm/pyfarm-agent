@@ -410,8 +410,7 @@ class Process(object):
         try:
             self.process_stopped(protocol, reason)
         except Exception as e:
-            logger.error("Exception caught from process_stopped, traceback: %s",
-                         e.getTraceback())
+            logger.error("Exception caught from process_stopped: %s", e)
         logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
 
