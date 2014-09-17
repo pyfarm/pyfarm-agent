@@ -63,9 +63,23 @@ class FakeJobType(object):
         return self.started
 """
 
+class FakeAgent(object):
+    def __init__(self):
+       self.shutting_down = False
+
+fake_agent = FakeAgent()
+
+class AssignFactory(object):
+    def __init__(self, fake_agent):
+        self.fake_agent = fake_agent
+
+    def __call__(self):
+        return Assign(self.fake_agent)
+
 
 class TestAssign(BaseAPITestCase):
     URI = "/assign"
+    CLASS_FACTORY = AssignFactory(fake_agent)
     CLASS = Assign
 
     def setUp(self):
@@ -94,7 +108,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, SERVICE_UNAVAILABLE)
@@ -108,7 +122,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, SERVICE_UNAVAILABLE)
@@ -122,7 +136,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, BAD_REQUEST)
@@ -134,7 +148,7 @@ class TestAssign(BaseAPITestCase):
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
-        assign = Assign()
+        assign = self.instance_class()
         result = assign.render(request)
         self.assertTrue(request.finished)
         self.assertEqual(request.code, BAD_REQUEST)
