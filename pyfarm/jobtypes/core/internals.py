@@ -498,12 +498,12 @@ class Process(object):
         hood to process the output.
         """
         if stream == STDOUT:
-            line_fragments = self.stdout_line_fragments
+            line_fragments = self._stdout_line_fragments
             preprocessor = self.preprocess_stdout
             line_handler = self.handle_stdout_line
 
         elif stream == STDERR:
-            line_fragments = self.stderr_line_fragments
+            line_fragments = self._stderr_line_fragments
             preprocessor = self.preprocess_stderr
             line_handler = self.handle_stderr_line
 

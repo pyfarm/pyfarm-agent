@@ -243,6 +243,8 @@ class JobType(Cache, System, Process, TypeChecks):
         # generally should not be modified directly.
         self._tempdir = None  # the defacto tempdir for this instance
         self._tempdirs = set()  # list of any temp directories created
+        self._stdout_line_fragments = {}
+        self._stderr_line_fragments = {}
 
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
@@ -253,8 +255,6 @@ class JobType(Cache, System, Process, TypeChecks):
         self.failed_processes = set()
         self.failed_tasks = set()
         self.finished_tasks = set()
-        self.stdout_line_fragments = {}
-        self.stderr_line_fragments = {}
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
 
         # Add our instance to the job type instance tracker dictionary
@@ -994,8 +994,8 @@ class JobType(Cache, System, Process, TypeChecks):
 
         :param dict line_fragments:
             The line fragment dictionary containing individual line
-            fragments.  This will be either ``self.stdout_line_fragments`` or
-            ``self.stderr_line_fragments``.
+            fragments.  This will be either ``self._stdout_line_fragments`` or
+            ``self._stderr_line_fragments``.
 
         :param callable line_handler:
             The function to handle any lines produced.  This will be either
