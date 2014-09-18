@@ -26,6 +26,7 @@ are useful in starting or managing a process.
 import os
 
 from psutil import Process, NoSuchProcess
+from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.agent.logger import getLogger
@@ -154,22 +155,34 @@ class ProcessProtocol(_ProcessProtocol):
         logger.info("Killing %s", self)
         try:
             process = self.psutil_process
-            for child in process.children(recursive=True):
-                child.kill()
+            if not process:
+                return
+            children = process.children(recursive=True)
             process.kill()
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot kill %s: %s.", self, e)
+
+        def kill_children(children):
+            for child in children:
+                child.kill()
+        reactor.callLater(2, kill_children, children)
 
     def terminate(self):
         """Terminates the underlying process, if running."""
         logger.info("Terminating %s", self)
         try:
             process = self.psutil_process
-            for child in process.children(recursive=True):
-                child.terminate()
+            if not process:
+                return
+            children = process.children(recursive=True)
             process.terminate()
         except Exception as e:  # pragma: no cover
             logger.warning("Cannot terminate %s: %s.", self, e)
+
+        def terminate_children(children):
+            for child in children:
+                child.terminate()
+        reactor.callLater(2, terminate_children, children)
 
     def interrupt(self):
         """Interrupts the underlying process, if running."""
