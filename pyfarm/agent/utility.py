@@ -97,7 +97,7 @@ JOBTYPE_SCHEMA = Schema({
 TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("frame"): NUMBERS,
-    Required("attempt"): WHOLE_NUMBERS})
+    Required("attempt", default=0): WHOLE_NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 JOB_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
@@ -151,6 +151,7 @@ def json_safe(source):
             default_json_encoder(json_safe(v), return_obj=True)
 
     return result
+
 
 def quote_url(source_url):
     """
