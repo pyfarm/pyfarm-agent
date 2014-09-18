@@ -183,13 +183,6 @@ class TestProcess(TestCase):
         self.process._stop()
         self.assertTrue(self.process.stop_called)
 
-    @skipIf(grp is NotImplemented, "grp module is NotImplemented")
-    def test_uid_gid_mapper(self):
-        uid, gid = self.process.get_uid_gid(
-            "root", grp.getgrnam("root").gr_name)
-        self.assertEqual(uid, 0)
-        self.assertEqual(gid, 0)
-
     def test_process_started(self):
         self.process._process_started(self.protocol)
         self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
