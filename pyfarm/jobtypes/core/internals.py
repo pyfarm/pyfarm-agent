@@ -22,16 +22,28 @@ Contains classes which contain internal methods for
 the :class:`pyfarm.jobtypes.core.jobtype.JobType` class.
 """
 
+import atexit
 import imp
 import os
 import sys
+import shutil
 import tempfile
-from errno import EEXIST
+from collections import namedtuple
+from errno import EEXIST, ENOENT
 from datetime import datetime
-from os.path import dirname, isdir, join, isfile
-from string import Template
+from os.path import dirname, join, isfile, basename
 from uuid import UUID
 from functools import partial
+
+try:
+    import pwd
+except ImportError:  # pragma: no cover
+    pwd = NotImplemented
+
+try:
+    import grp
+except ImportError:
+    grp = NotImplemented
 
 try:
     from httplib import (
@@ -40,24 +52,17 @@ except ImportError:  # pragma: no cover
     from http.client import (
         OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED, CONFLICT)
 
-try:
-    import pwd
-    import grp
-except ImportError:  # pragma: no cover
-    pwd = NotImplemented
-    grp = NotImplemented
-
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList
 
 import treq
 
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
-from pyfarm.jobtypes.core.log import STDOUT, logpool
-from pyfarm.jobtypes.core.process import ReplaceEnvironment
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
+from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
 USER_GROUP_TYPES = tuple(
     list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)])
@@ -66,6 +71,8 @@ ITERABLE_CONTAINERS = (list, tuple, set)
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
 logfile = getLogger("jobtypes.log")
+ProcessData = namedtuple(
+    "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
 
 
 class Cache(object):
@@ -357,26 +364,6 @@ class Process(object):
 
         return self.stop()
 
-    def get_uid_gid(self, user, group):
-        """
-        Overridable method to convert a named user and group into their
-        respective user and group ids.
-        """
-        uid = None
-        gid = None
-
-        # Convert user to uid
-        if all([user is not None, pwd is not NotImplemented]):
-            uid = self._get_uid_gid_value(
-                user, "username", "get_uid", pwd, "pwd")
-
-        # Convert group to gid
-        if all([group is not None, grp is not NotImplemented]):
-            gid = self._get_uid_gid_value(
-                group, "group", "get_gid", grp, "grp")
-
-        return uid, gid
-
     def _before_start(self):
         logger.debug("%r._before_start()", self)
         self.before_start()
@@ -441,6 +428,94 @@ class Process(object):
                 logger.warning("There was at least one failed process in the "
                                "assignment %s", self)
             self.stopped_deferred.callback(None)
+
+    def _spawn_process(self, command):
+        """
+        Starts one child process using input from :meth:`command_data`.
+        Job types should never start child processes through any other
+        means.  The only exception to this rule is code that resides in
+        :meth:`prepare_for_job`, which should use
+        :meth:`spawn_persistent_job_process` instead.
+
+        :raises OSError:
+            Raised if `working_dir` was provided but the provided
+            path does not exist
+
+        :raises EnvironmentError:
+            Raised if an attempt is made to change the user or
+            group without root access.  This error will only occur on
+            Linux or Unix platforms.
+        """
+        process_protocol = self.PROCESS_PROTOCOL(self)
+
+        if not isinstance(process_protocol, ProcessProtocol):
+            raise TypeError("Expected ProcessProtocol for `protocol`")
+
+        # The first argument should always be the command name by convention.
+        # Under Windows, this needs to be the whole path, under POSIX only the
+        # basename.
+        if WINDOWS:
+            arguments = [command.command] + list(command.arguments)
+        else:
+            arguments = [basename(command.command)] + list(command.arguments)
+
+        # WARNING: `env` should always be None to ensure the same operation
+        # of the environment setup across platforms.  See Twisted's
+        # documentation for more information on why `env` should be None:
+        #    http://twistedmatrix.com/documents/current/api/
+        #    twisted.internet.interfaces.IReactorProcess.spawnProcess.html
+        kwargs = {"args": arguments, "env": None}
+        uid, gid = self.get_uid_gid(command.user, command.group)
+
+        if uid is not None:
+            kwargs.update(uid=uid)
+
+        if gid is not None:
+            kwargs.update(gid=gid)
+
+        # Capture the protocol instance so we can keep track
+        # of the process we're about to spawn and start the
+        # logging thread.
+        # TODO: return data from this function, we don't want to be working
+        # with Deferred object in a public method
+        log_path = self.get_csvlog_path(process_protocol.uuid)
+        deferred = logpool.open_log(process_protocol, log_path)
+        deferred.addCallback(
+            self._spawn_twisted_process, command, process_protocol, kwargs)
+        self.processes[process_protocol.uuid] = ProcessData(
+            protocol=process_protocol, started=Deferred(), stopped=Deferred(),
+            log_identifier=basename(log_path))
+
+        self._register_logfile_on_master(basename(log_path))
+
+        return deferred
+
+    def _process_output(self, protocol, output, stream):
+        """
+        Called by :meth:`.ProcessProtocol.outReceived` and
+        :meth:`.ProcessProtocol.errReceived` whenever output is produced
+        by a process.  This method will wire up the proper calls under the
+        hood to process the output.
+        """
+        if stream == STDOUT:
+            line_fragments = self.stdout_line_fragments
+            preprocessor = self.preprocess_stdout
+            line_handler = self.handle_stdout_line
+
+        elif stream == STDERR:
+            line_fragments = self.stderr_line_fragments
+            preprocessor = self.preprocess_stderr
+            line_handler = self.handle_stderr_line
+
+        else:
+            raise ValueError("Expected STDOUT or STDERR for `stream`")
+
+        # Proprocess before we call process_output
+        new_output = preprocessor(protocol, output)
+        if isinstance(new_output, STRING_TYPES):
+            output = new_output
+
+        self.process_output(protocol, output, line_fragments, line_handler)
 
     def _has_running_processes(self):
         """
@@ -560,6 +635,8 @@ class Process(object):
                     url)
         upload(url, log_identifier)
 
+
+class System(object):
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
                            module, module_name):  # pragma: no cover
@@ -617,6 +694,47 @@ class Process(object):
         else:
             raise ValueError(
                 "Expected an integer or string for `%s`" % value_name)
+
+    def _remove_tempdirs(self, max_attempts=5):
+        """
+        Iterates over all temporary directories in ``_tempdirs`` and removes
+        them from disk.  This work will be done in a thread so it does not
+        block the reactor.
+        """
+        def rmdir(path, on_exit_handler=True):
+            logger.debug("Removing directory %s", path)
+
+            attempts = max_attempts
+            while attempts:
+                try:
+                    shutil.rmtree(path)
+                except OSError as e:
+                    attempts -= 1
+                    if e.errno == ENOENT:
+                        break
+
+                    elif e.errno != ENOENT:
+                        logger.error(
+                            "Failed to delete %s: %s (%s attempts remain)",
+                            path, e, attempts)
+                else:
+                    logger.debug("Removed directory %s", path)
+                    break
+
+            else:
+                # If break was never called then retry on shutdown.
+                if on_exit_handler:
+                    atexit.register(rmdir, path, on_exit_handler=False)
+                    logger.error(
+                        "Failed to delete %s, will retry on shutdown", path)
+                else:
+                    logger.error(
+                        "Failed to delete %s, no further attempts will be "
+                        "made", path)
+
+        # Delete each directory in a thread
+        for directory in self._tempdirs:
+            reactor.callInThread(rmdir, directory)
 
 
 class TypeChecks(object):
