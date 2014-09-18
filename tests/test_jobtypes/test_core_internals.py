@@ -37,7 +37,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import (
-    ITERABLE_CONTAINERS, Cache, Process, TypeChecks, pwd, grp)
+    ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp)
 from pyfarm.jobtypes.core.log import logpool, CSVLog
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
@@ -51,7 +51,7 @@ class FakeProtocol(object):
         self.uuid = uuid()
 
 
-class FakeProcess(Process):
+class FakeProcess(Process, System):
     def __init__(self):
         self.start_called = False
         self.stop_called = False
