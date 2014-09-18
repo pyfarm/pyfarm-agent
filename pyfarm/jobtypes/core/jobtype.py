@@ -852,8 +852,6 @@ class JobType(Cache, System, Process, TypeChecks):
             raise NotImplementedError(
                 "Don't know how to handle is_successful(%r)" % reason)
 
-    # TODO: This is not currently called anywhere
-    # TODO: When we do call this, make sure we don't need to update the docs
     def before_start(self):
         """
         **Overridable**.  This method called directly before :meth:`start`
