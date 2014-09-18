@@ -280,9 +280,13 @@ class JobType(Cache, System, Process, TypeChecks):
     @classmethod
     def load(cls, assignment):
         """
-        Given ``data`` this class method will load the job type either
-        from cache or from the master and then instance it with the
-        incoming assignment data
+        Given an assignment this class method will load the job type either
+        from cache or from the master.
+
+        :param dict assignment:
+            The dictionary containing the assignment.  This will be
+            passed into an instance of ``ASSIGNMENT_SCHEMA`` to validate
+            that the internal data is correct.
         """
         cls.ASSIGNMENT_SCHEMA(assignment)
 
