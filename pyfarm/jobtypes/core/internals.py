@@ -420,7 +420,6 @@ class Process(object):
         # If there are no processes running at this point, we assume
         # the assignment is finished
         if len(self.processes) == 0:
-            # TODO Mark tasks that have not yet been marked otherwise as FAILED
             if not self.failed_processes:
                 logger.info("Processes in assignment %s stopped, no failures",
                             self)
