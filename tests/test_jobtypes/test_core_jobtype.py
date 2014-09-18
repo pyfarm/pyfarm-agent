@@ -26,7 +26,8 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, requires_master, create_jobtype
 from pyfarm.agent.utility import uuid
-from pyfarm.jobtypes.core.jobtype import JobType, ProcessData
+from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.jobtypes.core.internals import ProcessData
 
 
 def fake_assignment():
