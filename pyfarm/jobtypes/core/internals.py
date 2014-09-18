@@ -626,7 +626,7 @@ class Process(object):
         def error_callback(url, log_identifier, failure_reason):
             delay = http_retry_delay()
             logger.error(
-                "Error while registering logfile %s on master: "
+                "Error while uploading logfile %s to master: "
                 "%r, retrying in %s seconds.",
                 log_identifier, failure_reason, delay)
             upload(url, log_identifier, delay=delay)
