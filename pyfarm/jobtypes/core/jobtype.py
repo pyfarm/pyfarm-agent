@@ -191,15 +191,18 @@ class JobType(Cache, System, Process, TypeChecks):
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
-    :attribute CommandData COMMAND_DATA_CLASS:
+    :cvar CommandData COMMAND_DATA_CLASS:
         If you need to provide your own class to represent command data you
         should override this attribute.  This attribute is used by by methods
         within this class to do type checking.
 
-    :attribute ProcessProtocol PROCESS_PROTOCOL:
+    :cvar ProcessProtocol PROCESS_PROTOCOL:
         The protocol object used to communicate with each process
         spawned
 
+    :cvar voluptuous.Schema ASSIGNMENT_SCHEMA:
+        The schema of an assignment.  This object helps to validate the
+        incoming assignment to ensure it's not missing any data.
 
     :arg dict assignment:
         This attribute is a dictionary the keys "job", "jobtype" and "tasks".
@@ -210,6 +213,20 @@ class JobType(Cache, System, Process, TypeChecks):
         dicts representing the tasks in the current assignment.  Each of
         these dicts has the keys "id" and "frame".  The
         list is ordered by frame number.
+
+    :ivar UUID uuid:
+        This is the unique identifier for the job type instance and is
+        automatically set when the class is instanced.  This is used by the
+        agent to track assignments and job type instances.
+
+    :ivar set finished_tasks:
+        A set of tasks that have had their state changed to finished through
+        :meth:`set_task_state`.  At the start of the assignment, this list is
+        empty.
+
+    :ivar set failed_tasks:
+        This is analogous to ``finished_tasks`` except it contains failed
+        tasks only.
     """
     COMMAND_DATA = CommandData
     PROCESS_PROTOCOL = ProcessProtocol
