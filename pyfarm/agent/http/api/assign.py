@@ -220,11 +220,12 @@ class Assign(APIResource):
 
                 elif response.code != OK:
                     logger.error(
-                        "Could not mark task %s as failed, server response code "
-                        "was %s", task["id"], response.code)
+                        "Could not mark task %s as failed, server response "
+                        "code was %s", task["id"], response.code)
 
                 else:
-                    logger.info("Marked task %s as failed on master", task_id)
+                    logger.info(
+                        "Marked task %s as failed on master", task["id"])
 
             def error_callback(cburl, cbdata, task, failure_reason):
                 logger.error(
