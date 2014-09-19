@@ -1197,7 +1197,7 @@ class JobType(Cache, System, Process, TypeChecks):
         :param string stderr:
             A complete line to ``stdout`` before any formatting or logging
             has occurred.
-            
+
         :rtype: string
         :return:
             This method returns nothing by default but when overridden should
