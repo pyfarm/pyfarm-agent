@@ -18,6 +18,7 @@ import json
 import os
 from collections import namedtuple
 from httplib import responses, OK
+import re
 
 from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
@@ -518,7 +519,7 @@ class TestResponse(RequestTestCase):
         r._done = True
 
         with self.assertRaisesRegexp(
-                ValueError, "Not an application/json response\."):
+                ValueError, re.compile("Not an application/json response\.")):
             r.json()
 
     def test_json_decoding_error(self):
@@ -534,7 +535,8 @@ class TestResponse(RequestTestCase):
         r = Response(deferred, twisted_response, request)
         r._done = True
         with self.assertRaisesRegexp(ValueError,
-                                     "No JSON object could be decoded"):
+                                     re.compile(
+                                         "No JSON object could be decoded")):
             r.json()
 
     def test_json(self):

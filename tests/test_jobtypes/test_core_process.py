@@ -23,6 +23,7 @@ from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.error import ProcessTerminated
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
+from pyfarm.jobtypes.core.log import STDOUT, STDERR
 from pyfarm.agent.testutil import TestCase
 from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
@@ -36,32 +37,30 @@ class FakeJobType(object):
         self.stdout = stdout
         self.stderr = stderr
 
-    def process_started(self, protocol):
+    def _process_started(self, protocol):
         self.started.callback(protocol)
 
-    def process_stopped(self, protocol, reason):
+    def _process_stopped(self, protocol, reason):
         self.stopped.callback((protocol, reason))
 
-    def received_stdout(self, protocol, data):
-        if self.stdout is not None:
-            self.stdout(protocol, data)
-
-    def received_stderr(self, protocol, data):
-        if self.stderr is not None:
-            self.stderr(protocol, data)
+    def _process_output(self, protocol, output, stream):
+        if stream is STDOUT and self.stdout is not None:
+            self.stdout(protocol, output)
+        elif stream is STDERR and self.stderr is not None:
+            self.stderr(protocol, output)
 
 
 class TestProcessBase(TestCase):
     def _launch_python(self, jobtype, script="i = 42"):
-        protocol = ProcessProtocol(jobtype, *[None] * 6)
+        protocol = ProcessProtocol(jobtype)
         reactor.spawnProcess(
-            protocol, "python", ["python", "-c", script])
+            protocol, "python2", ["python", "-c", script])
         return protocol
 
 
 class TestProtocol(TestProcessBase):
     def test_subclass(self):
-        protocol = ProcessProtocol(*[None] * 7)
+        protocol = ProcessProtocol(None)
         self.assertIsInstance(protocol, _ProcessProtocol)
 
     def test_pid(self):
