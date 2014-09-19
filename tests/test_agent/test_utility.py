@@ -19,6 +19,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from json import dumps as dumps_
 from uuid import uuid1
+import re
 
 from voluptuous import Invalid
 
@@ -32,15 +33,16 @@ from pyfarm.agent.utility import (
 
 class TestValidateEnvironment(TestCase):
     def test_type(self):
-        with self.assertRaisesRegexp(Invalid, "Expected a dictionary"):
+        with self.assertRaisesRegexp(Invalid,
+                                     re.compile("Expected a dictionary")):
             validate_environment(None)
 
     def test_value(self):
-        with self.assertRaisesRegexp(Invalid, "Value.*string.*"):
+        with self.assertRaisesRegexp(Invalid, re.compile("Value.*string.*")):
             validate_environment({"foo": None})
 
     def test_key(self):
-        with self.assertRaisesRegexp(Invalid, "Key.*string.*"):
+        with self.assertRaisesRegexp(Invalid, re.compile("Key.*string.*")):
             validate_environment({1: None})
 
 

@@ -482,6 +482,7 @@ class BaseRequestTestCase(TestCase):
 class BaseHTTPTestCase(TestCase):
     URI = NotImplemented
     CLASS = NotImplemented
+    CLASS_FACTORY = NotImplemented
     CONTENT_TYPES = NotImplemented
 
     # Only run the real _run if we're inside a child
@@ -502,7 +503,10 @@ class BaseHTTPTestCase(TestCase):
         self.assertIsNotNone(self.CLASS, "CLASS not set")
 
     def instance_class(self):
-        return self.CLASS()
+        if self.CLASS_FACTORY is not NotImplemented:
+            return self.CLASS_FACTORY()
+        else:
+            return self.CLASS()
 
     def test_instance(self):
         self.instance_class()
