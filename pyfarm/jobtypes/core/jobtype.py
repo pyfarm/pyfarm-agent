@@ -191,6 +191,11 @@ class JobType(Cache, System, Process, TypeChecks):
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
+    :cvar set PERSISTENT_JOB_DATA:
+        A dictionary of job ids and data that :meth:`prepare_for_job` has
+        produced.  This is used during :meth:`__init__` to set
+        :ivar:`persistent_job_data`.
+
     :cvar CommandData COMMAND_DATA_CLASS:
         If you need to provide your own class to represent command data you
         should override this attribute.  This attribute is used by by methods
@@ -214,6 +219,10 @@ class JobType(Cache, System, Process, TypeChecks):
         these dicts has the keys "id" and "frame".  The
         list is ordered by frame number.
 
+    :arg persistent_job_data:
+        This data will be passed on by the assignment.  See also
+        :cvar:`PERSISTENT_JOB_DATA` and :meth:`prepare_for_job`
+
     :ivar UUID uuid:
         This is the unique identifier for the job type instance and is
         automatically set when the class is instanced.  This is used by the
@@ -228,6 +237,7 @@ class JobType(Cache, System, Process, TypeChecks):
         This is analogous to ``finished_tasks`` except it contains failed
         tasks only.
     """
+    PERSISTENT_JOB_DATA = {}
     COMMAND_DATA = CommandData
     PROCESS_PROTOCOL = ProcessProtocol
     ASSIGNMENT_SCHEMA = Schema({
@@ -236,7 +246,7 @@ class JobType(Cache, System, Process, TypeChecks):
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
 
-    def __init__(self, assignment):
+    def __init__(self, assignment, persistent_job_data=None):
         super(JobType, self).__init__()
 
         # Private attributes which persist with the instance.  These
@@ -256,6 +266,7 @@ class JobType(Cache, System, Process, TypeChecks):
         self.failed_tasks = set()
         self.finished_tasks = set()
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
+        self.persistent_job_data = persistent_job_data
 
         # Add our instance to the job type instance tracker dictionary
         # as well as the dictionary containing the current assignment.
@@ -303,6 +314,20 @@ class JobType(Cache, System, Process, TypeChecks):
         else:
             logger.debug("Caching jobtype")
             return cls._load_jobtype(cls.cache[cache_key], None)
+
+    @classmethod
+    def prepare_for_job(cls, job):
+        """
+        Called before a job executes on the agent first the first time and
+        before the JobType class is loaded.  Whatever this classmethod returns
+        will be available as ``persistent_job_data` on the job type instance.
+
+        :param int job:
+            The job id which prepare_for_job is being run for
+
+        By default this method does nothing.
+        """
+        pass
 
     def node(self):
         """

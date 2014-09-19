@@ -254,9 +254,22 @@ class Assign(APIResource):
                 logger.error(jobtype_class.getTraceback())
                 return
 
-            # Instance the job type and pass in the assignment
-            # data.
-            instance = jobtype_class(request_data)
+            # If we have not created persistent job data
+            # yet then use prepare_for_job to produce this
+            # data.  We do don't run this as a method during
+            # __init__ because:
+            #   * If someone overrides __init__ we still want to pass
+            #     this data in
+            #   * We want to be sure we run prepare_for_job before we
+            #     instance the class
+            job_id = request_data["job"]["data"]
+            if job_id not in jobtype_class.PREPARE_JOB_DATA:
+                jobtype_class.PREPARE_JOB_DATA[job_id] = \
+                    jobtype_class.prepare_for_job(job_id)
+
+            # Instance the job type and pass in the assignment data.
+            instance = jobtype_class(
+                request_data, jobtype_class.PREPARE_JOB_DATA[job_id])
 
             if not isinstance(instance, JobType):
                 raise TypeError(
