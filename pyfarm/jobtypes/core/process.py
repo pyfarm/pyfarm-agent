@@ -165,7 +165,8 @@ class ProcessProtocol(_ProcessProtocol):
         def kill_children(children):
             for child in children:
                 child.kill()
-        reactor.callLater(2, kill_children, children)
+        if children:
+            reactor.callLater(2, kill_children, children)
 
     def terminate(self):
         """Terminates the underlying process, if running."""
@@ -182,7 +183,8 @@ class ProcessProtocol(_ProcessProtocol):
         def terminate_children(children):
             for child in children:
                 child.terminate()
-        reactor.callLater(2, terminate_children, children)
+        if children:
+            reactor.callLater(2, terminate_children, children)
 
     def interrupt(self):
         """Interrupts the underlying process, if running."""
