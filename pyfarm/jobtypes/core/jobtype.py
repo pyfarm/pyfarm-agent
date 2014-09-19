@@ -314,17 +314,33 @@ class JobType(Cache, System, Process, TypeChecks):
     @classmethod
     def prepare_for_job(cls, job):
         """
-        Called before a job executes on the agent first the first time and
-        before the JobType class is loaded.  Whatever this classmethod returns
-        will be available as ``persistent_job_data` on the job type instance.
+        .. note::
+            This method is not yet implemented
+
+        Called before a job executes on the agent first the first time.
+        Whatever this classmethod returns will be available as
+        ``persistent_job_data` on the job type instance.
 
         :param int job:
             The job id which prepare_for_job is being run for
 
         By default this method does nothing.
+        """
+        pass
 
+    @classmethod
+    def cleanup_after_job(cls, persistent_data):
+        """
         .. note::
-            This method is not yet implemented in the agent's code.
+            This method is not yet implemented
+
+        This classmethod will be called after the last assignment
+        from a given job has finished on this node.
+
+        :param persistent_data:
+            The persistent data that :meth:`prepare_for_job` produced.  The
+            value for this data may be ``None`` if :meth:`prepare_for_job`
+            returned None or was not implemented.
         """
         pass
 
