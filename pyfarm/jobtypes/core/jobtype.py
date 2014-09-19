@@ -262,7 +262,7 @@ class JobType(Cache, System, Process, TypeChecks):
         self.failed_tasks = set()
         self.finished_tasks = set()
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
-        self.persistent_job_data = persistent_job_data
+        self.persistent_job_data = None
 
         # Add our instance to the job type instance tracker dictionary
         # as well as the dictionary containing the current assignment.
