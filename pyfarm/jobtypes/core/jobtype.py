@@ -219,10 +219,6 @@ class JobType(Cache, System, Process, TypeChecks):
         these dicts has the keys "id" and "frame".  The
         list is ordered by frame number.
 
-    :arg persistent_job_data:
-        This data will be passed on by the assignment.  See also
-        :cvar:`PERSISTENT_JOB_DATA` and :meth:`prepare_for_job`
-
     :ivar UUID uuid:
         This is the unique identifier for the job type instance and is
         automatically set when the class is instanced.  This is used by the
@@ -246,7 +242,7 @@ class JobType(Cache, System, Process, TypeChecks):
         Required("jobtype"): JOBTYPE_SCHEMA,
         Optional("tasks"): TASKS_SCHEMA})
 
-    def __init__(self, assignment, persistent_job_data=None):
+    def __init__(self, assignment):
         super(JobType, self).__init__()
 
         # Private attributes which persist with the instance.  These
@@ -326,6 +322,9 @@ class JobType(Cache, System, Process, TypeChecks):
             The job id which prepare_for_job is being run for
 
         By default this method does nothing.
+
+        .. note::
+            This method is not yet implemented in the agent's code.
         """
         pass
 
