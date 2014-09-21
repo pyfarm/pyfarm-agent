@@ -1306,7 +1306,8 @@ class JobType(Cache, System, Process, TypeChecks):
         line to ``stderr``.  The line will be preformatted and will already
         have been sent for logging.
 
-        *The default implementation does nothing.*
+        *The default implementation sends ``stderr`` and ``protocol`` to
+        :meth:`process_stdout_line`.*
 
         :type protocol: :class:`.ProcessProtocol`
         :param protocol:
@@ -1320,7 +1321,7 @@ class JobType(Cache, System, Process, TypeChecks):
             This method returns nothing by default and any return value
             produced by this method will not be consumed by other methods.
         """
-        pass
+        self.process_stdout_line(protocol, stderr)
 
     def process_stdout_line(self, protocol, stdout):
         """
