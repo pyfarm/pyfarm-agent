@@ -341,6 +341,17 @@ class Process(object):
             reactor.spawnProcess(process_protocol, command.command, **kwargs)
 
     def _start(self):
+        """
+        The internal method that gets called to start the job type.  Usually
+        this calls :meth:`start` though more advanced behaviors could
+        override this and :meth`start`.
+
+        .. warning::
+
+            Read the source code before overriding this method on your
+            own.  This method sets a couple of instance variables and returns
+            a tuple that is relied upon elsewhere.
+        """
         # Make sure _start() is not called twice
         if self.start_called:
             raise RuntimeError("%s has already been started" % self)
