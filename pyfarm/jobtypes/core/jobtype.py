@@ -623,7 +623,8 @@ class JobType(Cache, System, Process, TypeChecks):
     def map_path(self, path):
         """
         Takes a string argument.  Translates a given path for any OS to
-        what it should be on this particular node.
+        what it should be on this particular node.  This does not communicate
+        with the master.
         """
         self._check_map_path_inputs(path)
         path = self.expandvars(path)
