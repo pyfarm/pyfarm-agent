@@ -890,9 +890,16 @@ class JobType(Cache, System, Process, TypeChecks):
         referred to by a protocol instance has exited successfully.
 
         The default implementation returns ``True`` if the process's return
-        code was 0 and false in all other cases.  If you need to modify this
-        behavior please be aware that ``reason`` may be an integer or an
-        object containing attributes with additional information.
+        code was 0 and ``False` in all other cases.  If you need to
+        modify this behavior please be aware that ``reason`` may be an
+        integer or an instance of
+        :class:`twisted.internet.error.ProcessTerminated` if the process
+        terminated without errors or an instance of
+        :class:`twisted.python.failure.Failure` if there were problems.
+
+        :raises NotImplementedError:
+            Raised if we encounter a condition that the base implementation
+            is unable to handle.
         """
         if reason == 0:
             return True
