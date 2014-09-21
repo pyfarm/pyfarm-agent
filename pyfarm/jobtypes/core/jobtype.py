@@ -1094,7 +1094,7 @@ class JobType(Cache, System, Process, TypeChecks):
         preprocessed = self.preprocess_stdout_line(protocol, stdout)
         if preprocessed is not None:
             stdout = preprocessed
-        if preprocessed == False:
+        if preprocessed is False:
             return
 
         # Format
