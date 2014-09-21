@@ -53,7 +53,7 @@ except ImportError:  # pragma: no cover
         OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED, CONFLICT)
 
 from twisted.internet import reactor, threads
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred, DeferredList, succeed
 
 import treq
 
@@ -350,11 +350,17 @@ class Process(object):
         self.start()
         self.start_called = True
         logger.debug("Collecting started deferreds from spawned processes")
-        started_deferreds = []
-        for process in self.processes.values():
-            started_deferreds.append(process.started)
-        logger.debug("Making deferred list self.started_deferred")
-        self.started_deferred = DeferredList(started_deferreds)
+
+        if not self.processes:
+            logger.warning(
+                "There are no started deferreds present, using succeed([]) for "
+                "self.started_deferred")
+            self.started_deferred = succeed([])
+        else:
+            logger.debug("Making deferred list for self.started_deferred")
+            self.started_deferred = DeferredList(
+                [process.started for process in self.processes.values()])
+
         self.stopped_deferred = Deferred()
         return self.started_deferred, self.stopped_deferred
 
