@@ -1060,9 +1060,9 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def handle_stdout_line(self, protocol, stdout):
         """
-        **Overridable**.  Takes a :class:`.ProcessProtocol` instance and
-        ``stdout`` line produced by :meth:`process_output` and runs it through
-        all the steps necessary to preprocess, format, log and handle the line.
+        Takes a :class:`.ProcessProtocol` instance and ``stdout``
+        line produced by :meth:`process_output` and runs it through all
+        the steps necessary to preprocess, format, log and handle the line.
 
         The default implementation will run ``stdout`` through several methods
         in order:
@@ -1074,10 +1074,10 @@ class JobType(Cache, System, Process, TypeChecks):
 
         .. warning::
 
-            This method is overridable however it's advisable to override
-            the methods above instead.  Unlike this method, which is more
-            generalized and invokes several other methods, the above provide
-            more targeted functionality.
+            This method is not private however it's advisable to override
+            the methods above instead of this one.  Unlike this method,
+            which is more generalized and invokes several other methods,
+            the above provide more targeted functionality.
 
         :type protocol: :class:`.ProcessProtocol`
         :param protocol:
