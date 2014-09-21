@@ -989,52 +989,6 @@ class JobType(Cache, System, Process, TypeChecks):
         for task in self.assignment["tasks"]:
             self.set_task_state(task, WorkState.RUNNING)
 
-    def preprocess_stdout(self, protocol, stdout):
-        """
-        **Overridable**.  Provides the ability to preprocess output to
-        ``stdout`` before any kind of formatting or additional processing
-        is performed.
-
-        *The default implementation does nothing.*
-
-        :type protocol: :class:`.ProcessProtocol`
-        :param protocol:
-            The protocol instance which produced the output
-
-        :param string stdout:
-            The output to preprocess.  This may or may not be a single line and
-            is the output before we try and process individual lines.
-
-        :rtype: string
-        :return:
-            This method returns nothing by default but when overridden should
-            return a string which will then be passed to :meth:`process_output`
-        """
-        pass
-
-    def preprocess_stderr(self, protocol, stderr):
-        """
-        **Overridable**.  Provides the ability to preprocess output to
-        ``stderr`` before any kind of formatting or additional processing
-        is performed.
-
-        *The default implementation does nothing.*
-
-        :type protocol: :class:`.ProcessProtocol`
-        :param protocol:
-            The protocol instance which produced the output
-
-        :param string stderr:
-            The output to preprocess.  This may or may not be a single line and
-            is the output before we try and process individual lines.
-
-        :rtype: string
-        :return:
-            This method returns nothing by default but when overridden should
-            return a string which will then be passed to :meth:`process_output`
-        """
-        pass
-
     def process_output(self, protocol, output, line_fragments, line_handler):
         """
         This is a mid-level method which takes output from a process protocol
