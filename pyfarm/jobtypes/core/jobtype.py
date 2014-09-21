@@ -344,6 +344,20 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         pass
 
+    @classmethod
+    def spawn_persistent_process(cls, job, command_data):
+        """
+        .. note::
+            This method is not yet implemented
+
+        Starts one child process using an instance of :class:`CommandData` or
+        similiar input.  This process is intended to keep running until the
+        last task from this job has been processed, potentially spanning more
+        than one assignment.  If the spawned process is still running then
+        we'll cleanup the process after :meth:`cleanup_after_job`
+        """
+        pass
+
     def node(self):
         """
         Returns live information about this host, the operating system,
