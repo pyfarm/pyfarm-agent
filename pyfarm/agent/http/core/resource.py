@@ -59,6 +59,7 @@ class Resource(_Resource):
     Basic subclass of :class:`._Resource` for passing requests to
     specific methods.  Unlike :class:`._Resource` however this will
     will also handle:
+
         * rewriting of request objects
         * templating
         * content type discovery and validation

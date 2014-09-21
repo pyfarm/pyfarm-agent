@@ -194,7 +194,7 @@ class JobType(Cache, System, Process, TypeChecks):
     :cvar set PERSISTENT_JOB_DATA:
         A dictionary of job ids and data that :meth:`prepare_for_job` has
         produced.  This is used during :meth:`__init__` to set
-        :ivar:`persistent_job_data`.
+        ``persistent_job_data``.
 
     :cvar CommandData COMMAND_DATA_CLASS:
         If you need to provide your own class to represent command data you
@@ -319,7 +319,7 @@ class JobType(Cache, System, Process, TypeChecks):
 
         Called before a job executes on the agent first the first time.
         Whatever this classmethod returns will be available as
-        ``persistent_job_data` on the job type instance.
+        ``persistent_job_data`` on the job type instance.
 
         :param int job:
             The job id which prepare_for_job is being run for

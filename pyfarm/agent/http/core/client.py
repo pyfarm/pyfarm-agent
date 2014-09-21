@@ -112,7 +112,7 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
         provided to ``--http-retry-delay`` at startup will be used.
 
     :param bool uniform:
-        If True then use the value produced by :param:`get_delay` as
+        If True then use the value produced by ``get_delay`` as
         a multiplier.
 
     :param callable get_delay:
