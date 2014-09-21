@@ -419,7 +419,6 @@ class Process(object):
         # If there are no processes running at this point, we assume
         # the assignment is finished
         if len(self.processes) == 0:
-            # TODO Mark tasks that have not yet been marked otherwise as FAILED
             if not self.failed_processes:
                 logger.info("Processes in assignment %s stopped, no failures",
                             self)
@@ -644,7 +643,7 @@ class Process(object):
         def error_callback(url, log_identifier, failure_reason):
             delay = http_retry_delay()
             logger.error(
-                "Error while registering logfile %s on master: "
+                "Error while uploading logfile %s to master: "
                 "%r, retrying in %s seconds.",
                 log_identifier, failure_reason, delay)
             upload(url, log_identifier, delay=delay)
