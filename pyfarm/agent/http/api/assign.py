@@ -255,6 +255,9 @@ class Assign(APIResource):
                 logger.error(jobtype_class.getTraceback())
                 return
 
+            # TODO: add call to prepare_for_job
+            # TODO: add call to spawn_persistent_process
+
             # Instance the job type and pass in the assignment data.
             instance = jobtype_class(request_data)
 
@@ -263,6 +266,8 @@ class Assign(APIResource):
                     "Expected a subclass of "
                     "pyfarm.jobtypes.core.jobtype.JobType")
 
+            # TODO: add callback to cleanup_after_job
+            # TODO: add callback to stop persistent process
             try:
                 started_deferred, stopped_deferred = instance._start()
                 started_deferred.addCallback(assignment_started, assign_id)
