@@ -52,7 +52,8 @@ logger = getLogger("agent.manhole")
 class LoggingManhole(ColoredManhole):
     """
     A slightly modified implementation of :class:`ColoredManhole`
-    which logs information to the logger to we can track activity.
+    which logs information to the logger so we can track activity in
+    the agent's log.
     """
     def connectionMade(self):
         peer = self.terminal.transport.getPeer()
