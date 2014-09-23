@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from textwrap import dedent
 from pprint import pprint
 from StringIO import StringIO
 
@@ -80,14 +81,53 @@ class TestManhole(TestCase):
             self.fail("Failed to find correct username and password.")
 
     def test_show_uses_namespace(self):
-        output = StringIO()
         namespace = {"bob": None}
         username = os.urandom(32).encode("hex")
         password = os.urandom(32).encode("hex")
         manhole_factory(namespace, username, password)
+        output = StringIO()
         with patch("sys.stdout", output):
             show()
 
         output.seek(0)
+        output = output.getvalue().strip()
+        self.assertEqual(output, "objects: ['bob', 'pp', 'show']")
+
+    def test_show_custom_object(self):
+        class Foobar(object):
+            a, b, c, d, e = True, 1, "yes", {}, 0.0
+
+        output = StringIO()
+        with patch("sys.stdout", output):
+            show(Foobar)
+
+        output.seek(0)
+        output = output.getvalue().strip()
         self.assertEqual(
-            output.getvalue().strip(), "objects: ['bob', 'pp', 'show']")
+            output,
+            dedent("""
+            data attributes of <class 'tests.test_agent.test_manhole.Foobar'>
+                           a : True
+                           b : 1
+                           c : yes
+                           d : {} (0 elements)
+                           e : 0.0
+            """).strip())
+
+    def test_show_wrap_long_line(self):
+        class Foobar(object):
+            a = " " * 90
+
+        output = StringIO()
+        with patch("sys.stdout", output):
+            show(Foobar)
+
+        output.seek(0)
+        output = output.getvalue().strip()
+        self.assertEqual(
+            output,
+            dedent("""
+            data attributes of <class 'tests.test_agent.test_manhole.Foobar'>
+                           a : '                 """ +
+                   """                                          '...
+            """).strip())
