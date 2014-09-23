@@ -15,9 +15,11 @@
 # limitations under the License.
 
 import os
-from textwrap import dedent
+from collections import namedtuple
 from pprint import pprint
+from random import randint
 from StringIO import StringIO
+from textwrap import dedent
 
 try:
     from unittest.mock import patch
@@ -29,14 +31,39 @@ from twisted.cred.portal import Portal
 
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.manhole import (
-    TransportProtocolFactory, TelnetRealm, manhole_factory, show)
+    LoggingManhole, TransportProtocolFactory, TelnetRealm,
+    manhole_factory, show)
 
 
-class TestManhole(TestCase):
+Peer = namedtuple("Peer", ("host", "port"))
+
+
+class FakeLoggingManhole(LoggingManhole):
+    QUIT = False
+    GET_PEER_CALLS = 0
+
+    class terminal(object):
+        RIGHT_ARROW, LEFT_ARROW = None, None
+
+        class transport(object):
+            @classmethod
+            def getPeer(cls):
+                FakeLoggingManhole.GET_PEER_CALLS += 1
+                return Peer(os.urandom(12).encode("hex"), randint(1024, 65535))
+
+    def handle_QUIT(self):
+        self.QUIT = True
+
+
+class TestManholeBase(TestCase):
     def setUp(self):
         TelnetRealm.NAMESPACE = None
+        FakeLoggingManhole.GET_PEER_CALLS = 0
+        FakeLoggingManhole.QUIT = False
 
-    def test_factory_assertions(self):
+
+class TestManholeFactory(TestManholeBase):
+    def test_assertions(self):
         with self.assertRaises(AssertionError):
             manhole_factory(None, "", "")
 
@@ -46,7 +73,7 @@ class TestManhole(TestCase):
         with self.assertRaises(AssertionError):
             manhole_factory({}, "", None)
 
-    def test_factory_once_only(self):
+    def test_instance_one(self):
         namespace = {"bob": None}
         username = os.urandom(32).encode("hex")
         password = os.urandom(32).encode("hex")
@@ -55,7 +82,7 @@ class TestManhole(TestCase):
         with self.assertRaises(AssertionError):
             manhole_factory(namespace, username, password)
 
-    def test_factory(self):
+    def test_instance(self):
         namespace = {"bob": None}
         username = os.urandom(32).encode("hex")
         password = os.urandom(32).encode("hex")
@@ -80,7 +107,9 @@ class TestManhole(TestCase):
         else:
             self.fail("Failed to find correct username and password.")
 
-    def test_show_uses_namespace(self):
+
+class TestManholeShow(TestManholeBase):
+    def test_uses_namespace(self):
         namespace = {"bob": None}
         username = os.urandom(32).encode("hex")
         password = os.urandom(32).encode("hex")
@@ -93,7 +122,7 @@ class TestManhole(TestCase):
         output = output.getvalue().strip()
         self.assertEqual(output, "objects: ['bob', 'pp', 'show']")
 
-    def test_show_custom_object(self):
+    def test_custom_object(self):
         class Foobar(object):
             a, b, c, d, e = True, 1, "yes", {}, 0.0
 
@@ -114,7 +143,7 @@ class TestManhole(TestCase):
                            e : 0.0
             """).strip())
 
-    def test_show_wrap_long_line(self):
+    def test_wrap_long_line(self):
         class Foobar(object):
             a = " " * 90
 
@@ -131,3 +160,10 @@ class TestManhole(TestCase):
                            a : '                 """ +
                    """                                          '...
             """).strip())
+
+
+class TestLoggingManhole(TestManholeBase):
+    def test_line_received(self):
+        f = FakeLoggingManhole()
+        f.lineReceived("exit")
+        self.assertTrue(f.QUIT)
