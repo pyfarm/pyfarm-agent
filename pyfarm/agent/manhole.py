@@ -151,6 +151,8 @@ def manhole_factory(namespace, username, password):
     checker = InMemoryUsernamePasswordDatabaseDontUse()
     checker.addUser(username, password)
 
+    # Setup the namespace
+    namespace = namespace.copy()
     namespace.setdefault("pp", pprint)
     namespace.setdefault("show", show)
 
