@@ -146,6 +146,7 @@ def manhole_factory(namespace, username, password):
     assert isinstance(namespace, dict)
     assert isinstance(username, STRING_TYPES)
     assert isinstance(password, STRING_TYPES)
+    assert TelnetRealm.NAMESPACE is None, "namespace already set"
 
     # TODO: we should try to use the system to authorize users instead
     checker = InMemoryUsernamePasswordDatabaseDontUse()
