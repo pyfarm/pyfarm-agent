@@ -28,6 +28,8 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet.protocol import ServerFactory
 from twisted.cred.portal import Portal
+from twisted.conch.insults.insults import ServerProtocol
+from twisted.conch.telnet import ITelnetProtocol, TelnetBootstrapProtocol
 
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.manhole import (
@@ -106,6 +108,19 @@ class TestManholeFactory(TestManholeBase):
                 break
         else:
             self.fail("Failed to find correct username and password.")
+
+    def test_request_avatar(self):
+        realm = TelnetRealm()
+        avatar = realm.requestAvatar(None, ITelnetProtocol)
+        self.assertEqual(len(avatar), 3)
+        self.assertIs(avatar[0], ITelnetProtocol)
+        self.assertIsInstance(avatar[1], TelnetBootstrapProtocol)
+        self.assertTrue(callable(avatar[2]))
+
+    def test_request_avatar_error(self):
+        realm = TelnetRealm()
+        with self.assertRaises(NotImplementedError):
+            realm.requestAvatar(None, None)
 
 
 class TestManholeShow(TestManholeBase):
