@@ -16,6 +16,7 @@
 
 import os
 from pprint import pprint
+from StringIO import StringIO
 
 try:
     from unittest.mock import patch
@@ -77,3 +78,16 @@ class TestManhole(TestCase):
                 break
         else:
             self.fail("Failed to find correct username and password.")
+
+    def test_show_uses_namespace(self):
+        output = StringIO()
+        namespace = {"bob": None}
+        username = os.urandom(32).encode("hex")
+        password = os.urandom(32).encode("hex")
+        manhole_factory(namespace, username, password)
+        with patch("sys.stdout", output):
+            show()
+
+        output.seek(0)
+        self.assertEqual(
+            output.getvalue().strip(), "objects: ['bob', 'pp', 'show']")
