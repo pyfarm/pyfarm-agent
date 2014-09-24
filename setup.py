@@ -97,8 +97,9 @@ setup(
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
     data_files=[
-        ("jobtypes/etc", ["pyfarm/jobtypes/etc/jobtypes.yml"]),
-        ("agent/etc", ["pyfarm/agent/etc/agent.yml"])],
+        ("etc/pyfarm", [
+            "pyfarm/jobtypes/etc/jobtypes.yml",
+            "pyfarm/agent/etc/agent.yml"])],
     package_data={
         "pyfarm.agent": get_package_data(
             agent_root, agent_package_data_roots),
