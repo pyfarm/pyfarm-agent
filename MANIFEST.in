@@ -1,0 +1,2 @@
+include pyfarm/agent/etc/*
+include pyfarm/jobtypes/etc/*

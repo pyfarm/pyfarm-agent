@@ -34,9 +34,6 @@ install_requires = [
 if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
-if "READTHEDOCS" in os.environ:
-    install_requires += ["sphinxcontrib-httpdomain"]
-
 # Windows is a little special because we have to have pywin32
 # installed.  pyfarm.core uses it and certain components of
 # other libraries use it too, such as twisted, so we check for
@@ -99,6 +96,9 @@ setup(
         "pyfarm.agent.sysinfo",
         "pyfarm.jobtypes",
         "pyfarm.jobtypes.core"],
+    data_files=[
+        ("jobtypes/etc", ["pyfarm/jobtypes/etc/jobtypes.yml"]),
+        ("agent/etc", ["pyfarm/agent/etc/jobtypes.yml"])],
     package_data={
         "pyfarm.agent": get_package_data(
             agent_root, agent_package_data_roots),
