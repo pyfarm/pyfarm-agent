@@ -52,14 +52,15 @@ logger = getLogger("agent.manhole")
 class LoggingManhole(ColoredManhole):
     """
     A slightly modified implementation of :class:`ColoredManhole`
-    which logs information to the logger to we can track activity.
+    which logs information to the logger so we can track activity in
+    the agent's log.
     """
-    def connectionMade(self):
+    def connectionMade(self):  # pragma: no cover
         peer = self.terminal.transport.getPeer()
         logger.info("Connection made from %s@%s", peer.host, peer.port)
         super(LoggingManhole, self).connectionMade()
 
-    def connectionLost(self, reason):
+    def connectionLost(self, reason):  # pragma: no cover
         peer = self.terminal.transport.getPeer()
         logger.info("Connection lost from %s@%s", peer.host, peer.port)
         super(LoggingManhole, self).connectionLost(reason)
@@ -70,7 +71,7 @@ class LoggingManhole(ColoredManhole):
 
         if line.strip() in ("exit", "exit()", "quit", "quit()", "\q"):
             self.handle_QUIT()
-        else:
+        else:  # pragma: no cover
             super(LoggingManhole, self).lineReceived(line)
 
 
@@ -146,11 +147,14 @@ def manhole_factory(namespace, username, password):
     assert isinstance(namespace, dict)
     assert isinstance(username, STRING_TYPES)
     assert isinstance(password, STRING_TYPES)
+    assert TelnetRealm.NAMESPACE is None, "namespace already set"
 
     # TODO: we should try to use the system to authorize users instead
     checker = InMemoryUsernamePasswordDatabaseDontUse()
     checker.addUser(username, password)
 
+    # Setup the namespace
+    namespace = namespace.copy()
     namespace.setdefault("pp", pprint)
     namespace.setdefault("show", show)
 
