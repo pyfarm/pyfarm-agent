@@ -26,6 +26,7 @@ from __future__ import division
 
 import os
 import sys
+import pdb
 import time
 
 from json import dumps
@@ -61,6 +62,7 @@ from twisted.internet import reactor
 from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
 
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.logger.twistd import Observer
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.parser import (
     AgentArgumentParser, ip, port,  uidgid, enum, number, system_identifier)
@@ -181,6 +183,10 @@ class AgentEntryPoint(object):
             type_kwargs=dict(get_id=getgid, check_id=getgrgid, set_id=setgid),
             help="The group id to run the agent as.  *This setting is "
                  "ignored on Windows.*")
+        global_process.add_argument(
+            "--pdb-on-unhandled", action="store_true",
+            help="When set pdb.set_trace() will be called if an unhandled "
+                 "error is caught in the logger")
 
         # start general group
         start_general_group = start.add_argument_group(
@@ -302,7 +308,7 @@ class AgentEntryPoint(object):
             help="If provided then all log output from each process launched "
                  "by the agent will be sent through agent's loggers.")
         logging_group.add_argument(
-            "--task-log-dir", config="agent_task_logs",
+            "--task-log-dir", config="jobtype_task_logs",
             type=isdir, type_kwargs=dict(create=True),
             help="The directory tasks should log to.")
 
@@ -387,6 +393,21 @@ class AgentEntryPoint(object):
     def __call__(self):
         logger.debug("Parsing command line arguments")
         self.args = self.parser.parse_args()
+
+        # No daemon mode must be set with --pdb-on-unhanded, without this
+        # you could end up with a blocking agent and no way of knowing
+        # about it.
+        if not self.args.no_daemon and self.args.pdb_on_unhandled:
+            self.parser.error(
+                "You cannot set --pdb-on-unhandled without --no-daemon")
+
+        if self.args.pdb_on_unhandled:
+            Observer.PDB_ON_UNHANDLED_ERROR = True
+
+            def excepthook(exctype, value, traceback):
+                pdb.set_trace()
+
+            sys.excepthook = excepthook
 
         if not config["master"] and self.args.target_name == "start":
             self.parser.error(
@@ -487,12 +508,12 @@ class AgentEntryPoint(object):
 
         logger.info("Starting agent")
 
-        if not isdir(config["agent_task_logs"]):
-            logger.debug("Creating %s", config["agent_task_logs"])
+        if not isdir(config["jobtype_task_logs"]):
+            logger.debug("Creating %s", config["jobtype_task_logs"])
             try:
-                os.makedirs(config["agent_task_logs"])
+                os.makedirs(config["jobtype_task_logs"])
             except OSError:
-                logger.error("Failed to create %s", config["agent_task_logs"])
+                logger.error("Failed to create %s", config["jobtype_task_logs"])
                 return 1
 
         # create the directory for log

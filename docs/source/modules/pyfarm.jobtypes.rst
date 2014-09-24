@@ -8,6 +8,13 @@ Subpackages
 
     pyfarm.jobtypes.core
 
+Submodules
+----------
+
+.. toctree::
+
+   pyfarm.jobtypes.examples
+
 Module contents
 ---------------
 

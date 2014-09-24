@@ -34,7 +34,7 @@ from pyfarm.agent.logger.python import LogRecordToTwisted, getLogger
 # so because we don't want to change the existing interface for getLogger
 # and we only want to expose two functions.
 
-__all__ = ["getLogger", "setup"]
+__all__ = ["setup_logging"]
 
 
 def setup_logging():

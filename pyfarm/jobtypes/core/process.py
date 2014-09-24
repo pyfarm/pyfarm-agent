@@ -25,9 +25,15 @@ are useful in starting or managing a process.
 
 import os
 
+from psutil import Process, NoSuchProcess
+from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
-from pyfarm.core.enums import STRING_TYPES, NUMERIC_TYPES
+from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import uuid
+from pyfarm.jobtypes.core.log import STDOUT, STDERR
+
+logger = getLogger("jobtypes.process")
 
 
 class ReplaceEnvironment(object):
@@ -63,133 +69,27 @@ class ReplaceEnvironment(object):
         self.environment.update(self.original_environment)
 
 
-class ProcessInputs(object):
-    """
-    Simple class used to store inputs for :meth:`JobType.spawn_process`.  This
-    class does not handle data so refer to the documentation below to
-    ensure your job type does not fail.
-
-    :param list tasks:
-        The task or tasks that this instance is running for.
-
-    :param list command:
-        The list which contains the absolute path to the command to run
-        and the arguments as well.
-
-    :param dict env:
-        The environment to pass along to the process.  Any value other than
-        ``None`` will fully replace the environment.  A value of ``None`` will
-        use the job type's ``get_environment``.
-
-    :param string path:
-        The path the process should run in.  If no path is provided
-        then this will use the agent's ``--chroot`` flag to determine the
-        location change into.  If this flag was not present when the agent
-        was launched then the directory the agent was launched in will be used
-        as a fallback.
-
-    :param string user:
-        The user name the process should run as when its launched.
-
-        .. note::
-
-            This value is ignored on Windows.  The underlying library used
-            to execute processes does not support changing the user which
-            will run the process.
-
-    :param string group:
-        The group name the process should run as when its launched.
-
-        .. note::
-
-            This value is ignored on Windows.  The underlying library used
-            to execute processes does not support changing the group which
-            will run the process.
-
-    :param bool expandvars:
-        If ``True`` then environment variables in ``command``, ``path`` and
-        ``group`` will be expanded before the process is launched.
-
-    :raises TypeError:
-        Raised if we got an unexpected type for one of the input arguments or
-        if we got a type we couldn't convert in :param:`command` to a string.
-    """
-    def __init__(
-            self, tasks, command, env=None, path=None, user=None, group=None,
-            expandvars=True):
-        if not isinstance(tasks, (list, tuple)):
-            raise TypeError("Expected a list for `tasks`")
-
-        if not isinstance(command, (list, tuple)):
-            raise TypeError("Expected a list or tuple for `command`")
-
-        if env is not None and not isinstance(env, dict):
-            raise TypeError("Expected `env` to be a dictionary")
-
-        if path is not None and not isinstance(path, STRING_TYPES):
-            raise TypeError("Expected `path` to be a string")
-
-        if user is not None and not isinstance(user, STRING_TYPES):
-            raise TypeError("Expected `user` to be a string")
-
-        if group is not None and not isinstance(group, STRING_TYPES):
-            raise TypeError("Expected `group` to be a string")
-
-        # needed for modification below
-        if isinstance(command, tuple):
-            command = list(command)
-
-        # Iterate over all entries in `command` and convert any
-        # numeric values to a string.  Anything that's neither
-        # string or number will raise TypeError because str(value)
-        # will likely be wrong.
-        for index, value in enumerate(command[:]):
-            if isinstance(value, NUMERIC_TYPES):
-                command[index] = str(value)
-
-            # This is neither a string or a number, fail because
-            # str() is probably going to return the wrong thing.
-            elif not isinstance(value, STRING_TYPES):
-                raise TypeError(
-                    "Expected a string or number of entry command[%s]" % index)
-
-        self.tasks = tuple(tasks)
-        self.command = tuple(command)
-        self.env = env
-        self.path = path
-        self.user = user
-        self.group = group
-        self.expandvars = expandvars
-
-    def __repr__(self):
-        return "%s(tasks=%r, command=%r, env=%r, user=%r, group=%r)" % (
-            self.__class__.__name__,
-            self.tasks, self.command, self.env, self.user, self.group)
-
-
 class ProcessProtocol(_ProcessProtocol):
     """
     Subclass of :class:`.Protocol` which hooks into the various systems
     necessary to run and manage a process.  More specifically, this helps
     to act as plumbing between the process being run and the job type.
     """
-    def __init__(self, jobtype, process_inputs, command, arguments, env,
-                 path, uid, gid):
+    def __init__(self, jobtype):
         self.jobtype = jobtype
-        self.inputs = process_inputs
-        self.command = command
-        self.args = arguments
-        self.env = env
-        self.path = path
-        self.uid = uid
-        self.gid = gid
-        self.id = tuple(task["id"] for task in process_inputs.tasks)
+
+        # Internal only attributes, __uuid itself is a property so
+        # it can't be accidentally modified later.
+        self.__ended = False
+        self.__uuid = uuid()
 
     def __repr__(self):
-        return "Process(id=%r, pid=%r, command=%r, args=%r, path=%r, " \
-               "uid=%r, gid=%r)" % (
-                   self.id, self.pid, self.command, self.args,
-                   self.path, self.uid, self.gid)
+        return \
+            "ProcessProtocol(uuid=%s, pid=%r)" % (self.uuid, self.pid)
+
+    @property
+    def uuid(self):
+        return self.__uuid
 
     @property
     def pid(self):
@@ -197,28 +97,103 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def process(self):
+        """The underlying Twisted process object"""
         return self.transport
+
+    @property
+    def psutil_process(self):
+        """Returns a :class:`psutil.Process` object for the running process"""
+        # It's possible that the process could have
+        # ended but not died yet.  So we have this
+        # check just in case this property is called
+        # during this state.
+        if self.__ended:
+            return None
+
+        try:
+            return Process(pid=self.pid)
+        except NoSuchProcess:  # pragma: no cover
+            return None
 
     def connectionMade(self):
         """
         Called when the process first starts and the file descriptors
         have opened.
         """
-        self.jobtype.process_started(self)
+        self.jobtype._process_started(self)
 
     def processEnded(self, reason):
         """
         Called when the process has terminated and all file descriptors
-        have been closed.  :meth:`processExited` is called to however we
+        have been closed.  :meth:`processExited` is called, too, however we
         only want to notify the parent job type once the process has freed
         up the last bit of resources.
         """
-        self.jobtype.process_stopped(self, reason)
+        try:
+            self.__ended = True
+            self.jobtype._process_stopped(self, reason)
+        except Exception as e:
+            logger.error("Exception caught while running "
+                         "jobtype._process_stopped: %s", e)
 
     def outReceived(self, data):
         """Called when the process emits on stdout"""
-        self.jobtype.received_stdout(self, data)
+        try:
+            self.jobtype._process_output(self, data, STDOUT)
+        except Exception as e:
+            logger.error("Caught an exception from _process_output: %s", e)
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
-        self.jobtype.received_stderr(self, data)
+        try:
+            self.jobtype._process_output(self, data, STDERR)
+        except Exception as e:
+            logger.error("Caught an exception from _process_output: %s", e)
+
+    def kill(self):
+        """Kills the underlying process, if running."""
+        logger.info("Killing %s", self)
+        try:
+            process = self.psutil_process
+            if not process:
+                return
+            children = process.children(recursive=True)
+            process.kill()
+        except Exception as e:  # pragma: no cover
+            logger.warning("Cannot kill %s: %s.", self, e)
+
+        def kill_children(children):
+            for child in children:
+                child.kill()
+        if children:
+            reactor.callLater(2, kill_children, children)
+
+    def terminate(self):
+        """Terminates the underlying process, if running."""
+        logger.info("Terminating %s", self)
+        try:
+            process = self.psutil_process
+            if not process:
+                return
+            children = process.children(recursive=True)
+            process.terminate()
+        except Exception as e:  # pragma: no cover
+            logger.warning("Cannot terminate %s: %s.", self, e)
+
+        def terminate_children(children):
+            for child in children:
+                child.terminate()
+        if children:
+            reactor.callLater(2, terminate_children, children)
+
+    def interrupt(self):
+        """Interrupts the underlying process, if running."""
+        logger.info("Interrupt %s", self)
+        try:
+            self.process.signalProcess("INT")
+        except Exception as e:  # pragma: no cover
+            logger.warning("Cannot interrupt %s: %s.", self, e)
+
+    def running(self):
+        """Method to determine whether the child process is currently running"""
+        return self.pid is not None

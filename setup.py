@@ -27,7 +27,7 @@ from setuptools import setup
 install_requires = [
     "pyfarm.core",
     # "PyOpenSSL", "service_identity",  # required for full SSL support
-    "netaddr", "twisted", "ntplib", "requests", "treq",
+    "netaddr", "twisted", "ntplib", "requests!=2.4.0", "treq",
     "voluptuous", "jinja2", "psutil>=2.1.0",
     "netifaces>=0.10.2"]
 

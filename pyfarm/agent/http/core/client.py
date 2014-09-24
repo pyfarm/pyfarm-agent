@@ -53,7 +53,7 @@ from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import quote_url
+from pyfarm.agent.utility import quote_url, json_safe
 
 logger = getLogger("agent.http.client")
 
@@ -112,7 +112,7 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
         provided to ``--http-retry-delay`` at startup will be used.
 
     :param bool uniform:
-        If True then use the value produced by :param:`get_delay` as
+        If True then use the value produced by ``get_delay`` as
         a multiplier.
 
     :param callable get_delay:
@@ -355,10 +355,12 @@ def request(method, url, **kwargs):
         return deferred
 
     # prepare to send the data
-    request_data = data  # so we don't modify the original data
-    if request_data is not NOTSET and \
+    if isinstance(data, dict):
+        data = json_safe(data)
+
+    if data is not NOTSET and \
                     headers["Content-Type"] == ["application/json"]:
-        request_data = json.dumps(data)
+        data = json.dumps(data)
 
     elif data is not NOTSET:
         raise NotImplementedError(
@@ -369,8 +371,8 @@ def request(method, url, **kwargs):
         headers=headers,
         persistent=config["agent_http_persistent_connections"])
 
-    if request_data is not NOTSET:
-        kwargs.update(data=request_data)
+    if data is not NOTSET:
+        kwargs.update(data=data)
 
     debug_kwargs = kwargs.copy()
     debug_url = build_url(url, debug_kwargs.pop("params", None))

@@ -22,3 +22,76 @@ jobtype_enable_cache: True
 # the agent's logger(s) instead of to the log file assoicated
 # with each process.
 jobtype_capture_process_output: False
+
+# The location where tasks should be logged
+jobtype_task_logs: $agent_logs_root/tasks
+
+# The filename to an individual log file.  This filename supports several
+# internal variables:
+#
+#   $YEAR - The current year
+#   $MONTH - The current month
+#   $DAY - The current day
+#   $HOUR - The current hour
+#   $MINUTE - The current hour
+#   $JOB - The id of the job this log is for
+#   $PROCESS - The uuid of the process object responsible for creating the log
+#
+# In addition to the above you can, as with any configuration variable,
+# also use environment variables in the filename.
+# Path separators ("/" and "\") are not allowed.
+jobtype_task_log_filename:
+    $YEAR-$MONTH-$DAY_$HOUR-$MINUTE-$SECOND_$JOB_$PROCESS.csv
+
+# store cached source code from the master.  Note
+# that $temp will be expanded to the local system's
+# temp directory.  If this directory does not exist
+# it will be created.  Leaving this value blank will
+# disable job type caching.
+jobtype_cache_directory: $temp/jobtype_cache
+
+# The root directory that the default implementation of JobType.tempdir()
+# will create a path using tempfile.mkdtemp.
+jobtype_tempdir_root: $temp/tempdir/$JOBTYPE_UUID
+
+# If True then expand environment variables in file paths.
+jobtype_expandvars: True
+
+# If True, then ignore any errors produced when tring
+# to map users and groups to IDs.  This will cause the
+# underlying methods in the job type to instead run
+# as the job type's owner instead, ignoring what the
+# incoming job requests.
+# NOTE: This value is not used on Windows.
+jobtype_ignore_id_mapping_errors: False
+
+# Any additional key/value pairs to include
+# in the environment of a process launched
+# by a job type.
+jobtype_default_environment: {}
+
+
+# Configures the thread pool used by job types
+# for logging.
+jobtype_logging_threadpool:
+  # Setting this value to something smaller than `1` will result
+  # in an exception being raised.  This value also cannot be larger
+  # than `max_threads` below.
+  min_threads: 3
+
+  # This value must be greater than or equal to `min_threads`
+  # above.  You may also set this value to 'auto' meaning the
+  # number of processors times 1.5 or 20 (whichever is lower).
+  max_threads: auto
+
+  # As log messages are sent from processes they are stored
+  # in an in memory queue.  When the number of messages is higher
+  # than this number a thread will be spawned to consume the
+  # data and flush it into a file object.
+  max_queue_size: 10
+
+  # Most often the operating system will control how often data
+  # is written to disk from a file object.  This value overrides
+  # that behavior and forces the file object to flush to disk
+  # after this many messages have been processed.
+  flush_lines: 100
