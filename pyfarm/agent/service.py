@@ -51,6 +51,7 @@ from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.state import Status, Stop
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
+from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.core.resource import Resource
@@ -194,7 +195,10 @@ class Agent(object):
         """
         # query the time offset and then cache it since
         # this is typically a blocking operation
-        if requery_timeoffset or config["agent_time_offset"] == "auto":
+        if config["agent_time_offset"] == "auto":
+            config["agent_time_offset"] = None
+
+        if requery_timeoffset or config["agent_time_offset"] is None:
             ntplog.info(
                 "Querying ntp server %r for current time",
                 config["agent_ntp_server"])
@@ -270,10 +274,11 @@ class Agent(object):
         v1 = api.putChild("v1", APIRoot())
 
         # Top level api endpoints
-        v1.putChild("assign", Assign())
+        v1.putChild("assign", Assign(self))
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
         v1.putChild("logging", LogQuery())
+        v1.putChild("task_logs", TaskLogs())
 
         # Endpoints which are generally used for status
         # and operations.
@@ -397,25 +402,28 @@ class Agent(object):
             self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
-            stopping_jobtypes = []
-            for uuid, jobtype in config["jobtypes"].copy().items():
-                stopping = jobtype.stop()
-                if isinstance(stopping, Deferred):
-                    stopping_jobtypes.append(stopping)
+            for uuid, jobtype in config["jobtypes"].items():
+                jobtype.stop()
 
-            if stopping_jobtypes:
-                wait_on_stopping = DeferredList(stopping_jobtypes)
-                if "agent-id" in config:
-                    wait_on_stopping.addCallback(self.post_shutdown_to_master)
+            def wait_on_stopped():
+                svclog.info("Waiting on %s job types to terminate",
+                            len(config["jobtypes"]))
+
+                for jobtype_id, jobtype in config["jobtypes"].copy().items():
+                    if not jobtype._has_running_processes():
+                        svclog.error(
+                            "%r has not removed itself, forcing removal",
+                            jobtype)
+                        config["jobtypes"].pop(jobtype_id)
+
+                if config["jobtypes"]:
+                    reactor.callLater(1, wait_on_stopped)
+                elif self.agent_api() is not None:
+                    self.post_shutdown_to_master()
                 else:
-                    wait_on_stopping.addCallback(reactor.stop)
-            elif "agent-id" in config:
-                self.post_shutdown_to_master()
-            else:
-                reactor.callLater(1, reactor.stop)
+                    reactor.stop()
 
-            # TODO: stop running tasks, informing master for each
-            # TODO: chain task stoppage callback to start shutdown_post_update
+            wait_on_stopped()
 
     def sigint_handler(self, *_):
         self.stop()
@@ -513,8 +521,7 @@ class Agent(object):
         post_update()
 
         if stop_reactor:
-            finished.addCallback(lambda *_: reactor.stop())
-            finished.addErrback(lambda *_: reactor.stop())
+            finished.addBoth(lambda *_: reactor.stop())
 
         return finished
 
@@ -526,17 +533,22 @@ class Agent(object):
         """
         delay = http_retry_delay()
 
-        if failure.type is ConnectionRefusedError:
+        if failure.type is ConnectionRefusedError and not self.shutting_down:
             svclog.error(
                 "Failed to POST agent to master, the connection was refused. "
                 "Retrying in %s seconds", delay)
-        else:
+        elif not self.shutting_down:
             svclog.error(
                 "Unhandled error when trying to POST the agent to the master. "
                 "The error was %s.  Retrying in %s seconds.", failure, delay)
+        else:
+            svclog.error(
+                "Failed to POST agent to master. Not retrying, because the "
+                "agent is shutting down.")
 
-        return reactor.callLater(
-            http_retry_delay(), self.post_agent_to_master)
+        if not self.shutting_down:
+            return reactor.callLater(
+                http_retry_delay(), self.post_agent_to_master)
 
     def callback_post_agent_to_master(self, response):
         """

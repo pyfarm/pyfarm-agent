@@ -14,740 +14,652 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import imp
-import json
+"""
+.. |ProcessProtocol| replace:: pyfarm.jobtypes.core.process.ProcessProtocol
+
+Job Type Core
+=============
+
+This module contains the core job type from which all
+other job types are built.  All other job types must
+inherit from the :class:`JobType` class in this modle.
+"""
+
 import os
 import tempfile
-import threading
-import sys
-from datetime import datetime
-from string import Template
-from os.path import join, dirname, isfile, basename
-from Queue import Queue, Empty
+from errno import EEXIST
+from datetime import datetime, timedelta
 from functools import partial
+from string import Template
+from os.path import expanduser, abspath, isdir, join
+from pprint import pformat
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
 
-try:
-    import pwd
-    import grp
-except ImportError:  # pragma: no cover
-    pwd = NotImplemented
-    grp = NotImplemented
-
-from twisted.internet import threads, reactor
-from twisted.internet.defer import Deferred
+from twisted.internet import reactor
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
+from voluptuous import Schema, Required, Optional
 
-from pyfarm.core.config import (
-    read_env, read_env_float, read_env_int, read_env_bool)
-from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import get, post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo.user import is_administrator
-from pyfarm.agent.utility import UnicodeCSVWriter, uuid
-from pyfarm.jobtypes.core.process import (
-    ProcessProtocol, ProcessInputs, ReplaceEnvironment)
+from pyfarm.agent.sysinfo import memory, system
+from pyfarm.agent.sysinfo.user import is_administrator, username
+from pyfarm.agent.utility import (
+    TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid, validate_uuid)
+from pyfarm.jobtypes.core.internals import (
+    USER_GROUP_TYPES, Cache, Process, TypeChecks, System, pwd, grp)
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
+from pyfarm.jobtypes.core.process import ProcessProtocol
 
 logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
 process_stdout = getLogger("jobtypes.process.stdout")
 process_stderr = getLogger("jobtypes.process.stderr")
 
-# Construct the base environment that all job types will use.  We do this
-# once per process so a job type can't modify the running environment
-# on purpose or by accident.
-DEFAULT_ENVIRONMENT_CONFIG = read_env("PYFARM_JOBTYPE_DEFAULT_ENVIRONMENT", "")
-if isfile(DEFAULT_ENVIRONMENT_CONFIG):
-    logger.info(
-        "Attempting to load default environment from %r",
-        DEFAULT_ENVIRONMENT_CONFIG)
-    with open(DEFAULT_ENVIRONMENT_CONFIG, "rb") as stream:
-        DEFAULT_ENVIRONMENT = json.load(stream)
-else:
-    DEFAULT_ENVIRONMENT = os.environ.copy()
 
-assert isinstance(DEFAULT_ENVIRONMENT, dict)
-
-DEFAULT_CACHE_DIRECTORY = read_env(
-    "PYFARM_JOBTYPE_CACHE_DIRECTORY", ".jobtypes")
-STDOUT = 0
-STDERR = 1
-STREAMS = set([STDOUT, STDERR])
+FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
-# TODO: if we get fail the task if we have errors
-class LoggingThread(threading.Thread):
+class CommandData(object):
     """
-    This class runs a thread which writes lines in csv format
-    to the log file.
+    Stores data to be returned by :meth:`JobType.get_command_data`.  Instances
+    of this class are alosed used by :meth:`JobType.spawn_process_inputs` at
+    execution time.
+
+    .. note::
+
+        This class does not perform any key of path resolution by default.  It
+        is assumed this has already been done using something like
+        :meth:`JobType.map_path`
+
+    :arg string command:
+        The command that will be executed when the process runs.
+
+    :arg arguments:
+        Any additional arguments to be passed along to the command being
+        launched.
+
+    :keyword dict env:
+        If provided, this will be the environment to launch the command
+        with.  If this value is not provided then a default environment
+        will be setup using :meth:`set_default_environment` when
+        :meth:`JobType.start` is called.  :meth:`JobType.start` itself will
+        use :meth:`JobType.default_environment` to generate the default
+        environment.
+
+    :keyword string cwd:
+        The working directory the process should execute in.  If not provided
+        the process will execute in whatever the directory the agent is
+        running inside of.
+
+    :type user: string or integer
+    :keyword user:
+        The username or user id that the process should run as.  On Windows
+        this keyword is ignored and on Linux this requires the agent to be
+        executing as root.  The value provided here will be run through
+        :meth:`JobType.get_uid_gid` to map the incoming value to an integer.
+
+    :type group: string or integer
+    :keyword group:
+        Same as ``user`` above except this sets the group the process will
+        execute.
     """
-    FLUSH_AFTER_LINES = read_env_int(
-        "PYFARM_JOBTYPE_LOGGING_FLUSH_AFTER_LINES", 50)
-    QUEUE_GET_TIMEOUT = read_env_float(
-        "PYFARM_JOBTYPE_LOGGING_QUEUE_TIMEOUT", .25)
+    def __init__(self, command, *arguments, **kwargs):
+        self.command = command
+        self.arguments = tuple(map(str, arguments))
+        self.env = kwargs.pop("env", {})
+        self.cwd = kwargs.pop("cwd", None)
+        self.user = kwargs.pop("user", None)
+        self.group = kwargs.pop("group", None)
 
-    def __init__(self, filepath):
-        super(LoggingThread, self).__init__()
-        self.queue = Queue()
-        self.stream = open(filepath, "wb")
-        self.writer = UnicodeCSVWriter(self.stream)
-        self.lineno = 1
-        self.next_flush = self.FLUSH_AFTER_LINES
-        self.stopped = False
-        self.shutdown_event = \
-            reactor.addSystemEventTrigger("before", "shutdown", self.stop)
+        if kwargs:
+            raise ValueError(
+                "Unexpected keywords present in kwargs: %s" % kwargs.keys())
 
-    def put(self, streamno, message):
-        """Put a message in the queue for the thread to pickup"""
-        assert self.stopped is False, "Cannot put(), thread is stopped"
-        assert streamno in STREAMS
-        assert isinstance(message, STRING_TYPES)
-        now = datetime.utcnow()
-        self.queue.put_nowait(
-            (now.isoformat(), streamno, self.lineno, message))
-        self.lineno += 1
+    def __repr__(self):
+        return "Command(command=%r, arguments=%r, cwd=%r, user=%r, group=%r, " \
+               "env=%r)" % (self.command, self.arguments, self.cwd,
+                            self.user, self.group, self.env)
 
-    def stop(self):
-        self.stopped = True
-        reactor.removeSystemEventTrigger(self.shutdown_event)
+    def validate(self):
+        """
+        Validates that the attributes on an instance of this class contain
+        values we expect.  This method is called externally by the job type in
+        :meth:`JobType.start` and may correct some instance attributes.
+        """
+        if not isinstance(self.command, STRING_TYPES):
+            raise TypeError("Expected a string for `command`")
 
-    def run(self):
-        stopping = False
-        while True:
-            # Pull data from the queue or retry again
-            try:
-                timestamp, streamno, lineno, message = self.queue.get(
-                    timeout=self.QUEUE_GET_TIMEOUT)
-            except Empty:
-                pass
+        if not isinstance(self.env, dict):
+            raise TypeError("Expected a dictionary for `env`")
+
+        if not isinstance(self.user, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `user`")
+
+        if not isinstance(self.group, USER_GROUP_TYPES):
+            raise TypeError("Expected string, integer or None for `group`")
+
+        if WINDOWS:  # pragma: no cover
+            if self.user is not None:
+                logger.warning("`user` is ignored on Windows")
+                self.user = None
+
+            if self.group is not None:
+                logger.warning("`group` is ignored on Windows")
+                self.group = None
+
+        elif self.user is not None or self.group is not None \
+                and not is_administrator():
+            raise EnvironmentError(
+                "Cannot change user or group without being admin.")
+
+        if self.cwd is None:
+            if not config["agent_chdir"]:
+                self.cwd = os.getcwd()
             else:
-                # Write data from the queue to a file
-                self.writer.writerow(
-                    [timestamp, str(streamno), str(lineno), message])
-                if self.lineno >= self.next_flush:
-                    self.stream.flush()
-                    self.next_flush += self.FLUSH_AFTER_LINES
+                self.cwd = config["agent_chdir"]
 
-            # We're either being told to stop or we
-            # need to run one more iteration of the
-            # loop to pickup any straggling messages.
-            if self.stopped and stopping:
-                logger.debug("Closing %s", self.stream.name)
-                self.stream.close()
-                break
+        if isinstance(self.cwd, STRING_TYPES):
+            if not isdir(self.cwd):
+                raise OSError(
+                    "`cwd` %s does not exist" % self.cwd)
 
-            # Go around one more time to pickup remaining messages
-            elif self.stopped:
-                stopping = True
+        elif self.cwd is not None:
+            raise TypeError("Expected a string for `cwd`")
+
+    def set_default_environment(self, value):
+        """
+        Sets the environment to ``value`` if the internal ``env`` attribute
+        is None.  By default this method is called by the job type and passed
+        in the results from :meth:`pyfarm.jobtype.core.JobType.get_environment`
+        """
+        if self.env is None:
+            assert isinstance(value, dict)
+            self.env = value
 
 
-class JobType(object):
+class JobType(Cache, System, Process, TypeChecks):
     """
     Base class for all other job types.  This class is intended
     to abstract away many of the asynchronous necessary to run
     a job type on an agent.
 
-    :attribute bool ignore_uid_gid_mapping_errors:
-        If True, then ignore any errors produced by :meth:`usrgrp_to_uidgid`
-        and return ``(None, None`)` instead.  If this value is False
-        the original exception will be raised instead and report as
-        an error which can prevent a task from running.
+    :cvar set PERSISTENT_JOB_DATA:
+        A dictionary of job ids and data that :meth:`prepare_for_job` has
+        produced.  This is used during :meth:`__init__` to set
+        ``persistent_job_data``.
 
-    :attribute cache:
-        Stores the cached job types
+    :cvar CommandData COMMAND_DATA_CLASS:
+        If you need to provide your own class to represent command data you
+        should override this attribute.  This attribute is used by by methods
+        within this class to do type checking.
 
-    :attribute process_protocol:
-        The protocol object used to communicate between the process
-        and the job type.
+    :cvar ProcessProtocol PROCESS_PROTOCOL:
+        The protocol object used to communicate with each process
+        spawned
 
-    :attribute list success_codes:
-        A list of exit codes which indicate the process has terminated
-        successfully.  This list does not have to be used but is the
-        defacto attribute we just inside of :meth:`` to determine success.
+    :cvar voluptuous.Schema ASSIGNMENT_SCHEMA:
+        The schema of an assignment.  This object helps to validate the
+        incoming assignment to ensure it's not missing any data.
+
+    :arg dict assignment:
+        This attribute is a dictionary the keys "job", "jobtype" and "tasks".
+        self.assignment["job"] is itself a dict with keys "id", "title",
+        "data", "environ" and "by".  The most important of those is usually
+        "data", which is the dict specified when submitting the job and
+        contains jobtype specific data. self.assignment["tasks"] is a list of
+        dicts representing the tasks in the current assignment.  Each of
+        these dicts has the keys "id" and "frame".  The
+        list is ordered by frame number.
+
+    :ivar UUID uuid:
+        This is the unique identifier for the job type instance and is
+        automatically set when the class is instanced.  This is used by the
+        agent to track assignments and job type instances.
+
+    :ivar set finished_tasks:
+        A set of tasks that have had their state changed to finished through
+        :meth:`set_task_state`.  At the start of the assignment, this list is
+        empty.
+
+    :ivar set failed_tasks:
+        This is analogous to ``finished_tasks`` except it contains failed
+        tasks only.
     """
-    # TODO: add command line flags for some of these
-    expand_path_vars = read_env_bool(
-        "PYFARM_JOBTYPE_DEFAULT_EXPANDVARS", True)
-    ignore_uid_gid_mapping_errors = read_env_bool(
-        "PYFARM_JOBTYPE_DEFAULT_IGNORE_UIDGID_MAPPING_ERRORS", False)
-    process_protocol = ProcessProtocol
-    success_codes = set([0])
-    logging = {}
-    cache = {}
+    PERSISTENT_JOB_DATA = {}
+    COMMAND_DATA = CommandData
+    PROCESS_PROTOCOL = ProcessProtocol
+    ASSIGNMENT_SCHEMA = Schema({
+        Required("id"): validate_uuid,
+        Required("job"): JOB_SCHEMA,
+        Required("jobtype"): JOBTYPE_SCHEMA,
+        Optional("tasks"): TASKS_SCHEMA})
 
     def __init__(self, assignment):
-        assert isinstance(assignment, dict)
+        super(JobType, self).__init__()
+
+        # Private attributes which persist with the instance.  These
+        # generally should not be modified directly.
+        self._tempdir = None  # the defacto tempdir for this instance
+        self._tempdirs = set()  # list of any temp directories created
+        self._stdout_line_fragments = {}
+        self._stderr_line_fragments = {}
 
         # JobType objects in the future may or may not have explicit tasks
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
-        # changes we just use a simple uuid to represent ourselves in the
-        # config dictionary.
+        # changes we just use a simple uuid to represent ourselves.
         self.uuid = uuid()
-        config["jobtypes"][self.uuid] = self
+        self.processes = {}
+        self.failed_processes = set()
+        self.failed_tasks = set()
+        self.finished_tasks = set()
+        self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
+        self.persistent_job_data = None
 
-        self.protocols = {}
-        self.assignment = ImmutableDict(assignment)
-        self.failed_processes = []
-        self.stdout_line_fragments = []
+        # Add our instance to the job type instance tracker dictionary
+        # as well as the dictionary containing the current assignment.
+        config["jobtypes"][self.uuid] = self
+        config["current_assignments"][assignment["id"]]["jobtype"].update(
+            id=self.uuid)
 
         # NOTE: Don't call this logging statement before the above, we need
         # self.assignment
         logger.debug("Instanced %r", self)
 
     def __repr__(self):
-        return "JobType(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)" % (
+        formatting = "%s(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)"
+        return formatting % (
+            self.__class__.__name__,
             self.assignment["job"]["id"],
             tuple(task["id"] for task in self.assignment["tasks"]),
             str(self.assignment["jobtype"]["name"]),
             self.assignment["jobtype"]["version"],
             str(self.assignment["job"]["title"]))
 
-    def _log_in_thread(self, protocol, stream_type, data):
-        """
-        Internal implementation called several methods including
-        :meth:`_received_stdout`, :meth:`_received_stderr`,
-        :meth:`_process_started` and others.
-
-        This method takes the incoming protocol object and retrieves the thread
-        which is handling logging for a given process.  Each message will then
-        be queued and written to disk at the next opportunity.
-        """
-        self.logging[protocol.id].put(stream_type, data)
-
-    def _get_uidgid(self, value, value_name, func_name, module, module_name):
-        """
-        Internal function which handles both user name and group conversion.
-        """
-        # This platform does not implement the module
-        if module is NotImplemented:
-            logger.warning(
-                "This platform does not implement the %r module, skipping "
-                "%s()", module_name, func_name)
-
-        # Convert a user/group string to an integer
-        elif isinstance(value, STRING_TYPES):
-            try:
-                if module_name == "pwd":
-                    return pwd.getpwnam(value).pw_uid
-                elif module_name == "grp":
-                    return grp.getgrnam(value).gr_gid
-                else:
-                    raise ValueError(
-                        "Internal error, failed to get module to use for "
-                        "conversion.  Was given %r" % module)
-            except KeyError:
-                logger.error(
-                    "Failed to convert %s to a %s",
-                    value, func_name.split("_")[1])
-
-                if not self.ignore_uid_gid_mapping_errors:
-                    raise
-
-        # Verify that the provided user/group string is real
-        elif isinstance(value, INTEGER_TYPES):
-            try:
-                if module_name == "pwd":
-                    pass
-                elif module_name == "grp":
-                    pass
-                else:
-                    raise ValueError(
-                        "Internal error, failed to get module to use for "
-                        "conversion.  Was given %r" % module)
-
-                # Seems to check out, return the original value
-                return value
-            except KeyError:
-                logger.error(
-                    "%s %s does not seem to exist", value_name, value)
-
-                if not self.ignore_uid_gid_mapping_errors:
-                    raise
-        else:
-            raise ValueError(
-                "Expected an integer or string for `%s`" % value_name)
-
-    @classmethod
-    def _cache_key(cls, assignment):
-        """Returns the key used to store and retrieve the cached job type"""
-        return assignment["jobtype"]["name"], assignment["jobtype"]["version"]
-
-    @classmethod
-    def _url(cls, name, version):
-        """Returns the remote url for the requested job type and version"""
-        return str(
-            "%(master_api)s/jobtypes/%(jobtype)s/versions/%(version)s" % {
-            "master_api": config["master_api"],
-            "jobtype": name,
-            "version": version})
-
-    @classmethod
-    def _cache_directory(cls):
-        """Returns the path where job types should be cached"""
-        return config.get("jobtype_cache_directory") or DEFAULT_CACHE_DIRECTORY
-
-    @classmethod
-    def _cache_filename(cls, cache_key, jobtype):
-        """
-        Returns the path where this specific job type should be
-        stored or loaded from
-        """
-        return str(join(
-            cls._cache_directory(),
-            "_".join(map(str, cache_key)) + "_" + jobtype["classname"] + ".py"))
-
-    @classmethod
-    def _download_jobtype(cls, assignment):
-        """
-        Downloads the job type specified in ``assignment``.  This
-        method will pass the response it receives to :meth:`_cache_jobtype`
-        however failures will be retried.
-        """
-        result = Deferred()
-        url = cls._url(
-            assignment["jobtype"]["name"],
-            assignment["jobtype"]["version"])
-
-        def download(*_):
-            get(
-                url,
-                callback=result.callback,
-                errback=lambda: reactor.callLater(http_retry_delay(), download))
-
-        download()
-        return result
-
-    @classmethod
-    def _cache_jobtype(cls, cache_key, jobtype):
-        """
-        Once the job type is downloaded this classmethod is called
-        to store it on disk.  In the rare even that we fail to write it
-        to disk, we store it in memory instead.
-        """
-        filename = cls._cache_filename(cache_key, jobtype)
-        success = Deferred()
-
-        def write_to_disk(filename):
-            try:
-                os.makedirs(dirname(filename))
-            except (IOError, OSError):
-                pass
-
-            if isfile(filename):
-                logcache.debug("%s is already cached on disk", filename)
-                jobtype.pop("code", None)
-                return filename, jobtype
-
-            try:
-                with open(filename, "w") as stream:
-                    stream.write(jobtype["code"])
-
-                jobtype.pop("code", None)
-                return filename, jobtype
-
-            # If the above fails, use a temp file instead
-            except (IOError, OSError) as e:
-                fd, tmpfilepath = tempfile.mkstemp(suffix=".py")
-                logcache.warning(
-                    "Failed to write %s, using %s instead: %s",
-                    filename, tmpfilepath, e)
-
-                with open(tmpfilepath, "w") as stream:
-                    stream.write(jobtype["code"])
-
-                jobtype.pop("code", None)
-                return tmpfilepath, jobtype
-
-        def written_to_disk(results):
-            filename, jobtype = results
-            cls.cache[cache_key] = (jobtype, filename)
-            logcache.info("Created cache for %r at %s", cache_key, filename)
-            success.callback((jobtype, filename))
-
-        def failed_to_write_to_disk(error):
-            logcache.error(
-                "Failed to write job type cache to disk, will use "
-                "memory instead: %s", error)
-
-            # The code exists in the job type because it's
-            # only removed on success.
-            cls.cache[cache_key] = (jobtype, None)
-            success.callback((jobtype, None))
-
-        # Defer the write process to a thread so we don't
-        # block the reactor if the write is slow
-        writer = threads.deferToThread(write_to_disk, filename)
-        writer.addCallbacks(written_to_disk, failed_to_write_to_disk)
-        return success
-
     @classmethod
     def load(cls, assignment):
         """
-        Given ``data`` this class method will load the job type either
-        from cache or from the master and then instance it with the
-        incoming assignment data
+        Given an assignment this class method will load the job type either
+        from cache or from the master.
+
+        :param dict assignment:
+            The dictionary containing the assignment.  This will be
+            passed into an instance of ``ASSIGNMENT_SCHEMA`` to validate
+            that the internal data is correct.
         """
-        result = Deferred()
+        cls.ASSIGNMENT_SCHEMA(assignment)
+
         cache_key = cls._cache_key(assignment)
-
-        def load_jobtype(args):
-            jobtype, filepath = args
-            module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
-                jobtype["classname"], jobtype["name"], jobtype["version"])
-
-            if filepath is not None:
-                # If we've made it to this point we have to assume
-                # we have access to the file.
-                module = imp.load_source(module_name, filepath)
-            else:
-                # TODO: this needs testing
-                logcache.warning(
-                    "Loading (%s, %s) directly from memory",
-                    jobtype["name"], jobtype["version"])
-                module = imp.new_module(module_name)
-
-                # WARNING: This is dangerous and only used as a last
-                # resort.  There's probably something wrong with the
-                # file system.
-                exec jobtype["code"] in module.__dict__
-
-                sys.modules[module_name] = module
-
-            # Finally, send the results to the callback
-            result.callback(getattr(module, jobtype["classname"]))
+        logger.debug("Cache key for assignment is %s", cache_key)
 
         if config["jobtype_enable_cache"] or cache_key not in cls.cache:
-            def download_complete(response):
-                # Server is offline or experiencing issues right
-                # now so we should retry the request.
-                if response.code >= INTERNAL_SERVER_ERROR:
-                    return reactor.callLater(
-                        http_retry_delay(),
-                        response.request.retry)
-
-                if config["jobtype_enable_cache"]:
-                    return load_jobtype((response.json(), None))
-
-                # When the download is complete, cache the results
-                caching = cls._cache_jobtype(cache_key, response.json())
-                caching.addCallback(load_jobtype)
-
-            # Start the download
-            download = cls._download_jobtype(assignment)
-            download.addCallback(download_complete)
+            logger.debug("Jobtype not in cache or cache disabled")
+            download = cls._download_jobtype(
+                assignment["jobtype"]["name"],
+                assignment["jobtype"]["version"])
+            download.addCallback(cls._jobtype_download_complete, cache_key)
+            return download
         else:
-            load_jobtype((cls.cache[cache_key]))
+            logger.debug("Caching jobtype")
+            return cls._load_jobtype(cls.cache[cache_key], None)
 
-        return result
+    @classmethod
+    def prepare_for_job(cls, job):
+        """
+        .. note::
+            This method is not yet implemented
+
+        Called before a job executes on the agent first the first time.
+        Whatever this classmethod returns will be available as
+        ``persistent_job_data`` on the job type instance.
+
+        :param int job:
+            The job id which prepare_for_job is being run for
+
+        By default this method does nothing.
+        """
+        pass
+
+    @classmethod
+    def cleanup_after_job(cls, persistent_data):
+        """
+        .. note::
+            This method is not yet implemented
+
+        This classmethod will be called after the last assignment
+        from a given job has finished on this node.
+
+        :param persistent_data:
+            The persistent data that :meth:`prepare_for_job` produced.  The
+            value for this data may be ``None`` if :meth:`prepare_for_job`
+            returned None or was not implemented.
+        """
+        pass
+
+    @classmethod
+    def spawn_persistent_process(cls, job, command_data):
+        """
+        .. note::
+            This method is not yet implemented
+
+        Starts one child process using an instance of :class:`CommandData` or
+        similiar input.  This process is intended to keep running until the
+        last task from this job has been processed, potentially spanning more
+        than one assignment.  If the spawned process is still running then
+        we'll cleanup the process after :meth:`cleanup_after_job`
+        """
+        pass
+
+    def node(self):
+        """
+        Returns live information about this host, the operating system,
+        hardware, and several other pieces of global data which is useful
+        inside of the job type.  Currently data from this method includes:
+
+            * **master_api** - The base url the agent is using to
+              communicate with the master.
+            * **hostname** - The hostname as reported to the master.
+            * **systemid** - The unique identifier used to identify.
+              this agent to the master.
+            * **id** - The database id of the agent as given to us by
+              the master on startup of the agent.
+            * **cpus** - The number of CPUs reported to the master
+            * **ram** - The amount of ram reported to the master.
+            * **total_ram** - The amount of ram, in megabytes,
+              that's installed on the system regardless of what
+              was reported to the master.
+            * **free_ram** - How much ram, in megabytes, is free
+              for the entire system.
+            * **consumed_ram** - How much ram, in megabytes, is
+              being consumed by the agent and any processes it has
+              launched.
+            * **admin** - Set to True if the current user is an
+              administrator or 'root'.
+            * **user** - The username of the current user.
+            * **case_sensitive_files** - True if the file system is
+              case sensitive.
+            * **case_sensitive_env** - True if environment variables
+              are case sensitive.
+            * **machine_architecture** - The architecture of the machine
+              the agent is running on.  This will return 32 or 64.
+            * **operating_system** - The operating system the agent
+              is executing on.  This value will be 'linux', 'mac' or
+              'windows'.  In rare circumstances this could also
+              be 'other'.
+
+        :raises KeyError:
+            Raised if one or more keys are not present in
+            the global configuration object.
+
+            This should rarely if ever be a problem under normal
+            circumstances.  The exception to this rule is in
+            unittests or standalone libraries with the global
+            config object may not be populated.
+        """
+        try:
+            machine_architecture = system.machine_architecture()
+        except NotImplementedError:
+            logger.warning(
+                "Failed to determine machine architecture.  This is a "
+                "bug, please report it.")
+            raise
+
+        return {
+            "master_api": config.get("master-api"),
+            "hostname": config["agent_hostname"],
+            "systemid": config["agent_systemid"],
+            "id": int(config["agent-id"]),
+            "cpus": int(config["agent_cpus"]),
+            "ram": int(config["agent_ram"]),
+            "total_ram": int(memory.total_ram()),
+            "free_ram": int(memory.free_ram()),
+            "consumed_ram": int(memory.total_consumption()),
+            "admin": is_administrator(),
+            "user": username(),
+            "case_sensitive_files": system.filesystem_is_case_sensitive(),
+            "case_sensitive_env": system.environment_is_case_sensitive(),
+            "machine_architecture": machine_architecture,
+            "operating_system": system.operating_system()}
 
     def assignments(self):
         """Short cut method to access tasks"""
         return self.assignment["tasks"]
 
-    def build_process_protocol(
-            self, jobtype, process_inputs, command, arguments, environment,
-            path, uid, gid):
+    def tempdir(self, new=False, remove_on_finish=True):
         """
-        Returns the process protocol object used to connect a job type
-        to a running process.  By default this instances
-        the :cvar:`.process_protocol` class variable.
+        Returns a temporary directory to be used within a job type.
+        By default once called the directory will be created on disk
+        and returned from this method.
 
-        :raises TypeError:
-            Raised if the protocol object is not a subclass of
-            :class:`.ProcessProtocol`
+        Calling this method multiple times will return the same directory
+        instead of creating a new directory unless ``new`` is set to True.
+
+        :param bool new:
+            If set to ``True`` then return a new directory when called.  This
+            however will not replace the 'default' temp directory.
+
+        :param bool remove_on_finish:
+            If ``True`` then keep track of the directory returned so it
+            can be removed when the job type finishes.
         """
-        instance = self.process_protocol(
-            jobtype, process_inputs, command, arguments, environment,
-            path, uid, gid)
+        if not new and self._tempdir is not None:
+            return self._tempdir
 
-        if not isinstance(instance, ProcessProtocol):
-            raise TypeError(
-                "Expected of pyfarm.jobtypes.core.protocol.ProcessProtocol")
+        parent_dir = config["jobtype_tempdir_root"].replace(
+            "$JOBTYPE_UUID", str(self.uuid))
 
-        return instance
+        try:
+            os.makedirs(parent_dir)
+        except OSError as e:  # pragma: no cover
+            if e.errno != EEXIST:
+                logger.error("Failed to create %s: %s", parent_dir, e)
+                raise
 
-    def get_uid(self, username):
+        self._tempdirs.add(parent_dir)
+        tempdir = tempfile.mkdtemp(dir=parent_dir)
+        logger.debug(
+            "%s.tempdir() created %s", self.__class__.__name__, tempdir)
+
+        # Keep track of the directory so we can cleanup all of them
+        # when the job type finishes.
+        if remove_on_finish:
+            self._tempdirs.add(tempdir)
+
+        if not new and self._tempdir is None:
+            self._tempdir = tempdir
+
+        return tempdir
+
+    def get_uid_gid(self, user, group):
         """
-        Convert ``username`` into an integer representing the user id.  If
-        ``username`` is an integer verify that it exists instead.
-
-        .. warning::
-
-            This method returns ``None`` on platforms that don't implement
-            the :mod:`pwd` module.
+        **Overridable**.  This method to convert a named user and group
+        into their respective user and group ids.
         """
-        if username is None:
-            return username
-        return self._get_uidgid(username, "username", "get_uid", pwd, "pwd")
+        uid = None
+        gid = None
 
-    def get_gid(self, group):
+        # Convert user to uid
+        if all([user is not None, pwd is not NotImplemented]):
+            uid = self._get_uid_gid_value(
+                user, "username", "get_uid", pwd, "pwd")
+
+        # Convert group to gid
+        if all([group is not None, grp is not NotImplemented]):
+            gid = self._get_uid_gid_value(
+                group, "group", "get_gid", grp, "grp")
+
+        return uid, gid
+
+    def get_environment(self):
         """
-        Convert ``group`` into an integer representing the group id.  If
-        ``group`` is an integer verify that it exists instead.
-
-        .. warning::
-
-            This method returns ``None`` on platforms that don't implement
-            the :mod:`grp` module.
+        Constructs an environment dictionary that can be used
+        when a process is spawned by a job type.
         """
-        if group is None:
-            return group
-        return self._get_uidgid(group, "group", "get_gid", grp, "grp")
+        environment = {}
+        config_environment = config.get("jobtype_default_environment")
 
-    def get_environment(self, env=None):
-        """
-        Constructs a default environment dictionary that will replace
-        ``os.environ`` before the process is launched in
-        :meth:`spawn_process`.  This ensures that ``os.environ`` is consistent
-        before and after each process and so that each process can't modify
-        the original environment.
-        """
-        if isinstance(env, dict):
-            return env
+        if config.get("jobtype_include_os_environ"):
+            environment.update(FROZEN_ENVIRONMENT)
 
-        elif env is not None:
+        if isinstance(config_environment, dict):
+            environment.update(config_environment)
+
+        elif config_environment is not None:
             logger.warning(
-                "Expected a dictionary for `env`, falling back onto default "
-                "environment")
+                "Expected a dictionary for `jobtype_default_environment`, "
+                "ignoring the configuration value.")
 
-        return dict(
-            list(DEFAULT_ENVIRONMENT.items()) +
-            list(self.assignment["job"].get("environ", {}).items()))
+        # All keys and values must be strings.  Normally this is not an issue
+        # but it's possible to create an environment using the config which
+        # contains non-strings.
+        for key in environment:
+            if not isinstance(key, STRING_TYPES):
+                logger.warning(
+                    "Environment key %r is not a string.  It will be converted "
+                    "to a string.", key)
 
-    def get_path(self, path, environment=None, expandvars=None, task=None):
-        """
-        Returns the directory a process should change into before
-        running.
+                value = environment.pop(key)
+                key = str(key)
+                environment[key] = value
 
-        :param string path:
-            The directory we need to resolve or validate
+            if not isinstance(environment[key], STRING_TYPES):
+                logger.warning(
+                    "Environment value for %r is not a string.  It will be "
+                    "converted to a string.", key)
+                environment[key] = str(environment[key])
 
-        :param dict environment:
-            The environment to use when expanding environment
-            variables in ``path``
+        return environment
 
-        :param bool expandvars:
-            If True, use the environment to expand any environment
-            variables in ``path``
-
-        :param dict task:
-            If provided this task will be set to ``FAILED`` if the
-            directory does not exist
-
-        :returns:
-            Returns ``None`` if we failed to resolve ``path`` or the
-            directory to change into
-        """
-        if expandvars is None:
-            expandvars = self.expand_path_vars
-
-        if isinstance(path, STRING_TYPES) and expandvars:
-            if environment is None:
-                environment = self.get_environment()
-
-            # Convert path to a template first so we  can resolve
-            # any environment variables it may contain
-            return self.expandvars(path, environment)
-
-        return config["chroot"]
-
-    def get_command_list(self, cmdlist, environment=None, expandvars=None):
+    def get_command_list(self, cmdlist):
         """
         Return a list of command to be used when running the process
         as a read-only tuple.
-
-        :param dict environment:
-            If provided this will be used to perform environment variable
-            expansion for each entry in ``cmdlist``
-
-        :param bool expandvars:
-            If True then use ``environment`` to expand any environment
-            variables in ``cmdlist``
         """
-        if expandvars is None:
-            expandvars = self.expand_path_vars
+        self._check_command_list_inputs(cmdlist)
+        return tuple(map(self.expandvars, cmdlist))
 
-        if expandvars and environment is None:
-            environment = self.get_environment()
-
-        if expandvars and environment:
-            cmdlist = map(
-                lambda value: self.expandvars(value, environment), cmdlist)
-
-        return tuple(cmdlist)  # read-only copy (also takes less memory)
-
-    # TODO: This needs more command line arguments and configuration options
-    def get_csvlog_path(self, tasks, now=None):
+    def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
         Returns the path to the comma separated value (csv) log file.
         The agent stores logs from processes in a csv format so we can store
         additional information such as a timestamp, line number, stdout/stderr
         identification and the the log message itself.
+
+        .. note::
+
+            This method should not attempt to create the parent directories
+            of the resulting path.  This is already handled by the logger
+            pool in a non-blocking fashion.
         """
-        assert isinstance(tasks, (list, tuple))
+        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
-        if now is None:
-            now = datetime.utcnow()
+        if create_time is None:
+            create_time = datetime.utcnow()
+        assert isinstance(create_time, datetime)
 
-        return join(
-            config["task-log-dir"],
-            "%s_%s_%s.csv" % (
-                now.strftime("%G%m%d%H%M%S"),
-                self.assignment["job"]["id"],
-                "-".join(map(str, list(task["id"]for task in tasks)))))
+        # Include the agent's time offset in create_time for accuracy.
+        if config["agent_time_offset"]:
+            create_time += timedelta(seconds=config["agent_time_offset"])
 
-    def build_process_inputs(self):
+        # The default string template implementation cannot
+        # handle cases where you have $VARS$LIKE_$THIS.  So we
+        # instead iterate over a dictionary and use .replace()
+        template_data = {
+            "YEAR": str(create_time.year),
+            "MONTH": "%02d" % create_time.month,
+            "DAY": "%02d" % create_time.day,
+            "HOUR": "%02d" % create_time.hour,
+            "MINUTE": "%02d" % create_time.minute,
+            "SECOND": "%02d" % create_time.second,
+            "JOB": str(self.assignment["job"]["id"]),
+            "PROCESS": protocol_uuid.hex}
+
+        filename = config["jobtype_task_log_filename"]
+        for key, value in template_data.items():
+            filename = filename.replace("$" + key, value)
+        filepath = join(config["jobtype_task_logs"], filename)
+
+        return abspath(filepath)
+
+    def get_command_data(self):
         """
-        This method constructs and returns all the arguments necessary
-        to execute one or multiple processes on the system.  An example
-        implementation may look similar to this:
+        **Overridable**.  This method returns the arguments necessary for
+        executing a command.  For job types which execute a single process
+        per assignment, this is the most important method to implement.
 
-        >>> from pyfarm.jobtypes.core.jobtype import ProcessInputs
-        >>> def build_process_inputs(self):
-        ...     for task in self.assignments():
-        ...         yield ProcessInputs(
-        ...             [task],
-        ...             ("/bin/ls", "/tmp/foo%s" % task["frame"]),
-        ...             environ={"FOO": "1"},
-        ...             user="foo",
-        ...             group="bar")
+        .. warning::
 
-        The above is a generator that will return everything that's needed to
-        run the process. See :class:`ProcessInputs` for some more detailed
-        documentation on each attribute's function.
+            This method should not be used when this jobtype requires more
+            than one process for one assignment and may not get called at all
+            if :meth:`start` was overridden.
+
+        The default implementation does nothing.  When overriding this method
+        you should return an instance of ``COMMAND_DATA_CLASS``:
+
+        .. code-block:: python
+
+            return self.COMMAND_DATA(
+                "/usr/bin/python", "-c", "print 'hello world'",
+                env={"FOO": "bar"}, user="bob")
+
+        See :class:`CommandData`'s class documentation for a full description
+        of possible arguments.
+
+        Please note however the default command data class, :class:`CommandData`
+        does not perform path expansion.  So instead you have to handle this
+        yourself with :meth:`map_path`.
         """
-        raise NotImplementedError("`build_process_inputs` must be implemented")
+        raise NotImplementedError("`get_command_data` must be implemented")
 
-    def expandvars(self, value, environment):
-        """Expands variables inside of a string using an environment"""
-        if isinstance(value, STRING_TYPES):
-            template = Template(value)
-            return template.safe_substitute(**environment)
-
-        logger.warning("Expected a string for `value` to expandvars()")
-        return value
-
-    def spawn_process(self, process_inputs):
+    # TODO: finish map_path() implementation
+    def map_path(self, path):
         """
-        Spawns a process using :func:`.reactor.spawnProcess` and return
-        the protocol object it generates.
+        Takes a string argument.  Translates a given path for any OS to
+        what it should be on this particular node.  This does not communicate
+        with the master.
         """
-        assert isinstance(process_inputs, ProcessInputs)
+        self._check_map_path_inputs(path)
+        path = self.expandvars(path)
+        return path
 
-        # assert `task` is a valid type
-        if not isinstance(process_inputs.tasks, (list, tuple)):
-            self.set_states(
-                process_inputs.tasks, WorkState.FAILED,
-                "`task` must be a dictionary, got %s instead.  Check "
-                "the output produced by `build_process_inputs`" % type(
-                    process_inputs.tasks))
-            return
+    def expandvars(self, value, environment=None, expand=None):
+        """
+        Expands variables inside of a string using an environment.  Exp
 
-        # assert `command` is a valid type
-        if not isinstance(process_inputs.command, (list, tuple)):
-            self.set_states(
-                process_inputs.tasks, WorkState.FAILED,
-                "`command` must be a list or tuple, got %s instead.  Check "
-                "the output produced by `build_process_inputs`" % type(
-                    process_inputs.command))
-            return
+        :param string value:
+            The path to expand
 
-        # username/group to uid/gid mapping
-        uid, gid = None, None
-        if all([not WINDOWS,  # Twisted does not implement this on Windows
-                pwd is not NotImplemented,
-                grp is not NotImplemented,
-                process_inputs.user is not None or
-                    process_inputs.group is not None]):
+        :param dict environment:
+            The environment to use for expanding ``value``.  If this
+            value is None (the default) then we'll use :meth:`get_environment`
+            to build this value.
 
-            # Regardless of platform, we run a command as
-            # another user unless we're an admin
-            if is_administrator():
-                # map user
-                try:
-                    uid = self.get_uid(process_inputs.user)
-                except (ValueError, KeyError):
-                    self.set_states(
-                        process_inputs.tasks, WorkState.FAILED,
-                        "Failed to or verify user %r" % process_inputs.user)
-                    return
+        :param bool expand:
+            When not provided we use the ``jobtype_expandvars`` configuration
+            value to set the default.  When this value is True we'll
+            perform environment variable expansion otherwise we return
+            ``value`` untouched.
+        """
+        self._check_expandvars_inputs(value, environment)
 
-                # map group
-                try:
-                    gid = self.get_uid(process_inputs.group)
-                except (ValueError, KeyError):
-                    self.set_state(
-                        process_inputs.tasks, WorkState.FAILED,
-                        "Failed to or verify group %r" % process_inputs.group)
-                    return
+        if expand is None:
+            expand = config.get("jobtype_expandvars")
 
-            else:
-                logger.warning(
-                    "User and/or group was provided but the agent is not "
-                    "running as an administrator which is required to run"
-                    "processes as another user.")
+        if not expand:
+            return value
 
-        # Prepare the arguments for the spawnProcess call
-        environment = self.get_environment(process_inputs.env)
-        commands = self.get_command_list(
-            process_inputs.command,
-            environment=environment, expandvars=process_inputs.expandvars)
+        if environment is None:
+            environment = self.get_environment()
 
-        # args - name of command being run + input arguments
-        kwargs = {
-            "args": [basename(commands[0])] + list(commands[1:]),
-            "env": environment,
-            "path": self.get_path(
-                process_inputs.path,
-                environment=environment, expandvars=process_inputs.expandvars)}
-
-        # Add uid/gid into kwargs
-        if uid is not None:
-            kwargs.update(uid=uid)
-        if gid is not None:
-            kwargs.update(gid=gid)
-
-        # Instance the process protocol so the process we create will
-        # call into this class
-        protocol = self.build_process_protocol(
-            self, process_inputs, commands[0], kwargs["args"], kwargs["env"],
-            kwargs["path"], uid, gid)
-
-        # Internal data setup
-        logfile = self.get_csvlog_path(process_inputs.tasks)
-        self.protocols[protocol.id] = protocol
-
-        # Start the logging thread
-        # TODO: need a method to generate or retrieve a LoggingThread, we could
-        # run up to this point with the same log file
-        thread = self.logging[protocol.id] = LoggingThread(logfile)
-        thread.start()
-
-        # TODO: do validation of **kwargs here so we don't do it in one location
-        # * environment (dict, strings only)
-        # * path exists (see previous setup for this in the history)
-        #
-
-        # reactor.spawnProcess does different things with the environment
-        # depending on what platform you're on and what you're passing in.
-        # To avoid inconsistent behavior, we replace os.environ with
-        # our own environment so we can launch the process.  After launching
-        # we replace the original environment.
-        with ReplaceEnvironment(environment):
-            reactor.spawnProcess(protocol, commands[0], **kwargs)
-
-        return protocol
-
-    def _start(self):
-        return self.start()
+        return Template(expanduser(value)).safe_substitute(**environment)
 
     def start(self):
         """
@@ -755,53 +667,51 @@ class JobType(object):
         working.  Depending on the job type's implementation this will
         prepare and start one more more processes.
         """
-        # Make sure start() is not called twice
-        assert not hasattr(self, "deferred")
+        environment = self.get_environment()
+        command_data = self.get_command_data()
 
-        # TODO: add deferred handlers
-        # TODO: collect all tasks and depending on the relationship
-        # between tasks and processes we have to change how we notify
-        # the master (and how we cancel other tasks which are queued)
-        for process_inputs in self.build_process_inputs():
-            self.spawn_process(process_inputs)
+        if isinstance(command_data, self.COMMAND_DATA):
+            command_data = [command_data]
 
-        self.deferred = Deferred()
-        return self.deferred
+        for command in command_data:
+            if not isinstance(command, self.COMMAND_DATA):
+                raise TypeError(
+                    "Expected `%s` instances from "
+                    "get_command_data()" % self.COMMAND_DATA.__name__)
 
-    def _stop(self):
-        return self.stop()
+            command.validate()
+            command.set_default_environment(environment)
+            self._spawn_process(command)
 
-    def stop(self):
+    def stop(self, signal="KILL"):
         """
         This method is called when the job type should stop
         running.  This will terminate any processes associated with
         this job type and also inform the master of any state changes
         to an associated task or tasks.
+
+        :param string signal:
+            The signal to send the any running processes.  Valid options
+            are KILL, TERM or INT.
         """
-        stopped = Deferred()
-        # TODO: stop all running processes
+        logger.debug("JobType.stop() called, signal: %s", signal)
+        assert signal in ("KILL", "TERM", "INT")
+
+        self.stop_called = True
+
+        for _, process in self.processes.iteritems():
+            if signal == "KILL":
+                process.protocol.kill()
+            elif signal == "TERM":
+                process.protocol.terminate()
+            elif signal == "INT":
+                process.protocol.interrupt()
+            else:
+                raise NotImplementedError(
+                    "Don't know how to handle signal %r" % signal)
+
         # TODO: notify master of stopped task(s)
-
         # TODO: chain this callback to the completion of our request to master
-        def finished_processes():
-            stopped.callback(True)
-            config["jobtypes"].pop(self.uuid)
-
-        finished_processes()
-        return stopped
-
-    def format_log_message(self, message, stream_type=None):
-        """
-        This method may be overridden to format a log message coming from
-        a process before we write out out to stdout or to disk.  By default
-        this method does nothing except return the original message.
-
-        :param int stream_type:
-            When not ``None`` this specifies if the message is from stderr
-            or stdout.  This value comes from :const:`.STDOUT` or
-            :const:`.STDERR`
-        """
-        return message
 
     def format_error(self, error):
         """
@@ -819,8 +729,8 @@ class JobType(object):
                        "the logs.  Message from error " \
                        "was %r" % error.value.message
 
-            # TODO: there are other types of errors from Twisted we should
-            # format here
+                # TODO: there are other types of errors from Twisted we should
+                # format here
 
         elif isinstance(error, Exception):
             return str(error)
@@ -840,11 +750,13 @@ class JobType(object):
         Wrapper around :meth:`set_state` that that allows you to
         the state on the master for multiple tasks at once.
         """
-        assert isinstance(tasks, (tuple, list))
-        for task in tasks:
-            self.set_state(task, state, error=error)
+        self._check_set_states_inputs(tasks, state)
 
-    def set_state(self, task, state, error=None):
+        for task in tasks:
+            self.set_task_state(task, state, error=error)
+
+    # TODO: refactor so `task` is an integer, not a dictionary
+    def set_task_state(self, task, state, error=None):
         """
         Sets the state of the given task
 
@@ -871,7 +783,7 @@ class JobType(object):
             logger.error(
                 "Expected a dictionary for `task`, cannot change state")
 
-        elif not "id" in task or not isinstance(task["id"], INTEGER_TYPES):
+        elif "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
             logger.error(
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
@@ -891,6 +803,8 @@ class JobType(object):
             if state == WorkState.FAILED:
                 error = self.format_error(error)
                 logger.error("Task %r failed: %r", task, error)
+                if task["id"] not in self.failed_tasks:
+                    self.failed_tasks.add(task["id"])
 
             # `error` shouldn't be set if the state is not a failure
             elif error is not None:
@@ -900,7 +814,7 @@ class JobType(object):
                 error = None
 
             url = "%s/jobs/%s/tasks/%s" % (
-                config["master-api"], self.assignment["job"]["id"], task["id"])
+                config["master_api"], self.assignment["job"]["id"], task["id"])
             data = {"state": state}
 
             # If the error has been set then update the data we're
@@ -911,223 +825,523 @@ class JobType(object):
             elif error is not None:
                 logger.error("Expected a string for `error`")
 
-            def post_update(url, data, delay=0):
+            def post_update(post_url, post_data, delay=0):
                 post_func = partial(
-                    post,
-                    url,
-                    data=data,
-                    callback=lambda x: result_callback(url, data, task["id"],
-                                                       state, x),
-                    errback=lambda x: error_callback(url, data, x))
+                    post, post_url,
+                    data=post_data,
+                    callback=lambda x: result_callback(
+                        post_url, post_data, task["id"], state, x),
+                    errback=lambda x: error_callback(post_url, post_data, x))
                 reactor.callLater(delay, post_func)
 
-            def result_callback(url, data, task_id, state, response):
-                if response.code >= 500 and response.code < 600:
-                    logger.error("Error while posting state update for task %s "
-                                 "to %s, return code is %s, retrying",
-                                 task_id, state, response.code)
-                    post_update(url, data, delay=http_retry_delay())
+            def result_callback(cburl, cbdata, task_id, cbstate, response):
+                if 500 <= response.code < 600:
+                    logger.error(
+                        "Error while posting state update for task %s "
+                        "to %s, return code is %s, retrying",
+                        task_id, cbstate, response.code)
+                    post_update(cburl, cbdata, delay=http_retry_delay())
 
                 elif response.code != OK:
-                    # Nothing else we could do about that
+                    # Nothing else we could do about that, this is
+                    # a problem on our end.  We should only encounter
+                    # this error during development
                     logger.error(
                         "Could not set state for task %s to %s, server "
-                        "response code was %s", task_id, state, response.code)
+                        "response code was %s",
+                        task_id, cbstate, response.code)
 
                 else:
-                    logger.info("Set state of task %s to %s on master",
-                                task_id, state)
+                    logger.info(
+                        "Set state of task %s to %s on master",
+                        task_id, cbstate)
+                    if cbstate == WorkState.DONE \
+                            and task_id not in self.finished_tasks:
+                        self.finished_tasks.add(task_id)
 
-            def error_callback(url, data, failure):
-                logger.error("Error while posting state update for task, "
-                             "retrying")
-                post_update(url, data, delay=http_retry_delay())
+            def error_callback(cburl, cbdata, failure_reason):
+                logger.error(
+                    "Error while posting state update for task, %s, retrying",
+                    failure_reason)
+                post_update(cburl, cbdata, delay=http_retry_delay())
 
             # Initial attempt to make an update with an explicit zero
             # delay.
             post_update(url, data, delay=0)
 
-        # TODO: if new state is the equiv. of 'stopped', stop the process
-        # and POST the change
+            # TODO: if new state is the equiv. of 'stopped', stop the process
+            # and POST the change
+
+    def get_local_task_state(self, task_id):
+        """
+        Returns None if the state of this task has not been changed
+        locally since this assignment has started.  This method does
+        not communicate with the master.
+        """
+        if task_id in self.finished_tasks:
+            return WorkState.DONE
+        elif task_id in self.failed_tasks:
+            return WorkState.FAILED
+        else:
+            return None
 
     def is_successful(self, reason):
         """
-        Returns True if we should consider ``reason`` to be
-        successful.  This function is called by :meth:`_process_stopped`
-        to determine if the object returned by a process is an indication
-        of failure.
-        """
-        return (
-            reason.type is ProcessDone and
-            reason.value.exitCode in self.success_codes)
+        **Overridable**.  This method that determines whether the process
+        referred to by a protocol instance has exited successfully.
 
-    def _process_stopped(self, protocol, reason):
-        """
-        Internal implementation for :meth:`process_stopped`.
+        The default implementation returns ``True`` if the process's return
+        code was 0 and ``False` in all other cases.  If you need to
+        modify this behavior please be aware that ``reason`` may be an
+        integer or an instance of
+        :class:`twisted.internet.error.ProcessTerminated` if the process
+        terminated without errors or an instance of
+        :class:`twisted.python.failure.Failure` if there were problems.
 
-        If ``--capture-process-output`` was set when the agent was launched
-        all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to
-        :meth:`_log_in_thread` so it can be stored in a file without
-        blocking the event loop.
+        :raises NotImplementedError:
+            Raised if we encounter a condition that the base implementation
+            is unable to handle.
         """
-        logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
-
-        if self.is_successful(reason):
-            self._log_in_thread(
-                protocol, STDOUT,
-                "Process has terminated successfully, code %s" %
-                reason.value.exitCode)
+        if reason == 0:
+            return True
+        elif isinstance(reason, INTEGER_TYPES):
+            return False
+        elif hasattr(reason, "type"):
+            return (
+                reason.type is ProcessDone and
+                reason.value.exitCode == 0)
         else:
-            self.failed_processes.append((protocol, reason))
-            self._log_in_thread(
-                protocol, STDOUT,
-                "Process has not terminated successfully, code %s" %
-                reason.value.exitCode)
+            raise NotImplementedError(
+                "Don't know how to handle is_successful(%r)" % reason)
 
-        # pop off the protocol and thread since the process has terminated
-        protocol = self.protocols.pop(protocol.id)
-        thread = self.logging.pop(protocol.id)
-        thread.stop()
+    def before_start(self):
+        """
+        **Overridable**.  This method called directly before :meth:`start`
+        itself is called.
 
-        # If this was the last process running
-        # TODO: sequential processes
-        if not self.protocols:
-            if not self.failed_processes:
-                self.deferred.callback(reason)
-                for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.DONE, reason)
-            else:
-                self.deferred.errback()
-                for task in self.assignment["tasks"]:
-                    self.set_state(task, WorkState.FAILED, reason)
+        The default implementation does nothing and values returned from
+        this method are ignored.
+        """
+        pass
+
+    def before_spawn_process(self, command, protocol):
+        """
+        **Overridable**.  This method called directly before a process is
+        spawned.
+
+        By default this method does nothing except log information about
+        the command we're about to launch both the the agent's log and to
+        the log file on disk.
+
+        :param CommandData command:
+            An instance of :class:`CommandData` which contains the
+            environment to use, command and arguments.  Modifications to
+            this object will be applied to the process being spawned.
+
+        :param ProcessProtocol protocol:
+            An instance of :class:`pyfarm.jobtypes.core.process.ProcessProtocol`
+            which contains the protocol used to communicate between the
+            process and this job type.
+        """
+        logger.info("Spawning %r", command)
+        logpool.log(protocol.uuid, STDERR,
+                    "Command: %s" % command.command)
+        logpool.log(protocol.uuid, STDERR,
+                    "Arguments: %s" % (command.arguments, ))
+        logpool.log(protocol.uuid, STDERR, "Work Dir: %s" % command.cwd)
+        logpool.log(protocol.uuid, STDERR, "User/Group: %s %s" % (
+            command.user, command.group))
+        logpool.log(protocol.uuid, STDERR, "Environment:")
+        logpool.log(protocol.uuid, STDERR, pformat(command.env, indent=4))
 
     def process_stopped(self, protocol, reason):
         """
-        Called by :meth:`.ProcessProtocol.processEnded` when a process
-        stopped running.
-        """
-        self._process_stopped(protocol, reason)
+        **Overridable**.  This method called when a child process stopped
+        running.
 
-    # TODO: set state
-    def _process_started(self, protocol):
+        The default implementation will mark all tasks in the current
+        assignment as done or failed of there was at least one failed process.
         """
-        Internal implementation for :meth:`process_started`.
-
-        This method logs the start of a process and informs the master of
-        the state change.
-        """
-        logger.info("%r started", protocol)
-        self._log_in_thread(protocol, STDOUT, "Started %r" % protocol)
+        if len(self.failed_processes) == 0:
+            for task in self.assignment["tasks"]:
+                if task["id"] not in self.failed_tasks:
+                    self.set_task_state(task, WorkState.DONE)
+                else:
+                    logger.info(
+                        "Task %r is already in failed tasks, not setting state "
+                        "to %s", task["id"], WorkState.DONE)
+        else:
+            for task in self.assignment["tasks"]:
+                if task["id"] not in self.finished_tasks:
+                    self.set_task_state(task, WorkState.FAILED)
+                else:
+                    logger.info(
+                        "Task %r is already in finished tasks, not setting "
+                        "state to %s", task["id"], WorkState.FAILED)
 
     def process_started(self, protocol):
         """
-        Called by :meth:`.ProcessProtocol.connectionMade` when a process has
-        started running.
-        """
-        self._process_started(protocol)
+        **Overridable**.  This method is called when a child process started
+        running.
 
-    def received_stdout(self, protocol, stdout):
+        The default implementation will mark all tasks in the current
+        assignment as running.
         """
-        Called by :meth:`.ProcessProtocol.outReceived` when
-        we receive output on standard output (stdout) from a process.
-        Not to be overridden.
-        """
-        new_stdout = self.preprocess_stdout(protocol, stdout)
-        if new_stdout is not None:
-            stdout = new_stdout
+        for task in self.assignment["tasks"]:
+            self.set_task_state(task, WorkState.RUNNING)
 
-        self.process_stdout(protocol, stdout)
-
-    def preprocess_stdout(self, protocol, stdout):
-        pass
-
-    def process_stdout(self, protocol, stdout):
+    def process_output(self, protocol, output, line_fragments, line_handler):
         """
-        Overridable function called when we receive data from a child process'
-        stdout.
-        The default implementation will split the output into lines and forward
-        those to received_stdout_line(), which will eventually forward it to
-        process_stdout_line()
+        This is a mid-level method which takes output from a process protocol
+        then splits and processes it to ensure we pass complete output lines
+        to the other methods.
+
+        Implementors who wish to process the output line by line should
+        override :meth:`preprocess_stdout_line`, :meth:`preprocess_stdout_line`,
+        :meth:`process_stdout_line` or :meth:`process_stderr_line` instead.
+        This method is a glue method between other parts of the job type and
+        should only be overridden if there's a problem or you want to change
+        how lines are split.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``output``
+
+        :param string output:
+            The blob of text or line produced
+
+        :param dict line_fragments:
+            The line fragment dictionary containing individual line
+            fragments.  This will be either ``self._stdout_line_fragments`` or
+            ``self._stderr_line_fragments``.
+
+        :param callable line_handler:
+            The function to handle any lines produced.  This will be either
+            :meth:`handle_stdout_line` or :meth:`handle_stderr_line`
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        if "\n" in stdout:
+        dangling_fragment = None
+
+        if "\n" in output:
             ends_on_fragment = True
-            if stdout[-1] == "\n":
+
+            if output[-1] == "\n":
                 ends_on_fragment = False
-            lines = stdout.split("\n")
+
+            lines = output.split("\n")
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
+
             for line in lines:
-                if protocol.id in self.stdout_line_fragments:
-                    l = self.stdout_line_fragments[protocol.id] + line
-                    del self.stdout_line_fragments[protocol.id]
-                    if len(l) > 0 and l[-1] == "\r":
-                        l = l[:-1]
-                    self.received_stdout_line(protocol, l)
+                if protocol.uuid in line_fragments:
+                    line_out = line_fragments.pop(protocol.uuid)
+                    line_out += line
+                    if line_out and line_out[-1] == "\r":
+                        line_out = line_out[:-1]
+
+                    line_handler(protocol, line_out)
+
                 else:
-                    if len(line) > 0 and line[-1] == "\r":
+                    if line and line[-1] == "\r":
                         line = line[:-1]
-                    self.received_stdout_line(protocol, line)
+
+                    line_handler(protocol, line)
+
             if ends_on_fragment:
-                self.stdout_line_fragments[protocol.id] = dangling_fragment
+                line_fragments[protocol.uuid] = dangling_fragment
         else:
-            if protocol.id in self.stdout_line_fragments:
-                self.stdout_line_fragments[protocol.id] += stdout
+            if protocol.uuid in line_fragments:
+                line_fragments[protocol.uuid] += output
+
             else:
-                self.stdout_line_fragments[protocol.id] = stdout
+                line_fragments[protocol.uuid] = output
 
-    def received_stdout_line(self, protocol, line):
+    def handle_stdout_line(self, protocol, stdout):
         """
-        Called when we receive a new line from stdout, and possibly stderr if
-        those methods have not been overridden as well.
+        Takes a :class:`.ProcessProtocol` instance and ``stdout``
+        line produced by :meth:`process_output` and runs it through all
+        the steps necessary to preprocess, format, log and handle the line.
 
-        If ``--capture-process-output`` was set when the agent was launched
-        all standard output from the process will be sent to the stdout
-        of the agent itself.  In all other cases we send the data to
-        :meth:`_log_in_thread` so it can be stored in a file without
-        blocking the event loop.
+        The default implementation will run ``stdout`` through several methods
+        in order:
+
+            * :meth:`preprocess_stdout_line`
+            * :meth:`format_stdout_line`
+            * :meth:`log_stdout_line`
+            * :meth:`process_stdout_line`
+
+        .. warning::
+
+            This method is not private however it's advisable to override
+            the methods above instead of this one.  Unlike this method,
+            which is more generalized and invokes several other methods,
+            the above provide more targeted functionality.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stderr`` being emitted by the process
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        new_line = self.preprocess_stdout_line(protocol, line)
-        if new_line is not None:
-            line = new_line
+        # Preprocess
+        preprocessed = self.preprocess_stdout_line(protocol, stdout)
+        if preprocessed is not None:
+            stdout = preprocessed
+        if preprocessed is False:
+            return
 
-        line = self.format_log_message(line, stream_type=STDOUT)
-        if config["jobtype_capture_process_output"]:
-            process_stdout.info("task %r: %s", protocol.id, line)
-        else:
-            self._log_in_thread(protocol, STDOUT, line)
+        # Format
+        formatted = self.format_stdout_line(protocol, stdout)
+        if formatted is not None:
+            stdout = formatted
 
-        self.process_stdout_line(protocol, line)
+        # Log
+        self.log_stdout_line(protocol, stdout)
 
-    def preprocess_stdout_line(self, protocol, line):
+        # Custom Processing
+        self.process_stdout_line(protocol, stdout)
+
+    def handle_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  Takes a :class:`.ProcessProtocol` instance and
+        ``stderr`` produced by :meth:`process_output` and runs it through all
+        the steps necessary to preprocess, format, log and handle the line.
+
+        The default implementation will run ``stderr`` through several methods
+        in order:
+
+            * :meth:`preprocess_stderr_line`
+            * :meth:`format_stderr_line`
+            * :meth:`log_stderr_line`
+            * :meth:`process_stderr_line`
+
+        .. warning::
+
+            This method is overridable however it's advisable to override
+            the methods above instead.  Unlike this method, which is more
+            generalized and invokes several other methods, the above provide
+            more targeted functionality.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stderr`` being emitted by the process
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
+        # Preprocess
+        preprocessed = self.preprocess_stderr_line(protocol, stderr)
+        if preprocessed is not None:
+            stderr = preprocessed
+        if preprocessed == False:
+            return
+
+        # Format
+        formatted = self.format_stderr_line(protocol, stderr)
+        if formatted is not None:
+            stderr = formatted
+
+        # Log
+        self.log_stderr_line(protocol, stderr)
+
+        # Custom Processing
+        self.process_stderr_line(protocol, stderr)
+
+    def preprocess_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  Provides the ability to manipulate ``stdout`` or
+        ``protocol`` before it's passed into any other line handling methods.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stdout`` before any formatting or logging
+            has occurred.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in line handling methods such
+            as :meth:`format_stdout_line`, :meth:`log_stdout_line` and
+            :meth:`process_stdout_line`.
+        """
         pass
 
-    def process_stdout_line(self, protocol, line):
+    def preprocess_stderr_line(self, protocol, stderr):
         """
-        Overridable function called whenever we receive a new line from a child
-        process' stdout.
-        Default implementation does nothing.
+        **Overridable**.  Formats a line from ``stdout`` before it's passed onto
+        methods such as :meth:`log_stdout_line` and :meth:`process_stdout_line`.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` before any formatting or logging
+            has occurred.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in line handling methods such
+            as :meth:`format_stderr_line`, :meth:`log_stderr_line` and
+            :meth:`process_stderr_line`.
         """
         pass
 
-    def _received_stderr(self, protocol, stderr):
+    def format_stdout_line(self, protocol, stdout):
         """
-        Internal implementation for :meth:`received_stderr`.
+        **Overridable**.  Formats a line from ``stdout`` before it's passed onto
+        methods such as :meth:`log_stdout_line` and :meth:`process_stdout_line`.
 
-        If ``--capture-process-output`` was set when the agent was launched
-        all stderr output will be sent to the stdout of the agent itself.
-        In all other cases we send the data to to :meth:`_log_in_thread`
-        so it can be stored in a file without blocking the event loop.
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stdout:
+            A complete line from process to format and return.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in :meth:`log_stdout_line` and
+            :meth:`process_stdout_line`
         """
-        stderr = self.format_log_message(stderr, stream_type=STDERR)
+        pass
+
+    def format_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  Formats a line from ``stderr`` before it's passed onto
+        methods such as :meth:`log_stderr_line` and :meth:`process_stderr_line`.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line from the process to format and return.
+
+        :rtype: string
+        :return:
+            This method returns nothing by default but when overridden should
+            return a string which will be used in :meth:`log_stderr_line` and
+            :meth:`process_stderr_line`
+        """
+        pass
+
+    def log_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  Called when we receive a complete line on stdout from
+        the process.
+
+        The default implementation will use the global logging pool to
+        log ``stdout`` to a file.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stdout``
+
+        :param string stderr:
+            A complete line to ``stdout`` that has been formatted and is ready
+            to log to a file.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
         if config["jobtype_capture_process_output"]:
-            process_stderr.info("task %r: %s", protocol.id, stderr)
+            process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
-            self._log_in_thread(protocol, STDERR, stderr)
+            logpool.log(protocol.uuid, STDOUT, stdout)
 
-    def received_stderr(self, protocol, stderr):
+    def log_stderr_line(self, protocol, stderr):
         """
-        Called by :meth:`.ProcessProtocol.errReceived` when
-        we receive output on standard error (stderr) from a process.
+        **Overridable**.  Called when we receive a complete line on stderr from
+        the process.
+
+        The default implementation will use the global logging pool to
+        log ``stderr`` to a file.
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` that has been formatted and is ready
+            to log to a file.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
         """
-        self._received_stderr(protocol, stderr)
+        if config["jobtype_capture_process_output"]:
+            process_stdout.info("task %r: %s", protocol.id, stderr)
+        else:
+            logpool.log(protocol.uuid, STDERR, stderr)
+
+    def process_stderr_line(self, protocol, stderr):
+        """
+        **Overridable**.  This method is called when we receive a complete
+        line to ``stderr``.  The line will be preformatted and will already
+        have been sent for logging.
+
+        *The default implementation sends ``stderr`` and ``protocol`` to
+        :meth:`process_stdout_line`.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stderr`` after it has been formatted and
+            logged.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
+        self.process_stdout_line(protocol, stderr)
+
+    def process_stdout_line(self, protocol, stdout):
+        """
+        **Overridable**.  This method is called when we receive a complete
+        line to ``stdout``.  The line will be preformatted and will already
+        have been sent for logging.
+
+        *The default implementation does nothing.*
+
+        :type protocol: :class:`.ProcessProtocol`
+        :param protocol:
+            The protocol instance which produced ``stderr``
+
+        :param string stderr:
+            A complete line to ``stdout`` after it has been formatted and
+            logged.
+
+        :return:
+            This method returns nothing by default and any return value
+            produced by this method will not be consumed by other methods.
+        """
+        pass

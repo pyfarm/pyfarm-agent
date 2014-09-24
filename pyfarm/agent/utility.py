@@ -43,7 +43,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK
 
-from voluptuous import Schema, Any, Required
+from voluptuous import Schema, Any, Required, Optional, Invalid
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
@@ -58,14 +58,59 @@ except NameError:  # pragma: no cover
     WHOLE_NUMBERS = int
     NUMBERS = Any(*(int, float, Decimal))
 
+
+def validate_environment(values):
+    """
+    Ensures that ``values`` is a dictionary and that it only
+    contains string keys and values.
+    """
+    if not isinstance(values, dict):
+        raise Invalid("Expected a dictionary")
+
+    for key, value in values.items():
+        if not isinstance(key, STRING_TYPES):
+            raise Invalid("Key %r must be a string" % key)
+
+        if not isinstance(value, STRING_TYPES):
+            raise Invalid("Value %r for key %r must be a string" % (key, value))
+
+
+def validate_uuid(value):
+    """
+    Ensures that ``value`` can be converted to or is a UUID object.
+    """
+    if isinstance(value, UUID):
+        return value
+    elif isinstance(value, STRING_TYPES):
+        try:
+            return UUID(hex=value)
+        except ValueError:
+            raise Invalid("%s cannot be converted to a UUID" % value)
+    else:
+        raise Invalid("Expected string or UUID instance for `value`")
+
+
 # Shared schema declarations
 JOBTYPE_SCHEMA = Schema({
     Required("name"): STRINGS,
     Required("version"): WHOLE_NUMBERS})
 TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
-    Required("frame"): NUMBERS})
+    Required("frame"): NUMBERS,
+    Required("attempt", default=0): WHOLE_NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
+JOB_SCHEMA = Schema({
+    Required("id"): WHOLE_NUMBERS,
+    Required("by"): NUMBERS,
+    Optional("batch"): WHOLE_NUMBERS,
+    Optional("user"): STRINGS,
+    Optional("ram"): WHOLE_NUMBERS,
+    Optional("ram_warning"): WHOLE_NUMBERS,
+    Optional("ram_max"): WHOLE_NUMBERS,
+    Optional("cpus"): WHOLE_NUMBERS,
+    Optional("data"): dict,
+    Optional("environ"): validate_environment,
+    Optional("title"): STRINGS})
 
 
 def uuid():
@@ -73,13 +118,39 @@ def uuid():
     return uuid1(node=config["agent_systemid"])
 
 
-def default_json_encoder(obj):
+def default_json_encoder(obj, return_obj=False):
     if isinstance(obj, Decimal):
         return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, UUID):
         return str(obj)
+    elif return_obj:
+        return obj
+
+
+def json_safe(source):
+    """
+    Recursively converts ``source`` into something that should be safe for
+    :func:`json.dumps` to handle.  This is used in conjunction with
+    :func:`default_json_encoder` to also convert keys to something the json
+    encoder can understand.
+    """
+    if not isinstance(source, dict):
+        return source
+
+    result = {}
+
+    try:
+        items = source.iteritems
+    except AttributeError:  # pragma: no cover
+        items = source.items
+
+    for k, v in items():
+        result[default_json_encoder(k, return_obj=True)] = \
+            default_json_encoder(json_safe(v), return_obj=True)
+
+    return result
 
 
 def quote_url(source_url):

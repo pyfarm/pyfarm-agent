@@ -34,7 +34,7 @@ from os.path import isdir, isfile, abspath
 
 from netaddr import AddrFormatError, IPAddress
 
-from pyfarm.core.enums import OS, NUMERIC_TYPES, NOTSET
+from pyfarm.core.enums import OS, NUMERIC_TYPES
 from pyfarm.core.utility import convert
 
 from pyfarm.agent.logger import getLogger

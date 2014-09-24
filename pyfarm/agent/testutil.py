@@ -26,10 +26,26 @@ import tempfile
 import time
 from datetime import datetime
 from functools import wraps, partial
+from os import urandom
 from os.path import basename, isfile
 from random import randint, choice
 from StringIO import StringIO
+from textwrap import dedent
 from urllib import urlopen
+
+try:
+    from httplib import OK, CREATED
+except ImportError:  # pragma: no cover
+    from http.client import OK, CREATED
+
+from twisted.internet.base import DelayedCall
+from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
+
+from pyfarm.core.config import read_env, read_env_bool
+from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
+from pyfarm.agent.http.core.client import post
+from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.sysinfo import memory, cpu, system
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -68,17 +84,10 @@ except ImportError:  # copied from Python 2.7's source
             return True
 
 from voluptuous import Schema
-from twisted.internet.base import DelayedCall
 from twisted.internet.defer import Deferred, succeed
-from twisted.trial.unittest import TestCase as _TestCase, SkipTest
-
-from pyfarm.core.config import read_env, read_env_bool
-from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
-from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.http.core.template import DeferredTemplate
-from pyfarm.agent.sysinfo import memory, cpu, system
 from pyfarm.agent.utility import dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
@@ -88,6 +97,13 @@ if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
+
+
+try:
+    response = urlopen("http://" + PYFARM_AGENT_MASTER)
+    PYFARM_MASTER_API_ONLINE = response.code == OK
+except Exception as e:
+    PYFARM_MASTER_API_ONLINE = False
 
 
 class skipIf(object):
@@ -107,6 +123,46 @@ class skipIf(object):
                 raise SkipTest(self.reason)
             return func(*args, **kwargs)
         return wrapper
+
+def requires_master(function):
+    """
+    Any test decorated with this function will fail if the master could
+    not be contacted or returned a response other than 200 OK for "/"
+    """
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        if not PYFARM_MASTER_API_ONLINE:
+            raise FailTest("Could not connect to master")
+        return function(*args, **kwargs)
+    return wrapper
+
+
+def create_jobtype(classname=None, sourcecode=None):
+    """Creates a job type on the master and fires a deferred when finished"""
+    if classname is None:
+        classname = "Test%s" % urandom(8).encode("hex")
+
+    if sourcecode is None:
+        sourcecode = dedent("""
+        from pyfarm.jobtypes.core.jobtype import JobType
+        class %s(JobType):
+            pass""" % classname)
+
+    finished = Deferred()
+
+    def posted(response):
+        if response.code == CREATED:
+            finished.callback(response.json())
+        else:
+            finished.errback(response.json())
+
+    post(config["master_api"] + "/jobtypes/",
+         callback=posted, errback=finished.errback,
+         data={"name": classname,
+               "classname": classname,
+               "code": sourcecode})
+
+    return finished
 
 
 class FakeRequestHeaders(object):
@@ -326,6 +382,8 @@ class TestCase(_TestCase):
 
         config.update({
             "jobtypes": {},
+            "agent-id": randint(1, 50000),
+            "current_assignments": {},
             "agent_systemid": system.system_identifier(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
@@ -390,19 +448,15 @@ class TestCase(_TestCase):
 
 
 class BaseRequestTestCase(TestCase):
-    HTTP_SCHEME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    HOSTNAME = read_env(
-        "PYFARM_AGENT_TEST_HTTP_HOSTNAME", "httpbin.org")
-    BASE_URL = read_env(
-        "PYFARM_AGENT_TEST_URL", "%(scheme)s://%(hostname)s")
-    REDIRECT_TARGET = read_env(
-        "PYFARM_AGENT_TEST_REDIRECT_TARGET", "http://example.com")
-    base_url = BASE_URL % {"scheme": HTTP_SCHEME, "hostname": HOSTNAME}
+    HTTP_SCHEME = read_env("PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
+    DNS_HOSTNAME = config["agent_unittest"]["dns_test_hostname"]
+    TEST_URL = config[
+        "agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
+    REDIRECT_TARGET = config["agent_unittest"]["client_redirect_target"]
 
     # DNS working?
     try:
-        socket.gethostbyname(HOSTNAME)
+        socket.gethostbyname(DNS_HOSTNAME)
     except socket.gaierror:
         RESOLVED_DNS_NAME = False
     else:
@@ -410,7 +464,7 @@ class BaseRequestTestCase(TestCase):
 
     # Basic http request working?
     try:
-        urlopen(base_url)
+        urlopen(TEST_URL)
     except IOError:
         HTTP_REQUEST_SUCCESS = False
     else:
@@ -418,16 +472,17 @@ class BaseRequestTestCase(TestCase):
 
     def setUp(self):
         if not self.RESOLVED_DNS_NAME:
-            self.skipTest("Could not resolve hostname %s" % self.HOSTNAME)
+            self.skipTest("Could not resolve hostname %s" % self.DNS_HOSTNAME)
 
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(
-                "Failed to send an http request to %s" % self.base_url)
+                "Failed to send an http request to %s" % self.TEST_URL)
 
 
 class BaseHTTPTestCase(TestCase):
     URI = NotImplemented
     CLASS = NotImplemented
+    CLASS_FACTORY = NotImplemented
     CONTENT_TYPES = NotImplemented
 
     # Only run the real _run if we're inside a child
@@ -448,7 +503,10 @@ class BaseHTTPTestCase(TestCase):
         self.assertIsNotNone(self.CLASS, "CLASS not set")
 
     def instance_class(self):
-        return self.CLASS()
+        if self.CLASS_FACTORY is not NotImplemented:
+            return self.CLASS_FACTORY()
+        else:
+            return self.CLASS()
 
     def test_instance(self):
         self.instance_class()

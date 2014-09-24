@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The default location to store data.  $temp will expand to
+# whatever pyfarm's data root is plus the application
+# name (agent).  For example on Linux this would expand to
+# /tmp/pyfarm/agent
+agent_data_root: $temp
+
+
+# Defines the number of seconds between iterations of pyfarm-supervisor's
+# agent status check.
+supervisor_interval: 5
+
 # The location where the agent should change directories
 # into upon starting.  If this value is not set then no
 # changes will be made.
@@ -20,12 +31,6 @@ agent_chdir:
 # The location where static web files should be served from.  This
 # will default to using PyFarm's installation root.
 agent_static_root: auto
-
-# The default location to store data.  $temp will expand to
-# whatever pyfarm's data root is plus the application
-# name (agent).  For example on Linux this would expand to
-# /tmp/pyfarm/agent
-agent_data_root: $temp
 
 # The default location where lock files should be stored.  By
 # default these will be stored alone side other data
@@ -44,19 +49,12 @@ agent_user_data: ~/.pyfarm/agent
 # includes both logs from processes and the agent log itself.
 agent_logs_root: $agent_data_root/logs
 
-# The location where tasks should be logged
-agent_task_logs: $agent_logs_root/tasks
-
 # The location where agent updates should be stored.
 agent_updates_dir: $agent_data_root/updates
 
-# Defines the sytem
+# Defines how and where the system identifier is cached.
 agent_systemid: auto
 agent_systemid_cache: $agent_data_root/systemid.cache
-
-# Defines the number of seconds between iterations of pyfarm-supervisor's
-# agent status check.
-supervisor_interval: 5
 
 # The default port which the agent should use to serve the
 # REST api.
@@ -65,6 +63,12 @@ agent_api_port: 50000
 # The location where the the agent should save its own
 # logging output to.
 agent_log: $agent_logs_root/agent.log
+
+# The user agent the master will use when connecting to the agent's
+# REST api.  This value should only be changed if the master's code
+# is updated with a new user agent.  Change this value has not effect
+# on the master.
+master_user_agent: PyFarm/1.0 (master)
 
 # Configuration values which control how the url
 # for the master is constructed.  If 'master' is not set
@@ -151,3 +155,11 @@ agent_manhole: False
 agent_manhole_port: 50001
 agent_manhole_username: admin
 agent_manhole_password: admin
+
+# NOTE: The following values are used by the unittests and should be
+# generally ignored for anything other than development.
+agent_unittest:
+  dns_test_hostname: example.com
+  client_redirect_target: http://example.com
+  client_api_test_url_https: https://httpbin.org
+  client_api_test_url_http: http://httpbin.org

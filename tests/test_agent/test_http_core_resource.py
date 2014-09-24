@@ -210,15 +210,6 @@ class TestResourceInternals(TestResourceBase):
 
 
 class TestResourceRendering(TestResourceBase):
-    def test_leaf_without_trailing_slash(self):
-        request = DummyRequest("/foo", headers={"content-type": "application/json"})
-        resource = Resource()
-        resource.isLeaf = True
-        render_result = resource.render(request)
-        self.assertEqual(render_result, NOT_DONE_YET)
-        self.assertEqual(request.data, dumps({"error": "/foo does not exist"}))
-        self.assertEqual(request.responseCode, NOT_FOUND)
-
     def test_invalid_content_type(self):
         request = DummyRequest("", headers={"content-type": "foo"})
         resource = Resource()
