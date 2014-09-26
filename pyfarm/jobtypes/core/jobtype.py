@@ -962,7 +962,7 @@ class JobType(Cache, System, Process, TypeChecks):
         The default implementation will mark all tasks in the current
         assignment as done or failed of there was at least one failed process.
         """
-        if len(self.failed_processes) == 0:
+        if len(self.failed_processes) == 0 and not self.stop_called:
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.failed_tasks:
                     self.set_task_state(task, WorkState.DONE)
