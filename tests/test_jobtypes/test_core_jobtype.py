@@ -21,12 +21,15 @@ from uuid import UUID, uuid4
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import uuid
+from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
+
+IS_ADMIN = is_administrator()
 
 
 def fake_assignment():
@@ -144,6 +147,28 @@ class TestCommandData(TestCase):
         with self.assertRaisesRegexp(
                 TypeError, re.compile(".*group.*")):
             CommandData("", group=1.0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(IS_ADMIN, "Is Administrator")
+    def test_change_user_non_admin_failure(self):
+        with self.assertRaises(EnvironmentError):
+            CommandData("", user=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(IS_ADMIN, "Is Administrator")
+    def test_change_group_non_admin_failure(self):
+        with self.assertRaises(EnvironmentError):
+            CommandData("", group=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(not IS_ADMIN, "Not Administrator")
+    def test_change_user_admin(self):
+        CommandData("", user=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(not IS_ADMIN, "Not Administrator")
+    def test_change_group_admin(self):
+        CommandData("", group=0).validate()
 
 
 class TestJobTypeLoad(TestCase):
