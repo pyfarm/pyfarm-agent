@@ -102,9 +102,9 @@ class TestCommandData(TestCase):
         self.assertIsInstance(data.arguments, tuple)
         self.assertEqual(data.arguments, ("1", "None", "True", "foobar"))
         self.assertEqual(data.env, {})
-        self.assertEqual(data.cwd, None)
-        self.assertEqual(data.user, None)
-        self.assertEqual(data.group, None)
+        self.assertIsNone(data.cwd)
+        self.assertIsNone(data.user)
+        self.assertIsNone(data.group)
 
     def test_set_kwargs(self):
         data = CommandData(
