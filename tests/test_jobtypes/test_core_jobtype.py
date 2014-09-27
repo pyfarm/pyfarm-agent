@@ -197,6 +197,16 @@ class TestCommandData(TestCase):
         with self.assertRaises(TypeError):
             data.validate()
 
+    def test_set_default_environment_noop(self):
+        data = CommandData("", env={"foo": "bar"})
+        data.set_default_environment({"a": "b"})
+        self.assertEqual(data.env, {"foo": "bar"})
+
+    def test_set_default_environment(self):
+        data = CommandData("", env=None)
+        data.set_default_environment({"a": "b"})
+        self.assertEqual(data.env, {"a": "b"})
+
 
 class TestJobTypeLoad(TestCase):
     def test_schema(self):
