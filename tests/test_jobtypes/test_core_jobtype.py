@@ -15,6 +15,7 @@
 # limitations under the License.
 
 
+from os import urandom
 from uuid import UUID, uuid4
 
 from voluptuous import Schema, MultipleInvalid
@@ -23,7 +24,7 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility import uuid
-from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 
 def fake_assignment():
@@ -86,6 +87,24 @@ class TestInit(TestCase):
         self.assertEqual(job.failed_tasks, set())
         self.assertFalse(job.stop_called)
         self.assertFalse(job.start_called)
+
+
+class TestCommandData(TestCase):
+    def test_set_basic_attributes(self):
+        command = urandom(12)
+        arguments = (1, None, True, "foobar")
+        data = CommandData(command, *arguments)
+        self.assertEqual(data.command, command)
+
+        for argument in data.arguments:
+            self.assertIsInstance(argument, str)
+
+        self.assertIsInstance(data.arguments, tuple)
+        self.assertEqual(data.arguments, ("1", "None", "True", "foobar"))
+        self.assertEqual(data.env, {})
+        self.assertEqual(data.cwd, None)
+        self.assertEqual(data.user, None)
+        self.assertEqual(data.group, None)
 
 
 class TestJobTypeLoad(TestCase):
