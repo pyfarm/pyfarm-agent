@@ -109,8 +109,8 @@ class TestCommandData(TestCase):
         self.assertIsNone(data.group)
 
     def test_set_kwargs(self):
-        data = CommandData(str(urandom(12)),
-                           env={"foo", "bar"}, cwd="/", user="usr", group="grp")
+        data = CommandData(
+            "", env={"foo": "bar"}, cwd="/", user="usr", group="grp")
         self.assertEqual(data.env, {"foo", "bar"})
         self.assertEqual(data.cwd, "/")
         self.assertEqual(data.user, "usr")
