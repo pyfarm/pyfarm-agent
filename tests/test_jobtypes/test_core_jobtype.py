@@ -150,24 +150,24 @@ class TestCommandData(TestCase):
 
     @skipIf(WINDOWS, "Non-Windows only")
     @skipIf(IS_ADMIN, "Is Administrator")
-    def test_change_user_non_admin_failure(self):
+    def test_validate_change_user_non_admin_failure(self):
         with self.assertRaises(EnvironmentError):
             CommandData("", user=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
     @skipIf(IS_ADMIN, "Is Administrator")
-    def test_change_group_non_admin_failure(self):
+    def test_validate_change_group_non_admin_failure(self):
         with self.assertRaises(EnvironmentError):
             CommandData("", group=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
     @skipIf(not IS_ADMIN, "Not Administrator")
-    def test_change_user_admin(self):
+    def test_validate_change_user_admin(self):
         CommandData("", user=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
     @skipIf(not IS_ADMIN, "Not Administrator")
-    def test_change_group_admin(self):
+    def test_validate_change_group_admin(self):
         CommandData("", group=0).validate()
 
 
