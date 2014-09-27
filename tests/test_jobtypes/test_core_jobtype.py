@@ -114,6 +114,11 @@ class TestCommandData(TestCase):
         self.assertEqual(data.user, "usr")
         self.assertEqual(data.group, "grp")
 
+    def test_unknown_kwarg(self):
+        with self.assertRaises(ValueError):
+            CommandData(urandom(12), foobar=True)
+
+
 
 class TestJobTypeLoad(TestCase):
     def test_schema(self):
