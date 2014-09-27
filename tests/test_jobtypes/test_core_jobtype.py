@@ -106,7 +106,7 @@ class TestCommandData(TestCase):
 
         self.assertIsInstance(data.arguments, tuple)
         self.assertEqual(data.arguments, ("1", "None", "True", "foobar"))
-        self.assertEqual(data.env, {})
+        self.assertIsNone(data.env)
         self.assertIsNone(data.cwd)
         self.assertIsNone(data.user)
         self.assertIsNone(data.group)
@@ -131,7 +131,7 @@ class TestCommandData(TestCase):
     def test_validate_env_type(self):
         with self.assertRaisesRegexp(
                 TypeError, re.compile(".*dictionary.*env.*")):
-            CommandData("", env=None).validate()
+            CommandData("", env=1).validate()
 
     def test_user_group_types(self):
         self.assertEqual(
