@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
-from os import urandom
 from uuid import UUID, uuid4
 
 from voluptuous import Schema, MultipleInvalid
@@ -96,7 +96,7 @@ class TestInit(TestCase):
 
 class TestCommandData(TestCase):
     def test_set_basic_attributes(self):
-        command = urandom(12)
+        command = os.urandom(12)
         arguments = (1, None, True, "foobar")
         data = CommandData(command, *arguments)
         self.assertEqual(data.command, command)
@@ -121,7 +121,7 @@ class TestCommandData(TestCase):
 
     def test_unknown_kwarg(self):
         with self.assertRaises(ValueError):
-            CommandData(urandom(12), foobar=True)
+            CommandData("", foobar=True)
 
     def test_validate_command_type(self):
         with self.assertRaisesRegexp(
@@ -169,6 +169,33 @@ class TestCommandData(TestCase):
     @skipIf(not IS_ADMIN, "Not Administrator")
     def test_validate_change_group_admin(self):
         CommandData("", group=0).validate()
+
+    def test_validate_cwd_default(self):
+        initial_cwd = os.getcwd()
+        config["agent_chdir"] = None
+        data = CommandData("")
+        data.validate()
+        self.assertEqual(data.cwd, os.getcwd())
+        self.assertEqual(initial_cwd, os.getcwd())
+
+    def test_validate_cwd_config(self):
+        initial_cwd = os.getcwd()
+        testdir, _ = self.create_test_directory(count=0)
+        config["agent_chdir"] = testdir
+        data = CommandData("")
+        data.validate()
+        self.assertEqual(data.cwd, testdir)
+        self.assertEqual(initial_cwd, os.getcwd())
+
+    def test_validate_cwd_does_not_exist(self):
+        data = CommandData("", cwd=os.urandom(4).encode("hex"))
+        with self.assertRaises(OSError):
+            data.validate()
+
+    def test_validate_cwd_invalid_type(self):
+        data = CommandData("", cwd=1)
+        with self.assertRaises(TypeError):
+            data.validate()
 
 
 class TestJobTypeLoad(TestCase):
