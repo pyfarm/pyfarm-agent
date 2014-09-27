@@ -229,7 +229,10 @@ class TestMemory(TestCase):
         start_total = total = parent.memory_info().rss
 
         for child_process in parent.children(recursive=True):
-            total += child_process.memory_info().rss
+            try:
+                total += child_process.memory_info().rss
+            except psutil.NoSuchProcess:
+                pass
 
         # These should not be equal if we've iterated
         # over any children at all.
