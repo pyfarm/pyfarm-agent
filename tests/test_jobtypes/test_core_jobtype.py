@@ -111,7 +111,7 @@ class TestCommandData(TestCase):
     def test_set_kwargs(self):
         data = CommandData(
             "", env={"foo": "bar"}, cwd="/", user="usr", group="grp")
-        self.assertEqual(data.env, {"foo", "bar"})
+        self.assertEqual(data.env, {"foo": "bar"})
         self.assertEqual(data.cwd, "/")
         self.assertEqual(data.user, "usr")
         self.assertEqual(data.group, "grp")
