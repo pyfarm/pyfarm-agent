@@ -106,6 +106,14 @@ class TestCommandData(TestCase):
         self.assertEqual(data.user, None)
         self.assertEqual(data.group, None)
 
+    def test_set_kwargs(self):
+        data = CommandData(
+            urandom(12), env={"foo", "bar"}, cwd="/", user="usr", group="grp")
+        self.assertEqual(data.env, {"foo", "bar"})
+        self.assertEqual(data.cwd, "/")
+        self.assertEqual(data.user, "usr")
+        self.assertEqual(data.group, "grp")
+
 
 class TestJobTypeLoad(TestCase):
     def test_schema(self):
