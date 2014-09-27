@@ -91,7 +91,7 @@ class CommandData(object):
         with.  If this value is not provided then a default environment
         will be setup using :meth:`set_default_environment` when
         :meth:`JobType.start` is called.  :meth:`JobType.start` itself will
-        use :meth:`JobType.default_environment` to generate the default
+        use :meth:`JobType.set_default_environment` to generate the default
         environment.
 
     :keyword string cwd:
@@ -114,7 +114,7 @@ class CommandData(object):
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
         self.arguments = tuple(map(str, arguments))
-        self.env = kwargs.pop("env", {})
+        self.env = kwargs.pop("env", None)
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
         self.group = kwargs.pop("group", None)
@@ -137,7 +137,7 @@ class CommandData(object):
         if not isinstance(self.command, STRING_TYPES):
             raise TypeError("Expected a string for `command`")
 
-        if not isinstance(self.env, dict):
+        if not isinstance(self.env, dict) and self.env is not None:
             raise TypeError("Expected a dictionary for `env`")
 
         if not isinstance(self.user, USER_GROUP_TYPES):

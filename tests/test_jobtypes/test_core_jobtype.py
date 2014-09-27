@@ -14,16 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import os
+import re
 from uuid import UUID, uuid4
 
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import uuid
-from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
+from pyfarm.jobtypes.core.jobtype import JobType, CommandData
+
+IS_ADMIN = is_administrator()
 
 
 def fake_assignment():
@@ -86,6 +92,120 @@ class TestInit(TestCase):
         self.assertEqual(job.failed_tasks, set())
         self.assertFalse(job.stop_called)
         self.assertFalse(job.start_called)
+
+
+class TestCommandData(TestCase):
+    def test_set_basic_attributes(self):
+        command = os.urandom(12)
+        arguments = (1, None, True, "foobar")
+        data = CommandData(command, *arguments)
+        self.assertEqual(data.command, command)
+
+        for argument in data.arguments:
+            self.assertIsInstance(argument, str)
+
+        self.assertIsInstance(data.arguments, tuple)
+        self.assertEqual(data.arguments, ("1", "None", "True", "foobar"))
+        self.assertIsNone(data.env)
+        self.assertIsNone(data.cwd)
+        self.assertIsNone(data.user)
+        self.assertIsNone(data.group)
+
+    def test_set_kwargs(self):
+        data = CommandData(
+            "", env={"foo": "bar"}, cwd="/", user="usr", group="grp")
+        self.assertEqual(data.env, {"foo": "bar"})
+        self.assertEqual(data.cwd, "/")
+        self.assertEqual(data.user, "usr")
+        self.assertEqual(data.group, "grp")
+
+    def test_unknown_kwarg(self):
+        with self.assertRaises(ValueError):
+            CommandData("", foobar=True)
+
+    def test_validate_command_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, re.compile(".*string.*command.*")):
+            CommandData(None).validate()
+
+    def test_validate_env_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, re.compile(".*dictionary.*env.*")):
+            CommandData("", env=1).validate()
+
+    def test_user_group_types(self):
+        self.assertEqual(
+            USER_GROUP_TYPES,
+            tuple(list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]))
+
+    def test_validate_user_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, re.compile(".*user.*")):
+            CommandData("", user=1.0).validate()
+
+    def test_validate_group_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, re.compile(".*group.*")):
+            CommandData("", group=1.0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(IS_ADMIN, "Is Administrator")
+    def test_validate_change_user_non_admin_failure(self):
+        with self.assertRaises(EnvironmentError):
+            CommandData("", user=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(IS_ADMIN, "Is Administrator")
+    def test_validate_change_group_non_admin_failure(self):
+        with self.assertRaises(EnvironmentError):
+            CommandData("", group=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(not IS_ADMIN, "Not Administrator")
+    def test_validate_change_user_admin(self):
+        CommandData("", user=0).validate()
+
+    @skipIf(WINDOWS, "Non-Windows only")
+    @skipIf(not IS_ADMIN, "Not Administrator")
+    def test_validate_change_group_admin(self):
+        CommandData("", group=0).validate()
+
+    def test_validate_cwd_default(self):
+        initial_cwd = os.getcwd()
+        config["agent_chdir"] = None
+        data = CommandData("")
+        data.validate()
+        self.assertEqual(data.cwd, os.getcwd())
+        self.assertEqual(initial_cwd, os.getcwd())
+
+    def test_validate_cwd_config(self):
+        initial_cwd = os.getcwd()
+        testdir, _ = self.create_test_directory(count=0)
+        config["agent_chdir"] = testdir
+        data = CommandData("")
+        data.validate()
+        self.assertEqual(data.cwd, testdir)
+        self.assertEqual(initial_cwd, os.getcwd())
+
+    def test_validate_cwd_does_not_exist(self):
+        data = CommandData("", cwd=os.urandom(4).encode("hex"))
+        with self.assertRaises(OSError):
+            data.validate()
+
+    def test_validate_cwd_invalid_type(self):
+        data = CommandData("", cwd=1)
+        with self.assertRaises(TypeError):
+            data.validate()
+
+    def test_set_default_environment_noop(self):
+        data = CommandData("", env={"foo": "bar"})
+        data.set_default_environment({"a": "b"})
+        self.assertEqual(data.env, {"foo": "bar"})
+
+    def test_set_default_environment(self):
+        data = CommandData("", env=None)
+        data.set_default_environment({"a": "b"})
+        self.assertEqual(data.env, {"a": "b"})
 
 
 class TestJobTypeLoad(TestCase):
