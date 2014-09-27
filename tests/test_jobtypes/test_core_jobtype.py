@@ -14,20 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from os import urandom
-from uuid import UUID, uuid4
-from os.path import isdir, isfile
 
-from twisted.internet.defer import Deferred
+from uuid import UUID, uuid4
+
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, requires_master, create_jobtype
+from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility import uuid
 from pyfarm.jobtypes.core.jobtype import JobType
-from pyfarm.jobtypes.core.internals import ProcessData
 
 
 def fake_assignment():
@@ -96,39 +92,3 @@ class TestJobTypeLoad(TestCase):
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
             JobType.load({})
-
-    @requires_master
-    def test_load(self):
-        self.skipTest("NOT IMPLEMENTED")
-        # TODO: There's something wrong with this test the causes it to
-        # fail in different ways depending on invocation.
-        #
-        # self.assertIsNotNone(JobType.CACHE_DIRECTORY)
-        # self.assertTrue(isdir(JobType.CACHE_DIRECTORY))
-        # classname = "AgentUnittest" + urandom(8).encode("hex")
-        # created = create_jobtype(classname=classname)
-        # finished = Deferred()
-        #
-        # def check_loaded(jobtype, module_name, jobtype_data):
-        #     self.assertEqual(jobtype.__name__, classname)
-        #     self.assertIs(
-        #         getattr(sys.modules[module_name], jobtype.__name__), jobtype)
-        #     self.assertTrue(isfile(sys.modules[module_name].__file__))
-        #
-        #     with open(sys.modules[module_name].__file__, "r") as cache_file:
-        #         cached_code = cache_file.read()
-        #
-        #     self.assertEqual(jobtype_data["code"], cached_code)
-        #
-        # def jobtype_created(data):
-        #     assignment = fake_assignment().copy()
-        #     assignment["jobtype"].update(
-        #         name=data["name"], version=data["version"])
-        #     loaded = JobType.load(assignment)
-        #     module_name = "pyfarm.jobtypes.cached.%s%s%s" % (
-        #         classname, data["name"], data["version"])
-        #     loaded.addCallback(check_loaded, module_name, data)
-        #     loaded.chainDeferred(finished)
-        #
-        # created.addCallback(jobtype_created)
-        # return finished
