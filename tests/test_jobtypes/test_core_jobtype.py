@@ -14,16 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from os import urandom
 from uuid import UUID, uuid4
 
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.utility import uuid
+from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 
@@ -118,6 +119,30 @@ class TestCommandData(TestCase):
         with self.assertRaises(ValueError):
             CommandData(urandom(12), foobar=True)
 
+    def test_validate_command_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, ".*string.*command.*"):
+            CommandData(None).validate()
+
+    def test_validate_env_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, ".*dictionary.*env.*"):
+            CommandData("", env=None).validate()
+
+    def test_user_group_types(self):
+        self.assertEqual(
+            USER_GROUP_TYPES,
+            tuple(list(STRING_TYPES) + list(INTEGER_TYPES) + [type(None)]))
+
+    def test_validate_user_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, ".*user.*"):
+            CommandData("", user=1.0).validate()
+
+    def test_validate_group_type(self):
+        with self.assertRaisesRegexp(
+                TypeError, ".*group.*"):
+            CommandData("", group=1.0).validate()
 
 
 class TestJobTypeLoad(TestCase):
