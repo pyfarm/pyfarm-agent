@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from os import urandom
 from uuid import UUID, uuid4
 
@@ -108,8 +109,8 @@ class TestCommandData(TestCase):
         self.assertIsNone(data.group)
 
     def test_set_kwargs(self):
-        data = CommandData(
-            urandom(12), env={"foo", "bar"}, cwd="/", user="usr", group="grp")
+        data = CommandData(str(urandom(12)),
+                           env={"foo", "bar"}, cwd="/", user="usr", group="grp")
         self.assertEqual(data.env, {"foo", "bar"})
         self.assertEqual(data.cwd, "/")
         self.assertEqual(data.user, "usr")
@@ -121,12 +122,12 @@ class TestCommandData(TestCase):
 
     def test_validate_command_type(self):
         with self.assertRaisesRegexp(
-                TypeError, ".*string.*command.*"):
+                TypeError, re.compile(".*string.*command.*")):
             CommandData(None).validate()
 
     def test_validate_env_type(self):
         with self.assertRaisesRegexp(
-                TypeError, ".*dictionary.*env.*"):
+                TypeError, re.compile(".*dictionary.*env.*")):
             CommandData("", env=None).validate()
 
     def test_user_group_types(self):
@@ -136,12 +137,12 @@ class TestCommandData(TestCase):
 
     def test_validate_user_type(self):
         with self.assertRaisesRegexp(
-                TypeError, ".*user.*"):
+                TypeError, re.compile(".*user.*")):
             CommandData("", user=1.0).validate()
 
     def test_validate_group_type(self):
         with self.assertRaisesRegexp(
-                TypeError, ".*group.*"):
+                TypeError, re.compile(".*group.*")):
             CommandData("", group=1.0).validate()
 
 
