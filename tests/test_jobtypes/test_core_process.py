@@ -17,6 +17,11 @@
 import os
 from collections import namedtuple
 
+try:
+    from unittest.mock import patch
+except ImportError:
+    from mock import patch
+
 import psutil
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
@@ -25,7 +30,8 @@ from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.jobtypes.core.log import STDOUT, STDERR
 from pyfarm.agent.testutil import TestCase
-from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
+from pyfarm.jobtypes.core.process import (
+    ReplaceEnvironment, ProcessProtocol, logger)
 
 DummyInputs = namedtuple("DummyInputs", ("task", ))
 
@@ -116,6 +122,16 @@ class TestProtocol(TestProcessBase):
         self._launch_python(fake_jobtype)
         return fake_jobtype.stopped
 
+    def test_processEnded_error(self):
+        jobtype = ProcessProtocol(None)
+
+        with patch.object(logger, "error"):
+            jobtype.processEnded(None)
+            self.assertEqual(logger.error.call_count, 1)
+            self.assertIn(
+                "Exception caught while running jobtype._process_stopped",
+                logger.error.call_args[0][0])
+
     def test_outReceived(self):
         finished = Deferred()
         rand_str = os.urandom(24).encode("hex")
@@ -130,6 +146,17 @@ class TestProtocol(TestProcessBase):
             fake_jobtype,
             "import sys; print >> sys.stdout, %r" % rand_str)
         return DeferredList([finished, fake_jobtype.stopped])
+
+    def test_outReceived_error(self):
+        jobtype = ProcessProtocol(None)
+
+        with patch.object(logger, "error"):
+            jobtype.outReceived(None)
+            self.assertEqual(logger.error.call_count, 1)
+            self.assertIn(
+                "Exception caught while handling STDOUT in "
+                "jobtype._process_output",
+                logger.error.call_args[0][0])
 
     def test_errReceived(self):
         finished = Deferred()
@@ -147,6 +174,17 @@ class TestProtocol(TestProcessBase):
             fake_jobtype,
             "import sys; print >> sys.stderr, %r" % rand_str)
         return DeferredList([finished, fake_jobtype.stopped])
+
+    def test_errReceived_error(self):
+        jobtype = ProcessProtocol(None)
+
+        with patch.object(logger, "error"):
+            jobtype.errReceived(None)
+            self.assertEqual(logger.error.call_count, 1)
+            self.assertIn(
+                "Exception caught while handling STDERR in "
+                "jobtype._process_output",
+                logger.error.call_args[0][0])
 
 
 class TestStopProcess(TestProcessBase):
