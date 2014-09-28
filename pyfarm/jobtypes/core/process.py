@@ -141,14 +141,18 @@ class ProcessProtocol(_ProcessProtocol):
         try:
             self.jobtype._process_output(self, data, STDOUT)
         except Exception as e:
-            logger.error("Caught an exception from _process_output: %s", e)
+            logger.error(
+                "Exception caught while handling STDOUT in "
+                "jobtype._process_output: %s", e)
 
     def errReceived(self, data):
         """Called when the process emits on stderr"""
         try:
             self.jobtype._process_output(self, data, STDERR)
         except Exception as e:
-            logger.error("Caught an exception from _process_output: %s", e)
+            logger.error(
+                "Exception caught while handling STDERR in "
+                "jobtype._process_output: %s", e)
 
     def kill(self):
         """Kills the underlying process, if running."""
