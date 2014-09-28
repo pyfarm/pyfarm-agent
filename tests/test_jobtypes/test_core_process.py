@@ -98,6 +98,13 @@ class TestProtocol(TestProcessBase):
         self.assertEqual(protocol.psutil_process.pid, protocol.pid)
         return fake_jobtype.stopped
 
+    def test_running(self):
+        fake_jobtype = FakeJobType()
+        protocol = self._launch_python(fake_jobtype)
+        self.assertIsInstance(protocol.psutil_process, psutil.Process)
+        self.assertTrue(protocol.running())
+        return fake_jobtype.stopped
+
     def test_connectionMade(self):
         fake_jobtype = FakeJobType()
 
