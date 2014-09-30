@@ -515,21 +515,14 @@ class Process(object):
         """
         if stream == STDOUT:
             line_fragments = self._stdout_line_fragments
-            preprocessor = self.preprocess_stdout
             line_handler = self.handle_stdout_line
 
         elif stream == STDERR:
             line_fragments = self._stderr_line_fragments
-            preprocessor = self.preprocess_stderr
             line_handler = self.handle_stderr_line
 
         else:
             raise ValueError("Expected STDOUT or STDERR for `stream`")
-
-        # Proprocess before we call process_output
-        new_output = preprocessor(protocol, output)
-        if isinstance(new_output, STRING_TYPES):
-            output = new_output
 
         self.process_output(protocol, output, line_fragments, line_handler)
 
