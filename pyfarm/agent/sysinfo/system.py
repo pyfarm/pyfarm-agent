@@ -54,6 +54,8 @@ def filesystem_is_case_sensitive():  # pragma: no cover
     except (WindowsError, OSError, NotImplementedError):
         pass
 
+    os.close(fd)
+
     return case_sensitive
 
 
