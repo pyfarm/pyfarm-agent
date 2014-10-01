@@ -195,12 +195,12 @@ class Cache(object):
 
             # If the above fails, use a temp file instead
             except (IOError, OSError) as e:  # pragma: no cover
-                _, tmpfilepath = tempfile.mkstemp(suffix=".py")
+                fd, tmpfilepath = tempfile.mkstemp(suffix=".py")
                 logcache.warning(
                     "Failed to write %s, using %s instead: %s",
                     filename, tmpfilepath, e)
 
-                with open(tmpfilepath, "w") as stream:
+                with os.fdopen(fd, "w") as stream:
                     stream.write(jobtype["code"])
 
                 jobtype.pop("code", None)
