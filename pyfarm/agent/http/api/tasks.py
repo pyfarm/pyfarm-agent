@@ -101,7 +101,7 @@ class Tasks(APIResource):
             jobtype.stop()
         else:
             logger.error("Tried stopping assigment %s, but found no jobtype "
-                         "instance", assignment.id)
+                         "instance", assignment.uuid)
             request.setResponseCode(INTERNAL_SERVER_ERROR)
             request.write({"error": "Assignment found, but no jobtype instance "
                                     "exists."})
