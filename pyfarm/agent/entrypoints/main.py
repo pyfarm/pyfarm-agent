@@ -24,10 +24,12 @@ The main module which constructs the entrypoint for the
 
 from __future__ import division
 
+import atexit
 import os
 import sys
 import pdb
 import time
+from errno import ENOENT
 
 from json import dumps
 
@@ -459,10 +461,11 @@ class AgentEntryPoint(object):
             response = requests.get(
                 url, headers={"Content-Type": "application/json"})
         except ConnectionError:
-            if isfile(config["agent_lock_file"]):
-                logger.debug(
-                    "Process ID file %s exists", config["agent_lock_file"])
+            pid = None
+            remove_lock_file = False
 
+            # Try to open an existing lock file
+            try:
                 with open(config["agent_lock_file"], "r") as pidfile:
                     try:
                         pid = int(pidfile.read().strip())
@@ -470,33 +473,78 @@ class AgentEntryPoint(object):
                         logger.warning(
                             "Could not convert pid in %s to an integer.",
                             config["agent_lock_file"])
+                        remove_lock_file = True
+
+            # If the file is missing we ignore the error and read
+            # pid/remove_lock_file later on.
+            except OSError as e:
+                if e.errno == ENOENT:
+                    logger.debug(
+                        "Process ID file %s does not exist",
+                        config["agent_lock_file"])
+                else:
+                    raise
+
+            else:
+                assert pid is not None, "pid was not set"
+                logger.debug(
+                    "Process ID file %s exists", config["agent_lock_file"])
+
+            if pid is not None:
+                try:
+                    process = psutil.Process(pid)
+
+                # Process in the pid file does not exist
+                except psutil.NoSuchProcess:
+                    logger.debug(
+                        "Process ID in %s is stale.",
+                        config["agent_lock_file"])
+                    remove_lock_file = True
+
+                # Process does exist, does it appear to be our agent?
+                else:
+                    if process.name() == "pyfarm-agent":
+                        logger.error(
+                            "Agent is already running, pid %s", pid)
+                        return 1
+
+                    # Not our agent so the lock file is probably wrong.
                     else:
-                        try:
-                            process = psutil.Process(pid)
-                        except psutil.NoSuchProcess:
+                        logger.debug(
+                            "Process %s does not appear to be the "
+                            "agent.", pid)
+                        remove_lock_file = True
+
+            if remove_lock_file:
+                logger.debug(
+                    "Attempting to remove PID file %s",
+                    config["agent_lock_file"])
+
+                try:
+                    os.remove(config["agent_lock_file"])
+                except OSError as e:
+                    if e.errno != ENOENT:
+                        logger.warning(
+                            "Failed to remove PID file %s: %s (will retry)",
+                            config["agent_lock_file"], e)
+
+                        # Try again when the process exits since the
+                        # OS is more likely to have released the file
+                        # handle by then.
+                        @atexit.register
+                        def remove_pid_file_on_exit():
                             logger.debug(
-                                "Process ID in %s is stale.",
+                                "Trying to remove %s at exit",
                                 config["agent_lock_file"])
                             try:
                                 os.remove(config["agent_lock_file"])
                             except OSError as e:
-                                logger.error(
-                                    "Failed to remove PID file %s: %s",
-                                    config["agent_lock_file"], e)
-                                return 1
-                        else:
-                            if process.name() == "pyfarm-agent":
-                                logger.error(
-                                    "Agent is already running, pid %s", pid)
-                                return 1
-                            else:
-                                logger.debug(
-                                    "Process %s does not appear to be the "
-                                    "agent.", pid)
-            else:
-                logger.debug(
-                    "Process ID file %s does not exist",
-                    config["agent_lock_file"])
+                                if e.errno != ENOENT:
+                                    logger.error(
+                                        "Failed to remove PID file %s: %s",
+                                        config["agent_lock_file"], e)
+
+                    return 1
         else:
             code = "%s %s" % (
                 response.status_code, responses[response.status_code])
