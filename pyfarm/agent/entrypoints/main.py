@@ -477,7 +477,7 @@ class AgentEntryPoint(object):
 
             # If the file is missing we ignore the error and read
             # pid/remove_lock_file later on.
-            except OSError as e:
+            except (OSError, IOError) as e:
                 if e.errno == ENOENT:
                     logger.debug(
                         "Process ID file %s does not exist",
