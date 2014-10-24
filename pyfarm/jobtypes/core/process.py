@@ -157,6 +157,10 @@ class ProcessProtocol(_ProcessProtocol):
     def kill(self):
         """Kills the underlying process, if running."""
         logger.info("Killing %s", self)
+        if not self.pid:
+            logger.warning("Process has no pid, it has probably already "
+                           "terminated. Not killing it.")
+            return
         children = None
         try:
             process = self.psutil_process
@@ -176,6 +180,10 @@ class ProcessProtocol(_ProcessProtocol):
     def terminate(self):
         """Terminates the underlying process, if running."""
         logger.info("Terminating %s", self)
+        if not self.pid:
+            logger.warning("Process has no pid, it has probably already "
+                           "terminated. Not terminating it.")
+            return
         children = None
         try:
             process = self.psutil_process
