@@ -280,7 +280,8 @@ class Assign(APIResource):
             except Exception as e:
                 logger.error("Error on starting jobtype, stopping it now.  "
                              "Error was: %s", e)
-                instance.stop()
+                instance.stop(assignment_failed=True,
+                              error="Error while loading jobtype: %s" % e)
                 assignment = config["current_assignments"].pop(assign_id)
                 if "jobtype" in assignment:
                     jobtype_id = assignment["jobtype"].pop("id", None)

@@ -683,12 +683,22 @@ class JobType(Cache, System, Process, TypeChecks):
             command.set_default_environment(environment)
             self._spawn_process(command)
 
-    def stop(self, signal="KILL"):
+    def stop(self, assignment_failed=False, error=None, signal="KILL"):
         """
         This method is called when the job type should stop
         running.  This will terminate any processes associated with
         this job type and also inform the master of any state changes
         to an associated task or tasks.
+
+        :param boolean assignment_failed:
+            Whether this means the assignment has genuinely failed.  By default,
+            we assume that stopping this assignment was the result of deliberate
+            user action (like stopping the job or shutting down the agent), and
+            won't treat it as a failed assignment.
+
+        :param string error:
+            If the assignment has failed, this string is upload as last_error
+            for the failed tasks.
 
         :param string signal:
             The signal to send the any running processes.  Valid options
@@ -710,7 +720,22 @@ class JobType(Cache, System, Process, TypeChecks):
                 raise NotImplementedError(
                     "Don't know how to handle signal %r" % signal)
 
-        # TODO: notify master of stopped task(s)
+        if assignment_failed:
+            for task in self.assignment["tasks"]:
+                if task["id"] not in self.finished_tasks:
+                    self.set_task_state(task, WorkState.FAILED, error=error)
+                else:
+                    logger.info(
+                        "Task %r is already in finished tasks, not setting "
+                        "state to failed", task["id"])
+        else:
+            for task in self.assignment["tasks"]:
+                if task["id"] not in self.failed_tasks:
+                    self.set_task_state(task, None, dissociate_agent=True)
+                else:
+                    logger.info(
+                        "Task %r is already in failed tasks, not setting state "
+                        "to queued", task["id"])
         # TODO: chain this callback to the completion of our request to master
 
     def format_error(self, error):
@@ -756,7 +781,7 @@ class JobType(Cache, System, Process, TypeChecks):
             self.set_task_state(task, state, error=error)
 
     # TODO: refactor so `task` is an integer, not a dictionary
-    def set_task_state(self, task, state, error=None):
+    def set_task_state(self, task, state, error=None, dissociate_agent=False):
         """
         Sets the state of the given task
 
@@ -774,7 +799,7 @@ class JobType(Cache, System, Process, TypeChecks):
             passed to this keyword will be passed through
             :meth:`format_exception` first to format it.
         """
-        if state not in WorkState:
+        if state not in WorkState and state is not None:
             logger.error(
                 "Cannot set state for task %r to %r, %r is an invalid "
                 "state", task, state, state)
@@ -794,11 +819,6 @@ class JobType(Cache, System, Process, TypeChecks):
                 "job type's assignments", task)
 
         else:
-            if state != WorkState.FAILED and error:
-                logger.warning(
-                    "Resetting `error` to None, state is not WorkState.FAILED")
-                error = None
-
             # The task has failed
             if state == WorkState.FAILED:
                 error = self.format_error(error)
@@ -813,9 +833,13 @@ class JobType(Cache, System, Process, TypeChecks):
                     "'failed'.  Discarding error.")
                 error = None
 
+            if (state == WorkState.DONE and
+                task["id"] not in self.finished_tasks):
+                self.finished_tasks.add(task["id"])
+
             url = "%s/jobs/%s/tasks/%s" % (
                 config["master_api"], self.assignment["job"]["id"], task["id"])
-            data = {"state": state}
+            data = {"state": state or "queued"}
 
             # If the error has been set then update the data we're
             # going to POST
@@ -824,6 +848,9 @@ class JobType(Cache, System, Process, TypeChecks):
 
             elif error is not None:
                 logger.error("Expected a string for `error`")
+
+            if dissociate_agent:
+                data.update(agent_id=None)
 
             def post_update(post_url, post_data, delay=0):
                 post_func = partial(
@@ -855,9 +882,6 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.info(
                         "Set state of task %s to %s on master",
                         task_id, cbstate)
-                    if cbstate == WorkState.DONE \
-                            and task_id not in self.finished_tasks:
-                        self.finished_tasks.add(task_id)
 
             def error_callback(cburl, cbdata, failure_reason):
                 logger.error(
@@ -970,7 +994,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.info(
                         "Task %r is already in failed tasks, not setting state "
                         "to %s", task["id"], WorkState.DONE)
-        else:
+        elif not self.stop_called:
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.finished_tasks:
                     self.set_task_state(task, WorkState.FAILED)
