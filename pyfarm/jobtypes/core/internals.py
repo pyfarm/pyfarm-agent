@@ -338,7 +338,25 @@ class Process(object):
                 "The `env` keyword should always be set to None.")
 
         with ReplaceEnvironment(command.env):
-            reactor.spawnProcess(process_protocol, command.command, **kwargs)
+            try:
+                reactor.spawnProcess(process_protocol, command.command, **kwargs)
+            except Exception as e:
+                logger.error("Exception on starting process: %s", e)
+                self.processes.pop(process_protocol.uuid).stopped.callback(None)
+                self.failed_processes.add((process_protocol, e))
+                # If there are no processes running at this point, we assume
+                # the assignment is finished
+                if len(self.processes) == 0:
+                    logger.error("There was at least one failed process in the "
+                                 "assignment %s", self)
+                for task in self.assignment["tasks"]:
+                    if task["id"] not in self.finished_tasks:
+                        self.set_task_state(task, WorkState.FAILED)
+                    else:
+                        logger.info(
+                            "Task %r is already in finished tasks, not setting "
+                            "state to %s", task["id"], WorkState.FAILED)
+                    self.stopped_deferred.callback(None)
 
     def _start(self):
         """
