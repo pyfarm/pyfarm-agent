@@ -93,7 +93,7 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def pid(self):
-        return self.transport.pid
+        return self.transport.pid if self.transport else None
 
     @property
     def process(self):
