@@ -93,7 +93,11 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def pid(self):
-        return self.transport.pid if self.transport else None
+        # Transport may not have been setup if the process failed to start.
+        try:
+            return self.transport.pid
+        except AttributeError:
+            return None
 
     @property
     def process(self):
