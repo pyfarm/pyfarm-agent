@@ -344,11 +344,13 @@ class Process(object):
                 logger.error("Exception on starting process: %s", e)
                 self.processes.pop(process_protocol.uuid).stopped.callback(None)
                 self.failed_processes.add((process_protocol, e))
+
                 # If there are no processes running at this point, we assume
                 # the assignment is finished
                 if len(self.processes) == 0:
                     logger.error("There was at least one failed process in the "
                                  "assignment %s", self)
+
                 for task in self.assignment["tasks"]:
                     if task["id"] not in self.finished_tasks:
                         self.set_task_state(task, WorkState.FAILED)
