@@ -93,7 +93,11 @@ class ProcessProtocol(_ProcessProtocol):
 
     @property
     def pid(self):
-        return self.transport.pid
+        # Transport may not have been setup if the process failed to start.
+        try:
+            return self.transport.pid
+        except AttributeError:
+            return None
 
     @property
     def process(self):
@@ -173,7 +177,11 @@ class ProcessProtocol(_ProcessProtocol):
 
         def kill_children(children):
             for child in children:
-                child.kill()
+                try:
+                    child.kill()
+                except NoSuchProcess:
+                    # We don't care about that
+                    pass
         if children:
             reactor.callLater(2, kill_children, children)
 
@@ -196,7 +204,10 @@ class ProcessProtocol(_ProcessProtocol):
 
         def terminate_children(children):
             for child in children:
-                child.terminate()
+                try:
+                    child.terminate()
+                except NoSuchProcess:
+                    pass
         if children:
             reactor.callLater(2, terminate_children, children)
 
