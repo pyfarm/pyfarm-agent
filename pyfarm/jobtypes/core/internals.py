@@ -395,7 +395,7 @@ class Process(object):
         if self.processes:
             self.stopped_deferred = Deferred()
         else:
-            # Similar thing as for started, make sure teh assignment is cleaned
+            # Similar thing as for started, make sure the assignment is cleaned
             # up if no processes have been started
             self.stopped_deferred = succeed([])
         return self.started_deferred, self.stopped_deferred
