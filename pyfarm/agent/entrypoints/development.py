@@ -40,7 +40,6 @@ import requests
 from pyfarm.core.enums import NUMERIC_TYPES
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.parser import integer, number
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import dumps
 
@@ -54,7 +53,6 @@ def fake_render():
     process = psutil.Process()
     memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
     memory_used_at_start = memory_usage()
-    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
 
     logger.info("sys.argv: %r", sys.argv)
 
@@ -62,34 +60,30 @@ def fake_render():
     parser = argparse.ArgumentParser(
         description="Very basic command line tool which vaguely simulates a "
                     "render.")
-    getnum = partial(
-        number, instance=FakeInstance(parser=parser, args=None),
-        types=NUMERIC_TYPES,
-        allow_inf=False, min_=0)
     parser.add_argument(
-        "--ram", type=getnum, default=25,
+        "--ram", type=int, default=25,
         help="How much ram in megabytes the fake command should consume")
     parser.add_argument(
-        "--duration", type=getnum, default=5,
+        "--duration", type=int, default=5,
         help="How many seconds it should take to run this command")
     parser.add_argument(
-        "--return-code", type=getnum, action="append", default=[0],
+        "--return-code", type=int, action="append", default=[0],
         help="The return code to return, declaring this flag multiple times "
              "will result in a random return code.  [default: %(default)s]")
     parser.add_argument(
-        "--duration-jitter", type=getnum, default=5,
+        "--duration-jitter", type=int, default=5,
         help="Randomly add or subtract this amount to the total duration")
     parser.add_argument(
-        "--ram-jitter", type=getnum, default=None,
+        "--ram-jitter", type=int, default=None,
         help="Randomly add or subtract this amount to the ram")
     parser.add_argument(
-        "-s", "--start", type=getnum, required=True,
+        "-s", "--start", type=int, required=True,
         help="The start frame.  If no other flags are provided this will also "
              "be the end frame.")
     parser.add_argument(
-        "-e", "--end", type=getnum, help="The end frame")
+        "-e", "--end", type=int, help="The end frame")
     parser.add_argument(
-        "-b", "--by", type=getnum, help="The by frame", default=1)
+        "-b", "--by", type=int, help="The by frame", default=1)
     parser.add_argument(
         "--spew", default=False, action="store_true",
         help="Spews lots of random output to stdout which is generally "
@@ -211,10 +205,6 @@ def fake_work():
                     "some tasks which are then posted directly to the "
                     "agent.  The primary purpose of this script is to test "
                     "the internal of the job types")
-    FakeInstance = namedtuple("FakeInstance", ("parser", "args"))
-    getint = partial(
-        integer, instance=FakeInstance(parser=parser, args=None),
-        allow_inf=False, min_=0)
     parser.add_argument(
         "--master-api", default="http://127.0.0.1/api/v1",
         help="The url to the master's api [default: %(default)s]")
@@ -225,7 +215,7 @@ def fake_work():
         "--jobtype", default="FakeRender",
         help="The job type to use [default: %(default)s]")
     parser.add_argument(
-        "--job", type=getint,
+        "--job", type=int,
         help="If provided then this will be the job we pull tasks from "
              "and assign to the agent.  Please note we'll only be pulling "
              "tasks that aren't running or assigned.")
