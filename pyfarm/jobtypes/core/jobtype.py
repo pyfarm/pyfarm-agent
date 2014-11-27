@@ -110,6 +110,10 @@ class CommandData(object):
     :keyword group:
         Same as ``user`` above except this sets the group the process will
         execute.
+
+    :keyword id:
+        An arbitrary id to associate with the resulting process protocol.  This
+        can help identify
     """
     def __init__(self, command, *arguments, **kwargs):
         self.command = command
@@ -118,6 +122,7 @@ class CommandData(object):
         self.cwd = kwargs.pop("cwd", None)
         self.user = kwargs.pop("user", None)
         self.group = kwargs.pop("group", None)
+        self.id = kwargs.pop("id", None)
 
         if kwargs:
             raise ValueError(
