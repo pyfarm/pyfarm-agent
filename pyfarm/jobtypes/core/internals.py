@@ -489,8 +489,7 @@ class Process(object):
         """
         process_protocol = self.PROCESS_PROTOCOL(self)
 
-        if hasattr(command, "id"):
-            process_protocol.id = command.id
+        process_protocol.id = getattr(command, "id", None)
 
         if not isinstance(process_protocol, ProcessProtocol):
             raise TypeError("Expected ProcessProtocol for `protocol`")
