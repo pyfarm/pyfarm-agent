@@ -26,6 +26,7 @@ from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
+from pyfarm.agent.sysinfo import network
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
@@ -54,7 +55,8 @@ class TestAgentBasicMethods(TestCase):
             "remote_ip": config["remote_ip"],
             "port": config["agent_api_port"],
             "time_offset": config["agent_time_offset"],
-            "state": config["state"]}
+            "state": config["state"],
+            "mac_addresses": list(network.mac_addresses())}
 
         agent = Agent()
         system_data = agent.system_data()
