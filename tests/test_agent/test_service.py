@@ -23,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
-from pyfarm.agent.sysinfo.system import system_identifier, system
+from pyfarm.agent.sysinfo.system import system_identifier, operating_system
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
@@ -52,7 +52,7 @@ class TestAgentBasicMethods(TestCase):
             "version": config.version,
             "ram": config["agent_ram"],
             "cpus": config["agent_cpus"],
-            "os_class": system.operating_system(),
+            "os_class": operating_system(),
             "os_fullname": platform(),
             "remote_ip": config["remote_ip"],
             "port": config["agent_api_port"],
