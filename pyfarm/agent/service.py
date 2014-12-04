@@ -60,7 +60,7 @@ from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
-from pyfarm.agent.sysinfo import memory, network, system
+from pyfarm.agent.sysinfo import memory, network, system, cpu
 
 svclog = getLogger("agent.service")
 ntplog = getLogger("agent.service.ntp")
@@ -244,6 +244,7 @@ class Agent(object):
             "os_fullname": platform(),
             "ram": int(config["agent_ram"]),
             "cpus": config["agent_cpus"],
+            "cpu_name": cpu.cpu_name(),
             "port": config["agent_api_port"],
             "free_ram": memory.free_ram(),
             "time_offset": config["agent_time_offset"] or 0,

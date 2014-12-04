@@ -24,7 +24,16 @@ system such as load, processing times, etc.
 
 from __future__ import division
 
+import platform
+
 import psutil
+
+
+def cpu_name():
+    """
+    Returns the full name of the CPU installed in the system.
+    """
+    return platform.processor()
 
 
 def total_cpus(logical=True):
