@@ -154,6 +154,12 @@ class Agent(object):
                     svclog.warning("Could not announce to master. Not retrying "
                                    "because of pending shutdown")
 
+            elif response.code == NOT_FOUND:
+                self.reannounce_client_request = None
+                svclog.warning("The master says it does not know about our "
+                               "agent id. Posting as a new agent.")
+                self.post_agent_to_master()
+
             # If this is a client problem retrying the request
             # is unlikely to fix the issue so we stop here
             elif response.code >= BAD_REQUEST:
