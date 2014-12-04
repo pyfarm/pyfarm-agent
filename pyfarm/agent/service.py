@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from os.path import join, isfile
 from random import random
+from platform import platform
 
 try:
     from httplib import (
@@ -234,6 +235,7 @@ class Agent(object):
             "hostname": config["agent_hostname"],
             "version": config.version,
             "os_class": system.operating_system(),
+            "os_fullname": platform(),
             "ram": int(config["agent_ram"]),
             "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
