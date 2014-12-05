@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from os.path import join, isfile
 from random import random
+from platform import platform
 
 try:
     from httplib import (
@@ -59,8 +60,7 @@ from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
-from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.sysinfo import network
+from pyfarm.agent.sysinfo import memory, network, system
 
 svclog = getLogger("agent.service")
 ntplog = getLogger("agent.service.ntp")
@@ -240,6 +240,8 @@ class Agent(object):
             "systemid": config["agent_systemid"],
             "hostname": config["agent_hostname"],
             "version": config.version,
+            "os_class": system.operating_system(),
+            "os_fullname": platform(),
             "ram": int(config["agent_ram"]),
             "cpus": config["agent_cpus"],
             "port": config["agent_api_port"],
