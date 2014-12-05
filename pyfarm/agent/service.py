@@ -60,6 +60,7 @@ from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory
+from pyfarm.agent.sysinfo import network
 
 svclog = getLogger("agent.service")
 ntplog = getLogger("agent.service.ntp")
@@ -239,6 +240,7 @@ class Agent(object):
             "free_ram": memory.free_ram(),
             "time_offset": config["agent_time_offset"] or 0,
             "state": config["state"],
+            "mac_addresses": list(network.mac_addresses()),
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet
 
