@@ -57,10 +57,10 @@ def mac_addresses(long_addresses=False, as_integers=False):
     """
     Returns a tuple of all mac addresses on the system.
 
-    :param bool standard_length_only:
+    :param bool long_addresses:
         Some adapters will specify a mac address which is longer
         than the standard value of six pairs.  Setting this value
-        to False will allow these to be displayed.
+        to True will allow these to be displayed.
 
     :param bool as_integers:
         When ``True`` convert all mac addresses to integers.
