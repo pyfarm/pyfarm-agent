@@ -72,9 +72,12 @@ def mac_addresses(long_addresses=False, as_integers=False):
 
             if all([mac, not long_addresses, len(mac) == 17]) \
                or all([long_addresses, mac, len(mac) >= 17]):
-                if as_integers:
-                    mac = 0 if not mac else int("0x" + mac.replace(":", ""), 0)
-                results.add(mac)
+                mac_as_int = int("0x" + mac.replace(":", ""), 0)
+                if mac_as_int != 0:
+                    if as_integers:
+                        results.add(mac_as_int)
+                    else:
+                        results.add(mac)
 
     return tuple(results)
 
