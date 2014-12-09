@@ -71,7 +71,7 @@ def mac_addresses(long_addresses=False, as_integers=False):
             mac = entry.get("addr", "")
 
             if all([mac, not long_addresses, len(mac) == 17]) \
-                    or not all([not long_addresses, mac]):
+               or all([long_addresses, mac, len(mac) >= 17]):
                 if as_integers:
                     mac = 0 if not mac else int("0x" + mac.replace(":", ""), 0)
                 results.add(mac)
