@@ -28,12 +28,27 @@ import platform
 
 import psutil
 
+from pyfarm.core.enums import WINDOWS, LINUX
+
+if WINDOWS: # pragma: no cover
+    from wmi import WMI
+
 
 def cpu_name():
     """
     Returns the full name of the CPU installed in the system.
     """
-    return platform.processor()
+    if WINDOWS:
+        wmi = WMI()
+        processor = wmi.Win32_Processor()[0]
+        return processor.name
+    elif LINUX:
+        with open("/proc/cpuinfo", "r") as cpuinfo:
+            for line in cpuinfo:
+                if line.startswith("model name"):
+                    return line.split(":")[1].strip()
+    else:
+        return platform.processor()
 
 
 def total_cpus(logical=True):
