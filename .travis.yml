@@ -7,12 +7,16 @@ python:
 services:
   - redis-server
 
+cache:
+  directories:
+  - $HOME/.pipcache
+
 env:
   global:
     - VIRTUALENV_ROOT=/tmp/virtualenv
     - VIRTUALENV_MASTER=$VIRTUALENV_ROOT/pyfarm-master
     - VIRTUALENV_AGENT=$VIRTUALENV_ROOT/pyfarm-agent
-    - PIP_DOWNLOAD_CACHE=/tmp/pip_download_cache
+    - PIP_DOWNLOAD_CACHE=$HOME/.pipcache
     - MASTER_PYTHON_VERSION=3.4
     - PYFARM_AGENT_TEST_MASTER=127.0.0.1:5000  # where uwsgi is running
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
