@@ -57,10 +57,10 @@ def mac_addresses(long_addresses=False, as_integers=False):
     """
     Returns a tuple of all mac addresses on the system.
 
-    :param bool standard_length_only:
+    :param bool long_addresses:
         Some adapters will specify a mac address which is longer
         than the standard value of six pairs.  Setting this value
-        to False will allow these to be displayed.
+        to True will allow these to be displayed.
 
     :param bool as_integers:
         When ``True`` convert all mac addresses to integers.
@@ -71,10 +71,13 @@ def mac_addresses(long_addresses=False, as_integers=False):
             mac = entry.get("addr", "")
 
             if all([mac, not long_addresses, len(mac) == 17]) \
-                    or not all([not long_addresses, mac]):
-                if as_integers:
-                    mac = 0 if not mac else int("0x" + mac.replace(":", ""), 0)
-                results.add(mac)
+               or all([long_addresses, mac, len(mac) >= 17]):
+                mac_as_int = int("0x" + mac.replace(":", ""), 0)
+                if mac_as_int != 0:
+                    if as_integers:
+                        results.add(mac_as_int)
+                    else:
+                        results.add(mac)
 
     return tuple(results)
 
