@@ -30,8 +30,10 @@ import psutil
 
 from pyfarm.core.enums import WINDOWS, LINUX
 
-if WINDOWS: # pragma: no cover
+try:
     from wmi import WMI
+except ImportError:  # pragma: no cover
+    WMI = NotImplemented
 
 
 def cpu_name():
