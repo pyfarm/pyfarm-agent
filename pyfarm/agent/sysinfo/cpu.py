@@ -25,13 +25,20 @@ system such as load, processing times, etc.
 from __future__ import division
 
 import platform
+from ctypes import cdll, create_string_buffer, byref, c_uint
+from ctypes.util import find_library
 
 import psutil
 
-from pyfarm.core.enums import WINDOWS, LINUX
+from pyfarm.core.enums import WINDOWS, LINUX, MAC
 
 if WINDOWS: # pragma: no cover
     from wmi import WMI
+
+try:
+    LIBC = cdll.LoadLibrary(find_library("c"))
+except OSError:  # pragma: no cover
+    LIBC = NotImplemented
 
 
 def cpu_name():
@@ -42,11 +49,22 @@ def cpu_name():
         wmi = WMI()
         processor = wmi.Win32_Processor()[0]
         return processor.name
+
     elif LINUX:
         with open("/proc/cpuinfo", "r") as cpuinfo:
             for line in cpuinfo:
                 if line.startswith("model name"):
                     return line.split(":")[1].strip()
+
+    elif MAC:
+        uint = c_uint(0)
+        LIBC.sysctlbyname(
+            "machdep.cpu.brand_string", None, byref(uint), None, 0)
+        string_buffer = create_string_buffer(uint.value)
+        LIBC.sysctlbyname(
+            "machdep.cpu.brand_string", string_buffer, byref(uint), None, 0)
+        return string_buffer.value
+
     else:
         return platform.processor()
 
