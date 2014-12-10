@@ -13,7 +13,7 @@ env:
     - VIRTUALENV_AGENT=$VIRTUALENV_ROOT/pyfarm-agent
     - PIP_DOWNLOAD_CACHE=/tmp/pip_download_cache
     - MASTER_PYTHON_VERSION=3.4
-    - PYFARM_AGENT_TEST_MASTER=127.0.0.1:80  # where nginx is running
+    - PYFARM_AGENT_TEST_MASTER=127.0.0.1:5000  # where uwsgi is running
     - TDB_TYPE=postgres TDB_DRIVER=psycopg2 PYFARM_DATABASE_URI="postgresql+psycopg2://postgres:@127.0.0.1/pyfarm" PYFARM_CONFIG="prod" PYFARM_SECRET_KEY="travis"
 
   # TODO: test the agent against multiple configurations, independent of DB configuration.
@@ -29,10 +29,6 @@ before_install:
   - curl https://raw.githubusercontent.com/pyfarm/pyfarm/master/misc/retry.sh -o retry.sh
   - source retry.sh
   - mkdir -p $PIP_DOWNLOAD_CACHE
-  - retry sudo apt-get -y install nginx
-  - sudo adduser travis www-data
-  - sudo cp resources/travis/nginx.conf /etc/nginx/nginx.conf
-  - sudo service nginx restart
 
   # Create virtual environments for agent and master
   - deactivate  # travis virtualenv
@@ -49,7 +45,7 @@ install:
   - retry pip install -e git+git://github.com/pyfarm/pyfarm-core.git#egg=pyfarm.core --egg --quiet
   - retry pip install -e git+git://github.com/pyfarm/pyfarm-master.git#egg=pyfarm.master --egg --quiet
   - pyfarm-tables --echo
-  - uwsgi resources/travis/uwsgi.ini
+  - uwsgi resources/uwsgi.ini
   - pip freeze
   - deactivate  # master virtualenv
 
@@ -73,6 +69,3 @@ after_success:
 
 after_failure:
   - sudo cat /tmp/uwsgi.log
-  - sudo cat /tmp/nginx_error.log
-  - sudo cat /tmp/nginx_access.log
-  - sudo cat /etc/nginx/nginx.conf
