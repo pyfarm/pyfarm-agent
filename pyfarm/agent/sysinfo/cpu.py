@@ -48,7 +48,7 @@ def cpu_name():
         with open("/proc/cpuinfo", "r") as cpuinfo:
             for line in cpuinfo:
                 if line.startswith("model name"):
-                    return line.split(":")[1].strip()
+                    return line.split(":", 1)[1].strip()
     else:
         return platform.processor()
 
