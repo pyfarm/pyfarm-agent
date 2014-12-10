@@ -1,4 +1,5 @@
 language: python
+sudo: false
 python:
   - 2.6
   - 2.7
@@ -68,4 +69,4 @@ after_success:
   - coveralls
 
 after_failure:
-  - sudo cat /tmp/uwsgi.log
+  - cat /tmp/uwsgi.log
