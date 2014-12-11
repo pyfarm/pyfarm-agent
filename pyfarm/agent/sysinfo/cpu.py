@@ -24,7 +24,33 @@ system such as load, processing times, etc.
 
 from __future__ import division
 
+import platform
+
 import psutil
+
+from pyfarm.core.enums import WINDOWS, LINUX
+
+try:
+    from wmi import WMI
+except ImportError:  # pragma: no cover
+    WMI = NotImplemented
+
+
+def cpu_name():
+    """
+    Returns the full name of the CPU installed in the system.
+    """
+    if WINDOWS:
+        wmi = WMI()
+        processor = wmi.Win32_Processor()[0]
+        return processor.name
+    elif LINUX:
+        with open("/proc/cpuinfo", "r") as cpuinfo:
+            for line in cpuinfo:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    else:
+        return platform.processor()
 
 
 def total_cpus(logical=True):
