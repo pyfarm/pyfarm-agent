@@ -60,7 +60,7 @@ from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.tasks import ScheduledTaskManager
-from pyfarm.agent.sysinfo import memory, network, system, cpu
+from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
 
 svclog = getLogger("agent.service")
 ntplog = getLogger("agent.service.ntp")
@@ -253,11 +253,17 @@ class Agent(object):
             "current_assignments": config.get(
                 "current_assignments", {})}  # may not be set yet
 
+        try:
+            gpu_names = graphics.graphics_cards()
+            data["gpus"] = gpu_names
+        except graphics.GPULookupError:
+            pass
+
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
 
         if "projects" in config:
-           data.update(projects=config["projects"])
+            data.update(projects=config["projects"])
 
         return data
 
