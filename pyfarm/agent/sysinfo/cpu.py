@@ -66,6 +66,7 @@ def cpu_name():
         LIBC.sysctlbyname(
             "machdep.cpu.brand_string", string_buffer, byref(uint), None, 0)
         return string_buffer.value
+
     else:
         return platform.processor()
 
