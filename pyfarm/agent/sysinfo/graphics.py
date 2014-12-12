@@ -24,7 +24,7 @@ Contains information about the installed graphics cards
 from exceptions import Exception
 from os import path
 from re import compile
-from subprocess import CalledProcessError, check_output
+from subprocess import Popen, PIPE
 
 try:
     from wmi import WMI
@@ -59,18 +59,20 @@ def graphics_cards():
         gpu_names = []
         for lspci_command in config["sysinfo_command_lspci"]:
             try:
-                output = check_output(*lspci_command.split(" "))
+                lspci_pipe = Popen(lspci_command.split( ), stdout=PIPE)
 
-            except (CalledProcessError, OSError) as e:
+                for line in lspci_pipe.stdout:
+                    if "VGA compatible controller:" in line:
+                        gpu_names.append(line.split(":", 2)[2].strip())
+                break
+
+            except (ValueError, OSError) as e:
                 logger.debug("Failed to call %r", lspci_command)
                 continue
 
-            for line in output.splitlines():
-                if "VGA compatible controller:" in line:
-                    gpu_names.append(line.split(":", 2)[2].strip())
-            break
-
         else:
+            logger.warning("Could not run lspci to find graphics card data. "
+                           "Consider installing pci-utils.")
             raise GPULookupError("Failed to locate the lspci command")
 
         return gpu_names
