@@ -24,7 +24,7 @@ Contains information about the installed graphics cards
 from exceptions import Exception
 from os import path
 from re import compile
-from subprocess import Popen, PIPE
+from subprocess import CalledProcessError, check_output
 
 try:
     from wmi import WMI
@@ -33,6 +33,7 @@ except ImportError:  # pragma: no cover
 
 from pyfarm.core.enums import WINDOWS, LINUX
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.config import config
 
 logger = getLogger("agent.sysinfo.gpu")
 
@@ -55,21 +56,23 @@ def graphics_cards():
         return gpu_names
 
     elif LINUX:
-        lspci = None
-        if path.isfile("/sbin/lspci"):
-            lspci = "/sbin/lspci"
-        elif path.isfile("/usr//sbin/lspci"):
-            lspci = "/usr/sbin/lspci"
-        else:
-            logger.warning("Could not look up graphics cards, consider "
-                           "installing pci-utils")
-            raise GPULookupError("lspci not found")
-
-        lspci_pipe = Popen(lspci, stdout=PIPE)
         gpu_names = []
-        for line in lspci_pipe.stdout:
-            if "VGA compatible controller:" in line:
-                gpu_names.append(line.split(":", 2)[2].strip())
+        for lspci_command in config["sysinfo_command_lspci"]:
+            try:
+                output = check_output(*lspci_command.split(" "))
+
+            except (CalledProcessError, OSError) as e:
+                logger.debug("Failed to call %r", lspci_command)
+                continue
+
+            for line in output.splitlines():
+                if "VGA compatible controller:" in line:
+                    gpu_names.append(line.split(":", 2)[2].strip())
+            break
+
+        else:
+            raise GPULookupError("Failed to locate the lspci command")
+
         return gpu_names
 
     else:

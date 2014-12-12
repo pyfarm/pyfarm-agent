@@ -163,3 +163,17 @@ agent_unittest:
   client_redirect_target: http://example.com
   client_api_test_url_https: https://httpbin.org
   client_api_test_url_http: http://httpbin.org
+
+# A list of paths or names where the `lspci` command can
+# be called from on Linux.  This is used to retrieve information
+# about graphics cards installed on the system in
+# `pyfarm.agent.sysinfo.graphics.graphics_cards`.
+# If you need run the command with sudo you may also specify an entry
+# like this:
+#  - sudo lspci
+sysinfo_command_lspci:
+  - lspci
+  - /bin/lspci
+  - /sbin/lspci
+  - /usr/sbin/lspci
+  - /usr/bin/lspci
