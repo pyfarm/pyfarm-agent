@@ -25,15 +25,25 @@ system such as load, processing times, etc.
 from __future__ import division
 
 import platform
+from ctypes import cdll, create_string_buffer, byref, c_uint
+from ctypes.util import find_library
 
 import psutil
 
-from pyfarm.core.enums import WINDOWS, LINUX
+from pyfarm.core.enums import WINDOWS, LINUX, MAC
+from pyfarm.agent.logger import getLogger
 
 try:
     from wmi import WMI
 except ImportError:  # pragma: no cover
     WMI = NotImplemented
+
+try:
+    LIBC = cdll.LoadLibrary(find_library("c"))
+except OSError:  # pragma: no cover
+    LIBC = NotImplemented
+
+logger = getLogger("agent.cpu")
 
 
 def cpu_name():
@@ -44,13 +54,46 @@ def cpu_name():
         wmi = WMI()
         processor = wmi.Win32_Processor()[0]
         return processor.name
+
     elif LINUX:
         with open("/proc/cpuinfo", "r") as cpuinfo:
             for line in cpuinfo:
                 if line.startswith("model name"):
                     return line.split(":", 1)[1].strip()
-    else:
-        return platform.processor()
+
+    elif MAC:
+        # Try a couple of different sysctl names.  On platforms
+        # such as OS X the first entry will work.  On all platforms
+        # the second name should work in every other case.  For some
+        # systems the second entry will in fact contain information about the
+        # processor but in others it could just be something generic like
+        # "MacBookPro".
+        for ctlname in ("machdep.cpu.brand_string", "hw.model"):
+            uint = c_uint(0)
+            result = LIBC.sysctlbyname(ctlname, None, byref(uint), None, 0)
+
+            if result != 0:
+                logger.warning(
+                    "sysctlbyname(%s) failed, result was %s", ctlname, result)
+                continue
+
+            string_buffer = create_string_buffer(uint.value)
+            result = LIBC.sysctlbyname(
+                ctlname, string_buffer, byref(uint), None, 0)
+
+            if result != 0:
+                logger.warning(
+                    "sysctlbyname(%s) failed, result was %s", ctlname, result)
+                continue
+
+            return string_buffer.value
+
+        else:
+            logger.error(
+                "sysctlbyname() failed to return a non-zero result.  Falling "
+                "back on platform.processor()")
+
+    return platform.processor()
 
 
 def total_cpus(logical=True):
