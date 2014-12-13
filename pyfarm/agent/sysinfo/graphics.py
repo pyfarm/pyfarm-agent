@@ -21,15 +21,20 @@ Graphics
 Contains information about the installed graphics cards
 """
 
-from exceptions import Exception
+from itertools import izip
 from subprocess import Popen, PIPE
+
+try:
+    from xml.etree.cElementTree import ElementTree
+except ImportError:  # pragma: no cover
+    from xml.etree.ElementTree import ElementTree
 
 try:
     from wmi import WMI
 except ImportError:  # pragma: no cover
     WMI = NotImplemented
 
-from pyfarm.core.enums import WINDOWS, LINUX
+from pyfarm.core.enums import WINDOWS, LINUX, MAC
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
 
@@ -76,5 +81,20 @@ def graphics_cards():
 
         return gpu_names
 
+    elif MAC:
+        profiler_pipe = Popen(
+            ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
+
+        gpu_names = []
+        tree = ElementTree()
+        root = tree.parse(profiler_pipe.stdout)
+
+        for element in root.findall("array/dict/array/dict"):
+            iter_element = iter(element)
+            for key, string in izip(iter_element, iter_element):
+                if key.text == "sppci_model":
+                    gpu_names.append(string.text)
+
+        return gpu_names
     else:
         raise GPULookupError("Don't know how to look up gpus on this platform.")
