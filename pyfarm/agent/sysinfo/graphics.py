@@ -82,8 +82,13 @@ def graphics_cards():
         return gpu_names
 
     elif MAC:
-        profiler_pipe = Popen(
-            ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
+        try:
+            profiler_pipe = Popen(
+                ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
+        except (ValueError, OSError) as e:
+            logger.warning("Could not run system_profiler to find graphics "
+                           "card data. Error was %r.", e)
+            raise GPULookupError("Failed to execute `system_profiler`")
 
         gpu_names = []
         tree = ElementTree()
