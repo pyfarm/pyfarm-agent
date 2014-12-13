@@ -14,82 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import urandom, environ
+from os import urandom
 import re
 
-from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX, get_system_identifier
-from pyfarm.agent.sysinfo import network, system
-from pyfarm.agent.testutil import TestCase, ErrorCapturingParser, skipIf
+from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 
-class TestSystemIdentifier(TestCase):
-    def setUp(self):
-        super(TestSystemIdentifier, self).setUp()
-        self.sysident = 0
-        for mac in network.mac_addresses():
-            self.sysident ^= int("0x" + mac.replace(":", ""), 0)
-
-    @skipIf("TRAVIS" in environ, "Fails on Travis")
+class TestAgentUUID(TestCase):
     def test_generation(self):
-        self.assertEqual(
-            self.sysident,
-            get_system_identifier(self.sysident, self.create_test_file()))
+        self.fail("Not implemented")
 
-    @skipIf("TRAVIS" in environ, "Fails on Travis")
     def test_stores_cache(self):
-        path = self.create_test_file()
-        value = get_system_identifier(self.sysident, path, write_always=True)
+        self.fail("Not implemented")
 
-        with open(path, "rb") as cache_file:
-            cached_value = cache_file.read()
-
-        self.assertEqual(str(value), cached_value)
-
-    def test_oversize_value_fail(self):
-        path = self.create_test_file()
-        systemid = SYSTEMID_MAX + 10
-        with self.assertRaises(ValueError):
-            get_system_identifier(systemid, path)
-
-    @skipIf("TRAVIS" in environ, "Fails on Travis")
-    def test_oversize_value_ignored_cache(self):
-        systemid = SYSTEMID_MAX + 10
-        path = self.create_test_file(str(systemid))
-
-        self.assertEqual(
-            system.system_identifier(), get_system_identifier("auto", path))
-
-    def test_retrieves_stored_value(self):
-        path = self.create_test_file(str(42))
-        self.assertEqual(42, get_system_identifier("auto", path))
-
-    def test_invalid_systemid_range(self):
-        with self.assertRaises(ValueError):
-            get_system_identifier(SYSTEMID_MAX + 1, self.create_test_file())
-
-    def test_invalid_systemid_type(self):
-        with self.assertRaises(TypeError):
-            get_system_identifier("", self.create_test_file())
-
-    @skipIf("TRAVIS" in environ, "Fails on Travis")
-    def test_cache_path_is_none(self):
-        result = get_system_identifier("auto", cache_path=None)
-        self.assertEqual(result, system.system_identifier())
-
-        with open(config["agent_systemid_cache"], "r") as stream:
-            cache_data = stream.read().strip()
-
-        self.assertEqual(convert.ston(cache_data), result)
-
-    @skipIf("TRAVIS" in environ, "Fails on Travis")
-    def test_invalid_cache_data(self):
-        with open(config["agent_systemid_cache"], "w") as stream:
-            stream.write("foobar")
-
-        result = get_system_identifier("auto", cache_path=None)
-        self.assertEqual(result, system.system_identifier())
+    def test_retrieve_from_cache(self):
+        self.fail("Not implemented")
 
 
 class TestConfigWithParser(TestCase):

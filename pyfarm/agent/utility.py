@@ -115,7 +115,7 @@ JOB_SCHEMA = Schema({
 
 def uuid():
     """Wrapper around :func:`uuid1` which incorporates our system id"""
-    return uuid1(node=config["agent_systemid"])
+    return uuid1(node=config["agent_uuid"].node)
 
 
 def default_json_encoder(obj, return_obj=False):

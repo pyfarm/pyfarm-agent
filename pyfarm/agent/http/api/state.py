@@ -98,7 +98,7 @@ class Status(APIResource):
              "grandchild_processes": grandchild_processes,
              "pids": config["pids"],
              "id": config.get("agent-id", None),
-             "agent_systemid": config["agent_systemid"],
+             "agent_uuid": config["agent_uuid"],
              "last_master_contact": contacted,
              "last_announce": last_announce,
              "agent_lock_file": config["agent_lock_file"],

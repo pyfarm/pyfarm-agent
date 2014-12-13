@@ -17,9 +17,8 @@
 from collections import namedtuple
 from os import urandom
 
-from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 from pyfarm.agent.entrypoints.parser import (
-    assert_parser, ip, port, direxists, number, enum, system_identifier)
+    assert_parser, ip, port, direxists, number, enum)
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 
@@ -220,35 +219,9 @@ class TestEnum(ArgTestCase):
         self.assertEqual(args.enum, "one")
 
 
-class TestSystemIdentifier(ArgTestCase):
-    def test_auto(self):
-        parser = ErrorCapturingParser()
-        self.addarg(parser, "--systemid", type=system_identifier)
-        args = parser.parse_args(["--systemid", "auto"])
-        self.assertEqual(parser.errors, [])
-        self.assertEqual(args.systemid, "auto")
+class TestAgentUUID(ArgTestCase):
+    def test_default(self):
+        self.fail("Not implemented")
 
     def test_unable_to_parse(self):
-        parser = ErrorCapturingParser()
-        self.addarg(parser, "--systemid", type=system_identifier)
-        parser.parse_args(["--systemid", "!"])
-        self.assertEqual(
-            parser.errors,
-            ["failed to convert value provided to --systemid to an integer"])
-
-    def test_less_than_zero(self):
-        parser = ErrorCapturingParser()
-        self.addarg(parser, "--systemid", type=system_identifier)
-        parser.parse_args(["--systemid", "-1"])
-        self.assertEqual(
-            parser.errors,
-            ["valid range for --systemid is 0 to 281474976710655"])
-
-    def test_greater_than_max(self):
-        parser = ErrorCapturingParser()
-        self.addarg(parser, "--systemid", type=system_identifier)
-        systemid = SYSTEMID_MAX + 1
-        parser.parse_args(["--systemid", str(systemid)])
-        self.assertEqual(
-            parser.errors,
-            ["valid range for --systemid is 0 to 281474976710655"])
+        self.fail("Not implemented")

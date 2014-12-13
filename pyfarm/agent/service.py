@@ -237,7 +237,7 @@ class Agent(object):
                         config["agent_ntp_server"])
 
         data = {
-            "systemid": config["agent_systemid"],
+            "agent_uuid": config["agent_uuid"],
             "hostname": config["agent_hostname"],
             "version": config.version,
             "os_class": system.operating_system(),

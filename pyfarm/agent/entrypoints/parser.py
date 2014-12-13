@@ -93,21 +93,9 @@ def port(value, parser=None, get_uid=None, flag=None):
         return value
 
 @assert_parser
-def system_identifier(value, parser=None, flag=None):
-    """validates a --systemid value"""
-    if value == "auto":
-        return value
-
-    try:
-        value = convert.ston(value)
-    except (ValueError, SyntaxError):
-        parser.error(
-            "failed to convert value provided to %s to an integer" % flag)
-    else:
-        if 0 >= value or value > SYSTEMID_MAX:
-            parser.error("valid range for %s is 0 to %s" % (flag, SYSTEMID_MAX))
-
-        return value
+def uuid_type(value, parser=None, flag=None):
+    """validates that a string is a valid UUID type"""
+    raise NotImplementedError("TODO: uuid_type() implementation")
 
 # Function is not currently tested because uid/gid mapping is system specific,
 # may require access to external network resources, and internally is

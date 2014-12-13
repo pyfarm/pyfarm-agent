@@ -37,7 +37,7 @@ from os.path import join, abspath, dirname
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, cpu, network, system
+from pyfarm.agent.sysinfo import memory, cpu, network
 
 logger = getLogger("agent.config")
 
@@ -314,3 +314,9 @@ try:
     config
 except NameError:
     config = ConfigurationWithCallbacks()
+
+try:
+    DEFAULT_AGENT_UUID
+except NameError:
+    # TODO: implementation
+    DEFAULT_AGENT_UUID = None

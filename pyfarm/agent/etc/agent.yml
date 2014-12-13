@@ -52,10 +52,6 @@ agent_logs_root: $agent_data_root/logs
 # The location where agent updates should be stored.
 agent_updates_dir: $agent_data_root/updates
 
-# Defines how and where the system identifier is cached.
-agent_systemid: auto
-agent_systemid_cache: $agent_data_root/systemid.cache
-
 # The default port which the agent should use to serve the
 # REST api.
 agent_api_port: 50000

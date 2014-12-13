@@ -67,9 +67,8 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.logger.twistd import Observer
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.parser import (
-    AgentArgumentParser, ip, port,  uidgid, enum, number, system_identifier)
-from pyfarm.agent.entrypoints.utility import (
-    start_daemon_posix, get_system_identifier)
+    AgentArgumentParser, ip, port,  uidgid, enum, number, uuid_type)
+from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.sysinfo import memory, cpu
 
 
@@ -128,14 +127,14 @@ class AgentEntryPoint(object):
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid", config="agent_systemid", type=system_identifier,
-            default=config["agent_systemid"],
+            "--agent-uuid", config="agent_uuid", type=uuid_type,
+            default=config["agent_uuid"],
             help="The system identification value.  This is used to help "
                  "identify the system itself to the master when the agent "
                  "connects. [default: %(default)s]")
         global_network.add_argument(
-            "--systemid-cache", config="agent_systemid_cache",
-            help="The location to cache the value for --systemid. "
+            "--agent-uuid-cache", config="agent_uuid_cache",
+            help="The location to cache the value for --agent-uuid. "
                  "[default: %(default)s]")
 
         # command line flags for the connecting the master apis
@@ -428,10 +427,7 @@ class AgentEntryPoint(object):
             logger.warning("--no-daemon is not currently supported on Windows")
 
         if self.args.target_name == "start":
-            # Setup the system identifier
-            systemid = get_system_identifier(
-                self.args.systemid, config["agent_systemid_cache"])
-            config["agent_systemid"] = systemid
+            raise NotImplementedError("TODO: agent_uuid")
 
             # update configuration with values from the command line
             config_flags = {
@@ -719,7 +715,7 @@ class AgentEntryPoint(object):
         logger.info("    Parent Process ID: %(pid_parent)s" % locals())
         logger.info("           Process ID: %(pid_child)s" % locals())
         logger.info("          Database ID: %(id)s" % data)
-        logger.info("            System ID: %(agent_systemid)s" % data)
+        logger.info("            System ID: %(agent_uuid)s" % data)
         logger.info(
             "      Child Processes: %(child_processes)s "
             "(+%(grandchild_processes)s grandchildren)" % data)

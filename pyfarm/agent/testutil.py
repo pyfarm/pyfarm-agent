@@ -44,8 +44,9 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
-from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.sysinfo import memory, cpu, system
+from pyfarm.agent.config import (
+    DEFAULT_AGENT_UUID, config, logger as config_logger)
+from pyfarm.agent.sysinfo import memory, cpu
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -384,7 +385,7 @@ class TestCase(_TestCase):
             "jobtypes": {},
             "agent-id": randint(1, 50000),
             "current_assignments": {},
-            "agent_systemid": system.system_identifier(),
+            "agent_uuid": DEFAULT_AGENT_UUID,
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
