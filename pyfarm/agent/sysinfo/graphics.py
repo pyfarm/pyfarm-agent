@@ -15,15 +15,13 @@
 # limitations under the License.
 
 """
-graphics
+Graphics
 --------
 
 Contains information about the installed graphics cards
 """
 
 from exceptions import Exception
-from os import path
-from re import compile
 from subprocess import Popen, PIPE
 
 try:
@@ -41,6 +39,7 @@ logger = getLogger("agent.sysinfo.gpu")
 class GPULookupError(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
 
@@ -59,7 +58,7 @@ def graphics_cards():
         gpu_names = []
         for lspci_command in config["sysinfo_command_lspci"]:
             try:
-                lspci_pipe = Popen(lspci_command.split( ), stdout=PIPE)
+                lspci_pipe = Popen(lspci_command.split(" "), stdout=PIPE)
 
                 for line in lspci_pipe.stdout:
                     if "VGA compatible controller:" in line:
