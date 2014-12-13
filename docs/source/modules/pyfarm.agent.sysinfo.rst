@@ -7,6 +7,7 @@ Submodules
 .. toctree::
 
    pyfarm.agent.sysinfo.cpu
+   pyfarm.agent.sysinfo.graphics
    pyfarm.agent.sysinfo.memory
    pyfarm.agent.sysinfo.network
    pyfarm.agent.sysinfo.system
