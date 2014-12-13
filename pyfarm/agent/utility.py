@@ -25,11 +25,14 @@ are copied over from the master (which we can't import here).
 import csv
 import codecs
 import cStringIO
+import os
 from decimal import Decimal
 from datetime import datetime, timedelta
+from errno import EEXIST, ENOENT
 from json import dumps as _dumps
+from os.path import join, dirname
 from UserDict import UserDict
-from uuid import UUID, uuid1
+from uuid import UUID, uuid1, uuid4
 
 try:
     from urlparse import urlsplit
@@ -275,3 +278,125 @@ def total_seconds(td):
     except AttributeError:  # pragma: no cover
         return (
            td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
+
+
+class AgentUUID(object):
+    """
+    This class wraps all the functionality required to load, cache and retrieve
+    an Agent's UUID.  The typical use case looks like this:
+
+    >>> agent_uuid = AgentUUID.load()
+    >>> if agent_uuid is None:
+    ...    agent_uuid = AgentUUID.generate()
+    ...    AgentUUID.save(agent_uuid)
+    >>>
+    """
+    log = getLogger("agent.uuid")
+
+    @classmethod
+    def _load(cls, path):
+        """
+        Internal classmethod to load a UUID object from a path.  If the provided
+        ``path`` does not exist or does not contain data which can be converted
+        into a UUID object ``None`` will be returned.
+        """
+        assert isinstance(path, STRING_TYPES), path
+
+        try:
+            with open(path, "r") as loaded_file:
+                data = loaded_file.read().strip()
+
+            return UUID(data)
+
+        except (OSError, IOError) as e:
+            if e.errno != ENOENT:
+                raise
+
+        except ValueError:
+            cls.log.warning("%r does not contain valid data for a UUID", path)
+            return None
+
+    @classmethod
+    def _save(cls, agent_uuid, path):
+        """
+        Saves ``agent_uuid`` to ``path``.  This classmethod will
+        also create the necessary parent directories and handle
+        conversion from the input type :class:`uuid.UUID`.
+        """
+        assert isinstance(agent_uuid, UUID)
+        assert isinstance(path, STRING_TYPES)
+
+        parent_dir = dirname(path)
+        if parent_dir.strip():
+            try:
+                os.makedirs(parent_dir)
+
+            except (OSError, IOError) as e:
+                if e.errno != EEXIST:
+                    cls.log.warning("Failed to create %s, %s", parent_dir, e)
+                    raise
+
+        try:
+            with open(path, "w") as output:
+                output.write(agent_uuid.hex)
+
+            cls.log.info("Cached UUID to %r", path)
+            return path
+
+        except (OSError, IOError) as e:
+            cls.log.warning("Failed to write %s, %s", path, e)
+            raise
+
+    @classmethod
+    def load(cls, path=None):
+        """
+        This classmethod will attempt to load the agent's UUID from
+        disk.  If it cannot be located ``None`` will be returned.
+
+        :param string path:
+            An explicit path to load the UUID from.  In all other cases
+            we'll attempt to load the UUID from any directory
+            configuration files could load from.
+        """
+        cls.log.debug("Attempting to load agent UUID from disk")
+
+        if path is not None:
+            return cls._load(path)
+
+        for directory in config.directories(validate=False):
+            path = join(directory, "uuid.dat")
+            agent_uuid = cls._load(path)
+            if agent_uuid is not None:
+                cls.log.info(
+                    "Cached UUID %s was loaded from %r", agent_uuid, path)
+                return agent_uuid
+
+        cls.log.warning(
+            "Unable to locate cached agent UUID, one will be generated.")
+
+    @classmethod
+    def save(cls, agent_uuid, path=None):
+        """
+        This classmethod will save ``agent_uuid`` to ``path`` or
+        to the first available path in the configuration.
+        """
+        assert isinstance(agent_uuid, UUID), agent_uuid
+        cls.log.debug("Attempting to save UUID %s to disk.", agent_uuid)
+
+        if path is not None:
+            return cls._save(agent_uuid, path=path)
+
+        for directory in config.directories(validate=False, versioned=False):
+            path = cls._save(agent_uuid, join(directory, "uuid.dat"))
+            if path is not None:
+                return path
+
+    @classmethod
+    def generate(cls):
+        """
+        Generates a UUID object.  This simply wraps :func:`uuid.uuid4` and
+        logs a warning.
+        """
+        agent_uuid = uuid4()
+        cls.log.warning("Generated new agent UUID: %s", agent_uuid)
+        return agent_uuid
