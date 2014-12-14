@@ -340,7 +340,7 @@ class AgentUUID(object):
             with open(path, "w") as output:
                 output.write(agent_uuid.hex)
 
-            cls.log.info("Cached UUID to %r", path)
+            cls.log.debug("Cached %s to %r", agent_uuid, path)
             return path
 
         except (OSError, IOError) as e:
@@ -367,7 +367,7 @@ class AgentUUID(object):
             path = join(directory, "uuid.dat")
             agent_uuid = cls._load(path)
             if agent_uuid is not None:
-                cls.log.info(
+                cls.log.debug(
                     "Cached UUID %s was loaded from %r", agent_uuid, path)
                 return agent_uuid
 
@@ -415,4 +415,4 @@ class AgentUUID(object):
         """
         cls.save(agent_uuid, path=path)
         config["agent_uuid"] = agent_uuid
-
+        cls.log.info("Agent UUID is %s", config["agent_uuid"])
