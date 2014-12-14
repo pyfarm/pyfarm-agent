@@ -288,7 +288,8 @@ class AgentUUID(object):
     >>> agent_uuid = AgentUUID.load()
     >>> if agent_uuid is None:
     ...    agent_uuid = AgentUUID.generate()
-    ...    AgentUUID.set(agent_uuid=agent_uuid)
+    ...    AgentUUID.save(agent_uuid=agent_uuid)
+    ... config["agent_uuid"] = agent_uuid
     >>>
     """
     log = getLogger("agent.uuid")
@@ -400,19 +401,3 @@ class AgentUUID(object):
         agent_uuid = uuid4()
         cls.log.warning("Generated agent UUID: %s", agent_uuid)
         return agent_uuid
-
-    @classmethod
-    def set(cls, agent_uuid, path=None):
-        """
-        Sets the ``agent_uuid`` in the config object and saves it to
-        disk as well.
-
-        :param uuid.UUID agent_uuid:
-            The uuid we wish to save in the config and cache to disk
-
-        :param string path:
-            Optional path to save ``agent_uuid`` to.
-        """
-        cls.save(agent_uuid, path=path)
-        config["agent_uuid"] = agent_uuid
-        cls.log.info("Agent UUID is %s", config["agent_uuid"])
