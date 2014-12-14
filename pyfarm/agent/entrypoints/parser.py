@@ -31,6 +31,7 @@ from argparse import (
 from errno import EEXIST
 from functools import partial, wraps
 from os.path import isdir, isfile, abspath
+from uuid import UUID
 
 from netaddr import AddrFormatError, IPAddress
 
@@ -39,7 +40,6 @@ from pyfarm.core.utility import convert
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
-from pyfarm.agent.entrypoints.utility import SYSTEMID_MAX
 
 INFINITE = set(["inf", "infinite", "unlimited"])
 
@@ -95,7 +95,10 @@ def port(value, parser=None, get_uid=None, flag=None):
 @assert_parser
 def uuid_type(value, parser=None, flag=None):
     """validates that a string is a valid UUID type"""
-    raise NotImplementedError("TODO: uuid_type() implementation")
+    try:
+        return UUID(value)
+    except ValueError:
+        parser.error("%s cannot be convert to a UUID for %s" % (value, flag))
 
 # Function is not currently tested because uid/gid mapping is system specific,
 # may require access to external network resources, and internally is
