@@ -438,7 +438,7 @@ class AgentEntryPoint(object):
         # If --agent-uuid and the value we load from --agent-uuid-cache is
         # not the same then we have a conflict.  However, we assume the user
         # knows what they are doing and will trust --agent-uuid instead of
-        # the cache.
+        # the cache's value.
         if self.args.agent_uuid is not None and self.args.agent_uuid_cache:
             cached_uuid = AgentUUID.load(self.args.agent_uuid_cache)
             if cached_uuid is not None and cached_uuid != self.args.agent_uuid:
@@ -447,8 +447,17 @@ class AgentEntryPoint(object):
                     "overwritten by the value provided to --agent-uuid",
                     self.args.agent_uuid_cache)
 
-        AgentUUID.set(
-            self.args.agent_uuid, path=self.args.agent_uuid_cache)
+            AgentUUID.save(
+                self.args.agent_uuid, path=self.args.agent_uuid_cache)
+
+        # Agent uuid did not have something to default to so we generate
+        # the uuid then cache it.
+        if self.args.agent_uuid is None:
+            self.args.agent_uuid = AgentUUID.generate()
+            AgentUUID.save(
+                self.args.agent_uuid, path=self.args.agent_uuid_cache)
+
+        config["agent_uuid"] = self.args.agent_uuid
 
         if self.args.target_name == "start":
             # update configuration with values from the command line
