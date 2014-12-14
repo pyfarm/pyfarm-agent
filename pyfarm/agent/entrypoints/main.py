@@ -70,6 +70,7 @@ from pyfarm.agent.entrypoints.parser import (
     AgentArgumentParser, ip, port,  uidgid, enum, number, uuid_type)
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.sysinfo import memory, cpu
+from pyfarm.agent.utility import AgentUUID
 
 
 logger = getLogger("agent.cmd")
@@ -128,14 +129,22 @@ class AgentEntryPoint(object):
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
             "--agent-uuid", config="agent_uuid", type=uuid_type,
-            default=config["agent_uuid"],
-            help="The system identification value.  This is used to help "
-                 "identify the system itself to the master when the agent "
-                 "connects. [default: %(default)s]")
+            default=AgentUUID.load(),
+            help="The UUID used to identify this agent to the master.  By "
+                 "default the agent will attempt to load a cached value however "
+                 "a specific UUID could be provided with this flag. "
+                 "[default: %(default)s]")
         global_network.add_argument(
             "--agent-uuid-cache", config="agent_uuid_cache",
-            help="The location to cache the value for --agent-uuid. "
-                 "[default: %(default)s]")
+            default=None,
+            help="The location to cache the value for --agent-uuid.  By "
+                 "default the agent's UUID will be cached in the first "
+                 "available location on the configuration path.  Declaring "
+                 "this flag will override this behavior and attempt to load "
+                 "and save the agent's UUID from this location instead.  If "
+                 "this flag is provided along with --agent-uuid the value "
+                 "loaded from the cache will be overwritten by the value "
+                 "provided by --agent-uuid")
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
@@ -426,16 +435,28 @@ class AgentEntryPoint(object):
         if WINDOWS and self.args.no_daemon:
             logger.warning("--no-daemon is not currently supported on Windows")
 
-        if self.args.target_name == "start":
-            raise NotImplementedError("TODO: agent_uuid")
+        # If --agent-uuid and the value we load from --agent-uuid-cache is
+        # not the same then we have a conflict.  However, we assume the user
+        # knows what they are doing and will trust --agent-uuid instead of
+        # the cache.
+        if self.args.agent_uuid is not None and self.args.agent_uuid_cache:
+            cached_uuid = AgentUUID.load(self.args.agent_uuid_cache)
+            if cached_uuid is not None and cached_uuid != self.args.agent_uuid:
+                logger.warning(
+                    "A different agent UUID already exists in %r.  It will be "
+                    "overwritten by the value provided to --agent-uuid",
+                    self.args.agent_uuid_cache)
 
+        AgentUUID.set(
+            self.args.agent_uuid, path=self.args.agent_uuid_cache)
+
+        if self.args.target_name == "start":
             # update configuration with values from the command line
             config_flags = {
                 "state": self.args.state,
                 "projects": list(set(self.args.projects)),
                 "pids": {
                     "parent": os.getpid()}}
-            # update configuration with values from the command line
 
             config.update(config_flags)
 
