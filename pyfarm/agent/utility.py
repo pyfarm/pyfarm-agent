@@ -398,5 +398,5 @@ class AgentUUID(object):
         logs a warning.
         """
         agent_uuid = uuid4()
-        cls.log.warning("Generated new agent UUID: %s", agent_uuid)
+        cls.log.warning("Generated agent UUID: %s", agent_uuid)
         return agent_uuid
