@@ -314,9 +314,3 @@ try:
     config
 except NameError:
     config = ConfigurationWithCallbacks()
-
-try:
-    DEFAULT_AGENT_UUID
-except NameError:
-    # TODO: implementation
-    DEFAULT_AGENT_UUID = None
