@@ -15,23 +15,26 @@
 # limitations under the License.
 
 """
-graphics
+Graphics
 --------
 
 Contains information about the installed graphics cards
 """
 
-from exceptions import Exception
-from os import path
-from re import compile
+from itertools import izip
 from subprocess import Popen, PIPE
+
+try:
+    from xml.etree.cElementTree import ElementTree
+except ImportError:  # pragma: no cover
+    from xml.etree.ElementTree import ElementTree
 
 try:
     from wmi import WMI
 except ImportError:  # pragma: no cover
     WMI = NotImplemented
 
-from pyfarm.core.enums import WINDOWS, LINUX
+from pyfarm.core.enums import WINDOWS, LINUX, MAC
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
 
@@ -41,6 +44,7 @@ logger = getLogger("agent.sysinfo.gpu")
 class GPULookupError(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
 
@@ -59,7 +63,7 @@ def graphics_cards():
         gpu_names = []
         for lspci_command in config["sysinfo_command_lspci"]:
             try:
-                lspci_pipe = Popen(lspci_command.split( ), stdout=PIPE)
+                lspci_pipe = Popen(lspci_command.split(" "), stdout=PIPE)
 
                 for line in lspci_pipe.stdout:
                     if "VGA compatible controller:" in line:
@@ -77,5 +81,25 @@ def graphics_cards():
 
         return gpu_names
 
+    elif MAC:
+        try:
+            profiler_pipe = Popen(
+                ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
+        except (ValueError, OSError) as e:
+            logger.warning("Could not run system_profiler to find graphics "
+                           "card data. Error was %r.", e)
+            raise GPULookupError("Failed to execute `system_profiler`")
+
+        gpu_names = []
+        tree = ElementTree()
+        root = tree.parse(profiler_pipe.stdout)
+
+        for element in root.findall("array/dict/array/dict"):
+            iter_element = iter(element)
+            for key, string in izip(iter_element, iter_element):
+                if key.text == "sppci_model":
+                    gpu_names.append(string.text)
+
+        return gpu_names
     else:
         raise GPULookupError("Don't know how to look up gpus on this platform.")
