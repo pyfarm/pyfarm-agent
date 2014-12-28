@@ -55,13 +55,13 @@ class TestModuleLevel(TestCase):
         self.assertEqual(CREATE_LOG_LOCK.__class__.__name__, "lock")
 
     def test_open_log_creates_dir(self):
-        outdir, _ = self.create_test_directory(0)
+        outdir, _ = self.create_directory(0)
         outfile = join(outdir, "test.log")
         open_log(outfile)
         self.assertTrue(isdir(outdir))
 
     def test_open_log_creates_file(self):
-        outdir, _ = self.create_test_directory(0)
+        outdir, _ = self.create_directory(0)
         outfile = join(outdir, "test.log")
         result = open_log(outfile)
         self.assertTrue(isfile(outfile))
@@ -69,7 +69,7 @@ class TestModuleLevel(TestCase):
         self.assertEqual(result.mode, "w")
 
     def test_file_exists(self):
-        outdir, _ = self.create_test_directory(0)
+        outdir, _ = self.create_directory(0)
         outfile = join(outdir, "test.log")
         open_log(outfile)
 
@@ -81,7 +81,7 @@ class TestCSVLog(TestCase):
     def setUp(self):
         super(TestCSVLog, self).setUp()
         self.log = CSVLog(
-            open_log(self.create_test_file(), ignore_existing=True))
+            open_log(self.create_file(), ignore_existing=True))
 
     @skipIf(PY26, "Python 2.7+")
     def test_lock_type(self):
@@ -126,8 +126,8 @@ class TestLoggerPool(TestCase):
         if self.pool is not None:
             self.pool.stop()
 
-    def create_test_file(self, create=True):
-        path = super(TestLoggerPool, self).create_test_file()
+    def create_file(self, create=True):
+        path = super(TestLoggerPool, self).create_file()
         if not create:
             remove(path)
         return path
@@ -159,10 +159,10 @@ class TestLoggerPool(TestCase):
         pool = LoggerPool()
         pool.logs[protocol.uuid] = None
         with self.assertRaises(KeyError):
-            pool.open_log(protocol, self.create_test_file())
+            pool.open_log(protocol, self.create_file())
 
     def test_creates_log(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.start()
@@ -179,7 +179,7 @@ class TestLoggerPool(TestCase):
         return log_created
 
     def test_no_log_when_stopped(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.start()
@@ -194,7 +194,7 @@ class TestLoggerPool(TestCase):
         return log_created
 
     def test_log(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.start()
@@ -211,7 +211,7 @@ class TestLoggerPool(TestCase):
         return log_created
 
     def test_flush_from_log(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.max_queued_lines = 2
@@ -251,7 +251,7 @@ class TestLoggerPool(TestCase):
         return finished
 
     def test_flush_log_object(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.flush_lines = 1
@@ -279,7 +279,7 @@ class TestLoggerPool(TestCase):
         return log_created
 
     def test_stop(self):
-        path = self.create_test_file(create=False)
+        path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.start()

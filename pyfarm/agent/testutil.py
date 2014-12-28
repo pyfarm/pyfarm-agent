@@ -407,7 +407,7 @@ class TestCase(_TestCase):
             if on_exit:
                 atexit.register(self._rmdir, path, on_exit=False)
 
-    def create_test_file(self, content=None, dir=None, suffix=""):
+    def create_file(self, content=None, dir=None, suffix=""):
         """
         Creates a test file on disk using :func:`tempfile.mkstemp`
         and uses the lower level file interfaces to manage it.  This
@@ -436,13 +436,13 @@ class TestCase(_TestCase):
         # self.addCleanup(self._closefd, fd)
         return path
 
-    def create_test_directory(self, count=10):
+    def create_directory(self, count=10):
         directory = tempfile.mkdtemp()
         self.addCleanup(self._rmdir, directory)
 
         files = []
         for _ in range(count):
-            files.append(self.create_test_file(dir=directory))
+            files.append(self.create_file(dir=directory))
 
         return directory, files
 

@@ -60,7 +60,7 @@ class TestSystem(TestCase):
         self.assertEqual(t2 - t1 < 5, True)
 
     def test_case_sensitive_filesystem(self):
-        path = self.create_test_file()
+        path = self.create_file()
         self.assertEqual(
             not all(map(isfile, [path, path.lower(), path.upper()])),
             system.filesystem_is_case_sensitive())

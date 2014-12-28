@@ -180,7 +180,7 @@ class TestCommandData(TestCase):
 
     def test_validate_cwd_config(self):
         initial_cwd = os.getcwd()
-        testdir, _ = self.create_test_directory(count=0)
+        testdir, _ = self.create_directory(count=0)
         config["agent_chdir"] = testdir
         data = CommandData("")
         data.validate()

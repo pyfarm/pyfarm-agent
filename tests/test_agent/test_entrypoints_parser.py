@@ -126,7 +126,7 @@ class TestDirectory(ArgTestCase):
     def test_directory_exists(self):
         parser = ErrorCapturingParser()
         self.addarg(parser, "--dir", type=direxists)
-        directory, _ = self.create_test_directory(count=1)
+        directory, _ = self.create_directory(count=1)
         args = parser.parse_args(["--dir", directory])
         self.assertEqual(parser.errors, [])
         self.assertEqual(args.dir, directory)

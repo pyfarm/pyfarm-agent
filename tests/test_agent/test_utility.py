@@ -27,7 +27,8 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url, request_from_master, total_seconds, validate_environment)
+    quote_url, request_from_master, total_seconds, validate_environment,
+    AgentUUID)
 
 
 class TestValidateEnvironment(TestCase):
@@ -122,7 +123,7 @@ class TestCSVBase(TestCase):
                 os.urandom(16).encode("hex"), os.urandom(16).encode("hex")]
 
     def get_writer(self):
-        stream = open(self.create_test_file(), "w")
+        stream = open(self.create_file(), "w")
         return UnicodeCSVWriter(stream), stream.name
 
 
@@ -179,10 +180,10 @@ class TestCSVReader(TestCSVBase):
 
 class TestQuoteURL(TestCase):
     def test_simple_with_scheme(self):
-        self.assertEqual(quote_url("http://foobar"),  "http://foobar")
+        self.assertEqual(quote_url("http://foobar"), "http://foobar")
 
     def test_simple_without_scheme(self):
-        self.assertEqual(quote_url("/foobar"),  "/foobar")
+        self.assertEqual(quote_url("/foobar"), "/foobar")
 
     def test_parameters(self):
         self.assertEqual(
@@ -193,3 +194,9 @@ class TestQuoteURL(TestCase):
         self.assertEqual(
             quote_url("/foobar?first=1&second=2#abcd"),
             "/foobar?first=1&second=2#abcd")
+
+
+class TestAgentUUID(TestCase):
+    def test_load_not_string(self):
+        with self.assertRaises(AssertionError):
+            AgentUUID._load(None)
