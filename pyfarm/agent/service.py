@@ -100,7 +100,7 @@ class Agent(object):
         been set
         """
         try:
-            return cls.agents_endpoint() + str(config["agent-id"])
+            return cls.agents_endpoint() + str(config["agent_id"])
         except KeyError:
             svclog.error(
                 "The `agent-id` configuration value has not been set yet")
@@ -237,7 +237,7 @@ class Agent(object):
                         config["agent_ntp_server"])
 
         data = {
-            "agent_uuid": config["agent_uuid"],
+            "agent_id": config["agent_id"],
             "hostname": config["agent_hostname"],
             "version": config.version,
             "os_class": system.operating_system(),
