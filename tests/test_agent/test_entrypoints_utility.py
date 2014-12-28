@@ -21,17 +21,6 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, ErrorCapturingParser
 
 
-class TestAgentUUID(TestCase):
-    def test_generation(self):
-        self.fail("Not implemented")
-
-    def test_stores_cache(self):
-        self.fail("Not implemented")
-
-    def test_retrieve_from_cache(self):
-        self.fail("Not implemented")
-
-
 class TestConfigWithParser(TestCase):
     def test_set(self):
         key = urandom(16).encode("hex")
