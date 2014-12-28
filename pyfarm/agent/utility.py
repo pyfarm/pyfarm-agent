@@ -339,7 +339,7 @@ class AgentUUID(object):
 
         try:
             with open(path, "w") as output:
-                output.write(agent_uuid.hex)
+                output.write(str(agent_uuid))
 
             cls.log.debug("Cached %s to %r", agent_uuid, path)
             return path
