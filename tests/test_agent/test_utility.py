@@ -24,7 +24,6 @@ import re
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
-from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
@@ -98,7 +97,7 @@ class TestDumpsJson(TestCase):
 class TestGeneral(TestCase):
     def test_uuid(self):
         internal_uuid = uuid().hex
-        stduuid = uuid1(node=system_identifier()).hex
+        stduuid = uuid1(node=config["agent_id"].node).hex
         self.assertEqual(internal_uuid[8:16], stduuid[8:16])
 
     def test_request_from_master(self):
