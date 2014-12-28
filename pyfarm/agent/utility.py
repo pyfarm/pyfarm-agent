@@ -387,7 +387,8 @@ class AgentUUID(object):
         if path is not None:
             return cls._save(agent_uuid, path=path)
 
-        for directory in config.directories(validate=False, versioned=False):
+        directories = config.directories(validate=False, unversioned_only=True)
+        for directory in directories:
             path = cls._save(agent_uuid, join(directory, "uuid.dat"))
             if path is not None:
                 return path
