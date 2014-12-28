@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 from collections import namedtuple
 
 try:
@@ -60,7 +61,7 @@ class TestProcessBase(TestCase):
     def _launch_python(self, jobtype, script="i = 42"):
         protocol = ProcessProtocol(jobtype)
         reactor.spawnProcess(
-            protocol, "python2", ["python", "-c", script])
+            protocol, sys.executable, ["python", "-c", script])
         return protocol
 
 
@@ -196,7 +197,7 @@ class TestProtocol(TestProcessBase):
 
 class TestStopProcess(TestProcessBase):
     # How long to wait before trying to stop/terminate/etc
-    # the underlying process.  If this value so too low then
+    # the underlying process.  If this value is too low then
     # the test will fail.
     STOP_DELAY = 2
 
