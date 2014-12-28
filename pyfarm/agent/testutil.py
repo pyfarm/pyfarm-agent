@@ -398,7 +398,8 @@ class TestCase(_TestCase):
             "start": time.time(),
             "agent_pretty_json": False,
             "agent_html_template_reload": True,
-            "agent_master_reannounce": randint(5, 15)})
+            "agent_master_reannounce": randint(5, 15),
+            "jobtype_ignore_id_mapping_errors": True})
 
     def _rmdir(self, path, on_exit=True):
         try:
