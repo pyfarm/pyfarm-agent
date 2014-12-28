@@ -15,12 +15,12 @@
 # limitations under the License.
 
 
+import os
+import re
 from collections import namedtuple
 from os import urandom, devnull, makedirs
 from os.path import isdir, join, isfile
-from tempfile import gettempdir
 from errno import EEXIST
-import re
 
 try:
     from httplib import CREATED, OK
@@ -30,12 +30,11 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet.defer import Deferred
 
-from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, WorkState
+from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
 from pyfarm.agent.testutil import (
     TestCase, skipIf, requires_master, create_jobtype)
 from pyfarm.agent.config import config
 from pyfarm.agent.utility import uuid
-from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import (
     ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp)
 from pyfarm.jobtypes.core.log import logpool, CSVLog
@@ -225,15 +224,69 @@ class TestProcess(TestCase):
             self.process._get_uid_gid_value(
                 "", None, None, NotImplemented, None))
 
+    @skipIf(not any([MAC, LINUX, BSD]), "Not Linux/Mac/BSD")
     def test_get_uid_gid_value_grp(self):
-        self.assertEqual(
-            self.process._get_uid_gid_value(
-                "root", "group", "get_gid", grp, "grp"), 0)
+        import grp  # platform specific import
 
+        for grp_struct in grp.getgrall():
+            self.assertEqual(
+                self.process._get_uid_gid_value(
+                    grp_struct.gr_name,
+                    "group", "get_gid", grp, "grp"),
+                grp_struct.gr_gid)
+
+    @skipIf(not any([MAC, LINUX, BSD]), "Not Linux/Mac/BSD")
     def test_get_uid_gid_value_pwd(self):
-        self.assertEqual(
-            self.process._get_uid_gid_value(
-                "root", "username", "get_uid", pwd, "pwd"), 0)
+        import pwd  # platform specific import
+
+        for pwd_struct in pwd.getpwall():
+            self.assertEqual(
+                self.process._get_uid_gid_value(
+                    pwd_struct.pw_name,
+                    "username", "get_uid", pwd, "pwd"),
+                pwd_struct.pw_uid)
+
+    @skipIf(not any([MAC, LINUX, BSD]), "Not Linux/Mac/BSD")
+    def test_invalid_get_uid_gid_value_grp(self):
+        import grp  # platform specific import
+
+        config["jobtype_ignore_id_mapping_errors"] = True
+
+        for grp_struct in grp.getgrall():
+            self.assertIsNone(
+                self.process._get_uid_gid_value(
+                    grp_struct.gr_name + "foo",
+                    "group", "get_gid", grp, "grp"))
+
+        config.pop("jobtype_ignore_id_mapping_errors")
+
+        for grp_struct in grp.getgrall():
+            with self.assertRaises(KeyError):
+                self.assertIsNone(
+                    self.process._get_uid_gid_value(
+                        grp_struct.gr_name + "foo",
+                        "group", "get_gid", grp, "grp"))
+
+    @skipIf(not any([MAC, LINUX, BSD]), "Not Linux/Mac/BSD")
+    def test_invalid_get_uid_gid_value_pwd(self):
+        import pwd  # platform specific import
+
+        config["jobtype_ignore_id_mapping_errors"] = True
+
+        for pwd_struct in pwd.getpwall():
+            self.assertIsNone(
+                self.process._get_uid_gid_value(
+                    pwd_struct.pw_name + "foo",
+                    "username", "get_uid", pwd, "pwd"))
+
+        config.pop("jobtype_ignore_id_mapping_errors")
+
+        for pwd_struct in pwd.getpwall():
+            with self.assertRaises(KeyError):
+                self.assertIsNone(
+                    self.process._get_uid_gid_value(
+                        pwd_struct.pw_name + "foo",
+                        "username", "get_uid", pwd, "pwd"))
 
 
 # TODO: fix these tests to use the new CommandData.validate
