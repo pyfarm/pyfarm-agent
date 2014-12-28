@@ -15,12 +15,15 @@
 # limitations under the License.
 
 import os
+import re
+import tempfile
 from decimal import Decimal
 from datetime import datetime, timedelta
 from json import dumps as dumps_
-from uuid import uuid1
-import re
+from uuid import UUID, uuid1, uuid4
+from os.path import join
 
+from mock import patch
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
@@ -197,6 +200,106 @@ class TestQuoteURL(TestCase):
 
 
 class TestAgentUUID(TestCase):
+    def test_generate(self):
+        result = AgentUUID.generate()
+        self.assertIsInstance(result, UUID)
+
     def test_load_not_string(self):
         with self.assertRaises(AssertionError):
             AgentUUID._load(None)
+
+    def test_private_load(self):
+        data = uuid4()
+        path = self.create_file(str(data))
+        stored_value = AgentUUID._load(path)
+        self.assertEqual(data, stored_value)
+
+    def test_load_from_invalid_path(self):
+        self.assertIsNone(AgentUUID._load(os.urandom(16).encode("hex")))
+
+    def test_load_invalid_data_in_path(self):
+        path = self.create_file()
+        self.assertIsNone(AgentUUID._load(path))
+
+    def test_save_not_uuid(self):
+        with self.assertRaises(AssertionError):
+            AgentUUID._save(None, None)
+
+    def test_save_string_not_path(self):
+        with self.assertRaises(AssertionError):
+            AgentUUID._save(uuid4(), None)
+
+    def test_private_save(self):
+        data = uuid4()
+        path = self.create_file()
+        saved_path = AgentUUID._save(data, path)
+        self.assertEqual(path, saved_path)
+        with open(saved_path, "r") as saved_file:
+            saved_data = saved_file.read()
+
+        self.assertEqual(saved_data, str(data))
+
+    def test_load_from_path(self):
+        data = uuid4()
+        path = self.create_file(str(data))
+        self.assertEqual(AgentUUID.load(path), data)
+
+    def test_load_from_defaults(self):
+        directories = [
+            tempfile.mkdtemp(),
+            tempfile.mkdtemp(),
+            tempfile.mkdtemp()
+        ]
+        uuids = []
+        for path in directories:
+            self.addCleanup(self._rmdir, path)
+            filepath = join(path, "uuid.dat")
+            data = uuid4()
+            AgentUUID._save(data, filepath)
+            uuids.append(data)
+
+        def dirs(**kwargs):
+            self.assertIs(kwargs.pop("validate", None), False)
+            self.assertNot(kwargs)
+            return directories
+
+        with patch.object(config, "directories", dirs):
+            while directories:
+                data = AgentUUID.load()
+                self.assertEqual(uuids[0], data)
+                directories.pop(0)
+                uuids.pop(0)
+
+    def test_save_path(self):
+        data = uuid4()
+        path = self.create_file()
+        save_path = AgentUUID.save(data, path)
+        self.assertEqual(path, save_path)
+        with open(path, "r") as saved_file:
+            self.assertEqual(saved_file.read(), str(data))
+
+    def test_save_defaults(self):
+        directories = [
+            tempfile.mkdtemp(),
+            tempfile.mkdtemp(),
+            tempfile.mkdtemp()
+        ]
+        uuids = []
+        for path in directories:
+            self.addCleanup(self._rmdir, path)
+            uuids.append(uuid4())
+
+        def dirs(**kwargs):
+            self.assertIs(kwargs.pop("validate", None), False)
+            self.assertIs(kwargs.pop("unversioned_only", None), True)
+            self.assertNot(kwargs)
+            return directories
+
+        with patch.object(config, "directories", dirs):
+            while directories:
+                data = uuids.pop(0)
+                path = AgentUUID.save(data)
+                save_path = join(directories.pop(0), "uuid.dat")
+                self.assertEqual(path, save_path)
+                with open(save_path, "r") as saved_file:
+                    self.assertEqual(saved_file.read(), str(data))
