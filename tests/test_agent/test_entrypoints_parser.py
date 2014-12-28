@@ -217,11 +217,3 @@ class TestEnum(ArgTestCase):
         args = parser.parse_args(["--enum", "one"])
         self.assertEqual(parser.errors, [])
         self.assertEqual(args.enum, "one")
-
-
-class TestAgentUUID(ArgTestCase):
-    def test_default(self):
-        self.fail("Not implemented")
-
-    def test_unable_to_parse(self):
-        self.fail("Not implemented")
