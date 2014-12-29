@@ -97,7 +97,7 @@ class Environment(_Environment):
             is_str=lambda value: isinstance(value, (str, unicode)),
             typename=lambda value: type(value).__name__,
             agent_hostname=lambda: config["agent_hostname"],
-            agent_id=lambda: config["agent-id"],
+            agent_id=lambda: config["agent_id"],
             state=lambda: config["state"],
             repr=repr)
 

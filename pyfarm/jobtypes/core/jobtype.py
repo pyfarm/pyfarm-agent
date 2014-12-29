@@ -421,7 +421,7 @@ class JobType(Cache, System, Process, TypeChecks):
             "master_api": config.get("master-api"),
             "hostname": config["agent_hostname"],
             "agent_uuid": config["agent_uuid"],
-            "id": int(config["agent-id"]),
+            "id": int(config["agent_id"]),
             "cpus": int(config["agent_cpus"]),
             "ram": int(config["agent_ram"]),
             "total_ram": int(memory.total_ram()),

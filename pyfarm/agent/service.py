@@ -96,14 +96,14 @@ class Agent(object):
     @classmethod
     def agent_api(cls):
         """
-        Return the API url for this agent or None if `agent-id` has not
+        Return the API url for this agent or None if `agent_id` has not
         been set
         """
         try:
             return cls.agents_endpoint() + str(config["agent_id"])
         except KeyError:
             svclog.error(
-                "The `agent-id` configuration value has not been set yet")
+                "The `agent_id` configuration value has not been set yet")
             return None
 
     @classmethod
@@ -375,7 +375,7 @@ class Agent(object):
 
         # get ready to 'publish' the agent
         config.register_callback(
-            "agent-id",
+            "agent_id",
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
         config.register_callback("free_ram", self.callback_free_ram_changed)
@@ -478,12 +478,12 @@ class Agent(object):
             if response.code == NOT_FOUND:
                 svclog.warning(
                     "Agent %r no longer exists, cannot update state",
-                    config["agent-id"])
+                    config["agent_id"])
                 finished.callback(NOT_FOUND)
 
             elif response.code == OK:
                 svclog.info(
-                    "Agent %r has shutdown successfully", config["agent-id"])
+                    "Agent %r has shutdown successfully", config["agent_id"])
                 finished.callback(OK)
 
             elif response.code >= INTERNAL_SERVER_ERROR:
@@ -599,19 +599,19 @@ class Agent(object):
 
         else:
             data = response.json()
-            config["agent-id"] = data["id"]
+            config["agent_id"] = data["id"]
             config.master_contacted()
 
             if response.code == OK:
                 svclog.info(
                     "POST to %s was successful. Agent %s was updated.",
-                    self.agents_endpoint(), config["agent-id"])
+                    self.agents_endpoint(), config["agent_id"])
 
             elif response.code == CREATED:
                 svclog.info(
                     "POST to %s was successful.  A new agent "
                     "with an id of %s was created.",
-                    self.agents_endpoint(), config["agent-id"])
+                    self.agents_endpoint(), config["agent_id"])
 
     def post_agent_to_master(self):
         """
@@ -733,13 +733,13 @@ class Agent(object):
     def callback_agent_id_set(
             self, change_type, key, new_value, old_value, shutdown_events=True):
         """
-        When `agent-id` is created we need to:
+        When `agent_id` is created we need to:
 
             * Register a shutdown event so that when the agent is told to
               shutdown it will notify the master of a state change.
             * Star the scheduled task manager
         """
-        if key == "agent-id" and change_type == config.CREATED \
+        if key == "agent_id" and change_type == config.CREATED \
                 and not self.register_shutdown_events:
             if shutdown_events:
                 self.register_shutdown_events = True

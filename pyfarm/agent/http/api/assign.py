@@ -92,13 +92,13 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        elif "agent-id" not in config:
+        elif "agent_id" not in config:
             logger.error(
-                "Agent has not yet connected to the master or `agent-id` "
+                "Agent has not yet connected to the master or `agent_id` "
                 "has not been set yet.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
-                {"error": "agent-id has not been set in the config"})
+                {"error": "agent_id has not been set in the config"})
             request.finish()
             return NOT_DONE_YET
 
