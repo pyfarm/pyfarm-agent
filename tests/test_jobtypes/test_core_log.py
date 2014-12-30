@@ -1,4 +1,4 @@
-    # No shebang line, this module is meant to be imported
+# No shebang line, this module is meant to be imported
 #
 # Copyright 2014 Oliver Palmer
 #
