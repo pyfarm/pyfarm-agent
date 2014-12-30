@@ -20,7 +20,7 @@ import tempfile
 from decimal import Decimal
 from datetime import datetime, timedelta
 from json import dumps as dumps_
-from uuid import UUID, uuid1, uuid4
+from uuid import UUID, uuid4
 from os.path import join
 
 from mock import patch
@@ -29,7 +29,7 @@ from voluptuous import Invalid
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
-    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
+    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
     AgentUUID)
 
@@ -94,16 +94,11 @@ class TestDumpsJson(TestCase):
             dumps(data), dumps_(data, default=default_json_encoder))
 
     def test_dumps_uuid(self):
-        data = {"uuid": uuid()}
+        data = {"uuid": uuid4()}
         self.assertEqual(dumps(data), dumps({"uuid": str(data["uuid"])}))
 
 
 class TestGeneral(TestCase):
-    def test_uuid(self):
-        internal_uuid = uuid().hex
-        stduuid = uuid1(node=config["agent_id"].node).hex
-        self.assertEqual(internal_uuid[8:16], stduuid[8:16])
-
     def test_request_from_master(self):
         request = FakeRequest(
             self, "GET", "/",

@@ -33,6 +33,7 @@ from functools import partial
 from string import Template
 from os.path import expanduser, abspath, isdir, join
 from pprint import pformat
+from uuid import uuid4
 
 try:
     from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
@@ -52,7 +53,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
-    TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, uuid, validate_uuid)
+    TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, validate_uuid)
 from pyfarm.jobtypes.core.internals import (
     USER_GROUP_TYPES, Cache, Process, TypeChecks, System, pwd, grp)
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
@@ -261,7 +262,7 @@ class JobType(Cache, System, Process, TypeChecks):
         # associated with when them.  The format of tasks could also change
         # since it's an internal representation so to guard against these
         # changes we just use a simple uuid to represent ourselves.
-        self.uuid = uuid()
+        self.uuid = uuid4()
         self.processes = {}
         self.failed_processes = set()
         self.failed_tasks = set()

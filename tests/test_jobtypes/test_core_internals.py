@@ -15,12 +15,12 @@
 # limitations under the License.
 
 
-import os
 import re
 from collections import namedtuple
 from os import urandom, devnull, makedirs
 from os.path import isdir, join, isfile
 from errno import EEXIST
+from uuid import uuid4
 
 try:
     from httplib import CREATED, OK
@@ -34,7 +34,6 @@ from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
 from pyfarm.agent.testutil import (
     TestCase, skipIf, requires_master, create_jobtype)
 from pyfarm.agent.config import config
-from pyfarm.agent.utility import uuid
 from pyfarm.jobtypes.core.internals import (
     ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp)
 from pyfarm.jobtypes.core.log import logpool, CSVLog
@@ -47,7 +46,7 @@ FakeProcessData = namedtuple(
 
 class FakeProtocol(object):
     def __init__(self):
-        self.uuid = uuid()
+        self.uuid = uuid4()
 
 
 class FakeProcess(Process, System):
@@ -368,7 +367,7 @@ class TestMiscTypeChecks(TestCase):
 
     def test_csvlog_path_tasks(self):
         checks = TypeChecks()
-        checks._check_csvlog_path_inputs(uuid(), None)
+        checks._check_csvlog_path_inputs(uuid4(), None)
 
         with self.assertRaisesRegexp(
                 TypeError, re.compile("Expected UUID for `protocol_uuid`")):
@@ -376,7 +375,7 @@ class TestMiscTypeChecks(TestCase):
 
     def test_csvlog_path_time(self):
         checks = TypeChecks()
-        checks._check_csvlog_path_inputs(uuid(), None)
+        checks._check_csvlog_path_inputs(uuid4(), None)
 
         with self.assertRaisesRegexp(
                 TypeError, re.compile("Expected UUID for `protocol_uuid`")):

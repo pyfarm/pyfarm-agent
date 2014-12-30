@@ -45,7 +45,7 @@ class TestEnvironment(TestCase):
         super(TestEnvironment, self).prepare_config()
         config.update({
             "state": AgentState.ONLINE,
-            "agent-id": 0
+            "agent_id": 0
         })
 
     def test_parent_class(self):
@@ -62,7 +62,7 @@ class TestEnvironment(TestCase):
             env.globals["typename"](InMemoryCache()), "InMemoryCache")
         self.assertEqual(
             env.globals["agent_hostname"](), config["agent_hostname"])
-        self.assertEqual(env.globals["agent_id"](), config["agent-id"])
+        self.assertEqual(env.globals["agent_id"](), config["agent_id"])
         self.assertEqual(env.globals["state"](), config["state"])
         self.assertEqual(env.globals["repr"]("foo"), "'foo'")
 

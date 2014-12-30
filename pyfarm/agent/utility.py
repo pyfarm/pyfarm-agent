@@ -116,11 +116,6 @@ JOB_SCHEMA = Schema({
     Optional("title"): STRINGS})
 
 
-def uuid():
-    """Wrapper around :func:`uuid1` which incorporates our system id"""
-    return uuid1(node=config["agent_id"].node)
-
-
 def default_json_encoder(obj, return_obj=False):
     if isinstance(obj, Decimal):
         return float(obj)

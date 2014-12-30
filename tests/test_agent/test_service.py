@@ -50,7 +50,7 @@ class TestAgentBasicMethods(TestCase):
     def test_system_data(self):
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
-            "agent_id": config["agent_id"],
+            "id": config["agent_id"],
             "current_assignments": {},
             "hostname": config["agent_hostname"],
             "version": config.version,

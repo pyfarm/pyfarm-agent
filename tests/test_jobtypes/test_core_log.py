@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from collections import deque
 from datetime import datetime
 from os import urandom, remove
 from os.path import join, isfile, isdir, abspath
-import re
+from uuid import uuid4
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -26,7 +27,7 @@ from twisted.internet.defer import Deferred
 from pyfarm.core.enums import PY26
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.utility import UnicodeCSVWriter, uuid
+from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.jobtypes.core.log import (
     CREATE_LOG_LOCK, STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool,
@@ -35,7 +36,7 @@ from pyfarm.jobtypes.core.log import (
 
 class FakeProtocol(object):
     def __init__(self):
-        self.uuid = uuid()
+        self.uuid = uuid4()
 
 
 class TestModuleLevel(TestCase):

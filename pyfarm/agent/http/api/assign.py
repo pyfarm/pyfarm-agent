@@ -15,13 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from uuid import uuid4
+
 try:
     from httplib import (
         ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
 except ImportError:  # pragma: no cover
     from http.client import (
         ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
-from traceback import format_exception
+
 from functools import partial
 
 from twisted.web.server import NOT_DONE_YET
@@ -33,7 +35,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import request_from_master, uuid
+from pyfarm.agent.utility import request_from_master
 from pyfarm.agent.sysinfo.memory import free_ram
 from pyfarm.agent.utility import JOBTYPE_SCHEMA, TASKS_SCHEMA, JOB_SCHEMA
 from pyfarm.jobtypes.core.jobtype import JobType
@@ -156,7 +158,7 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        assignment_uuid = uuid()
+        assignment_uuid = uuid4()
         request_data.update(id=assignment_uuid)
         config["current_assignments"][assignment_uuid] = request_data
 
