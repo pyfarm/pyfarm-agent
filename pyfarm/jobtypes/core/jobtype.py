@@ -372,7 +372,7 @@ class JobType(Cache, System, Process, TypeChecks):
             * **master_api** - The base url the agent is using to
               communicate with the master.
             * **hostname** - The hostname as reported to the master.
-            * **agent_uuid** - The unique identifier used to identify.
+            * **agent_id** - The unique identifier used to identify.
               this agent to the master.
             * **id** - The database id of the agent as given to us by
               the master on startup of the agent.
@@ -420,7 +420,7 @@ class JobType(Cache, System, Process, TypeChecks):
         return {
             "master_api": config.get("master-api"),
             "hostname": config["agent_hostname"],
-            "agent_uuid": config["agent_uuid"],
+            "agent_id": config["agent_id"],
             "id": int(config["agent_id"]),
             "cpus": int(config["agent_cpus"]),
             "ram": int(config["agent_ram"]),

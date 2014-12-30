@@ -128,14 +128,14 @@ class AgentEntryPoint(object):
             help="The password required to access manipulate the agent "
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
-            "--agent-uuid", config="agent_uuid", type=uuid_type,
+            "--agent-id", config="agent_id", type=uuid_type,
             default=AgentUUID.load(),
             help="The UUID used to identify this agent to the master.  By "
-                 "default the agent will attempt to load a cached value however "
-                 "a specific UUID could be provided with this flag. "
+                 "default the agent will attempt to load a cached value "
+                 "however a specific UUID could be provided with this flag. "
                  "[default: %(default)s]")
         global_network.add_argument(
-            "--agent-uuid-cache", config="agent_uuid_cache",
+            "--agent-id-cache", config="agent_id_cache",
             default=None,
             help="The location to cache the value for --agent-uuid.  By "
                  "default the agent's UUID will be cached in the first "
@@ -439,25 +439,25 @@ class AgentEntryPoint(object):
         # not the same then we have a conflict.  However, we assume the user
         # knows what they are doing and will trust --agent-uuid instead of
         # the cache's value.
-        if self.args.agent_uuid is not None and self.args.agent_uuid_cache:
-            cached_uuid = AgentUUID.load(self.args.agent_uuid_cache)
-            if cached_uuid is not None and cached_uuid != self.args.agent_uuid:
+        if self.args.agent_id is not None and self.args.agent_id_cache:
+            cached_uuid = AgentUUID.load(self.args.agent_id_cache)
+            if cached_uuid is not None and cached_uuid != self.args.agent_id:
                 logger.warning(
                     "A different agent UUID already exists in %r.  It will be "
                     "overwritten by the value provided to --agent-uuid",
-                    self.args.agent_uuid_cache)
+                    self.args.agent_id_cache)
 
             AgentUUID.save(
-                self.args.agent_uuid, path=self.args.agent_uuid_cache)
+                self.args.agent_id, path=self.args.agent_id_cache)
 
         # Agent uuid did not have something to default to so we generate
         # the uuid then cache it.
-        if self.args.agent_uuid is None:
-            self.args.agent_uuid = AgentUUID.generate()
+        if self.args.agent_id is None:
+            self.args.agent_id = AgentUUID.generate()
             AgentUUID.save(
-                self.args.agent_uuid, path=self.args.agent_uuid_cache)
+                self.args.agent_id, path=self.args.agent_id_cache)
 
-        config["agent_uuid"] = self.args.agent_uuid
+        config["agent_id"] = self.args.agent_id
 
         if self.args.target_name == "start":
             # update configuration with values from the command line
@@ -745,7 +745,7 @@ class AgentEntryPoint(object):
         logger.info("    Parent Process ID: %(pid_parent)s" % locals())
         logger.info("           Process ID: %(pid_child)s" % locals())
         logger.info("          Database ID: %(id)s" % data)
-        logger.info("            System ID: %(agent_uuid)s" % data)
+        logger.info("            System ID: %(agent_id)s" % data)
         logger.info(
             "      Child Processes: %(child_processes)s "
             "(+%(grandchild_processes)s grandchildren)" % data)

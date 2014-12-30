@@ -289,7 +289,7 @@ class AgentUUID(object):
     >>> if agent_uuid is None:
     ...    agent_uuid = AgentUUID.generate()
     ...    AgentUUID.save(agent_uuid=agent_uuid)
-    ... config["agent_uuid"] = agent_uuid
+    ... config["agent_id"] = agent_uuid
     >>>
     """
     log = getLogger("agent.uuid")
