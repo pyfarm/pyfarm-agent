@@ -23,12 +23,14 @@ and other relevant information.  This module may also contain os specific
 information such as the Linux distribution, Windows version, bitness, etc.
 """
 
+import atexit
 import os
 import platform
 import sys
 import time
 import tempfile
 import uuid
+from errno import ENOENT
 from os.path import isfile
 
 import psutil
@@ -43,17 +45,33 @@ from pyfarm.agent.sysinfo.network import mac_addresses
 
 logger = getLogger("agent.sysinfo")
 
+# Used by the functions below to cache results
+_filesystem_is_case_sensitive = None
+
 
 def filesystem_is_case_sensitive():  # pragma: no cover
     """returns True if the file system is case sensitive"""
+    global _filesystem_is_case_sensitive
+    if _filesystem_is_case_sensitive is not None:
+        return _filesystem_is_case_sensitive
+
     fd, path = tempfile.mkstemp()
     case_sensitive = not all(map(isfile, [path, path.lower(), path.upper()]))
 
     try:
         os.remove(path)
     except (WindowsError, OSError, NotImplementedError) as e:
-        logger.warning("Could not remove temp file %s: %s: %s",
-                       path, type(e).__name__, e)
+        if getattr(e, "errno", None) != ENOENT:
+            logger.warning("Could not remove temp file %s: %s: %s",
+                           path, type(e).__name__, e)
+
+            @atexit.register
+            def remove():
+                try:
+                    os.remove(path)
+                except (WindowsError, OSError, NotImplementedError) as e:
+                    if getattr(e, "errno", None) != ENOENT:
+                        logger.error("Failed to remove %s: %s", path, e)
 
     os.close(fd)
 
