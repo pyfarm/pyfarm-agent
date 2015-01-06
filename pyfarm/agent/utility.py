@@ -383,10 +383,17 @@ class AgentUUID(object):
             return cls._save(agent_uuid, path=path)
 
         directories = config.directories(validate=False, unversioned_only=True)
+        directories.reverse()
+
         for directory in directories:
-            path = cls._save(agent_uuid, join(directory, "uuid.dat"))
-            if path is not None:
-                return path
+            try:
+                return cls._save(agent_uuid, join(directory, "uuid.dat"))
+            except (OSError, IOError):
+                pass
+        else:
+            raise OSError(
+                "Failed to cache agent UUID after trying to write "
+                "uuid.dat to %r" % directories)
 
     @classmethod
     def generate(cls):
