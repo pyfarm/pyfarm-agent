@@ -45,11 +45,13 @@ from pyfarm.agent.sysinfo.network import mac_addresses
 
 logger = getLogger("agent.sysinfo")
 
+# reload() safe cache for filesystem_is_case_sensitive()
 try:
     _filesystem_is_case_sensitive
 except NameError:  # pragma: no cover
     _filesystem_is_case_sensitive = None
 
+# reload() safe cache for environment_is_case_sensitive()
 try:
     _environment_is_case_sensitive
 except NameError:  # pragma: no cover
