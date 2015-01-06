@@ -51,8 +51,9 @@ def filesystem_is_case_sensitive():  # pragma: no cover
 
     try:
         os.remove(path)
-    except (WindowsError, OSError, NotImplementedError):
-        pass
+    except (WindowsError, OSError, NotImplementedError) as e:
+        logger.warning("Could not remove temp file %s: %s: %s",
+                       path, type(e).__name__, e)
 
     os.close(fd)
 
