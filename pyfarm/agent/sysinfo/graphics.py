@@ -55,7 +55,7 @@ def graphics_cards():
     """
     if WINDOWS:
         wmi = WMI()
-        gpus = wmi.Win32_VideoController.query()[0].Name
+        gpus = wmi.Win32_VideoController.query()
         gpu_names = [x.name for x in gpus]
         return gpu_names
 
