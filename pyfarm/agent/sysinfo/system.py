@@ -45,8 +45,15 @@ from pyfarm.agent.sysinfo.network import mac_addresses
 
 logger = getLogger("agent.sysinfo")
 
-# Used by the functions below to cache results
-_filesystem_is_case_sensitive = None
+try:
+    _filesystem_is_case_sensitive
+except NameError:  # pragma: no cover
+    _filesystem_is_case_sensitive = None
+
+try:
+    _environment_is_case_sensitive
+except NameError:  # pragma: no cover
+    _environment_is_case_sensitive = None
 
 
 def filesystem_is_case_sensitive():  # pragma: no cover
@@ -80,18 +87,23 @@ def filesystem_is_case_sensitive():  # pragma: no cover
 
 def environment_is_case_sensitive():
     """returns True if the environment is case sensitive"""
+    global _environment_is_case_sensitive
+    if _environment_is_case_sensitive is not None:
+        return _environment_is_case_sensitive
+
     envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
     envvar_upper = envvar_lower.upper()
 
     # populate environment then compare the difference
     os.environ.update({envvar_lower: "0", envvar_upper: "1"})
-    case_sensitive = os.environ[envvar_lower] != os.environ[envvar_upper]
+    _environment_is_case_sensitive = \
+        os.environ[envvar_lower] != os.environ[envvar_upper]
 
     # remove the envvars we just made
     for envvar in (envvar_lower, envvar_upper):
         os.environ.pop(envvar, None)
 
-    return case_sensitive
+    return _environment_is_case_sensitive
 
 
 def machine_architecture(arch=platform.machine().lower()):
