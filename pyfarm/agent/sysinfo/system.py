@@ -23,12 +23,14 @@ and other relevant information.  This module may also contain os specific
 information such as the Linux distribution, Windows version, bitness, etc.
 """
 
+import atexit
 import os
 import platform
 import sys
 import time
 import tempfile
 import uuid
+from errno import ENOENT
 from os.path import isfile
 
 import psutil
@@ -43,37 +45,64 @@ from pyfarm.agent.sysinfo.network import mac_addresses
 
 logger = getLogger("agent.sysinfo")
 
-
-def filesystem_is_case_sensitive():  # pragma: no cover
-    """returns True if the file system is case sensitive"""
+# Determine if file system is case sensitive
+try:
+    _filesystem_is_case_sensitive
+except NameError:  # pragma: no cover
     fd, path = tempfile.mkstemp()
-    case_sensitive = not all(map(isfile, [path, path.lower(), path.upper()]))
+    _filesystem_is_case_sensitive = \
+        not all(map(isfile, [path, path.lower(), path.upper()]))
+
+    try:
+        os.close(fd)
+    except OSError:  # pragma: no cover
+        pass
 
     try:
         os.remove(path)
     except (WindowsError, OSError, NotImplementedError) as e:
-        logger.warning("Could not remove temp file %s: %s: %s",
-                       path, type(e).__name__, e)
+        if getattr(e, "errno", None) != ENOENT:
+            logger.warning("Could not remove temp file %s: %s: %s",
+                           path, type(e).__name__, e)
 
-    os.close(fd)
+            # Try to remove the file on shutdown
+            @atexit.register
+            def remove():
+                try:
+                    os.remove(path)
+                except (WindowsError, OSError, NotImplementedError) as e:
+                    if getattr(e, "errno", None) != ENOENT:
+                        logger.error("Failed to remove %s: %s", path, e)
+        del e
+    del fd, path
 
-    return case_sensitive
-
-
-def environment_is_case_sensitive():
-    """returns True if the environment is case sensitive"""
+# Determine if environment is case sensitive
+try:
+    _environment_is_case_sensitive
+except NameError:  # pragma: no cover
     envvar_lower = "PYFARM_CHECK_ENV_CASE_" + uuid.uuid4().hex
     envvar_upper = envvar_lower.upper()
 
     # populate environment then compare the difference
     os.environ.update({envvar_lower: "0", envvar_upper: "1"})
-    case_sensitive = os.environ[envvar_lower] != os.environ[envvar_upper]
+    _environment_is_case_sensitive = \
+        os.environ[envvar_lower] != os.environ[envvar_upper]
 
     # remove the envvars we just made
     for envvar in (envvar_lower, envvar_upper):
         os.environ.pop(envvar, None)
 
-    return case_sensitive
+    del envvar, envvar_lower, envvar_upper
+
+
+def filesystem_is_case_sensitive():  # pragma: no cover
+    """returns True if the file system is case sensitive"""
+    return _filesystem_is_case_sensitive
+
+
+def environment_is_case_sensitive():
+    """returns True if the environment is case sensitive"""
+    return _environment_is_case_sensitive
 
 
 def machine_architecture(arch=platform.machine().lower()):
