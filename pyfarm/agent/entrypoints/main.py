@@ -104,8 +104,6 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
-        ostype = operating_system()
-
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
             "Agent Network Service",
@@ -138,7 +136,8 @@ class AgentEntryPoint(object):
                  "however a specific UUID could be provided with this flag.")
         global_network.add_argument(
             "--agent-id-file", config="agent_id_file",
-            default=config["agent_id_file_platform_defaults"][ostype],
+            default=expanduser(expandvars(
+                config["agent_id_file_platform_defaults"][operating_system()])),
             help="The location to store the agent's id.  By default the path "
                  "is platform specific and defined by the "
                  "`agent_id_file_platform_defaults` key in the configuration.  "
