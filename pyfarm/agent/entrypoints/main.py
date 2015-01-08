@@ -33,7 +33,7 @@ from errno import ENOENT
 
 from json import dumps
 
-from os.path import dirname, isfile, isdir
+from os.path import dirname, isfile, isdir, expandvars, expanduser
 
 try:
     from httplib import ACCEPTED, OK, responses
@@ -61,7 +61,8 @@ import signal
 from requests import ConnectionError
 from twisted.internet import reactor
 
-from pyfarm.core.enums import OS, WINDOWS, AgentState, INTEGER_TYPES
+from pyfarm.core.enums import (
+    OS, WINDOWS, AgentState, INTEGER_TYPES, operating_system)
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.logger.twistd import Observer
@@ -103,6 +104,8 @@ class AgentEntryPoint(object):
         stop.set_defaults(target_name="stop", target_func=self.stop)
         status.set_defaults(target_name="status", target_func=self.status)
 
+        ostype = operating_system()
+
         # command line flags which configure the agent's network service
         global_network = self.parser.add_argument_group(
             "Agent Network Service",
@@ -129,22 +132,17 @@ class AgentEntryPoint(object):
                  "using REST. [default: %(default)s]")
         global_network.add_argument(
             "--agent-id", config="agent_id", type=uuid_type,
-            default=AgentUUID.load(),
+            default=None,
             help="The UUID used to identify this agent to the master.  By "
                  "default the agent will attempt to load a cached value "
-                 "however a specific UUID could be provided with this flag. "
-                 "[default: %(default)s]")
+                 "however a specific UUID could be provided with this flag.")
         global_network.add_argument(
-            "--agent-id-cache", config="agent_id_cache",
-            default=None,
-            help="The location to cache the value for --agent-uuid.  By "
-                 "default the agent's UUID will be cached in the first "
-                 "available location on the configuration path.  Declaring "
-                 "this flag will override this behavior and attempt to load "
-                 "and save the agent's UUID from this location instead.  If "
-                 "this flag is provided along with --agent-uuid the value "
-                 "loaded from the cache will be overwritten by the value "
-                 "provided by --agent-uuid")
+            "--agent-id-file", config="agent_id_file",
+            default=config["agent_id_file_platform_defaults"][ostype],
+            help="The location to store the agent's id.  By default the path "
+                 "is platform specific and defined by the "
+                 "`agent_id_file_platform_defaults` key in the configuration.  "
+                 "[default: %(default)s]")
 
         # command line flags for the connecting the master apis
         global_apis = self.parser.add_argument_group(
@@ -435,27 +433,27 @@ class AgentEntryPoint(object):
         if WINDOWS and self.args.no_daemon:
             logger.warning("--no-daemon is not currently supported on Windows")
 
-        # If --agent-uuid and the value we load from --agent-uuid-cache is
-        # not the same then we have a conflict.  However, we assume the user
-        # knows what they are doing and will trust --agent-uuid instead of
-        # the cache's value.
-        if self.args.agent_id is not None and self.args.agent_id_cache:
-            cached_uuid = AgentUUID.load(self.args.agent_id_cache)
-            if cached_uuid is not None and cached_uuid != self.args.agent_id:
-                logger.warning(
-                    "A different agent UUID already exists in %r.  It will be "
-                    "overwritten by the value provided to --agent-uuid",
-                    self.args.agent_id_cache)
-
-            AgentUUID.save(
-                self.args.agent_id, path=self.args.agent_id_cache)
-
-        # Agent uuid did not have something to default to so we generate
-        # the uuid then cache it.
         if self.args.agent_id is None:
-            self.args.agent_id = AgentUUID.generate()
-            AgentUUID.save(
-                self.args.agent_id, path=self.args.agent_id_cache)
+            agent_id = AgentUUID.load(self.args.agent_id_file)
+
+            # No agent id saved, generate one then try to save it.  If we
+            # can't then an error will be raised when AgentUUID.save is called.
+            if agent_id is None:
+                agent_id = AgentUUID.generate()
+                AgentUUID.save(agent_id, self.args.agent_id_file)
+
+            self.args.agent_id = agent_id
+
+        # A custom --agent-id was provided, warn if it varies from one
+        # we load from disk.  We won't try to save it however because
+        # that could cause conflicts if someone is using --agent-id
+        # and trying to run multiple agents.
+        else:
+            saved_agent_id = AgentUUID.load(self.args.agent_id_file)
+            if (saved_agent_id is not None
+                    and saved_agent_id != self.args.agent_id):
+                logger.warning(
+                    "Custom agent ID has been provided by --agent-id")
 
         config["agent_id"] = self.args.agent_id
 
