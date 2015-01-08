@@ -37,7 +37,7 @@ from os.path import join, abspath, dirname
 from pyfarm.core.enums import NOTSET
 from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, cpu, network
+from pyfarm.agent.sysinfo import memory, cpu, network, system
 
 logger = getLogger("agent.config")
 
