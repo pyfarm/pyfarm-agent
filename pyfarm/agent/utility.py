@@ -309,8 +309,8 @@ class AgentUUID(object):
                 raise
 
         except ValueError:
-            cls.log.warning("%r does not contain valid data for a UUID", path)
-            return None
+            cls.log.error("%r does not contain valid data for a UUID", path)
+            raise
 
     @classmethod
     def _save(cls, agent_uuid, path):
