@@ -49,7 +49,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
-from pyfarm.agent.http.api.state import Status, Stop
+from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
@@ -301,6 +301,7 @@ class Agent(object):
         # and operations.
         v1.putChild("status", Status())
         v1.putChild("stop", Stop())
+        v1.putChild("restart", Restart())
         v1.putChild("update", Update())
 
         return root

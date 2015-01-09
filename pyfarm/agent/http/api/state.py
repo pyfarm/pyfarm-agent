@@ -18,6 +18,7 @@ import time
 import os
 from datetime import timedelta, datetime
 from errno import ENOENT
+from os.path import isfile, dirname
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
@@ -78,6 +79,43 @@ class Stop(APIResource):
         else:
             request.setResponseCode(ACCEPTED)
             request.finish()
+
+        return NOT_DONE_YET
+
+
+class Restart(APIResource):
+    isLeaf = False
+
+    def post(self, **kwargs):
+        request = kwargs["request"]
+        agent = config["agent"]
+
+        #Ensure the run control file exists
+        if not isfile(config["run_control_file"]):
+            directory = dirname(config["run_control_file"])
+            if not isdir(directory):
+                try:
+                    os.makedirs(directory)
+                except OSError:  # pragma: no cover
+                    logger.error(
+                        "Failed to create parent directory for %s",
+                        config["run_control_file"])
+                    raise
+                else:
+                    logger.debug("Created directory %s", directory)
+            try:
+                control_file = open(config["run_control_file"], "a").close()
+            except (OSError, IOError) as e:
+                logger.error("Failed to create run control file %s: %s: %s",
+                             config["run_control_file"], type(e).__name__, e)
+            else:
+                logger.info("Created run control file %s",
+                            config["run_control_file"])
+
+        agent.stop()
+
+        request.setResponseCode(ACCEPTED)
+        request.finish()
 
         return NOT_DONE_YET
 
