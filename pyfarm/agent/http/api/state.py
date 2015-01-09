@@ -15,12 +15,18 @@
 # limitations under the License.
 
 import time
+import os
 from datetime import timedelta, datetime
+from errno import ENOENT
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 import psutil
 from twisted.internet.defer import Deferred
@@ -46,6 +52,15 @@ class Stop(APIResource):
         request = kwargs["request"]
         data = kwargs["data"]
         agent = config["agent"]
+
+        try:
+            os.remove(config["run_control_file"])
+        except (WindowsError, OSError, IOError) as e:
+            if e.errno != ENOENT:
+                logger.error("Could not delete run control file %s: %s: %s",
+                             config["run_control_file"],
+                             type(e).__name__, e)
+
         stopping = agent.stop()
 
         # TODO: need to wire this up to the real deferred object in stop()

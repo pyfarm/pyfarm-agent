@@ -443,6 +443,14 @@ class Agent(object):
             wait_on_stopped()
 
     def sigint_handler(self, *_):
+        try:
+            os.remove(config["run_control_file"])
+        except (WindowsError, OSError, IOError) as e:
+            if e.errno != ENOENT:
+                logger.error("Could not delete run control file %s: %s: %s",
+                             config["run_control_file"],
+                             type(e).__name__, e)
+
         self.stop()
 
     def post_shutdown_to_master(self, stop_reactor=True):

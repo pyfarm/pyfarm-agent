@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # The platform specific locations where the agent uuid
 # file is default.  This can be overridden with --agent-id-file flag.
 agent_id_file_platform_defaults:
@@ -20,6 +19,13 @@ agent_id_file_platform_defaults:
   mac: /Library/pyfarm/agent/uuid.dat
   bsd: /etc/pyfarm/agent/uuid.dat
   windows: $LOCALAPPDATA/pyfarm/agent/uuid.dat
+
+# The platform specific locations where the run control file is looked for
+run_control_file_by_platform:
+  linux: /tmp/pyfarm/agent/should_be_running
+  mac: /tmp/pyfarm/agent/should_be_running
+  bsd: /tmp/pyfarm/agent/should_be_running
+  windows: $TEMP/pyfarm/agent/should_be_running
 
 # The default location to store data.  $temp will expand to
 # whatever pyfarm's data root is plus the application
@@ -67,6 +73,7 @@ agent_api_port: 50000
 # The location where the the agent should save its own
 # logging output to.
 agent_log: $agent_logs_root/agent.log
+agent_log: $agent_logs_root/supervisor.log
 
 # The user agent the master will use when connecting to the agent's
 # REST api.  This value should only be changed if the master's code
