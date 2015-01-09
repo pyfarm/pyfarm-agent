@@ -85,7 +85,7 @@ jobtype_root_package_data_roots = (
 
 setup(
     name="pyfarm.agent",
-    version="0.8.1",
+    version="0.8.2",
     packages=[
         "pyfarm",
         "pyfarm.agent",
