@@ -25,7 +25,7 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core>=0.9.0",
+    "pyfarm.core>=0.9.1",
     # "PyOpenSSL", "service_identity",  # required for full SSL support
     "netaddr", "twisted", "ntplib", "requests!=2.4.0", "treq",
     "voluptuous", "jinja2", "psutil>=2.1.0",
