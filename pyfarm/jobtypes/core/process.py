@@ -24,13 +24,13 @@ are useful in starting or managing a process.
 """
 
 import os
+from uuid import uuid4
 
 from psutil import Process, NoSuchProcess
 from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import uuid
 from pyfarm.jobtypes.core.log import STDOUT, STDERR
 
 logger = getLogger("jobtypes.process")
@@ -81,7 +81,7 @@ class ProcessProtocol(_ProcessProtocol):
         # Internal only attributes, __uuid itself is a property so
         # it can't be accidentally modified later.
         self.__ended = False
-        self.__uuid = uuid()
+        self.__uuid = uuid4()
 
     def __repr__(self):
         return \

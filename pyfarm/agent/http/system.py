@@ -97,7 +97,7 @@ class Index(Resource):
             ("Idle Time", seconds(cpu.idle_time())),
             ("IO Wait", seconds(cpu.iowait()) or "Not Supported")]
 
-        agent_id = config["agent-id"] if "agent_id" in config else None
+        agent_id = config["agent_id"] if "agent_id" in config else None
 
         miscellaneous = [
             ("Database ID", agent_id),

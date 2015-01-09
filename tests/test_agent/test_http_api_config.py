@@ -16,6 +16,7 @@
 
 from json import loads
 from datetime import datetime
+from uuid import UUID
 
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import BaseAPITestCase
@@ -37,6 +38,13 @@ class TestConfig(BaseAPITestCase):
 
         for key in response:
             self.assertIn(key, current_config)
+
+            # HTTP responses are not automatically
+            # converted from plain text into UUID
+            # objects.
+            if key == "agent_id":
+                response[key] = UUID(response[key])
+
             self.assertEqual(
                 response[key], current_config[key],
                 "Data for key %r %r != %r" % (

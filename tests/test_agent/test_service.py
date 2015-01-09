@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import os
-import sys
+import uuid
 from platform import platform
 
 try:
@@ -23,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
-from pyfarm.agent.sysinfo.system import system_identifier, operating_system
+from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
@@ -34,22 +34,24 @@ from pyfarm.agent.sysinfo import network
 # TODO: need better tests, these are a little rudimentary at the moment
 class TestAgentBasicMethods(TestCase):
     def test_agent_api_url(self):
-        config["agent-id"] = 1
+        config["agent_id"] = uuid.uuid4()
         agent = Agent()
         self.assertEqual(
             agent.agent_api(),
-            "%s/agents/1" % config["master_api"])
+            "{master_api}/agents/{agent_id}".format(
+                master_api=config["master_api"],
+                agent_id=config["agent_id"]))
 
     def test_agent_api_url_keyerror(self):
         agent = Agent()
-        config.pop("agent-id")
+        config.pop("agent_id")
         self.assertIsNone(agent.agent_api())
 
     def test_system_data(self):
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
+            "id": config["agent_id"],
             "current_assignments": {},
-            "systemid": system_identifier(),
             "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],

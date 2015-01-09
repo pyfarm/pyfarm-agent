@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+# The platform specific locations where the agent uuid
+# file is default.  This can be overridden with --agent-id-file flag.
+agent_id_file_platform_defaults:
+  linux: /etc/pyfarm/agent/uuid.dat
+  mac: /Library/pyfarm/agent/uuid.dat
+  bsd: /etc/pyfarm/agent/uuid.dat
+  windows: $LOCALAPPDATA/pyfarm/agent/uuid.dat
+
 # The default location to store data.  $temp will expand to
 # whatever pyfarm's data root is plus the application
 # name (agent).  For example on Linux this would expand to
 # /tmp/pyfarm/agent
 agent_data_root: $temp
-
 
 # Defines the number of seconds between iterations of pyfarm-supervisor's
 # agent status check.
@@ -51,10 +59,6 @@ agent_logs_root: $agent_data_root/logs
 
 # The location where agent updates should be stored.
 agent_updates_dir: $agent_data_root/updates
-
-# Defines how and where the system identifier is cached.
-agent_systemid: auto
-agent_systemid_cache: $agent_data_root/systemid.cache
 
 # The default port which the agent should use to serve the
 # REST api.

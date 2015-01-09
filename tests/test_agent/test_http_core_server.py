@@ -82,7 +82,7 @@ class TestStaticPath(TestCase):
             StaticPath(os.urandom(48).encode("hex"))
 
     def test_render_cache_header(self):
-        path = self.create_test_file()
+        path = self.create_file()
         request = RewriteRequest(DummyChannel(), 1)
         request.method = "GET"
         static_path = StaticPath(path)
@@ -92,14 +92,14 @@ class TestStaticPath(TestCase):
             ["max-age=%s" % StaticPath.EXPIRES])
 
     def test_can_list_directory(self):
-        directory, files = self.create_test_directory()
+        directory, files = self.create_directory()
         StaticPath.ALLOW_DIRECTORY_LISTING = True
         static_path = StaticPath(directory)
         lister = static_path.directoryListing()
         self.assertEqual(set(lister.dirs), set(map(basename, files)))
 
     def test_can_not_list_directory(self):
-        directory, files = self.create_test_directory()
+        directory, files = self.create_directory()
         StaticPath.ALLOW_DIRECTORY_LISTING = False
         static_path = StaticPath(directory)
         with self.assertRaises(Error):

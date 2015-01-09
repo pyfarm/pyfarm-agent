@@ -162,11 +162,3 @@ def operating_system(plat=sys.platform):
     else:
         logger.warning("unknown operating system: %r", plat)
         return "other"
-
-
-def system_identifier():
-    """Generates a system identifier"""
-    result = 0
-    for address in mac_addresses(long_addresses=False, as_integers=True):
-        result ^= address
-    return result

@@ -25,11 +25,14 @@ are copied over from the master (which we can't import here).
 import csv
 import codecs
 import cStringIO
+import os
 from decimal import Decimal
 from datetime import datetime, timedelta
+from errno import EEXIST, ENOENT
 from json import dumps as _dumps
+from os.path import join, dirname
 from UserDict import UserDict
-from uuid import UUID, uuid1
+from uuid import UUID, uuid1, uuid4
 
 try:
     from urlparse import urlsplit
@@ -111,11 +114,6 @@ JOB_SCHEMA = Schema({
     Optional("data"): dict,
     Optional("environ"): validate_environment,
     Optional("title"): STRINGS})
-
-
-def uuid():
-    """Wrapper around :func:`uuid1` which incorporates our system id"""
-    return uuid1(node=config["agent_systemid"])
 
 
 def default_json_encoder(obj, return_obj=False):
@@ -275,3 +273,82 @@ def total_seconds(td):
     except AttributeError:  # pragma: no cover
         return (
            td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
+
+
+class AgentUUID(object):
+    """
+    This class wraps all the functionality required to load, cache and retrieve
+    an Agent's UUID.
+    """
+    log = getLogger("agent.uuid")
+
+    @classmethod
+    def load(cls, path):
+        """
+        A classmethod to load a UUID object from a path.  If the provided
+        ``path`` does not exist or does not contain data which can be converted
+        into a UUID object ``None`` will be returned.
+        """
+        assert isinstance(path, STRING_TYPES), path
+        cls.log.debug("Attempting to load agent UUID from %r", path)
+
+        try:
+            with open(path, "r") as loaded_file:
+                data = loaded_file.read().strip()
+
+            return UUID(data)
+
+        except (OSError, IOError) as e:
+            if e.errno == ENOENT:
+                cls.log.warning("UUID file %s does not exist.", path)
+                return None
+
+            cls.log.error("Failed to load uuid from %s: %s", path, e)
+            raise
+
+        except ValueError:  # pragma: no cover
+            cls.log.error("%r does not contain valid data for a UUID", path)
+            raise
+
+    @classmethod
+    def save(cls, agent_uuid, path):
+        """
+        Saves ``agent_uuid`` to ``path``.  This classmethod will
+        also create the necessary parent directories and handle
+        conversion from the input type :class:`uuid.UUID`.
+        """
+        assert isinstance(agent_uuid, UUID)
+        assert isinstance(path, STRING_TYPES)
+        cls.log.debug("Saving %r to %r", agent_uuid, path)
+
+        # Create directory if it does not exist
+        parent_dir = dirname(path)
+        if parent_dir.strip():
+            try:
+                os.makedirs(parent_dir)
+
+            except (OSError, IOError) as e:  # pragma: no cover
+                if e.errno != EEXIST:
+                    cls.log.warning("Failed to create %s, %s", parent_dir, e)
+                    raise
+
+        # Write uuid to disk
+        try:
+            with open(path, "w") as output:
+                output.write(str(agent_uuid))
+
+            cls.log.debug("Cached %s to %r", agent_uuid, path)
+
+        except (OSError, IOError) as e:  # pragma: no cover
+            cls.log.error("Failed to write %s, %s", path, e)
+            raise
+
+    @classmethod
+    def generate(cls):
+        """
+        Generates a UUID object.  This simply wraps :func:`uuid.uuid4` and
+        logs a warning.
+        """
+        agent_uuid = uuid4()
+        cls.log.warning("Generated agent UUID: %s", agent_uuid)
+        return agent_uuid

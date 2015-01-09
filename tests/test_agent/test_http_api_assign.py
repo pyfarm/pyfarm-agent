@@ -104,7 +104,7 @@ class TestAssign(BaseAPITestCase):
         super(TestAssign, self).prepare_config()
         config.update({
             "cpus": randint(1, 16),
-            "agent-id": randint(1, 2048)})
+            "agent_id": randint(1, 2048)})
 
     def test_restarting(self):
         config["restart_requested"] = True
@@ -121,7 +121,7 @@ class TestAssign(BaseAPITestCase):
             "Agent cannot accept assignments because of a pending restart")
 
     def test_agent_id_not_set(self):
-        config.pop("agent-id", None)
+        config.pop("agent_id", None)
         request = self.post(
             data=self.data,
             headers={"User-Agent": config["master_user_agent"]})
@@ -132,7 +132,7 @@ class TestAssign(BaseAPITestCase):
         self.assertEqual(result, NOT_DONE_YET)
         self.assertEqual(
             request.response()["error"],
-            "agent-id has not been set in the config")
+            "agent_id has not been set in the config")
 
     def test_not_enough_ram(self):
         self.data["job"]["ram"] = total_ram() * 10

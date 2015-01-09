@@ -24,7 +24,6 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.utility import uuid
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
@@ -52,7 +51,7 @@ def fake_assignment():
 
 class FakeProcessProtocol(object):
     def __init__(self):
-        self.uuid = uuid()
+        self.uuid = uuid4()
 
 
 class TestSchema(TestCase):
@@ -180,7 +179,7 @@ class TestCommandData(TestCase):
 
     def test_validate_cwd_config(self):
         initial_cwd = os.getcwd()
-        testdir, _ = self.create_test_directory(count=0)
+        testdir, _ = self.create_directory(count=0)
         config["agent_chdir"] = testdir
         data = CommandData("")
         data.validate()

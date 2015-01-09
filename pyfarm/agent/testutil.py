@@ -24,6 +24,7 @@ import sys
 import shutil
 import tempfile
 import time
+import uuid
 from datetime import datetime
 from functools import wraps, partial
 from os import urandom
@@ -45,7 +46,7 @@ from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.sysinfo import memory, cpu, system
+from pyfarm.agent.sysinfo import memory, cpu
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -382,9 +383,8 @@ class TestCase(_TestCase):
 
         config.update({
             "jobtypes": {},
-            "agent-id": randint(1, 50000),
             "current_assignments": {},
-            "agent_systemid": system.system_identifier(),
+            "agent_id": uuid.uuid4(),
             "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
@@ -407,7 +407,7 @@ class TestCase(_TestCase):
             if on_exit:
                 atexit.register(self._rmdir, path, on_exit=False)
 
-    def create_test_file(self, content=None, dir=None, suffix=""):
+    def create_file(self, content=None, dir=None, suffix=""):
         """
         Creates a test file on disk using :func:`tempfile.mkstemp`
         and uses the lower level file interfaces to manage it.  This
@@ -436,13 +436,13 @@ class TestCase(_TestCase):
         # self.addCleanup(self._closefd, fd)
         return path
 
-    def create_test_directory(self, count=10):
+    def create_directory(self, count=10):
         directory = tempfile.mkdtemp()
         self.addCleanup(self._rmdir, directory)
 
         files = []
         for _ in range(count):
-            files.append(self.create_test_file(dir=directory))
+            files.append(self.create_file(dir=directory))
 
         return directory, files
 

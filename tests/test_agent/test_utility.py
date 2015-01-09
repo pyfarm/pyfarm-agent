@@ -15,20 +15,23 @@
 # limitations under the License.
 
 import os
+import re
+import tempfile
 from decimal import Decimal
 from datetime import datetime, timedelta
 from json import dumps as dumps_
-from uuid import uuid1
-import re
+from uuid import UUID, uuid4
+from os.path import join
 
+from mock import patch
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
-from pyfarm.agent.sysinfo.system import system_identifier
 from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
-    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps, uuid,
-    quote_url, request_from_master, total_seconds, validate_environment)
+    UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
+    quote_url, request_from_master, total_seconds, validate_environment,
+    AgentUUID)
 
 
 class TestValidateEnvironment(TestCase):
@@ -91,16 +94,11 @@ class TestDumpsJson(TestCase):
             dumps(data), dumps_(data, default=default_json_encoder))
 
     def test_dumps_uuid(self):
-        data = {"uuid": uuid()}
+        data = {"uuid": uuid4()}
         self.assertEqual(dumps(data), dumps({"uuid": str(data["uuid"])}))
 
 
 class TestGeneral(TestCase):
-    def test_uuid(self):
-        internal_uuid = uuid().hex
-        stduuid = uuid1(node=system_identifier()).hex
-        self.assertEqual(internal_uuid[8:16], stduuid[8:16])
-
     def test_request_from_master(self):
         request = FakeRequest(
             self, "GET", "/",
@@ -123,7 +121,7 @@ class TestCSVBase(TestCase):
                 os.urandom(16).encode("hex"), os.urandom(16).encode("hex")]
 
     def get_writer(self):
-        stream = open(self.create_test_file(), "w")
+        stream = open(self.create_file(), "w")
         return UnicodeCSVWriter(stream), stream.name
 
 
@@ -180,10 +178,10 @@ class TestCSVReader(TestCSVBase):
 
 class TestQuoteURL(TestCase):
     def test_simple_with_scheme(self):
-        self.assertEqual(quote_url("http://foobar"),  "http://foobar")
+        self.assertEqual(quote_url("http://foobar"), "http://foobar")
 
     def test_simple_without_scheme(self):
-        self.assertEqual(quote_url("/foobar"),  "/foobar")
+        self.assertEqual(quote_url("/foobar"), "/foobar")
 
     def test_parameters(self):
         self.assertEqual(
@@ -194,3 +192,28 @@ class TestQuoteURL(TestCase):
         self.assertEqual(
             quote_url("/foobar?first=1&second=2#abcd"),
             "/foobar?first=1&second=2#abcd")
+
+
+class TestAgentUUID(TestCase):
+    def test_generate(self):
+        result = AgentUUID.generate()
+        self.assertIsInstance(result, UUID)
+
+    def test_save(self):
+        data = uuid4()
+        saved_path = self.create_file()
+        AgentUUID.save(data, saved_path)
+        with open(saved_path, "r") as saved_file:
+            saved_data = saved_file.read()
+
+        self.assertEqual(saved_data, str(data))
+
+    def test_load(self):
+        data = uuid4()
+        path = self.create_file(str(data))
+        self.assertEqual(AgentUUID.load(path), data)
+
+    def test_load_from_missing_path(self):
+        path = self.create_file()
+        os.remove(path)
+        self.assertIsNone(AgentUUID.load(path))
