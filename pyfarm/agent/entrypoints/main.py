@@ -484,14 +484,14 @@ class AgentEntryPoint(object):
             response = requests.get(
                 url, headers={"Content-Type": "application/json"})
         except ConnectionError:
-            pid = None
+            pidfile = None
             remove_lock_file = False
 
             # Try to open an existing lock file
             try:
                 with open(config["agent_lock_file"], "r") as pidfile:
                     try:
-                        pid = int(pidfile.read().strip())
+                        pidfile = int(pidfile.read().strip())
                     except ValueError:
                         logger.warning(
                             "Could not convert pid in %s to an integer.",
@@ -509,13 +509,13 @@ class AgentEntryPoint(object):
                     raise
 
             else:
-                assert pid is not None, "pid was not set"
+                assert pidfile is not None, "pid was not set"
                 logger.debug(
                     "Process ID file %s exists", config["agent_lock_file"])
 
-            if pid is not None:
+            if pidfile is not None:
                 try:
-                    process = psutil.Process(pid)
+                    process = psutil.Process(pidfile)
 
                 # Process in the pid file does not exist
                 except psutil.NoSuchProcess:
@@ -528,14 +528,14 @@ class AgentEntryPoint(object):
                 else:
                     if process.name() == "pyfarm-agent":
                         logger.error(
-                            "Agent is already running, pid %s", pid)
+                            "Agent is already running, pid %s", pidfile)
                         return 1
 
                     # Not our agent so the lock file is probably wrong.
                     else:
                         logger.debug(
                             "Process %s does not appear to be the "
-                            "agent.", pid)
+                            "agent.", pidfile)
                         remove_lock_file = True
 
             if remove_lock_file:
@@ -571,10 +571,10 @@ class AgentEntryPoint(object):
         else:
             code = "%s %s" % (
                 response.status_code, responses[response.status_code])
-            pid = response.json()["pids"]["parent"]
+            pidfile = response.json()["pids"]["parent"]
             logger.error(
                 "Agent at pid %s is already running, got %s from %s.",
-                pid, code, url)
+                pidfile, code, url)
             return 1
 
         logger.info("Starting agent")
@@ -632,9 +632,10 @@ class AgentEntryPoint(object):
                 logger.debug("Created directory %s", pid_dirname)
 
         # Write the PID file
+        pid = os.getpid()
         try:
-            with open(config["agent_lock_file"], "w") as pid:
-                pid.write(str(os.getpid()))
+            with open(config["agent_lock_file"], "w") as pidfile:
+                pidfile.write(str(pid))
         except OSError as e:
             logger.error(
                 "Failed to write PID file %s: %s", config["agent_lock_file"], e)
@@ -642,7 +643,7 @@ class AgentEntryPoint(object):
         else:
             logger.debug("Wrote PID to %s", config["agent_lock_file"])
 
-        logger.info("pid: %s" % pid)
+        logger.info("pid: %s", pid)
 
         if getuid is not NotImplemented:
             logger.info("uid: %s" % getuid())
