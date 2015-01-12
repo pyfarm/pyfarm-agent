@@ -632,9 +632,10 @@ class AgentEntryPoint(object):
                 logger.debug("Created directory %s", pid_dirname)
 
         # Write the PID file
+        pid = os.getpid()
         try:
-            with open(config["agent_lock_file"], "w") as pid:
-                pid.write(str(os.getpid()))
+            with open(config["agent_lock_file"], "w") as pidfile:
+                pidfile.write(str(pid))
         except OSError as e:
             logger.error(
                 "Failed to write PID file %s: %s", config["agent_lock_file"], e)
@@ -642,7 +643,7 @@ class AgentEntryPoint(object):
         else:
             logger.debug("Wrote PID to %s", config["agent_lock_file"])
 
-        logger.info("pid: %s" % pid)
+        logger.info("pid: %s", pid)
 
         if getuid is not NotImplemented:
             logger.info("uid: %s" % getuid())
