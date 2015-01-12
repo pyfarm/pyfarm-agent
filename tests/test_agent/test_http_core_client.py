@@ -162,7 +162,7 @@ class RequestTestCase(BaseRequestTestCase):
 
 class TestClientErrors(RequestTestCase):
     def test_unsupported_scheme(self):
-        return get("zzz://httpbin.org/",
+        return get("zzz://httpbin.pyfarm.net/",
                    callback=lambda _: self.fail("Unexpected success"),
                    errback=lambda failure:
                    self.assertIs(failure.type, SchemeNotSupported))
