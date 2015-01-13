@@ -666,7 +666,8 @@ class AgentEntryPoint(object):
             else:
                 logger.debug("Created directory %s", directory)
             try:
-                control_file = open(config["run_control_file"], "a").close()
+                with open(config["run_control_file"], "a"):
+                    pass
             except (OSError, IOError) as e:
                 logger.error("Failed to create run control file %s: %s: %s",
                              config["run_control_file"], type(e).__name__, e)
