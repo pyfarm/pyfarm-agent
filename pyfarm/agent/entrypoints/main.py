@@ -660,8 +660,8 @@ class AgentEntryPoint(object):
             except (OSError, IOError) as e:  # pragma: no cover
                 if e.errno != EEXIST:
                     logger.error(
-                        "Failed to create parent directory for %s",
-                        config["run_control_file"])
+                        "Failed to create parent directory for %s: %s: %s",
+                        config["run_control_file"], type(e).__name__, e)
                     raise
             else:
                 logger.debug("Created directory %s", directory)
