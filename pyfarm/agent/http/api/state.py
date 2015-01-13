@@ -17,7 +17,7 @@
 import time
 import os
 from datetime import timedelta, datetime
-from errno import ENOENT
+from errno import ENOENT, EEXIST
 from os.path import isfile, dirname
 
 try:
@@ -90,19 +90,19 @@ class Restart(APIResource):
         request = kwargs["request"]
         agent = config["agent"]
 
-        #Ensure the run control file exists
+        # Ensure the run control file exists
         if not isfile(config["run_control_file"]):
             directory = dirname(config["run_control_file"])
-            if not isdir(directory):
-                try:
-                    os.makedirs(directory)
-                except OSError:  # pragma: no cover
+            try:
+                os.makedirs(directory)
+            except (OSError, IOError) as e:  # pragma: no cover
+                if e.errno != EEXIST:
                     logger.error(
                         "Failed to create parent directory for %s",
                         config["run_control_file"])
                     raise
-                else:
-                    logger.debug("Created directory %s", directory)
+            else:
+                logger.debug("Created directory %s", directory)
             try:
                 control_file = open(config["run_control_file"], "a").close()
             except (OSError, IOError) as e:
