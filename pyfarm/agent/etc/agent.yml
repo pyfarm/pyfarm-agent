@@ -73,7 +73,7 @@ agent_api_port: 50000
 # The location where the the agent should save its own
 # logging output to.
 agent_log: $agent_logs_root/agent.log
-agent_log: $agent_logs_root/supervisor.log
+supervisor_log: $agent_logs_root/supervisor.log
 
 # The user agent the master will use when connecting to the agent's
 # REST api.  This value should only be changed if the master's code
