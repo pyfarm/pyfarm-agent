@@ -88,6 +88,7 @@ class Restart(APIResource):
 
     def post(self, **kwargs):
         request = kwargs["request"]
+        data = kwargs["data"]
         agent = config["agent"]
 
         # Ensure the run control file exists
@@ -113,7 +114,13 @@ class Restart(APIResource):
                 logger.info("Created run control file %s",
                             config["run_control_file"])
 
-        agent.stop()
+        if not config["current_assignments"] or data.get("immediately", False):
+            logger.info("The agent will restart immediately.")
+            agent.stop()
+        else:
+            logger.info("The agent will restart after the current assignment "
+                        "is finished.")
+            config["restart_requested"] = True
 
         request.setResponseCode(ACCEPTED)
         request.finish()
