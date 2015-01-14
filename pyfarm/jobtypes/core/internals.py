@@ -117,7 +117,8 @@ class Cache(object):
         download = lambda *_: \
             get(url,
                 callback=result.callback,
-                errback=lambda: reactor.callLater(http_retry_delay(), download))
+                errback=lambda *_: reactor.callLater(http_retry_delay(),
+                                                     download))
         download()
         return result
 
