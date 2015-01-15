@@ -28,7 +28,7 @@ from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
-from pyfarm.agent.sysinfo import network
+from pyfarm.agent.sysinfo import network, graphics
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
@@ -64,6 +64,12 @@ class TestAgentBasicMethods(TestCase):
             "time_offset": config["agent_time_offset"],
             "state": config["state"],
             "mac_addresses": list(network.mac_addresses())}
+
+        try:
+            gpu_names = graphics.graphics_cards()
+            expected["gpus"] = gpu_names
+        except graphics.GPULookupError:
+            pass
 
         agent = Agent()
         system_data = agent.system_data()
