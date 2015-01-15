@@ -452,6 +452,19 @@ class Agent(object):
                              config["run_control_file"],
                              type(e).__name__, e)
 
+                def remove_run_control_file():
+                    try:
+                        os.remove(config["run_control_file"])
+                        logger.debug("Removed run control file %r",
+                                     config["run_control_file"])
+                    except (OSError, IOError, WindowsError) as e:
+                        logger.error("Failed to remove run control file %s: "
+                                     "%s: %s",
+                                    config["run_control_file"],
+                                    type(e).__name__, e)
+
+                atexit.register(remove_run_control_file)
+
         self.stop()
 
     def post_shutdown_to_master(self, stop_reactor=True):

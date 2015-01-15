@@ -16,6 +16,7 @@
 
 import time
 import os
+import atexit
 from datetime import timedelta, datetime
 from errno import ENOENT, EEXIST
 from os.path import isfile, dirname
@@ -61,6 +62,19 @@ class Stop(APIResource):
                 logger.error("Could not delete run control file %s: %s: %s",
                              config["run_control_file"],
                              type(e).__name__, e)
+
+                def remove_run_control_file():
+                    try:
+                        os.remove(config["run_control_file"])
+                        logger.debug("Removed run control file %r",
+                                     config["run_control_file"])
+                    except (OSError, IOError, WindowsError) as e:
+                        logger.error("Failed to remove run control file %s: "
+                                     "%s: %s",
+                                    config["run_control_file"],
+                                    type(e).__name__, e)
+
+                atexit.register(remove_run_control_file)
 
         stopping = agent.stop()
 
