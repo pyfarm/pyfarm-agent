@@ -25,12 +25,15 @@ Agent Network Service:
   --agent-api-password AGENT_API_PASSWORD
                         The password required to access manipulate the agent
                         using REST. [default: agent]
-  --systemid SYSTEMID   The system identification value. This is used to help
-                        identify the system itself to the master when the
-                        agent connects. [default: auto]
-  --systemid-cache SYSTEMID_CACHE
-                        The location to cache the value for --systemid.
-                        [default: None]
+  --agent-id AGENT_ID   The UUID used to identify this agent to the master. By
+                        default the agent will attempt to load a cached value
+                        however a specific UUID could be provided with this
+                        flag.
+  --agent-id-file AGENT_ID_FILE
+                        The location to store the agent's id. By default the
+                        path is platform specific and defined by the
+                        `agent_id_file_platform_defaults` key in the
+                        configuration. [default: /etc/pyfarm/agent/uuid.dat]
 
 Network Resources:
   Resources which the agent will be communicating with.

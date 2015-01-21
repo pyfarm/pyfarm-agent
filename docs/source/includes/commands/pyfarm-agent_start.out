@@ -7,6 +7,7 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--no-pretty-json]
                                               [--shutdown-timeout SHUTDOWN_TIMEOUT]
                                               [--updates-drop-dir UPDATES_DROP_DIR]
+                                              [--run-control-file RUN_CONTROL_FILE]
                                               [--cpus CPUS] [--ram RAM]
                                               [--ram-check-interval RAM_CHECK_INTERVAL]
                                               [--ram-max-report-frequency RAM_MAX_REPORT_FREQUENCY]
@@ -64,6 +65,11 @@ General Configuration:
                         The directory to drop downloaded updates in. This
                         should be the same directory pyfarm-supervisor will
                         look for updates in. [default: None]
+  --run-control-file RUN_CONTROL_FILE
+                        The path to a file that will signal to the supervisor
+                        that agent is supposed to be restarted if it stops for
+                        whatever reason.[default:
+                        /tmp/pyfarm/agent/should_be_running]
 
 Physical Hardware:
   Command line flags which describe the hardware of the agent.
