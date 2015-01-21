@@ -29,7 +29,6 @@ import time
 from datetime import datetime, timedelta
 from functools import partial
 from os.path import join, isfile
-from random import random
 from platform import platform
 
 try:
