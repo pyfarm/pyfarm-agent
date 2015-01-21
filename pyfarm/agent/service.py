@@ -32,6 +32,11 @@ from os.path import join, isfile
 from platform import platform
 
 try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
+
+try:
     from httplib import (
         responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 except ImportError:  # pragma: no cover
