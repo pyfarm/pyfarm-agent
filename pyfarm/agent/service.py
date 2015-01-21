@@ -27,6 +27,7 @@ import atexit
 import os
 import time
 from datetime import datetime, timedelta
+from errno import ENOENT
 from functools import partial
 from os.path import join, isfile
 from platform import platform
