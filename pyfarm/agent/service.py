@@ -41,7 +41,7 @@ except ImportError:  # pragma: no cover
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionRefusedError
 
 from pyfarm.core.enums import AgentState
@@ -50,7 +50,6 @@ from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
 from pyfarm.agent.http.api.state import Status, Stop, Restart
-from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
@@ -294,7 +293,6 @@ class Agent(object):
         v1.putChild("assign", Assign(self))
         v1.putChild("tasks", Tasks())
         v1.putChild("config", Config())
-        v1.putChild("logging", LogQuery())
         v1.putChild("task_logs", TaskLogs())
 
         # Endpoints which are generally used for status
