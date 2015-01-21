@@ -451,17 +451,17 @@ class Agent(object):
             os.remove(config["run_control_file"])
         except (WindowsError, OSError, IOError) as e:
             if e.errno != ENOENT:
-                logger.error("Could not delete run control file %s: %s: %s",
+                svclog.error("Could not delete run control file %s: %s: %s",
                              config["run_control_file"],
                              type(e).__name__, e)
 
                 def remove_run_control_file():
                     try:
                         os.remove(config["run_control_file"])
-                        logger.debug("Removed run control file %r",
+                        svclog.debug("Removed run control file %r",
                                      config["run_control_file"])
                     except (OSError, IOError, WindowsError) as e:
-                        logger.error("Failed to remove run control file %s: "
+                        svclog.error("Failed to remove run control file %s: "
                                      "%s: %s",
                                     config["run_control_file"],
                                     type(e).__name__, e)
