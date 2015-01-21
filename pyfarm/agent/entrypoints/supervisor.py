@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover
     setgid = NotImplemented
     getgid = NotImplemented
 
-from pyfarm.core.enums import INTEGER_TYPES, OS
+from pyfarm.core.enums import INTEGER_TYPES, OS, operating_system
 from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
@@ -91,7 +91,8 @@ def supervisor():
     args = parser.parse_args(supervisor_args)
 
     if not args.no_daemon and fork is not NotImplemented:
-        logger.info("sending supervisor log output to %s" % args.log)
+        logger.info("sending supervisor log output to %s" %
+                    config["supervisor_log"])
         daemon_start_return_code = start_daemon_posix(
             args.log, args.chdir, args.uid, args.gid)
 
@@ -108,14 +109,15 @@ def supervisor():
     pid = os.getpid()
     # Write the PID file
     try:
-        with open(args.pidfile, "w") as pidfile:
+        with open(config["supervisor_lock_file"], "w") as pidfile:
             pidfile.write(str(os.getpid()))
     except OSError as e:
         logger.error(
-            "Failed to write PID file %s: %s", args.pidfile, e)
+            "Failed to write PID file %s: %s",
+            config["supervisor_lock_file"], e)
         return 1
     else:
-        logger.debug("Wrote PID to %s", args.pidfile)
+        logger.debug("Wrote PID to %s", config["supervisor_lock_file"])
 
     logger.info("supervisor pid: %s" % pid)
 
@@ -139,11 +141,16 @@ def supervisor():
     signal.signal(signal.SIGHUP, restart_handler)
 
     update_file_path = join(config["agent_updates_dir"], "pyfarm-agent.zip")
-
+    run_control_file = config["run_control_file_by_platform"]\
+        [operating_system()]
     loop_interval = config["supervisor_interval"]
 
     while True:
         if subprocess.call(["pyfarm-agent", "status"]) != 0:
+            if not isfile(run_control_file):
+                logger.info("pyfarm_agent is not running, but run control file "
+                            "%s does not exist. Not restarting the agent",
+                            run_control_file)
             logger.info("pyfarm-agent is not running")
             if (os.path.isfile(update_file_path) and
                 zipfile.is_zipfile(update_file_path)):

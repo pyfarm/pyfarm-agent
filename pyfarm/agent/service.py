@@ -49,7 +49,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
-from pyfarm.agent.http.api.state import Status, Stop
+from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.log import LogQuery
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
@@ -301,6 +301,7 @@ class Agent(object):
         # and operations.
         v1.putChild("status", Status())
         v1.putChild("stop", Stop())
+        v1.putChild("restart", Restart())
         v1.putChild("update", Update())
 
         return root
@@ -443,6 +444,27 @@ class Agent(object):
             wait_on_stopped()
 
     def sigint_handler(self, *_):
+        try:
+            os.remove(config["run_control_file"])
+        except (WindowsError, OSError, IOError) as e:
+            if e.errno != ENOENT:
+                logger.error("Could not delete run control file %s: %s: %s",
+                             config["run_control_file"],
+                             type(e).__name__, e)
+
+                def remove_run_control_file():
+                    try:
+                        os.remove(config["run_control_file"])
+                        logger.debug("Removed run control file %r",
+                                     config["run_control_file"])
+                    except (OSError, IOError, WindowsError) as e:
+                        logger.error("Failed to remove run control file %s: "
+                                     "%s: %s",
+                                    config["run_control_file"],
+                                    type(e).__name__, e)
+
+                atexit.register(remove_run_control_file)
+
         self.stop()
 
     def post_shutdown_to_master(self, stop_reactor=True):

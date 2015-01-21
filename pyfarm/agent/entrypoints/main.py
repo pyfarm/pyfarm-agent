@@ -29,7 +29,7 @@ import os
 import sys
 import pdb
 import time
-from errno import ENOENT
+from errno import ENOENT, EEXIST
 
 from json import dumps
 
@@ -246,6 +246,14 @@ class AgentEntryPoint(object):
             help="The directory to drop downloaded updates in. This should be "
             "the same directory pyfarm-supervisor will look for updates in. "
             "[default: %(default)s]")
+        start_general_group.add_argument(
+            "--run-control-file", config="run_control_file",
+            default=expanduser(expandvars(
+                config["run_control_file_by_platform"][operating_system()])),
+            help="The path to a file that will signal to the supervisor that "
+                 "agent is supposed to be restarted if it stops for whatever "
+                 "reason."
+                 "[default: %(default)s]")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(
@@ -644,6 +652,28 @@ class AgentEntryPoint(object):
             logger.debug("Wrote PID to %s", config["agent_lock_file"])
 
         logger.info("pid: %s", pid)
+
+        if not isfile(config["run_control_file"]):
+            directory = dirname(config["run_control_file"])
+            try:
+                os.makedirs(directory)
+            except (OSError, IOError) as e:  # pragma: no cover
+                if e.errno != EEXIST:
+                    logger.error(
+                        "Failed to create parent directory for %s: %s: %s",
+                        config["run_control_file"], type(e).__name__, e)
+                    raise
+            else:
+                logger.debug("Created directory %s", directory)
+            try:
+                with open(config["run_control_file"], "a"):
+                    pass
+            except (OSError, IOError) as e:
+                logger.error("Failed to create run control file %s: %s: %s",
+                             config["run_control_file"], type(e).__name__, e)
+            else:
+                logger.info("Created run control file %s",
+                            config["run_control_file"])
 
         if getuid is not NotImplemented:
             logger.info("uid: %s" % getuid())

@@ -15,12 +15,20 @@
 # limitations under the License.
 
 import time
+import os
+import atexit
 from datetime import timedelta, datetime
+from errno import ENOENT, EEXIST
+from os.path import isfile, dirname
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 import psutil
 from twisted.internet.defer import Deferred
@@ -46,6 +54,28 @@ class Stop(APIResource):
         request = kwargs["request"]
         data = kwargs["data"]
         agent = config["agent"]
+
+        try:
+            os.remove(config["run_control_file"])
+        except (WindowsError, OSError, IOError) as e:
+            if e.errno != ENOENT:
+                logger.error("Could not delete run control file %s: %s: %s",
+                             config["run_control_file"],
+                             type(e).__name__, e)
+
+                def remove_run_control_file():
+                    try:
+                        os.remove(config["run_control_file"])
+                        logger.debug("Removed run control file %r",
+                                     config["run_control_file"])
+                    except (OSError, IOError, WindowsError) as e:
+                        logger.error("Failed to remove run control file %s: "
+                                     "%s: %s",
+                                    config["run_control_file"],
+                                    type(e).__name__, e)
+
+                atexit.register(remove_run_control_file)
+
         stopping = agent.stop()
 
         # TODO: need to wire this up to the real deferred object in stop()
@@ -63,6 +93,51 @@ class Stop(APIResource):
         else:
             request.setResponseCode(ACCEPTED)
             request.finish()
+
+        return NOT_DONE_YET
+
+
+class Restart(APIResource):
+    isLeaf = False
+
+    def post(self, **kwargs):
+        request = kwargs["request"]
+        data = kwargs["data"]
+        agent = config["agent"]
+
+        # Ensure the run control file exists
+        if not isfile(config["run_control_file"]):
+            directory = dirname(config["run_control_file"])
+            try:
+                os.makedirs(directory)
+            except (OSError, IOError) as e:  # pragma: no cover
+                if e.errno != EEXIST:
+                    logger.error(
+                        "Failed to create parent directory for %s: %s: %s",
+                        config["run_control_file"], type(e).__name__, e)
+                    raise
+            else:
+                logger.debug("Created directory %s", directory)
+            try:
+                with open(config["run_control_file"], "a"):
+                    pass
+            except (OSError, IOError) as e:
+                logger.error("Failed to create run control file %s: %s: %s",
+                             config["run_control_file"], type(e).__name__, e)
+            else:
+                logger.info("Created run control file %s",
+                            config["run_control_file"])
+
+        if not config["current_assignments"] or data.get("immediately", False):
+            logger.info("The agent will restart immediately.")
+            agent.stop()
+        else:
+            logger.info("The agent will restart after the current assignment "
+                        "is finished.")
+            config["restart_requested"] = True
+
+        request.setResponseCode(ACCEPTED)
+        request.finish()
 
         return NOT_DONE_YET
 

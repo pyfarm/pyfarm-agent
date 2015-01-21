@@ -38,6 +38,10 @@ class TestStop(BaseAPITestCase):
     URI = "/stop"
     CLASS = Stop
 
+    def prepare_config(self):
+        super(TestStop, self).prepare_config()
+        config.update(run_control_file="/tmp/pyfarm/agent/should_be_running")
+
     def test_invalid_type_for_data(self):
         request = self.post(data={"foo": 1})
         stop = Stop()
