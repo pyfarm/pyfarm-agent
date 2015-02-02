@@ -751,46 +751,35 @@ class System(object):
             raise ValueError(
                 "Expected an integer or string for `%s`" % value_name)
 
-    def _remove_tempdirs(self, max_attempts=5):
+    def _remove_directories(self, directories, retry_on_exit=True):
+        """
+        Removes multiple multiple directories at once, retrying on exit
+        for each failure.
+        """
+        assert isinstance(directories, (list, tuple))
+        failed = []
+
+        for directory in directories:
+            try:
+                shutil.rmtree(directory)
+                logger.debug("Removed directory %s", directory)
+
+            except OSError as e:
+                if e.errno != ENOENT:
+                    logger.error("Failed to delete %s: %s", directory, e)
+                    failed.append(directory)
+
+        if failed and retry_on_exit:
+            atexit.register(
+                self._remove_directories, failed, retry_on_exit=False)
+
+    def _remove_tempdirs(self):
         """
         Iterates over all temporary directories in ``_tempdirs`` and removes
         them from disk.  This work will be done in a thread so it does not
         block the reactor.
         """
-        def rmdir(path, on_exit_handler=True):
-            logger.debug("Removing directory %s", path)
-
-            attempts = max_attempts
-            while attempts:
-                try:
-                    shutil.rmtree(path)
-                except OSError as e:
-                    attempts -= 1
-                    if e.errno == ENOENT:
-                        break
-
-                    elif e.errno != ENOENT:
-                        logger.error(
-                            "Failed to delete %s: %s (%s attempts remain)",
-                            path, e, attempts)
-                else:
-                    logger.debug("Removed directory %s", path)
-                    break
-
-            else:
-                # If break was never called then retry on shutdown.
-                if on_exit_handler:
-                    atexit.register(rmdir, path, on_exit_handler=False)
-                    logger.error(
-                        "Failed to delete %s, will retry on shutdown", path)
-                else:
-                    logger.error(
-                        "Failed to delete %s, no further attempts will be "
-                        "made", path)
-
-        # Delete each directory in a thread
-        for directory in self._tempdirs:
-            reactor.callInThread(rmdir, directory)
+        reactor.callInThread(self._remove_directories, self._tempdirs)
 
 
 class TypeChecks(object):
