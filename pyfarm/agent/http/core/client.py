@@ -330,6 +330,7 @@ def request(method, url, **kwargs):
         constructing data to an api.
     """
     assert isinstance(url, STRING_TYPES)
+    direct = kwargs.pop("direct", False)
 
     # Make sure it's a method we support.
     if method not in HTTP_METHODS:
@@ -359,8 +360,9 @@ def request(method, url, **kwargs):
     if not parsed_url.path:
         raise NotImplementedError("No path provided in url")
 
-    original_request = Request(
-        method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
+    if not direct:
+        original_request = Request(
+            method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
 
     # Headers
     headers = kwargs.pop("headers", {})
@@ -394,55 +396,58 @@ def request(method, url, **kwargs):
         raise NotImplementedError(
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
-    callback = kwargs.pop("callback", None)
-    errback = kwargs.pop("errback", log.err)
-    response_class = kwargs.pop("response_class", Response)
+    if direct:
+        pass
+    else:
+        callback = kwargs.pop("callback", None)
+        errback = kwargs.pop("errback", log.err)
+        response_class = kwargs.pop("response_class", Response)
 
-    # check assumptions for keywords
-    assert callback is not None, "callback not provided"
-    assert callable(callback) and callable(errback)
-    assert data is NOTSET or \
-           isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
+        # check assumptions for keywords
+        assert callback is not None, "callback not provided"
+        assert callable(callback) and callable(errback)
+        assert data is NOTSET or \
+               isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
 
-    def unpack_response(response):
-        deferred = Deferred()
-        deferred.addCallback(callback)
+        def unpack_response(response):
+            deferred = Deferred()
+            deferred.addCallback(callback)
 
-        # Deliver the body onto an instance of the response
-        # object along with the original request.  Finally
-        # the request and response via an instance of `Response`
-        # to the outer scope's callback function.
-        response.deliverBody(
-            response_class(deferred, response, original_request))
+            # Deliver the body onto an instance of the response
+            # object along with the original request.  Finally
+            # the request and response via an instance of `Response`
+            # to the outer scope's callback function.
+            response.deliverBody(
+                response_class(deferred, response, original_request))
+
+            return deferred
+
+        # prepare keyword arguments
+        kwargs.update(
+            headers=headers,
+            persistent=config["agent_http_persistent_connections"])
+
+        if data is not NOTSET:
+            kwargs.update(data=data)
+
+        debug_kwargs = kwargs.copy()
+        debug_url = build_url(url, debug_kwargs.pop("params", None))
+        logger.debug(
+            "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
+
+        try:
+            deferred = treq.request(method, quote_url(url), **kwargs)
+        except NotImplementedError:  # pragma: no cover
+            logger.error(
+                "Attempting to access a url over SSL but you don't have the "
+                "proper libraries installed.  Please install the PyOpenSSL and "
+                "service_identity Python packages.")
+            raise
+
+        deferred.addCallback(unpack_response)
+        deferred.addErrback(errback)
 
         return deferred
-
-    # prepare keyword arguments
-    kwargs.update(
-        headers=headers,
-        persistent=config["agent_http_persistent_connections"])
-
-    if data is not NOTSET:
-        kwargs.update(data=data)
-
-    debug_kwargs = kwargs.copy()
-    debug_url = build_url(url, debug_kwargs.pop("params", None))
-    logger.debug(
-        "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
-
-    try:
-        deferred = treq.request(method, quote_url(url), **kwargs)
-    except NotImplementedError:  # pragma: no cover
-        logger.error(
-            "Attempting to access a url over SSL but you don't have the "
-            "proper libraries installed.  Please install the PyOpenSSL and "
-            "service_identity Python packages.")
-        raise
-
-    deferred.addCallback(unpack_response)
-    deferred.addErrback(errback)
-
-    return deferred
 
 
 head = partial(request, "HEAD")
