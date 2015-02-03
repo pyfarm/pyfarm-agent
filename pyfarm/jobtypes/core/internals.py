@@ -28,6 +28,7 @@ import os
 import sys
 import shutil
 import tempfile
+import time
 from collections import namedtuple
 from errno import EEXIST, ENOENT
 from datetime import datetime
@@ -797,7 +798,7 @@ class System(object):
         for directory in self._tempdirs:
             reactor.callInThread(rmdir, directory)
 
-    def _ensure_free_space_in_temp_dir(self, tempdir, space):
+    def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
         Ensures that at least space bytes of data can be stored on the volume
         on which tempdir is located, deleting file from tempdir if necessary.
@@ -827,8 +828,14 @@ class System(object):
                 raise InsufficientSpaceError("Cannot free enough space in temp "
                                              "directory %s" % tempdir)
             element = tempfiles.pop(0)
-            logger.debug("Deleting tempfile %s", element["filepath"])
-            os.remove(element["filepath"])
+            if (not minimum_age or
+                os.stat(element["filepath"]).st_mtime + minimum_age <
+                    time.time()):
+                logger.debug("Deleting tempfile %s", element["filepath"])
+                os.remove(element["filepath"])
+            else:
+                logger.debug("Not deleting tempfile %s, it is newer than %s "
+                             "seconds", element["filepath"], minimum_age)
 
 
 class TypeChecks(object):
