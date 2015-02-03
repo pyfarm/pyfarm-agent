@@ -66,28 +66,37 @@ class TestPartials(TestCase):
 
 class TestRequestAssertions(TestCase):
     def test_invalid_method(self):
-        with self.assertRaises(AssertionError):
-            request("", "")
+        with self.assertRaisesRegexp(
+                NotImplementedError,
+                re.compile("This function only supports.*")):
+            request("FOO", "http://localhost/")
 
-    def test_invalid_url_type(self):
-        with self.assertRaises(AssertionError):
-            request("GET", None)
+    def test_invalid_empty_path(self):
+        with self.assertRaisesRegexp(
+                NotImplementedError, re.compile("No path.*")):
+            request("GET", "http://localhost")
 
-    def test_invalid_empty_url(self):
-        with self.assertRaises(AssertionError):
-            request("GET", "")
+    def test_invalid_empty_hostname(self):
+        with self.assertRaisesRegexp(
+                NotImplementedError, re.compile("No hostname.*")):
+            request("GET", "http://")
+
+    def test_invalid_scheme(self):
+        with self.assertRaisesRegexp(
+                NotImplementedError, re.compile("Only http or https.*")):
+            request("GET", "foo://localhost")
 
     def test_invalid_callback_type(self):
         with self.assertRaises(AssertionError):
-            request("GET", "/", callback="")
+            request("GET", "http://localhost/", callback="")
 
     def test_invalid_errback_type(self):
         with self.assertRaises(AssertionError):
-            request("GET", "/", errback="")
+            request("GET", "http://localhost/", errback="")
 
     def test_invalid_header_value_length(self):
         with self.assertRaises(AssertionError):
-            request("GET", "/", callback=lambda: None,
+            request("GET", "http://localhost/", callback=lambda: None,
                     headers={"foo": ["a", "b"]})
 
     def test_invalid_header_value_type(self):
@@ -162,13 +171,11 @@ class RequestTestCase(BaseRequestTestCase):
 
 class TestClientErrors(RequestTestCase):
     def test_unsupported_scheme(self):
-        return get("zzz://httpbin.pyfarm.net/",
-                   callback=lambda _: self.fail("Unexpected success"),
-                   errback=lambda failure:
-                   self.assertIs(failure.type, SchemeNotSupported))
+        with self.assertRaises(NotImplementedError):
+            get("zzz://httpbin.pyfarm.net/")
 
     def test_unknown_hostname(self):
-        return get(self.HTTP_SCHEME + "://%s" % os.urandom(8).encode("hex"),
+        return get(self.HTTP_SCHEME + "://%s/" % os.urandom(8).encode("hex"),
                    callback=lambda _: self.fail("Unexpected success"),
                    errback=lambda failure:
                    self.assertIs(failure.type, DNSLookupError))
