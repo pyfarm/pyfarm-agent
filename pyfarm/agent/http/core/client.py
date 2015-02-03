@@ -331,9 +331,11 @@ def request(method, url, **kwargs):
     """
     assert isinstance(url, STRING_TYPES)
 
+    # Make sure it's a method we support.
     if method not in HTTP_METHODS:
         raise NotImplementedError(
-            "This function only support these http methods: %s" % HTTP_METHODS)
+            "This function only supports these http "
+            "methods: %s" % ", ".join(HTTP_METHODS))
 
     # We only support http[s]
     parsed_url = urlparse(url)
