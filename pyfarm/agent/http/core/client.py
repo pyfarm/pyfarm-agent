@@ -38,6 +38,22 @@ try:
 except ImportError:  # pragma: no cover
     from collections import UserDict
 
+try:
+    import ssl
+except ImportError:  # pragma: no cover
+    ssl = NotImplemented
+
+try:
+    import PyOpenSSL
+except ImportError:  # pragma: no cover
+    PyOpenSSL = NotImplemented
+
+
+try:
+    import service_identity
+except ImportError:  # pragma: no cover
+    service_identity = NotImplemented
+
 import treq
 try:
     from treq.response import _Response as TQResponse
@@ -323,6 +339,17 @@ def request(method, url, **kwargs):
     parsed_url = urlparse(url)
     if parsed_url.scheme not in HTTP_SCHEMES:
       raise NotImplementedError("Only http or https is supported.")
+
+    # When using HTTPs there are some specific modules that are
+    # required but not specified as required in the setup.py file.
+    if parsed_url.scheme == "https":
+        if PyOpenSSL is NotImplemented and ssl is NotImplemented:
+            raise NotImplementedError(
+                "HTTPs requires the ssl or PyOpenSSL modules")
+
+        if service_identity is NotImplemented:
+            raise NotImplementedError(
+                "The service_identity module is required")
 
     original_request = Request(
         method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
