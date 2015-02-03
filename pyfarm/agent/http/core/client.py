@@ -462,6 +462,14 @@ def request(method, url, **kwargs):
         kwargs.update(data=data)
 
     if direct:
+        # We don't support these with direct request
+        # types.
+        assert "callback" not in kwargs
+        assert "errback" not in kwargs
+        assert "response_class" not in kwargs
+
+        # Construct the request and attach some loggers
+        # to callback/errback.
         uid = uuid4()
         treq_request = treq.request(method, url, **kwargs)
         treq_request.addCallback(HTTPLog.response, uid=uid)
