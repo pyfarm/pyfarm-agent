@@ -519,9 +519,23 @@ def request(method, url, **kwargs):
         return deferred
 
 
+# Old style requests.  These are in place so we can
+# improve on the agent without having to rewrite
+# everything at once.
+# TODO: remove these once everything is converted to *_direct
 head = partial(request, "HEAD")
 get = partial(request, "GET")
 post = partial(request, "POST")
 put = partial(request, "PUT")
 patch = partial(request, "PATCH")
 delete = partial(request, "DELETE")
+
+# New style requests which we can utilize on a case
+# by case basis.
+# TODO: rename these to the above functions once everything is using them
+head_direct = partial(request, "HEAD", direct=True)
+get_direct = partial(request, "GET", direct=True)
+post_direct = partial(request, "POST", direct=True)
+put_direct = partial(request, "PUT", direct=True)
+patch_direct = partial(request, "PATCH", direct=True)
+delete_direct = partial(request, "DELETE", direct=True)
