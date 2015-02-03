@@ -351,6 +351,12 @@ def request(method, url, **kwargs):
             raise NotImplementedError(
                 "The service_identity module is required")
 
+    if not parsed_url.hostname:
+        raise NotImplementedError("No hostname present in url")
+
+    if not parsed_url.path:
+        raise NotImplementedError("No path provided in url")
+
     original_request = Request(
         method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
     data = kwargs.pop("data", NOTSET)
