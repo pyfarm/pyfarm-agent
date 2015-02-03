@@ -361,8 +361,27 @@ def request(method, url, **kwargs):
 
     original_request = Request(
         method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
-    data = kwargs.pop("data", NOTSET)
+
+    # Headers
     headers = kwargs.pop("headers", {})
+    headers.setdefault("Content-Type", ["application/json"])
+    headers.setdefault("User-Agent", [USERAGENT])
+
+    # Twisted requires lists for header values
+    for header, value in headers.items():
+        if isinstance(value, STRING_TYPES):
+            headers[header] = [value]
+
+        # For our purposes we should not expect headers with more
+        # than one value for now
+        elif isinstance(value, (list, tuple, set)):
+            assert len(value) == 1
+
+        else:
+            raise NotImplementedError(
+                "cannot handle header values with type %s" % type(value))
+
+    data = kwargs.pop("data", NOTSET)
     callback = kwargs.pop("callback", None)
     errback = kwargs.pop("errback", log.err)
     response_class = kwargs.pop("response_class", Response)
@@ -372,10 +391,6 @@ def request(method, url, **kwargs):
     assert callable(callback) and callable(errback)
     assert data is NOTSET or \
            isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
-
-    # add our default headers
-    headers.setdefault("Content-Type", ["application/json"])
-    headers.setdefault("User-Agent", [USERAGENT])
 
     # ensure all values in the headers are lists (needed by Twisted)
     for header, value in headers.items():
