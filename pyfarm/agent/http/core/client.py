@@ -381,7 +381,19 @@ def request(method, url, **kwargs):
             raise NotImplementedError(
                 "cannot handle header values with type %s" % type(value))
 
+    # Handle request data
     data = kwargs.pop("data", NOTSET)
+    if isinstance(data, dict):
+        data = json_safe(data)
+
+    if (data is not NOTSET and
+            headers["Content-Type"] == ["application/json"]):
+        data = json.dumps(data)
+
+    elif data is not NOTSET:
+        raise NotImplementedError(
+            "Don't know how to dump data for %s" % headers["Content-Type"])
+
     callback = kwargs.pop("callback", None)
     errback = kwargs.pop("errback", log.err)
     response_class = kwargs.pop("response_class", Response)
@@ -404,18 +416,6 @@ def request(method, url, **kwargs):
             response_class(deferred, response, original_request))
 
         return deferred
-
-    # prepare to send the data
-    if isinstance(data, dict):
-        data = json_safe(data)
-
-    if data is not NOTSET and \
-                    headers["Content-Type"] == ["application/json"]:
-        data = json.dumps(data)
-
-    elif data is not NOTSET:
-        raise NotImplementedError(
-            "Don't know how to dump data for %s" % headers["Content-Type"])
 
     # prepare keyword arguments
     kwargs.update(
