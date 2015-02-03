@@ -27,11 +27,17 @@ from collections import namedtuple
 from functools import partial
 from random import random
 from urlparse import urlparse
+from uuid import UUID, uuid4
 
 try:
-    from httplib import responses
+    from httplib import (
+        responses, INTERNAL_SERVER_ERROR, BAD_REQUEST, MULTIPLE_CHOICES
+    )
+
 except ImportError:  # pragma: no cover
-    from http.client import responses
+    from http.client import (
+        responses, INTERNAL_SERVER_ERROR, BAD_REQUEST, MULTIPLE_CHOICES
+    )
 
 try:
     from UserDict import UserDict
@@ -85,6 +91,57 @@ USERAGENT = "PyFarm/1.0 (agent)"
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
 HTTP_METHODS = frozenset(("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE"))
 HTTP_SCHEMES = frozenset(("http", "https"))
+
+
+class HTTPLog(object):
+    """
+    Provides a wrapper around the http logger so requests
+    and responses can be logged in a standardized fashion.
+    """
+    @staticmethod
+    def queue(method, url, uid=None):
+        """Logs the request we're asking treq to queue"""
+        assert isinstance(uid, UUID)
+        logger.debug("Queue %s %s (uid: %s)", method, url, uid.hex[20:])
+
+    @staticmethod
+    def response(response, uid=None):
+        """Logs the return code of a request that treq completed"""
+        assert isinstance(response, TQResponse)
+        assert isinstance(uid, UUID)
+
+        message = "%s %s %s %s (uid: %s)"
+        args = (
+            response.code, responses.get(response.code, "UNKNOWN"),
+            response.request.method, response.request.absoluteURI,
+            uid.hex[20:]
+        )
+
+        if (response.code >= INTERNAL_SERVER_ERROR
+                or response.code >= BAD_REQUEST):
+            logger.error(message, *args)
+
+        else:
+            logger.info(message, *args)
+
+        # Return so response can be handled by another callback
+        return response
+
+    @staticmethod
+    def error(failure, uid=None, method=None, url=None):
+        """
+        Called when the treq request experiences an error and
+        calls the ``errback`` method.
+        """
+        assert isinstance(uid, UUID)
+        assert isinstance(failure, Failure)
+        logger.error(
+            "%s %s has failed (uid: %s):%s%s",
+            method, url, uid.hex[20:], os.linesep, failure.getTraceback()
+        )
+
+        # Reraise the error so other code can handle the error
+        raise failure
 
 
 def build_url(url, params=None):
@@ -405,7 +462,11 @@ def request(method, url, **kwargs):
         kwargs.update(data=data)
 
     if direct:
-        pass
+        uid = uuid4()
+        treq_request = treq.request(method, url, **kwargs)
+        treq_request.addCallback(HTTPLog.response, uid=uid)
+        treq_request.addErrback(HTTPLog.error, uid=uid, method=method, url=url)
+        return treq_request
     else:
         callback = kwargs.pop("callback", None)
         errback = kwargs.pop("errback", log.err)
