@@ -394,6 +394,14 @@ def request(method, url, **kwargs):
         raise NotImplementedError(
             "Don't know how to dump data for %s" % headers["Content-Type"])
 
+    # prepare keyword arguments
+    kwargs.update(
+        headers=headers,
+        persistent=config["agent_http_persistent_connections"])
+
+    if data is not NOTSET:
+        kwargs.update(data=data)
+
     callback = kwargs.pop("callback", None)
     errback = kwargs.pop("errback", log.err)
     response_class = kwargs.pop("response_class", Response)
@@ -416,14 +424,6 @@ def request(method, url, **kwargs):
             response_class(deferred, response, original_request))
 
         return deferred
-
-    # prepare keyword arguments
-    kwargs.update(
-        headers=headers,
-        persistent=config["agent_http_persistent_connections"])
-
-    if data is not NOTSET:
-        kwargs.update(data=data)
 
     debug_kwargs = kwargs.copy()
     debug_url = build_url(url, debug_kwargs.pop("params", None))
