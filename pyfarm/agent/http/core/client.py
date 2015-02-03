@@ -26,6 +26,7 @@ import json
 from collections import namedtuple
 from functools import partial
 from random import random
+from urlparse import urlparse
 
 try:
     from httplib import responses
@@ -66,6 +67,8 @@ else:  # pragma: no cover
 
 USERAGENT = "PyFarm/1.0 (agent)"
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
+HTTP_METHODS = frozenset(("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE"))
+HTTP_SCHEMES = frozenset(("http", "https"))
 
 
 def build_url(url, params=None):
@@ -304,10 +307,22 @@ def request(method, url, **kwargs):
         The class to use to unpack the internal response.  This is mainly
         used by the unittests but could be used elsewhere to add some
         custom behavior to the unpack process for the incoming response.
+
+    :raises NotImplementedError:
+        Raised whenever a request is made of this function that we can't
+        implement such as an invalid http scheme, request method or a problem
+        constructing data to an api.
     """
-    # check assumptions for arguments
-    assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
-    assert isinstance(url, STRING_TYPES) and url
+    assert isinstance(url, STRING_TYPES)
+
+    if method not in HTTP_METHODS:
+        raise NotImplementedError(
+            "This function only support these http methods: %s" % HTTP_METHODS)
+
+    # We only support http[s]
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in HTTP_SCHEMES:
+      raise NotImplementedError("Only http or https is supported.")
 
     original_request = Request(
         method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
