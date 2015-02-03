@@ -392,20 +392,6 @@ def request(method, url, **kwargs):
     assert data is NOTSET or \
            isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
 
-    # ensure all values in the headers are lists (needed by Twisted)
-    for header, value in headers.items():
-        if isinstance(value, STRING_TYPES):
-            headers[header] = [value]
-
-        # for our purposes we should not expect headers with more
-        # than one value for now
-        elif isinstance(value, (list, tuple, set)):
-            assert len(value) == 1
-
-        else:
-            raise NotImplementedError(
-                "cannot handle header values with type %s" % type(value))
-
     def unpack_response(response):
         deferred = Deferred()
         deferred.addCallback(callback)
