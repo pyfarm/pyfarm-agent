@@ -64,13 +64,7 @@ class TestPartials(TestCase):
         self.assertEqual(delete.args, ("DELETE", ))
 
 
-class TestRequestAssertions(TestCase):
-    def test_invalid_method(self):
-        with self.assertRaisesRegexp(
-                NotImplementedError,
-                re.compile("This function only supports.*")):
-            request("FOO", "http://localhost/")
-
+class TestRequestErrors(BaseRequestTestCase):
     def test_invalid_empty_path(self):
         with self.assertRaisesRegexp(
                 NotImplementedError, re.compile("No path.*")):
@@ -80,11 +74,6 @@ class TestRequestAssertions(TestCase):
         with self.assertRaisesRegexp(
                 NotImplementedError, re.compile("No hostname.*")):
             request("GET", "http://")
-
-    def test_invalid_scheme(self):
-        with self.assertRaisesRegexp(
-                NotImplementedError, re.compile("Only http or https.*")):
-            request("GET", "foo://localhost")
 
     def test_invalid_callback_type(self):
         with self.assertRaises(AssertionError):
@@ -99,6 +88,12 @@ class TestRequestAssertions(TestCase):
             request("GET", "/",
                     callback=lambda: None,
                     headers={"foo": None})
+
+    def test_unknown_hostname(self):
+        return get(self.HTTP_SCHEME + "://%s/" % os.urandom(8).encode("hex"),
+                   callback=lambda _: self.fail("Unexpected success"),
+                   errback=lambda failure:
+                   self.assertIs(failure.type, DNSLookupError))
 
 
 class RequestTestCase(BaseRequestTestCase):
@@ -162,18 +157,6 @@ class RequestTestCase(BaseRequestTestCase):
             self.assertEqual(
                 response.request.kwargs["headers"]["User-Agent"], user_agent)
         self.assertEqual(response.content_type, content_type)
-
-
-class TestClientErrors(RequestTestCase):
-    def test_unsupported_scheme(self):
-        with self.assertRaises(NotImplementedError):
-            get("zzz://httpbin.pyfarm.net/")
-
-    def test_unknown_hostname(self):
-        return get(self.HTTP_SCHEME + "://%s/" % os.urandom(8).encode("hex"),
-                   callback=lambda _: self.fail("Unexpected success"),
-                   errback=lambda failure:
-                   self.assertIs(failure.type, DNSLookupError))
 
 
 class TestRetryDelay(TestCase):
