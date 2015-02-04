@@ -762,7 +762,7 @@ class System(object):
         Removes multiple multiple directories at once, retrying on exit
         for each failure.
         """
-        assert isinstance(directories, (list, tuple))
+        assert isinstance(directories, (list, tuple, set))
         failed = []
 
         for directory in directories:
