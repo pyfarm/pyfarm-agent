@@ -266,9 +266,6 @@ class Agent(object):
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
 
-        if "projects" in config:
-            data.update(projects=config["projects"])
-
         return data
 
     def build_http_resource(self):

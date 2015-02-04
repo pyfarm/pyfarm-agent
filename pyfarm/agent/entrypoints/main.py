@@ -202,13 +202,6 @@ class AgentEntryPoint(object):
                         "hardware, state, and certain timing and scheduling "
                         "attributes.")
         start_general_group.add_argument(
-            "--projects", default=[], nargs="+", config=False,
-            help="The project or projects this agent is dedicated to.  By "
-                 "default the agent will service any project however specific "
-                 "projects may be specified.  For example if you wish this "
-                 "agent to service 'Foo Part I' and 'Foo Part II' only just "
-                 "specify it as `--projects \"Foo Part I\" \"Foo Part II\"`")
-        start_general_group.add_argument(
             "--state", default=AgentState.ONLINE, config=False,
             type=enum, type_kwargs=dict(enum=AgentState),
             help="The current agent state, valid values are "
@@ -468,7 +461,6 @@ class AgentEntryPoint(object):
             # update configuration with values from the command line
             config_flags = {
                 "state": self.args.state,
-                "projects": list(set(self.args.projects)),
                 "pids": {
                     "parent": os.getpid()}}
 
