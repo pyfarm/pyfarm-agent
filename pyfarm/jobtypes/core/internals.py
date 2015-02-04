@@ -796,6 +796,12 @@ class System(object):
 
         Will raise InsufficientSpaceError if enough space cannot be claimed.
         """
+        try:
+            os.makedirs(tempdir)
+        except OSError as e:
+            if e.errno != EEXIST:
+                raise
+
         if disk_usage(tempdir).free >= space:
             return
 
