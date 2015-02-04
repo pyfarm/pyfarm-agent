@@ -790,7 +790,7 @@ class System(object):
     def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
         Ensures that at least space bytes of data can be stored on the volume
-        on which tempdir is located, deleting file from tempdir if necessary.
+        on which tempdir is located, deleting files from tempdir if necessary.
 
         WARNING: Will delete files in tempdir to reclaim storage space.
 
