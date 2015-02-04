@@ -22,6 +22,7 @@ The client library the manager uses to communicate with
 the master server.
 """
 
+import os
 import json
 from collections import namedtuple
 from functools import partial
@@ -69,6 +70,7 @@ except ImportError:  # pragma: no cover
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.python import log
+from twisted.python.failure import Failure
 from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
 
