@@ -94,11 +94,6 @@ class TestRequestAssertions(TestCase):
         with self.assertRaises(AssertionError):
             request("GET", "http://localhost/", errback="")
 
-    def test_invalid_header_value_length(self):
-        with self.assertRaises(AssertionError):
-            request("GET", "http://localhost/", callback=lambda: None,
-                    headers={"foo": ["a", "b"]})
-
     def test_invalid_header_value_type(self):
         with self.assertRaises(NotImplementedError):
             request("GET", "/",
