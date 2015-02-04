@@ -342,17 +342,6 @@ def request(method, url, **kwargs):
     if parsed_url.scheme not in HTTP_SCHEMES:
       raise NotImplementedError("Only http or https is supported.")
 
-    # When using HTTPs there are some specific modules that are
-    # required but not specified as required in the setup.py file.
-    if parsed_url.scheme == "https":
-        if PyOpenSSL is NotImplemented and ssl is NotImplemented:
-            raise NotImplementedError(
-                "HTTPs requires the ssl or PyOpenSSL modules")
-
-        if service_identity is NotImplemented:
-            raise NotImplementedError(
-                "The service_identity module is required")
-
     if not parsed_url.hostname:
         raise NotImplementedError("No hostname present in url")
 
@@ -430,15 +419,7 @@ def request(method, url, **kwargs):
     logger.debug(
         "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
 
-    try:
-        deferred = treq.request(method, quote_url(url), **kwargs)
-    except NotImplementedError:  # pragma: no cover
-        logger.error(
-            "Attempting to access a url over SSL but you don't have the "
-            "proper libraries installed.  Please install the PyOpenSSL and "
-            "service_identity Python packages.")
-        raise
-
+    deferred = treq.request(method, quote_url(url), **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
 
