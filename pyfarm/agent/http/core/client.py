@@ -361,14 +361,12 @@ def request(method, url, **kwargs):
         if isinstance(value, STRING_TYPES):
             headers[header] = [value]
 
-        # For our purposes we should not expect headers with more
-        # than one value for now
         elif isinstance(value, (list, tuple, set)):
-            assert len(value) == 1
+            continue
 
         else:
             raise NotImplementedError(
-                "cannot handle header values with type %s" % type(value))
+                "Cannot handle header values with type %s" % type(value))
 
     # Handle request data
     data = kwargs.pop("data", NOTSET)
