@@ -331,17 +331,8 @@ def request(method, url, **kwargs):
     """
     assert isinstance(url, STRING_TYPES)
 
-    # Make sure it's a method we support.
-    if method not in HTTP_METHODS:
-        raise NotImplementedError(
-            "This function only supports these http "
-            "methods: %s" % ", ".join(HTTP_METHODS))
-
     # We only support http[s]
     parsed_url = urlparse(url)
-    if parsed_url.scheme not in HTTP_SCHEMES:
-      raise NotImplementedError("Only http or https is supported.")
-
     if not parsed_url.hostname:
         raise NotImplementedError("No hostname present in url")
 
