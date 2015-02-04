@@ -373,9 +373,11 @@ class TestCase(_TestCase):
         DelayedCall.debug = True
         if not ENABLE_LOGGING:
             logging.getLogger("pf").setLevel(logging.CRITICAL)
-        config_logger.disabled = 1
+
+        config_logger_disabled = config_logger.disabled
+        config_logger.disabled = True
         self.prepare_config()
-        config_logger.disabled = 0
+        config_logger.disabled = config_logger_disabled
 
     def prepare_config(self):
         for key in self._pop_config_keys:
