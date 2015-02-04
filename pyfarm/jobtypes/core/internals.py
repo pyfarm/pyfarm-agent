@@ -28,6 +28,7 @@ import os
 import sys
 import shutil
 import tempfile
+import time
 from collections import namedtuple
 from errno import EEXIST, ENOENT
 from datetime import datetime
@@ -52,6 +53,8 @@ except ImportError:  # pragma: no cover
     from http.client import (
         OK, INTERNAL_SERVER_ERROR, CREATED, ACCEPTED, CONFLICT)
 
+from psutil import disk_usage
+
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList, succeed
 
@@ -73,6 +76,9 @@ logger = getLogger("jobtypes.core")
 logfile = getLogger("jobtypes.log")
 ProcessData = namedtuple(
     "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
+
+class InsufficientSpaceError(Exception):
+    pass
 
 
 class Cache(object):
@@ -780,6 +786,45 @@ class System(object):
         block the reactor.
         """
         reactor.callInThread(self._remove_directories, self._tempdirs)
+
+    def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
+        """
+        Ensures that at least space bytes of data can be stored on the volume
+        on which tempdir is located, deleting file from tempdir if necessary.
+
+        WARNING: Will delete files in tempdir to reclaim storage space.
+
+        Will raise InsufficientSpaceError if enough space cannot be claimed.
+        """
+        if disk_usage(tempdir).free >= space:
+            return
+
+        tempfiles = []
+        # followlinks=False is the default for os.walk.  I am specifying it
+        # explicitly here to make it more obvious.  Setting this to True
+        # instead might make us delete files outside of tempdir, if there is
+        # a symlink in there somewhere.
+        for root, dirs, files in os.walk(tempdir, followlinks=False):
+            for filename in files:
+                fullpath = join(root, filename)
+                atime = os.stat(fullpath).st_atime
+                tempfiles.append({ "filepath": fullpath, "atime": atime })
+
+        tempfiles.sort(key=lambda x: x["atime"])
+
+        while disk_usage(tempdir).free < space:
+            if not tempfiles:
+                raise InsufficientSpaceError("Cannot free enough space in temp "
+                                             "directory %s" % tempdir)
+            element = tempfiles.pop(0)
+            if (not minimum_age or
+                os.stat(element["filepath"]).st_mtime + minimum_age <
+                    time.time()):
+                logger.debug("Deleting tempfile %s", element["filepath"])
+                os.remove(element["filepath"])
+            else:
+                logger.debug("Not deleting tempfile %s, it is newer than %s "
+                             "seconds", element["filepath"], minimum_age)
 
 
 class TypeChecks(object):
