@@ -16,22 +16,29 @@
 
 import json
 import os
-from collections import namedtuple
-from httplib import responses, OK
 import re
+from collections import namedtuple
 
+try:
+    from httplib import responses, OK
+except ImportError:  # pragma: no cover
+    from http.client import responses, OK
+
+
+import treq
 from twisted.internet.defer import Deferred
 from twisted.internet.error import DNSLookupError
 from twisted.internet.protocol import Protocol, connectionDone
-from twisted.web.error import SchemeNotSupported
+from twisted.internet.defer import inlineCallbacks
 from twisted.web.client import Response as TWResponse, Headers, ResponseDone
 from pyfarm.core.enums import STRING_TYPES
 
 from pyfarm.agent.testutil import TestCase, BaseRequestTestCase
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import (
-    Request, Response, request, head, get, post, put, patch, delete, build_url,
-    http_retry_delay)
+    Request, Response, request, head, get, post, put, patch, delete,
+    get_direct, post_direct, delete_direct, put_direct, build_url,
+    http_retry_delay, USERAGENT)
 
 
 # fake object we use for triggering Response.connectionLost
@@ -109,7 +116,7 @@ class TestRequestAssertions(TestCase):
 class RequestTestCase(BaseRequestTestCase):
     def setUp(self):
         super(RequestTestCase, self).setUp()
-        config["persistent-http-connections"] = False
+        config["agent_http_persistent_connections"] = False
 
     def get_url(self, url):
         assert isinstance(url, STRING_TYPES)
@@ -167,6 +174,20 @@ class RequestTestCase(BaseRequestTestCase):
             self.assertEqual(
                 response.request.kwargs["headers"]["User-Agent"], user_agent)
         self.assertEqual(response.content_type, content_type)
+
+
+class DirectRequestTestCase(RequestTestCase):
+    def get(self, url, **kwargs):
+        return get_direct(self.get_url(url), **kwargs)
+
+    def post(self, url, **kwargs):
+        return post_direct(self.get_url(url), **kwargs)
+
+    def put(self, url, **kwargs):
+        return put_direct(self.get_url(url), **kwargs)
+
+    def delete(self, url, **kwargs):
+        return delete_direct(self.get_url(url), **kwargs)
 
 
 class TestClientErrors(RequestTestCase):
@@ -266,6 +287,45 @@ class TestClientFunctions(RequestTestCase):
         d = self.get("/get", callback=callback)
         d.addBoth(lambda r: self.assertIsNone(r))
         return d
+
+
+class TestDirectMethods(DirectRequestTestCase):
+    @inlineCallbacks
+    def test_get(self):
+        response = yield self.get("/get")
+        self.assertEqual(response.code, OK)
+        data = yield treq.json_content(response)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["headers"]["Content-Type"], "application/json")
+
+    @inlineCallbacks
+    def test_post(self):
+        post_data = {"name": os.urandom(6).encode("hex")}
+        response = yield self.post("/post", data=post_data)
+        self.assertEqual(response.code, OK)
+        data = yield treq.json_content(response)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["headers"]["User-Agent"], USERAGENT)
+        self.assertEqual(data["json"], post_data)
+
+    @inlineCallbacks
+    def test_put(self):
+        put_data = {"name": os.urandom(6).encode("hex")}
+        response = yield self.put("/put", data=put_data)
+        self.assertEqual(response.code, OK)
+        data = yield treq.json_content(response)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["headers"]["User-Agent"], USERAGENT)
+        self.assertEqual(data["json"], put_data)
+
+    @inlineCallbacks
+    def test_delete(self):
+        response = yield self.delete("/delete")
+        self.assertEqual(response.code, OK)
+        data = yield treq.json_content(response)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["headers"]["User-Agent"], USERAGENT)
+        self.assertIsNone(data["json"])
 
 
 class TestMethods(RequestTestCase):
