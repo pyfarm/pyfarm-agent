@@ -790,12 +790,18 @@ class System(object):
     def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
         Ensures that at least space bytes of data can be stored on the volume
-        on which tempdir is located, deleting file from tempdir if necessary.
+        on which tempdir is located, deleting files from tempdir if necessary.
 
         WARNING: Will delete files in tempdir to reclaim storage space.
 
         Will raise InsufficientSpaceError if enough space cannot be claimed.
         """
+        try:
+            os.makedirs(tempdir)
+        except OSError as e:
+            if e.errno != EEXIST:
+                raise
+
         if disk_usage(tempdir).free >= space:
             return
 
