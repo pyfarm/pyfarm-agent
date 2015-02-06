@@ -64,37 +64,36 @@ class TestPartials(TestCase):
         self.assertEqual(delete.args, ("DELETE", ))
 
 
-class TestRequestAssertions(TestCase):
-    def test_invalid_method(self):
-        with self.assertRaises(AssertionError):
-            request("", "")
+class TestRequestErrors(BaseRequestTestCase):
+    def test_invalid_empty_path(self):
+        with self.assertRaisesRegexp(
+                NotImplementedError, re.compile("No path.*")):
+            request("GET", "http://localhost")
 
-    def test_invalid_url_type(self):
-        with self.assertRaises(AssertionError):
-            request("GET", None)
-
-    def test_invalid_empty_url(self):
-        with self.assertRaises(AssertionError):
-            request("GET", "")
+    def test_invalid_empty_hostname(self):
+        with self.assertRaisesRegexp(
+                NotImplementedError, re.compile("No hostname.*")):
+            request("GET", "http://")
 
     def test_invalid_callback_type(self):
         with self.assertRaises(AssertionError):
-            request("GET", "/", callback="")
+            request("GET", "http://localhost/", callback="")
 
     def test_invalid_errback_type(self):
         with self.assertRaises(AssertionError):
-            request("GET", "/", errback="")
-
-    def test_invalid_header_value_length(self):
-        with self.assertRaises(AssertionError):
-            request("GET", "/", callback=lambda: None,
-                    headers={"foo": ["a", "b"]})
+            request("GET", "http://localhost/", errback="")
 
     def test_invalid_header_value_type(self):
         with self.assertRaises(NotImplementedError):
             request("GET", "/",
                     callback=lambda: None,
                     headers={"foo": None})
+
+    def test_unknown_hostname(self):
+        return get(self.HTTP_SCHEME + "://%s/" % os.urandom(8).encode("hex"),
+                   callback=lambda _: self.fail("Unexpected success"),
+                   errback=lambda failure:
+                   self.assertIs(failure.type, DNSLookupError))
 
 
 class RequestTestCase(BaseRequestTestCase):
@@ -158,20 +157,6 @@ class RequestTestCase(BaseRequestTestCase):
             self.assertEqual(
                 response.request.kwargs["headers"]["User-Agent"], user_agent)
         self.assertEqual(response.content_type, content_type)
-
-
-class TestClientErrors(RequestTestCase):
-    def test_unsupported_scheme(self):
-        return get("zzz://httpbin.pyfarm.net/",
-                   callback=lambda _: self.fail("Unexpected success"),
-                   errback=lambda failure:
-                   self.assertIs(failure.type, SchemeNotSupported))
-
-    def test_unknown_hostname(self):
-        return get(self.HTTP_SCHEME + "://%s" % os.urandom(8).encode("hex"),
-                   callback=lambda _: self.fail("Unexpected success"),
-                   errback=lambda failure:
-                   self.assertIs(failure.type, DNSLookupError))
 
 
 class TestRetryDelay(TestCase):

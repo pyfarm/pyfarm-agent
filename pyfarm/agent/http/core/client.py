@@ -26,6 +26,7 @@ import json
 from collections import namedtuple
 from functools import partial
 from random import random
+from urlparse import urlparse
 
 try:
     from httplib import responses
@@ -36,6 +37,22 @@ try:
     from UserDict import UserDict
 except ImportError:  # pragma: no cover
     from collections import UserDict
+
+try:
+    import ssl
+except ImportError:  # pragma: no cover
+    ssl = NotImplemented
+
+try:
+    import PyOpenSSL
+except ImportError:  # pragma: no cover
+    PyOpenSSL = NotImplemented
+
+
+try:
+    import service_identity
+except ImportError:  # pragma: no cover
+    service_identity = NotImplemented
 
 import treq
 try:
@@ -66,6 +83,8 @@ else:  # pragma: no cover
 
 USERAGENT = "PyFarm/1.0 (agent)"
 DELAY_NUMBER_TYPES = tuple(list(INTEGER_TYPES) + [float])
+HTTP_METHODS = frozenset(("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE"))
+HTTP_SCHEMES = frozenset(("http", "https"))
 
 
 def build_url(url, params=None):
@@ -304,62 +323,49 @@ def request(method, url, **kwargs):
         The class to use to unpack the internal response.  This is mainly
         used by the unittests but could be used elsewhere to add some
         custom behavior to the unpack process for the incoming response.
+
+    :raises NotImplementedError:
+        Raised whenever a request is made of this function that we can't
+        implement such as an invalid http scheme, request method or a problem
+        constructing data to an api.
     """
-    # check assumptions for arguments
-    assert method in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE")
-    assert isinstance(url, STRING_TYPES) and url
+    assert isinstance(url, STRING_TYPES)
+
+    # We only support http[s]
+    parsed_url = urlparse(url)
+    if not parsed_url.hostname:
+        raise NotImplementedError("No hostname present in url")
+
+    if not parsed_url.path:
+        raise NotImplementedError("No path provided in url")
 
     original_request = Request(
         method=method, url=url, kwargs=ImmutableDict(kwargs.copy()))
-    data = kwargs.pop("data", NOTSET)
+
+    # Headers
     headers = kwargs.pop("headers", {})
-    callback = kwargs.pop("callback", None)
-    errback = kwargs.pop("errback", log.err)
-    response_class = kwargs.pop("response_class", Response)
-
-    # check assumptions for keywords
-    assert callback is not None, "callback not provided"
-    assert callable(callback) and callable(errback)
-    assert data is NOTSET or \
-           isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
-
-    # add our default headers
     headers.setdefault("Content-Type", ["application/json"])
     headers.setdefault("User-Agent", [USERAGENT])
 
-    # ensure all values in the headers are lists (needed by Twisted)
+    # Twisted requires lists for header values
     for header, value in headers.items():
         if isinstance(value, STRING_TYPES):
             headers[header] = [value]
 
-        # for our purposes we should not expect headers with more
-        # than one value for now
         elif isinstance(value, (list, tuple, set)):
-            assert len(value) == 1
+            continue
 
         else:
             raise NotImplementedError(
-                "cannot handle header values with type %s" % type(value))
+                "Cannot handle header values with type %s" % type(value))
 
-    def unpack_response(response):
-        deferred = Deferred()
-        deferred.addCallback(callback)
-
-        # Deliver the body onto an instance of the response
-        # object along with the original request.  Finally
-        # the request and response via an instance of `Response`
-        # to the outer scope's callback function.
-        response.deliverBody(
-            response_class(deferred, response, original_request))
-
-        return deferred
-
-    # prepare to send the data
+    # Handle request data
+    data = kwargs.pop("data", NOTSET)
     if isinstance(data, dict):
         data = json_safe(data)
 
-    if data is not NOTSET and \
-                    headers["Content-Type"] == ["application/json"]:
+    if (data is not NOTSET and
+            headers["Content-Type"] == ["application/json"]):
         data = json.dumps(data)
 
     elif data is not NOTSET:
@@ -374,20 +380,35 @@ def request(method, url, **kwargs):
     if data is not NOTSET:
         kwargs.update(data=data)
 
+    callback = kwargs.pop("callback", None)
+    errback = kwargs.pop("errback", log.err)
+    response_class = kwargs.pop("response_class", Response)
+
+    # check assumptions for keywords
+    assert callback is not None, "callback not provided"
+    assert callable(callback) and callable(errback)
+    assert data is NOTSET or \
+           isinstance(data, tuple(list(STRING_TYPES) + [dict, list]))
+
+    def unpack_response(response):
+        deferred = Deferred()
+        deferred.addCallback(callback)
+
+        # Deliver the body onto an instance of the response
+        # object along with the original request.  Finally
+        # the request and response via an instance of `Response`
+        # to the outer scope's callback function.
+        response.deliverBody(
+            response_class(deferred, response, original_request))
+
+        return deferred
+
     debug_kwargs = kwargs.copy()
     debug_url = build_url(url, debug_kwargs.pop("params", None))
     logger.debug(
         "Queued %s %s, kwargs: %r", method, debug_url, debug_kwargs)
 
-    try:
-        deferred = treq.request(method, quote_url(url), **kwargs)
-    except NotImplementedError:  # pragma: no cover
-        logger.error(
-            "Attempting to access a url over SSL but you don't have the "
-            "proper libraries installed.  Please install the PyOpenSSL and "
-            "service_identity Python packages.")
-        raise
-
+    deferred = treq.request(method, quote_url(url), **kwargs)
     deferred.addCallback(unpack_response)
     deferred.addErrback(errback)
 
