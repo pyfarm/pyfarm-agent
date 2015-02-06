@@ -46,10 +46,11 @@ except ImportError:  # pragma: no cover
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.task import deferLater
 
-from pyfarm.core.enums import AgentState
+from pyfarm.core.enums import NUMERIC_TYPES, AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
@@ -77,6 +78,8 @@ class Agent(object):
     itself with the master, starting the periodic task manager,
     and handling shutdown conditions.
     """
+    reactor = reactor
+
     def __init__(self):
         # so parts of this instance are accessible elsewhere
         assert "agent" not in config
@@ -117,6 +120,31 @@ class Agent(object):
         agents on the master
         """
         return config["master_api"] + "/agents/"
+
+    @inlineCallbacks
+    def schedule_call(self, delay, function, *args, **kwargs):
+        if self.shutting_down:
+            svclog.debug(
+                "Skipping task %s(*%r, **%r) [shutting down]",
+                function.__name__, args, kwargs
+            )
+            return
+
+        now = kwargs.pop("now", True)
+        assert isinstance(delay, NUMERIC_TYPES[:-1])
+        assert callable(function)
+
+        if now:
+            svclog.debug(
+                "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
+                function.__name__, args, kwargs, delay
+            )
+            yield deferLater(self.reactor, 0, function, *args, **kwargs)
+
+        yield deferLater(
+            self.reactor, delay, self.schedule_call, delay, function,
+            *args, **kwargs
+        )
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
