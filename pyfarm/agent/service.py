@@ -64,7 +64,6 @@ from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
 
 svclog = getLogger("agent.service")
@@ -95,11 +94,6 @@ class Agent(object):
         # won't try another until we're finished
         self.reannounce_client_request = None
 
-        # Setup scheduled tasks
-        self.scheduled_tasks = ScheduledTaskManager()
-        self.scheduled_tasks.register(
-            self.reannounce, config["agent_master_reannounce"])
-
     @classmethod
     def agent_api(cls):
         """
@@ -123,12 +117,27 @@ class Agent(object):
 
     @inlineCallbacks
     def schedule_call(self, delay, function, *args, **kwargs):
+        """
+        Schedules ``function`` to be run after ``delay`` has elapsed.
+
+        :param int delay:
+            Number of seconds to delay calling ``function``
+
+        :param function:
+            A callable function to run
+
+        :param args:
+            Arguments to pass into ``function``
+
+        :param kwargs:
+            Keywords to pass into ``function``
+        """
         if self.shutting_down:
             svclog.debug(
                 "Skipping task %s(*%r, **%r) [shutting down]",
                 function.__name__, args, kwargs
             )
-            return
+            returnValue(None)
 
         now = kwargs.pop("now", True)
         assert isinstance(delay, NUMERIC_TYPES[:-1])
@@ -444,8 +453,6 @@ class Agent(object):
                         config["agent_lock_file"], e)
 
             atexit.register(remove_pidfile)
-
-            self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
             for uuid, jobtype in config["jobtypes"].items():
@@ -802,4 +809,5 @@ class Agent(object):
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
 
-            self.scheduled_tasks.start()
+            self.schedule_call(
+                config["agent_master_reannounce"], self.reannounce)
