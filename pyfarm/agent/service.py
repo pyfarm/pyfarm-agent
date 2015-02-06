@@ -84,7 +84,6 @@ class Agent(object):
         self.services = {}
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
-        self.shutting_down = False
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
@@ -117,6 +116,15 @@ class Agent(object):
         agents on the master
         """
         return config["master_api"] + "/agents/"
+
+    @property
+    def shutting_down(self):
+        return config.get("shutting_down", False)
+
+    @shutting_down.setter
+    def shutting_down(self, value):
+        assert value in (True, False)
+        config["shutting_down"] = value
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
