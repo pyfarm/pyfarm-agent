@@ -180,18 +180,6 @@ class DirectRequestTestCase(RequestTestCase):
         return delete_direct(self.get_url(url), **kwargs)
 
 
-class TestClientErrors(RequestTestCase):
-    def test_unsupported_scheme(self):
-        with self.assertRaises(NotImplementedError):
-            get("zzz://httpbin.pyfarm.net/")
-
-    def test_unknown_hostname(self):
-        return get(self.HTTP_SCHEME + "://%s/" % os.urandom(8).encode("hex"),
-                   callback=lambda _: self.fail("Unexpected success"),
-                   errback=lambda failure:
-                   self.assertIs(failure.type, DNSLookupError))
-
-
 class TestRetryDelay(TestCase):
     def test_default(self):
         config["http-retry-delay"] = 1
