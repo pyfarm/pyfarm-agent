@@ -40,30 +40,37 @@ class Logger(object):
     """
     def __init__(self, name):
         self.name = name
+        self.disabled = False
 
     def debug(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=DEBUG)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=DEBUG)
 
     def info(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=INFO)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=INFO)
 
     def warning(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=WARNING)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=WARNING)
 
     def error(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=ERROR)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=ERROR)
 
     def critical(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=CRITICAL)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=CRITICAL)
 
     def fatal(self, message, *args):
-        msg(message, args=args, system=self.name,
-            time=time(), logLevel=FATAL)
+        if not self.disabled:
+            msg(message, args=args, system=self.name,
+                time=time(), logLevel=FATAL)
 
 
 class LogRecordToTwisted(Handler):

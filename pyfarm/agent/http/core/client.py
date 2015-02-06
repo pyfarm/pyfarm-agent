@@ -391,28 +391,8 @@ def request(method, url, **kwargs):
     assert isinstance(url, STRING_TYPES)
     direct = kwargs.pop("direct", False)
 
-    # Make sure it's a method we support.
-    if method not in HTTP_METHODS:
-        raise NotImplementedError(
-            "This function only supports these http "
-            "methods: %s" % ", ".join(HTTP_METHODS))
-
     # We only support http[s]
     parsed_url = urlparse(url)
-    if parsed_url.scheme not in HTTP_SCHEMES:
-      raise NotImplementedError("Only http or https is supported.")
-
-    # When using HTTPs there are some specific modules that are
-    # required but not specified as required in the setup.py file.
-    if parsed_url.scheme == "https":
-        if PyOpenSSL is NotImplemented and ssl is NotImplemented:
-            raise NotImplementedError(
-                "HTTPs requires the ssl or PyOpenSSL modules")
-
-        if service_identity is NotImplemented:
-            raise NotImplementedError(
-                "The service_identity module is required")
-
     if not parsed_url.hostname:
         raise NotImplementedError("No hostname present in url")
 
@@ -433,14 +413,12 @@ def request(method, url, **kwargs):
         if isinstance(value, STRING_TYPES):
             headers[header] = [value]
 
-        # For our purposes we should not expect headers with more
-        # than one value for now
         elif isinstance(value, (list, tuple, set)):
-            assert len(value) == 1
+            continue
 
         else:
             raise NotImplementedError(
-                "cannot handle header values with type %s" % type(value))
+                "Cannot handle header values with type %s" % type(value))
 
     # Handle request data
     data = kwargs.pop("data", NOTSET)
