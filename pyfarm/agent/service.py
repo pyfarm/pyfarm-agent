@@ -131,6 +131,15 @@ class Agent(object):
 
         :param kwargs:
             Keywords to pass into ``function``
+
+        :keyword bool now:
+            If True then run ``function`` right now in addition
+            to scheduling it.
+
+        :keyword int repeat:
+            Repeat calling ``function`` this may times.  If not provided
+            then we'll continue to repeat calling ``function`` until
+            the agent shuts down.
         """
         if self.shutting_down:
             svclog.debug(
@@ -140,8 +149,10 @@ class Agent(object):
             returnValue(None)
 
         now = kwargs.pop("now", True)
+        repeat = kwargs.pop("repeat", None)
         assert isinstance(delay, NUMERIC_TYPES[:-1])
         assert callable(function)
+        assert repeat is None or isinstance(repeat, int)
 
         if now:
             svclog.debug(
@@ -150,10 +161,13 @@ class Agent(object):
             )
             yield deferLater(self.reactor, 0, function, *args, **kwargs)
 
-        yield deferLater(
-            self.reactor, delay, self.schedule_call, delay, function,
-            *args, **kwargs
-        )
+        if repeat is None or repeat > 0:
+            repeat -= 1
+            kwargs.update(repeat=repeat)
+            yield deferLater(
+                self.reactor, delay, self.schedule_call, delay, function,
+                *args, **kwargs
+            )
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
