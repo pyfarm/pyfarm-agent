@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import time
 import uuid
 from platform import platform
 
@@ -22,6 +23,8 @@ try:
     from httplib import OK, CREATED
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
+
+from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
 
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
@@ -76,6 +79,67 @@ class TestAgentBasicMethods(TestCase):
         self.assertApproximates(
             system_data.pop("free_ram"), config["free_ram"], 64)
         self.assertEqual(system_data, expected)
+
+
+class TestScheduledCall(TestCase):
+    @inlineCallbacks
+    def test_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = True
+        result = yield agent.schedule_call(0, lambda: None)
+        self.assertIsNone(result)
+
+    @inlineCallbacks
+    def test_now(self):
+        agent = Agent()
+        deferred = Deferred()
+        agent.schedule_call(
+            0, lambda: deferred.callback(None), now=True, repeat=0)
+
+        yield deferred
+
+    @inlineCallbacks
+    def test_repeat(self):
+        agent = Agent()
+        deferred1 = Deferred()
+        deferred2 = Deferred()
+        deferred3 = Deferred()
+
+        def callback():
+            if not deferred1.called:
+                deferred1.callback(None)
+
+            elif not deferred2.called:
+                deferred2.callback(None)
+
+            elif not deferred3.called:
+                deferred3.callback(None)
+
+        agent.schedule_call(0, callback, now=False, repeat=2)
+        yield DeferredList([deferred1, deferred2])
+        self.assertFalse(deferred3.called)
+        agent.schedule_call(0, callback, now=False, repeat=1)
+        yield deferred3
+
+    @inlineCallbacks
+    def test_timed(self):
+        agent = Agent()
+        deferred1 = Deferred()
+        deferred2 = Deferred()
+
+        def callback():
+            if not deferred1.called:
+                deferred1.callback(None)
+
+            elif not deferred2.called:
+                deferred2.callback(None)
+
+        start = time.time()
+        agent.schedule_call(.5, callback, now=False, repeat=2)
+        yield DeferredList([deferred1, deferred2])
+        elapsed = time.time() - start
+        self.assertTrue(
+            1 <= elapsed <= 2, "Test did not take between 1 and 2 seconds")
 
 
 class TestRunAgent(TestCase):
