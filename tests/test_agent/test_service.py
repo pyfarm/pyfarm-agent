@@ -32,7 +32,7 @@ from pyfarm.agent.sysinfo import network, graphics
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
-class TestAgentBasicMethods(TestCase):
+class TestAgentServiceAttributes(TestCase):
     def test_agent_api_url(self):
         config["agent_id"] = uuid.uuid4()
         agent = Agent()
@@ -76,6 +76,23 @@ class TestAgentBasicMethods(TestCase):
         self.assertApproximates(
             system_data.pop("free_ram"), config["free_ram"], 64)
         self.assertEqual(system_data, expected)
+
+    def test_shutting_down_getter(self):
+        config["shutting_down"] = 42
+        agent = Agent()
+        self.assertEqual(agent.shutting_down, 42)
+
+    def test_shutting_down_settr(self):
+        agent = Agent()
+        agent.shutting_down = True
+        self.assertEqual(config["shutting_down"], True)
+        agent.shutting_down = False
+        self.assertEqual(config["shutting_down"], False)
+
+    def test_shutting_down_settr_invalid_type(self):
+        agent = Agent()
+        with self.assertRaises(AssertionError):
+            agent.shutting_down = None
 
 
 class TestRunAgent(TestCase):
