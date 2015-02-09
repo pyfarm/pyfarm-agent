@@ -568,31 +568,6 @@ class Agent(object):
 
         return finished
 
-    def errback_post_agent_to_master(self, failure):
-        """
-        Called when there's a failure trying to post the agent to the
-        master.  This is often because of some lower level issue but it
-        may be recoverable to we retry the request.
-        """
-        delay = http_retry_delay()
-
-        if failure.type is ConnectionRefusedError and not self.shutting_down:
-            svclog.error(
-                "Failed to POST agent to master, the connection was refused. "
-                "Retrying in %s seconds", delay)
-        elif not self.shutting_down:
-            svclog.error(
-                "Unhandled error when trying to POST the agent to the master. "
-                "The error was %s.  Retrying in %s seconds.", failure, delay)
-        else:
-            svclog.error(
-                "Failed to POST agent to master. Not retrying, because the "
-                "agent is shutting down.")
-
-        if not self.shutting_down:
-            return reactor.callLater(
-                http_retry_delay(), self.post_agent_to_master)
-
     @inlineCallbacks
     def post_agent_to_master(self):
         """
@@ -606,7 +581,23 @@ class Agent(object):
         try:
             response = yield post_direct(url, data=data)
         except Exception as failure:
-            pass
+            if isinstance(failure, ConnectionRefusedError):
+                svclog.error(
+                    "Failed to POST agent to master, the connection was "
+                    "refused. Retrying in %s seconds")
+            else:
+                svclog.error(
+                    "Unhandled error when trying to POST the agent to the "
+                    "master. The error was %s.", failure)
+
+            if not self.shutting_down:
+                delay = http_retry_delay()
+                svclog.info(
+                    "Retrying failed POST to master in %s seconds.", delay)
+                yield deferLater(
+                    self.reactor, delay, self.post_agent_to_master)
+            else:
+                svclog.warning("Not retrying POST to master, shutting down.")
 
         else:
             # Master might be down or have some other internal problems
