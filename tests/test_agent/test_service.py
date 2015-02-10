@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import json
 import uuid
 from platform import platform
 
@@ -23,12 +24,47 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
+from twisted.internet import reactor
+from twisted.web.resource import Resource
+from twisted.web.server import Site, NOT_DONE_YET
+from twisted.internet.defer import Deferred, inlineCallbacks
+
+from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent
 from pyfarm.agent.sysinfo import network, graphics
+
+
+class HTTPReceiver(Resource):
+    isLeaf = True
+
+    def __init__(self):
+        Resource.__init__(self)
+        self.requests = []
+        self.post_data = []
+        self.headers = []
+        self.data = []
+        self.code = None
+        self.content = None
+
+    def render_POST(self, request):
+        assert self.code is not None
+        self.requests.append(request)
+        self.headers.append(request.getAllHeaders())
+        self.content = request.content.read()
+        self.data.append(json.loads(self.content))
+
+
+class FakeAgentsAPI(HTTPReceiver):
+    def render_POST(self, request):
+        HTTPReceiver.render_POST(self, request)
+        request.setResponseCode(self.code)
+        request.write(self.content)
+        request.finish()
+        return NOT_DONE_YET
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
@@ -78,3 +114,27 @@ class TestAgentBasicMethods(TestCase):
         self.assertEqual(system_data, expected)
 
 
+class TestAgentPostToMaster(TestCase):
+    def setUp(self):
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["agent_id"] = uuid.uuid4()
+        config["state"] = AgentState.ONLINE
+
+    @inlineCallbacks
+    def tearDown(self):
+        yield self.server.loseConnection()
+
+    @inlineCallbacks
+    def test_foo(self):
+        self.fake_api.code = CREATED
+        agent = Agent()
+        yield agent.post_agent_to_master()
