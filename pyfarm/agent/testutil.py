@@ -125,6 +125,18 @@ class skipIf(object):
             return func(*args, **kwargs)
         return wrapper
 
+
+def random_port(bind="127.0.0.1"):
+    """Returns a random port which is not in use"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((bind, 0))
+        _, port = sock.getsockname()
+        return port
+    finally:
+        sock.close()
+
+
 def requires_master(function):
     """
     Any test decorated with this function will fail if the master could
