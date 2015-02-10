@@ -78,9 +78,3 @@ class TestAgentBasicMethods(TestCase):
         self.assertEqual(system_data, expected)
 
 
-class TestRunAgent(TestCase):
-    def test_created(self):
-        self.skipTest("NOT IMPLEMENTED")
-
-    def test_updated(self):
-        self.skipTest("NOT IMPLEMENTED")
