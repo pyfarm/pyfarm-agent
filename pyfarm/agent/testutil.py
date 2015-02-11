@@ -330,6 +330,18 @@ class TestCase(_TestCase):
 
     # back ports of some of Python 2.7's unittest features
     if PY26:
+        def assertLessEqual(self, a, b, msg=None):
+            if not a <= b:
+                self.fail(
+                    self._formatMessage(
+                        msg, '%s not less than or equal to %s' % (a, b)))
+
+        def assertGreaterEqual(self, a, b, msg=None):
+            if not a <= b:
+                self.fail(
+                    self._formatMessage(
+                        msg, '%s not greater than or equal to %s' % (a, b)))
+
         def assertIsNone(self, obj, msg=None):
             if obj is not None:
                 self.fail(self._formatMessage(msg, "%r is not None" % obj))
