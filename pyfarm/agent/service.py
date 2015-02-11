@@ -620,12 +620,14 @@ class Agent(object):
             # Master is up but is rejecting our request because there's
             # something wrong with it.  Do not retry the request.
             elif response.code >= BAD_REQUEST:
+                text = yield response.text()
                 svclog.error(
                     "%s accepted our POST request but responded with code %s "
                     "which is a client side error.  The message the server "
                     "responded with was %r.  Sorry, but we cannot retry this "
                     "request as it's an issue with the agent's request.",
-                    url, response.code, response.data())
+                    url, response.code, text)
+                returnValue(None)
 
             else:
                 data = yield treq.json_content(response)
