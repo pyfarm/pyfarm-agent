@@ -643,6 +643,8 @@ class Agent(object):
                         "with an id of %s was created.",
                         url, config["agent_id"])
 
+                returnValue(data)
+
     def callback_post_free_ram(self, response):
         """
         Called when we get a response back from the master
