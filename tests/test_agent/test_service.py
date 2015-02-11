@@ -21,9 +21,9 @@ from datetime import datetime, timedelta
 from platform import platform
 
 try:
-    from httplib import OK, CREATED
+    from httplib import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
-    from http.client import OK, CREATED
+    from http.client import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
 
 from mock import patch
 from twisted.internet import reactor
@@ -184,6 +184,27 @@ class TestAgentPostToMaster(TestCase):
             if "POST to %s was successful" in message:
                 self.assertIn("was updated", message)
                 self.assertEqual(args[1], result["id"])
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_bad_request(self):
+        self.fake_api.code = BAD_REQUEST
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        with patch.object(svclog, "error", capture_messages):
+            result = yield agent.post_agent_to_master()
+
+        self.assertIsNone(result)
+
+        for message, args, kwargs in messages:
+            if "accepted our POST request but responded with code" in message:
+                self.assertIn("we cannot retry this request", message)
                 break
         else:
             self.fail("Never found log message.")
