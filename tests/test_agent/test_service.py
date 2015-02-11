@@ -133,6 +133,7 @@ class TestAgentPostToMaster(TestCase):
 
     @inlineCallbacks
     def tearDown(self):
+        super(TestAgentPostToMaster, self).tearDown()
         yield self.server.loseConnection()
 
     @inlineCallbacks
