@@ -17,6 +17,9 @@
 import os
 import json
 import uuid
+from datetime import datetime, timedelta
+from functools import partial
+from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
 from platform import platform
 
 try:
@@ -24,6 +27,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
+from mock import patch
 from twisted.internet import reactor
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
@@ -34,7 +38,7 @@ from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
-from pyfarm.agent.service import Agent
+from pyfarm.agent.service import Agent, svclog
 from pyfarm.agent.sysinfo import network, graphics
 
 
@@ -116,6 +120,7 @@ class TestAgentBasicMethods(TestCase):
 
 class TestAgentPostToMaster(TestCase):
     def setUp(self):
+        super(TestAgentPostToMaster, self).setUp()
         self.fake_api = FakeAgentsAPI()
         self.resource = Resource()
         self.resource.putChild("agents", self.fake_api)
@@ -126,7 +131,6 @@ class TestAgentPostToMaster(TestCase):
         # These usually come from the master.  We're setting them here
         # so we can operate the apis without actually talking to the
         # master.
-        config["agent_id"] = uuid.uuid4()
         config["state"] = AgentState.ONLINE
 
     @inlineCallbacks
@@ -134,7 +138,54 @@ class TestAgentPostToMaster(TestCase):
         yield self.server.loseConnection()
 
     @inlineCallbacks
-    def test_foo(self):
+    def test_post_created(self):
         self.fake_api.code = CREATED
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
         agent = Agent()
-        yield agent.post_agent_to_master()
+        with patch.object(svclog, "info", capture_messages):
+            result = yield agent.post_agent_to_master()
+
+        self.assertEqual(result["id"], config["agent_id"])
+        self.assertLessEqual(
+            datetime.utcnow() - config["last_master_contact"],
+            timedelta(seconds=5)
+        )
+
+        for message, args, kwargs in messages:
+            if "POST to %s was successful" in message:
+                self.assertIn("was created", message)
+                self.assertEqual(args[1], result["id"])
+                break
+        else:
+            self.fail("Never found log message.")
+
+
+    @inlineCallbacks
+    def test_post_ok(self):
+        self.fake_api.code = OK
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        with patch.object(svclog, "info", capture_messages):
+            result = yield agent.post_agent_to_master()
+
+        self.assertEqual(result["id"], config["agent_id"])
+        self.assertLessEqual(
+            datetime.utcnow() - config["last_master_contact"],
+            timedelta(seconds=5)
+        )
+
+        for message, args, kwargs in messages:
+            if "POST to %s was successful" in message:
+                self.assertIn("was updated", message)
+                self.assertEqual(args[1], result["id"])
+                break
+        else:
+            self.fail("Never found log message.")
