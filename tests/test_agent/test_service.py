@@ -18,8 +18,6 @@ import os
 import json
 import uuid
 from datetime import datetime, timedelta
-from functools import partial
-from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
 from platform import platform
 
 try:
@@ -31,7 +29,7 @@ from mock import patch
 from twisted.internet import reactor
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import inlineCallbacks
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
