@@ -24,6 +24,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
+from mock import patch
 from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
 
 from pyfarm.agent.sysinfo.system import operating_system
@@ -79,6 +80,27 @@ class TestAgentBasicMethods(TestCase):
         self.assertApproximates(
             system_data.pop("free_ram"), config["free_ram"], 64)
         self.assertEqual(system_data, expected)
+
+    def test_callback_agent_id_set(self):
+        schedule_call_args = []
+
+        def fake_schedule_call(*args, **kwargs):
+            schedule_call_args.append((args, kwargs))
+
+        agent = Agent()
+        with patch.object(agent, "schedule_call", fake_schedule_call):
+            config.pop("free_ram", None)
+            agent.callback_agent_id_set(
+                config.CREATED, "agent_id", None, None, shutdown_events=True
+            )
+            config["agent_id"] = uuid.uuid4()
+
+        self.assertTrue(agent.register_shutdown_events)
+        self.assertIsNotNone(config["free_ram"])
+        self.assertEqual(
+            schedule_call_args[0][0][0], config["agent_master_reannounce"])
+        self.assertEqual(
+            schedule_call_args[0][0][1], agent.reannounce)
 
 
 class TestScheduledCall(TestCase):
