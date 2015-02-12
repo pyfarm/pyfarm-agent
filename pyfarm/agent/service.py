@@ -123,7 +123,6 @@ class Agent(object):
         assert value in (True, False)
         config["shutting_down"] = value
 
-    @inlineCallbacks
     def repeating_call(
             self, delay, function, function_args=None, function_kwargs=None,
             now=True, repeat_max=None, function_id=None):
@@ -172,7 +171,7 @@ class Agent(object):
                 "Skipping task %s(*%r, **%r) [shutting down]",
                 function.__name__, function_args, function_kwargs
             )
-            returnValue(None)
+            return
 
         if function_args is None:
             function_args = ()
@@ -200,7 +199,7 @@ class Agent(object):
             # it's scheduled by the reactor and executed before we schedule
             # another.
             if now:
-                yield deferLater(
+                deferLater(
                     reactor, 0, function, *function_args, **function_kwargs
                 )
                 self.repeating_call_counter[function_id] += 1
@@ -208,7 +207,7 @@ class Agent(object):
 
             # Schedule the next call but only if we have not hit the max
             if repeat_max is None or repeat_count < repeat_max:
-                yield deferLater(
+                deferLater(
                     reactor, delay, self.repeating_call, delay,
                     function, function_args=function_args,
                     function_kwargs=function_kwargs, now=True,
