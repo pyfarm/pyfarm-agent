@@ -125,10 +125,11 @@ class Agent(object):
         :param function:
             A callable function to run
 
+        :type function_args: tuple, list
         :param function_args:
             Arguments to pass into ``function``
 
-        :param function_kwargs:
+        :param dict function_kwargs:
             Keywords to pass into ``function``
 
         :keyword bool now:
@@ -155,6 +156,8 @@ class Agent(object):
 
         now = function_kwargs.pop("now", True)
         repeat = function_kwargs.pop("repeat", None)
+        assert isinstance(function_args, (list, tuple))
+        assert isinstance(function_kwargs, dict)
         assert isinstance(delay, NUMERIC_TYPES[:-1])
         assert callable(function)
         assert repeat is None or isinstance(repeat, int)
