@@ -1368,7 +1368,7 @@ class JobType(Cache, System, Process, TypeChecks):
         :param protocol:
             The protocol instance which produced ``stderr``
 
-        :param string stderr:
+        :param string stdout:
             A complete line to ``stdout`` after it has been formatted and
             logged.
 
