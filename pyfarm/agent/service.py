@@ -79,8 +79,6 @@ class Agent(object):
     itself with the master, starting the periodic task manager,
     and handling shutdown conditions.
     """
-    reactor = reactor
-
     def __init__(self):
         # so parts of this instance are accessible elsewhere
         assert "agent" not in config
@@ -594,8 +592,7 @@ class Agent(object):
                 delay = http_retry_delay()
                 svclog.info(
                     "Retrying failed POST to master in %s seconds.", delay)
-                yield deferLater(
-                    self.reactor, delay, self.post_agent_to_master)
+                yield deferLater(reactor, delay, self.post_agent_to_master)
             else:
                 svclog.warning("Not retrying POST to master, shutting down.")
 
@@ -609,8 +606,7 @@ class Agent(object):
                         "Failed to post to master due to a server side error "
                         "error %s, retrying in %s seconds",
                         response.code, delay)
-                    yield deferLater(
-                        self.reactor, delay, self.post_agent_to_master)
+                    yield deferLater(reactor, delay, self.post_agent_to_master)
                 else:
                     svclog.warning(
                         "Failed to post to master due to a server side error "
