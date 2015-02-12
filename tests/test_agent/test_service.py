@@ -36,7 +36,7 @@ from pyfarm.agent.sysinfo import network, graphics
 
 
 # TODO: need better tests, these are a little rudimentary at the moment
-class TestAgentBasicMethods(TestCase):
+class TestAgentServiceAttributes(TestCase):
     def test_agent_api_url(self):
         config["agent_id"] = uuid.uuid4()
         agent = Agent()
