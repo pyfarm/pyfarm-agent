@@ -26,6 +26,7 @@ such as log reading, system information gathering, and management of processes.
 import atexit
 import os
 import time
+import uuid
 from datetime import datetime, timedelta
 from errno import ENOENT
 from functools import partial
@@ -125,7 +126,7 @@ class Agent(object):
     @inlineCallbacks
     def repeating_call(
             self, delay, function, function_args=None, function_kwargs=None,
-            now=True, repeat_max=None):
+            now=True, repeat_max=None, function_id=None):
         """
         Causes ``function`` to be called repeatedly up until ``repeat_max``
         or until stopped.
@@ -145,10 +146,10 @@ class Agent(object):
             A callable function to run
 
         :type function_args: tuple, list
-        :param function_args:
+        :keyword function_args:
             Arguments to pass into ``function``
 
-        :param dict function_kwargs:
+        :keyword dict function_kwargs:
             Keywords to pass into ``function``
 
         :keyword bool now:
@@ -159,6 +160,12 @@ class Agent(object):
             Repeat calling ``function`` this may times.  If not provided
             then we'll continue to repeat calling ``function`` until
             the agent shuts down.
+
+        :keyword uuid.UUID function_id:
+            Used internally to track a function's execution count.  This
+            keyword exists so if you call :meth:`repeating_call` multiple
+            times on the same function or method it will handle ``repeat_max``
+            properly.
         """
         if self.shutting_down:
             svclog.debug(
@@ -173,12 +180,15 @@ class Agent(object):
         if function_kwargs is None:
             function_kwargs = {}
 
+        if function_id is None:
+            function_id = uuid.uuid4()
+
         assert isinstance(delay, NUMERIC_TYPES[:-1])
         assert callable(function)
         assert isinstance(function_args, (list, tuple))
         assert isinstance(function_kwargs, dict)
         assert repeat_max is None or isinstance(repeat_max, int)
-        repeat_count = self.repeating_call_counter.setdefault(function, 0)
+        repeat_count = self.repeating_call_counter.setdefault(function_id, 0)
 
         if repeat_max is None or repeat_count < repeat_max:
             svclog.debug(
@@ -193,15 +203,17 @@ class Agent(object):
                 yield deferLater(
                     reactor, 0, function, *function_args, **function_kwargs
                 )
+                self.repeating_call_counter[function_id] += 1
+                repeat_count = self.repeating_call_counter[function_id]
 
-            # Schedule the next call
-            yield deferLater(
-                reactor, delay, self.repeating_call, delay,
-                function, function_args=function_args,
-                function_kwargs=function_kwargs, now=True,
-                repeat_max=repeat_max
-            )
-            self.repeating_call_counter[function] += 1
+            # Schedule the next call but only if we have not hit the max
+            if repeat_max is None or repeat_count < repeat_max:
+                yield deferLater(
+                    reactor, delay, self.repeating_call, delay,
+                    function, function_args=function_args,
+                    function_kwargs=function_kwargs, now=True,
+                    repeat_max=repeat_max, function_id=function_id
+                )
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
