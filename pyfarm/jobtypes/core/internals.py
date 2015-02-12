@@ -832,6 +832,12 @@ class System(object):
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
 
+    def _log(self, protocol, message):
+        """
+        Log a message from the jobtype itself to the process' log file.
+        Useful for debugging jobtypes.
+        """
+        logpool.log(protocol.uuid, "jobtype", message)
 
 class TypeChecks(object):
     def _check_expandvars_inputs(self, value, environment):
