@@ -157,13 +157,13 @@ class Agent(object):
                 "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
                 function.__name__, args, kwargs, delay
             )
-            yield deferLater(self.reactor, 0, function, *args, **kwargs)
+            yield deferLater(reactor, 0, function, *args, **kwargs)
 
         if repeat is None or repeat > 0:
             repeat -= 1
             kwargs.update(repeat=repeat)
             yield deferLater(
-                self.reactor, delay, self.schedule_call, delay, function,
+                reactor, delay, self.schedule_call, delay, function,
                 *args, **kwargs
             )
 
