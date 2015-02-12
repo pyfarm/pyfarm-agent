@@ -114,7 +114,8 @@ class Agent(object):
         return config["master_api"] + "/agents/"
 
     @inlineCallbacks
-    def schedule_call(self, delay, function, *args, **kwargs):
+    def schedule_call(
+            self, delay, function, function_args=None, function_kwargs=None):
         """
         Schedules ``function`` to be run after ``delay`` has elapsed.
 
@@ -124,10 +125,10 @@ class Agent(object):
         :param function:
             A callable function to run
 
-        :param args:
+        :param function_args:
             Arguments to pass into ``function``
 
-        :param kwargs:
+        :param function_kwargs:
             Keywords to pass into ``function``
 
         :keyword bool now:
@@ -142,12 +143,18 @@ class Agent(object):
         if self.shutting_down:
             svclog.debug(
                 "Skipping task %s(*%r, **%r) [shutting down]",
-                function.__name__, args, kwargs
+                function.__name__, function_args, function_kwargs
             )
             returnValue(None)
 
-        now = kwargs.pop("now", True)
-        repeat = kwargs.pop("repeat", None)
+        if function_args is None:
+            function_args = ()
+
+        if function_kwargs is None:
+            function_kwargs = {}
+
+        now = function_kwargs.pop("now", True)
+        repeat = function_kwargs.pop("repeat", None)
         assert isinstance(delay, NUMERIC_TYPES[:-1])
         assert callable(function)
         assert repeat is None or isinstance(repeat, int)
@@ -155,16 +162,17 @@ class Agent(object):
         if now:
             svclog.debug(
                 "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
-                function.__name__, args, kwargs, delay
+                function.__name__, function_args, function_kwargs, delay
             )
-            yield deferLater(reactor, 0, function, *args, **kwargs)
+            yield deferLater(
+                reactor, 0, function, *function_args, **function_kwargs)
 
         if repeat is None or repeat > 0:
             repeat -= 1
-            kwargs.update(repeat=repeat)
+            function_kwargs.update(repeat=repeat)
             yield deferLater(
                 reactor, delay, self.schedule_call, delay, function,
-                *args, **kwargs
+                *function_args, **function_kwargs
             )
 
     def should_reannounce(self):
