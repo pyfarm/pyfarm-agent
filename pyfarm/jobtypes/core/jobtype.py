@@ -1064,6 +1064,8 @@ class JobType(Cache, System, Process, TypeChecks):
             lines = output.split("\n")
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
+            else:
+                lines.pop(-1)
 
             for line in lines:
                 if protocol.uuid in line_fragments:
