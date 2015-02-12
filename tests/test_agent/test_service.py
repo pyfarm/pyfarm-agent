@@ -102,6 +102,23 @@ class TestAgentBasicMethods(TestCase):
         self.assertEqual(
             schedule_call_args[0][0][1], agent.reannounce)
 
+    def test_shutting_down_getter(self):
+        config["shutting_down"] = 42
+        agent = Agent()
+        self.assertEqual(agent.shutting_down, 42)
+
+    def test_shutting_down_settr(self):
+        agent = Agent()
+        agent.shutting_down = True
+        self.assertEqual(config["shutting_down"], True)
+        agent.shutting_down = False
+        self.assertEqual(config["shutting_down"], False)
+
+    def test_shutting_down_settr_invalid_type(self):
+        agent = Agent()
+        with self.assertRaises(AssertionError):
+            agent.shutting_down = None
+
 
 class TestScheduledCall(TestCase):
     @inlineCallbacks
