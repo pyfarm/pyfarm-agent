@@ -47,7 +47,7 @@ except ImportError:  # pragma: no cover
 
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
 
