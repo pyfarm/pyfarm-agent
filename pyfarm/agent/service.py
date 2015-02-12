@@ -77,8 +77,6 @@ class Agent(object):
     itself with the master, starting the periodic task manager,
     and handling shutdown conditions.
     """
-    reactor = reactor
-
     def __init__(self):
         # so parts of this instance are accessible elsewhere
         assert "agent" not in config
