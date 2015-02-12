@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-import time
 import uuid
 from platform import platform
 
@@ -25,6 +24,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
 from mock import patch
+from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
 
 from pyfarm.agent.sysinfo.system import operating_system
@@ -129,11 +129,32 @@ class TestScheduledCall(TestCase):
         self.assertIsNone(result)
 
     @inlineCallbacks
+    def test_repeat_until_shutdown(self):
+        wait_for_shutdown = Deferred()
+        agent = Agent()
+        self.counter = 0
+        self.not_shutdown_counter = 0
+
+        def callback():
+            if not agent.shutting_down:
+                self.not_shutdown_counter += 1
+            self.counter += 1
+
+        def shutdown():
+            agent.shutting_down = True
+            wait_for_shutdown.callback(None)
+
+        agent.repeating_call(0, callback)
+        reactor.callLater(.01, shutdown)
+        yield wait_for_shutdown
+        self.assertEqual(self.counter, self.not_shutdown_counter)
+
+    @inlineCallbacks
     def test_now(self):
         agent = Agent()
         deferred = Deferred()
         agent.repeating_call(
-            0, lambda: deferred.callback(None), now=True, repeat=0)
+            0, lambda: deferred.callback(None), now=True, repeat_max=1)
 
         yield deferred
 
@@ -154,31 +175,11 @@ class TestScheduledCall(TestCase):
             elif not deferred3.called:
                 deferred3.callback(None)
 
-        agent.repeating_call(0, callback, now=False, repeat=2)
+        agent.repeating_call(0, callback, repeat_max=2)
         yield DeferredList([deferred1, deferred2])
         self.assertFalse(deferred3.called)
-        agent.repeating_call(0, callback, now=False, repeat=1)
+        agent.repeating_call(0, callback, repeat_max=1)
         yield deferred3
-
-    @inlineCallbacks
-    def test_timed(self):
-        agent = Agent()
-        deferred1 = Deferred()
-        deferred2 = Deferred()
-
-        def callback():
-            if not deferred1.called:
-                deferred1.callback(None)
-
-            elif not deferred2.called:
-                deferred2.callback(None)
-
-        start = time.time()
-        agent.repeating_call(.5, callback, now=False, repeat=2)
-        yield DeferredList([deferred1, deferred2])
-        elapsed = time.time() - start
-        self.assertTrue(
-            1 <= elapsed <= 2, "Test did not take between 1 and 2 seconds")
 
 
 class TestRunAgent(TestCase):
