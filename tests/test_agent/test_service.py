@@ -88,7 +88,7 @@ class TestAgentBasicMethods(TestCase):
             schedule_call_args.append((args, kwargs))
 
         agent = Agent()
-        with patch.object(agent, "schedule_call", fake_schedule_call):
+        with patch.object(agent, "repeating_call", fake_schedule_call):
             config.pop("free_ram", None)
             agent.callback_agent_id_set(
                 config.CREATED, "agent_id", None, None, shutdown_events=True
@@ -108,14 +108,14 @@ class TestScheduledCall(TestCase):
     def test_shutting_down(self):
         agent = Agent()
         agent.shutting_down = True
-        result = yield agent.schedule_call(0, lambda: None)
+        result = yield agent.repeating_call(0, lambda: None)
         self.assertIsNone(result)
 
     @inlineCallbacks
     def test_now(self):
         agent = Agent()
         deferred = Deferred()
-        agent.schedule_call(
+        agent.repeating_call(
             0, lambda: deferred.callback(None), now=True, repeat=0)
 
         yield deferred
@@ -137,10 +137,10 @@ class TestScheduledCall(TestCase):
             elif not deferred3.called:
                 deferred3.callback(None)
 
-        agent.schedule_call(0, callback, now=False, repeat=2)
+        agent.repeating_call(0, callback, now=False, repeat=2)
         yield DeferredList([deferred1, deferred2])
         self.assertFalse(deferred3.called)
-        agent.schedule_call(0, callback, now=False, repeat=1)
+        agent.repeating_call(0, callback, now=False, repeat=1)
         yield deferred3
 
     @inlineCallbacks
@@ -157,7 +157,7 @@ class TestScheduledCall(TestCase):
                 deferred2.callback(None)
 
         start = time.time()
-        agent.schedule_call(.5, callback, now=False, repeat=2)
+        agent.repeating_call(.5, callback, now=False, repeat=2)
         yield DeferredList([deferred1, deferred2])
         elapsed = time.time() - start
         self.assertTrue(

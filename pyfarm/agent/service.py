@@ -115,14 +115,23 @@ class Agent(object):
         return config["master_api"] + "/agents/"
 
     @inlineCallbacks
-    def schedule_call(
+    def repeating_call(
             self, delay, function, function_args=None, function_kwargs=None,
             now=True, repeat_max=None):
         """
-        Schedules ``function`` to be run after ``delay`` has elapsed.
+        Causes ``function`` to be called repeatedly up until ``repeat_max``
+        or until stopped.
 
         :param int delay:
-            Number of seconds to delay calling ``function``
+            Number of seconds to delay between calls of ``function``.
+
+            ..  note::
+
+                ``delay`` is an approximate interval between when one call ends
+                and the next one begins.  The exact time can vary due
+                to how the Twisted reactor runs, how long it takes
+                ``function`` to run and what else may be going on in the
+                agent at the time.
 
         :param function:
             A callable function to run
@@ -163,21 +172,28 @@ class Agent(object):
         assert repeat_max is None or isinstance(repeat_max, int)
         repeat_count = self.repeating_call_counter.setdefault(function, 0)
 
-        if now:
+        if repeat_max is None or repeat_count < repeat_max:
             svclog.debug(
                 "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
                 function.__name__, function_args, function_kwargs, delay
             )
-            yield deferLater(
-                reactor, 0, function, *function_args, **function_kwargs)
 
-        if repeat_max is None or repeat_count < repeat_max:
+            # Run this function right now using another deferLater so
+            # it's scheduled by the reactor and executed before we schedule
+            # another.
+            if now:
+                yield deferLater(
+                    reactor, 0, function, *function_args, **function_kwargs
+                )
+
+            # Schedule the next call
             yield deferLater(
-                reactor, delay, self.schedule_call, delay, function,
-                *function_args, **function_kwargs
+                reactor, delay, self.repeating_call, delay,
+                function, function_args=function_args,
+                function_kwargs=function_kwargs, now=True,
+                repeat_max=repeat_max
             )
-
-        self.repeating_call_counter[function] += 1
+            self.repeating_call_counter[function] += 1
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
@@ -833,5 +849,5 @@ class Agent(object):
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
 
-            self.schedule_call(
+            self.repeating_call(
                 config["agent_master_reannounce"], self.reannounce)
