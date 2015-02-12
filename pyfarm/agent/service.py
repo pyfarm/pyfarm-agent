@@ -84,6 +84,7 @@ class Agent(object):
         self.services = {}
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
+        self.repeating_call_counter = {}
         self.shutting_down = False
 
         # reannounce_client is set when the agent id is
@@ -115,7 +116,8 @@ class Agent(object):
 
     @inlineCallbacks
     def schedule_call(
-            self, delay, function, function_args=None, function_kwargs=None):
+            self, delay, function, function_args=None, function_kwargs=None,
+            now=True, repeat_max=None):
         """
         Schedules ``function`` to be run after ``delay`` has elapsed.
 
@@ -136,7 +138,7 @@ class Agent(object):
             If True then run ``function`` right now in addition
             to scheduling it.
 
-        :keyword int repeat:
+        :keyword int repeat_max:
             Repeat calling ``function`` this may times.  If not provided
             then we'll continue to repeat calling ``function`` until
             the agent shuts down.
@@ -154,13 +156,12 @@ class Agent(object):
         if function_kwargs is None:
             function_kwargs = {}
 
-        now = function_kwargs.pop("now", True)
-        repeat = function_kwargs.pop("repeat", None)
-        assert isinstance(function_args, (list, tuple))
-        assert isinstance(function_kwargs, dict)
         assert isinstance(delay, NUMERIC_TYPES[:-1])
         assert callable(function)
-        assert repeat is None or isinstance(repeat, int)
+        assert isinstance(function_args, (list, tuple))
+        assert isinstance(function_kwargs, dict)
+        assert repeat_max is None or isinstance(repeat_max, int)
+        repeat_count = self.repeating_call_counter.setdefault(function, 0)
 
         if now:
             svclog.debug(
@@ -170,13 +171,13 @@ class Agent(object):
             yield deferLater(
                 reactor, 0, function, *function_args, **function_kwargs)
 
-        if repeat is None or repeat > 0:
-            repeat -= 1
-            function_kwargs.update(repeat=repeat)
+        if repeat_max is None or repeat_count < repeat_max:
             yield deferLater(
                 reactor, delay, self.schedule_call, delay, function,
                 *function_args, **function_kwargs
             )
+
+        self.repeating_call_counter[function] += 1
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
