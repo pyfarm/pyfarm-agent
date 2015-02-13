@@ -591,7 +591,7 @@ class Agent(object):
                 svclog.error(
                     "Failed to POST agent to master, the connection was "
                     "refused. Retrying in %s seconds")
-            else:
+            else:  # pragma: no cover
                 svclog.error(
                     "Unhandled error when trying to POST the agent to the "
                     "master. The error was %s.", failure)
