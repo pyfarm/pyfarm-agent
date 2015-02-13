@@ -30,6 +30,7 @@ from twisted.internet import reactor
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.internet.defer import inlineCallbacks
+from twisted.internet.task import deferLater
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
@@ -223,6 +224,41 @@ class TestAgentPostToMaster(TestCase):
         for message, args, kwargs in messages:
             if "accepted our POST request but responded with code" in message:
                 self.assertIn("we cannot retry this request", message)
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_internal_server_error_retry(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        warning_messages = []
+        info_messages = []
+
+        def capture_warning_messages(message, *args, **kwargs):
+            warning_messages.append((message, args, kwargs))
+
+        def capture_info_messages(message, *args, **kwargs):
+            info_messages.append((message, args, kwargs))
+
+        def change_response_code():
+            self.fake_api.code = CREATED
+
+        deferLater(reactor, 2.5, change_response_code)
+
+        agent = Agent()
+        with patch.object(svclog, "warning", capture_warning_messages):
+            with patch.object(svclog, "info", capture_info_messages):
+                yield agent.post_agent_to_master()
+
+        warning_count = 0
+        for message, args, kwargs in warning_messages:
+            if "Failed to post to master due to a server side" in message:
+                warning_count += 1
+
+        self.assertGreaterEqual(warning_count, 2)
+
+        for message, args, kwargs in info_messages:
+            if "A new agent with an id of %s was created." in message:
                 break
         else:
             self.fail("Never found log message.")
