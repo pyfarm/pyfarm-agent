@@ -182,13 +182,21 @@ class DirectRequestTestCase(RequestTestCase):
 
 class TestRetryDelay(TestCase):
     def test_default(self):
-        config["http-retry-delay"] = 1
+        config["agent_http_retry_delay"] = .1
+        config["agent_http_retry_delay_minimum"] = .1
         self.assertEqual(
-            http_retry_delay(uniform=True), config["http-retry-delay"])
+            http_retry_delay(uniform=True), config["agent_http_retry_delay"])
 
     def test_custom_delay_multiplier(self):
         self.assertEqual(
             http_retry_delay(initial=1, uniform=False, get_delay=lambda: 2), 2)
+
+    def test_minimum_overrides(self):
+        config["agent_http_retry_delay"] = .1
+        config["agent_http_retry_delay_minimum"] = 1
+        self.assertEqual(
+            http_retry_delay(uniform=True),
+            config["agent_http_retry_delay_minimum"])
 
     def test_minimum(self):
         self.assertEqual(
