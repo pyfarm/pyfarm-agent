@@ -175,7 +175,8 @@ def build_url(url, params=None):
     return quote_url(url)
 
 
-def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
+def http_retry_delay(
+        initial=None, uniform=False, get_delay=random, minimum=None):
     """
     Returns a floating point value that can be used to delay
     an http request.  The main purpose of this is to ensure that not all
@@ -189,6 +190,9 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
         calculations are done.  If this value is not provided the value
         provided to ``--http-retry-delay`` at startup will be used.
 
+        This defaults to the ``agent_http_retry_delay`` configuration
+        variable.
+
     :param bool uniform:
         If True then use the value produced by ``get_delay`` as
         a multiplier.
@@ -200,11 +204,17 @@ def http_retry_delay(initial=None, uniform=False, get_delay=random, minimum=1):
     :param minimum:
         Ensures that the value returned from this function is greater than
         or equal to a minimum value.
+
+        This defaults to the ``agent_http_retry_delay_minimum`` configuration
+        variable.
     """
     delay = initial
     if initial is None:
         # TODO: provide command line flags for jitter
         delay = config["agent_http_retry_delay"]
+
+    if minimum is None:
+        minimum = config["agent_http_retry_delay_minimum"]
 
     assert isinstance(delay, DELAY_NUMBER_TYPES)  # expect integer or float
     assert isinstance(minimum, DELAY_NUMBER_TYPES)  # expect integer or float
