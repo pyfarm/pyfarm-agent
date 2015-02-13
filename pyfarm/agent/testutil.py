@@ -408,6 +408,7 @@ class TestCase(_TestCase):
             config.pop(key, None)
 
         config.update({
+            "shutting_down": False,
             "jobtypes": {},
             "current_assignments": {},
             "agent_id": uuid.uuid4(),
