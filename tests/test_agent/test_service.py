@@ -27,6 +27,8 @@ except ImportError:  # pragma: no cover
 
 from mock import patch
 from twisted.internet import reactor
+from twisted.internet.defer import Deferred, DeferredList
+
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.internet.defer import inlineCallbacks
@@ -116,6 +118,27 @@ class TestAgentServiceAttributes(TestCase):
             system_data.pop("free_ram"), config["free_ram"], 64)
         self.assertEqual(system_data, expected)
 
+    def test_callback_agent_id_set(self):
+        schedule_call_args = []
+
+        def fake_schedule_call(*args, **kwargs):
+            schedule_call_args.append((args, kwargs))
+
+        agent = Agent()
+        with patch.object(agent, "repeating_call", fake_schedule_call):
+            config.pop("free_ram", None)
+            agent.callback_agent_id_set(
+                config.CREATED, "agent_id", None, None, shutdown_events=True
+            )
+            config["agent_id"] = uuid.uuid4()
+
+        self.assertTrue(agent.register_shutdown_events)
+        self.assertIsNotNone(config["free_ram"])
+        self.assertEqual(
+            schedule_call_args[0][0][0], config["agent_master_reannounce"])
+        self.assertEqual(
+            schedule_call_args[0][0][1], agent.reannounce)
+
     def test_shutting_down_getter(self):
         config["shutting_down"] = 42
         agent = Agent()
@@ -132,6 +155,68 @@ class TestAgentServiceAttributes(TestCase):
         agent = Agent()
         with self.assertRaises(AssertionError):
             agent.shutting_down = None
+
+
+class TestScheduledCall(TestCase):
+    @inlineCallbacks
+    def test_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = True
+        result = yield agent.repeating_call(0, lambda: None)
+        self.assertIsNone(result)
+
+    @inlineCallbacks
+    def test_repeat_until_shutdown(self):
+        wait_for_shutdown = Deferred()
+        agent = Agent()
+        self.counter = 0
+        self.not_shutdown_counter = 0
+
+        def callback():
+            if not agent.shutting_down:
+                self.not_shutdown_counter += 1
+            self.counter += 1
+
+        def shutdown():
+            agent.shutting_down = True
+            wait_for_shutdown.callback(None)
+
+        agent.repeating_call(0, callback)
+        reactor.callLater(.01, shutdown)
+        yield wait_for_shutdown
+        self.assertEqual(self.counter, self.not_shutdown_counter)
+
+    @inlineCallbacks
+    def test_now(self):
+        agent = Agent()
+        deferred = Deferred()
+        agent.repeating_call(
+            0, lambda: deferred.callback(None), now=True, repeat_max=1)
+
+        yield deferred
+
+    @inlineCallbacks
+    def test_repeat(self):
+        agent = Agent()
+        deferred1 = Deferred()
+        deferred2 = Deferred()
+        deferred3 = Deferred()
+
+        def callback():
+            if not deferred1.called:
+                deferred1.callback(None)
+
+            elif not deferred2.called:
+                deferred2.callback(None)
+
+            elif not deferred3.called:
+                deferred3.callback(None)
+
+        agent.repeating_call(0, callback, repeat_max=2)
+        yield DeferredList([deferred1, deferred2])
+        self.assertFalse(deferred3.called)
+        agent.repeating_call(0, callback, repeat_max=1)
+        yield deferred3
 
 
 class TestAgentPostToMaster(TestCase):

@@ -26,6 +26,7 @@ such as log reading, system information gathering, and management of processes.
 import atexit
 import os
 import time
+import uuid
 from datetime import datetime, timedelta
 from errno import ENOENT
 from functools import partial
@@ -50,8 +51,9 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.internet.task import deferLater
 from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.task import deferLater
 
-from pyfarm.core.enums import AgentState
+from pyfarm.core.enums import NUMERIC_TYPES, AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
@@ -65,7 +67,6 @@ from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
 
 svclog = getLogger("agent.service")
@@ -86,17 +87,13 @@ class Agent(object):
         self.services = {}
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
+        self.repeating_call_counter = {}
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
         # that once we start the announcement process we
         # won't try another until we're finished
         self.reannounce_client_request = None
-
-        # Setup scheduled tasks
-        self.scheduled_tasks = ScheduledTaskManager()
-        self.scheduled_tasks.register(
-            self.reannounce, config["agent_master_reannounce"])
 
     @classmethod
     def agent_api(cls):
@@ -127,6 +124,97 @@ class Agent(object):
     def shutting_down(self, value):
         assert value in (True, False)
         config["shutting_down"] = value
+
+    def repeating_call(
+            self, delay, function, function_args=None, function_kwargs=None,
+            now=True, repeat_max=None, function_id=None):
+        """
+        Causes ``function`` to be called repeatedly up until ``repeat_max``
+        or until stopped.
+
+        :param int delay:
+            Number of seconds to delay between calls of ``function``.
+
+            ..  note::
+
+                ``delay`` is an approximate interval between when one call ends
+                and the next one begins.  The exact time can vary due
+                to how the Twisted reactor runs, how long it takes
+                ``function`` to run and what else may be going on in the
+                agent at the time.
+
+        :param function:
+            A callable function to run
+
+        :type function_args: tuple, list
+        :keyword function_args:
+            Arguments to pass into ``function``
+
+        :keyword dict function_kwargs:
+            Keywords to pass into ``function``
+
+        :keyword bool now:
+            If True then run ``function`` right now in addition
+            to scheduling it.
+
+        :keyword int repeat_max:
+            Repeat calling ``function`` this may times.  If not provided
+            then we'll continue to repeat calling ``function`` until
+            the agent shuts down.
+
+        :keyword uuid.UUID function_id:
+            Used internally to track a function's execution count.  This
+            keyword exists so if you call :meth:`repeating_call` multiple
+            times on the same function or method it will handle ``repeat_max``
+            properly.
+        """
+        if self.shutting_down:
+            svclog.debug(
+                "Skipping task %s(*%r, **%r) [shutting down]",
+                function.__name__, function_args, function_kwargs
+            )
+            return
+
+        if function_args is None:
+            function_args = ()
+
+        if function_kwargs is None:
+            function_kwargs = {}
+
+        if function_id is None:
+            function_id = uuid.uuid4()
+
+        assert isinstance(delay, NUMERIC_TYPES[:-1])
+        assert callable(function)
+        assert isinstance(function_args, (list, tuple))
+        assert isinstance(function_kwargs, dict)
+        assert repeat_max is None or isinstance(repeat_max, int)
+        repeat_count = self.repeating_call_counter.setdefault(function_id, 0)
+
+        if repeat_max is None or repeat_count < repeat_max:
+            svclog.debug(
+                "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
+                function.__name__, function_args, function_kwargs, delay
+            )
+
+            # Run this function right now using another deferLater so
+            # it's scheduled by the reactor and executed before we schedule
+            # another.
+            if now:
+                deferLater(
+                    reactor, 0, function, *function_args, **function_kwargs
+                )
+                self.repeating_call_counter[function_id] += 1
+                repeat_count = self.repeating_call_counter[function_id]
+
+            # Schedule the next call but only if we have not hit the max
+            if repeat_max is None or repeat_count < repeat_max:
+                deferLater(
+                    reactor, delay, self.repeating_call, delay,
+                    function, function_args=function_args,
+                    function_kwargs=function_kwargs, now=True,
+                    repeat_max=repeat_max, function_id=function_id
+                )
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
@@ -426,8 +514,6 @@ class Agent(object):
                         config["agent_lock_file"], e)
 
             atexit.register(remove_pidfile)
-
-            self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
             for uuid, jobtype in config["jobtypes"].items():
@@ -777,4 +863,5 @@ class Agent(object):
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
 
-            self.scheduled_tasks.start()
+            self.repeating_call(
+                config["agent_master_reannounce"], self.reannounce)
