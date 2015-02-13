@@ -423,7 +423,7 @@ class Process(object):
         started running.
         """
         logger.debug("%r._process_started(%r)", self, protocol)
-        logpool.log(protocol.uuid, STDOUT, "Started %r" % protocol)
+        logpool.log(protocol.uuid, "internal", "Started %r" % protocol)
         process_data = self.processes[protocol.uuid]
         process_data.started.callback(protocol)
         if not self.stop_called:
@@ -446,13 +446,13 @@ class Process(object):
 
         if self.is_successful(reason):
             logpool.log(
-                protocol.uuid, STDOUT,
+                protocol.uuid, "internal",
                 "Process has terminated successfully, code %s" %
                 reason.value.exitCode)
         else:
             self.failed_processes.add((protocol, reason))
             logpool.log(
-                protocol.uuid, STDOUT,
+                protocol.uuid, "internal",
                 "Process has not terminated successfully, code %s" %
                 reason.value.exitCode)
 
@@ -832,6 +832,12 @@ class System(object):
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
 
+    def _log(self, protocol, message):
+        """
+        Log a message from the jobtype itself to the process' log file.
+        Useful for debugging jobtypes.
+        """
+        logpool.log(protocol.uuid, "jobtype", message)
 
 class TypeChecks(object):
     def _check_expandvars_inputs(self, value, environment):
