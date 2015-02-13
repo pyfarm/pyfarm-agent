@@ -348,7 +348,7 @@ class TestCase(_TestCase):
                         msg, '%s not less than or equal to %s' % (a, b)))
 
         def assertGreaterEqual(self, a, b, msg=None):
-            if not a <= b:
+            if not a >= b:
                 self.fail(
                     self._formatMessage(
                         msg, '%s not greater than or equal to %s' % (a, b)))
