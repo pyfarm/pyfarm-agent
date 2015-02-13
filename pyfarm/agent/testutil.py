@@ -330,6 +330,16 @@ class TestCase(_TestCase):
 
     # back ports of some of Python 2.7's unittest features
     if PY26:
+        def _formatMessage(self, msg, standardMsg):
+            if not self.longMessage:
+                return msg or standardMsg
+            if msg is None:
+                return standardMsg
+            try:
+                return '%s : %s' % (standardMsg, msg)
+            except UnicodeDecodeError:
+                return '%s : %s' % (standardMsg, msg)
+
         def assertLessEqual(self, a, b, msg=None):
             if not a <= b:
                 self.fail(
