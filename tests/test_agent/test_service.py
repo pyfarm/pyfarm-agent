@@ -233,6 +233,7 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
         warning_messages = []
         info_messages = []
+        agent = Agent()
 
         def capture_warning_messages(message, *args, **kwargs):
             warning_messages.append((message, args, kwargs))
@@ -243,9 +244,9 @@ class TestAgentPostToMaster(TestCase):
         def change_response_code():
             self.fake_api.code = CREATED
 
+        # TODO: lower this value once the retry delay min. is configurable
         deferLater(reactor, 2.5, change_response_code)
 
-        agent = Agent()
         with patch.object(svclog, "warning", capture_warning_messages):
             with patch.object(svclog, "info", capture_info_messages):
                 yield agent.post_agent_to_master()
@@ -259,6 +260,74 @@ class TestAgentPostToMaster(TestCase):
 
         for message, args, kwargs in info_messages:
             if "A new agent with an id of %s was created." in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_internal_server_error_retry_stop_on_shutdown(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        warning_messages = []
+
+        def capture_warning_messages(message, *args, **kwargs):
+            warning_messages.append((message, args, kwargs))
+
+        agent = Agent()
+
+        def shutdown():
+            agent.shutting_down = True
+
+        # TODO: lower this value once the retry delay min. is configurable
+        deferLater(reactor, 1.5, shutdown)
+
+        with patch.object(svclog, "warning", capture_warning_messages):
+            yield agent.post_agent_to_master()
+
+        for message, args, kwargs in warning_messages:
+            if ("Failed to post to master" in message
+                    and "shutting down" in message):
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_exception_raised(self):
+        # Shutdown the server so we don't have anything to
+        # reply on.
+        yield self.server.loseConnection()
+
+        warning_messages = []
+        error_messages = []
+        agent = Agent()
+
+        def capture_warning_messages(message, *args, **kwargs):
+            warning_messages.append((message, args, kwargs))
+
+        def capture_error_messages(message, *args, **kwargs):
+            error_messages.append((message, args, kwargs))
+
+        def shutdown():
+            agent.shutting_down = True
+
+        # TODO: lower this value once the retry delay min. is configurable
+        # NOTE: In other tests we specifically test shutdown behavior.  Here
+        # we're not doing that because it can be done in one test and because
+        # the http server is not online.
+        deferLater(reactor, 2.5, shutdown)
+
+        with patch.object(svclog, "warning", capture_warning_messages):
+            with patch.object(svclog, "error", capture_error_messages):
+                yield agent.post_agent_to_master()
+
+        error_count = 0
+        for message, args, kwargs in error_messages:
+            if "the connection was refused" in message:
+                error_count += 1
+
+        self.assertGreaterEqual(error_count, 2)
+
+        for message, args, kwargs in warning_messages:
+            if "Not retrying POST to master, shutting down." in message:
                 break
         else:
             self.fail("Never found log message.")
