@@ -273,6 +273,7 @@ class ErrorCapturingParser(AgentArgumentParser):
 
 
 class TestCase(_TestCase):
+    longMessage = True
     POP_CONFIG_KEYS = []
     RAND_LENGTH = 8
 
