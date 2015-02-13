@@ -631,7 +631,6 @@ class Agent(object):
                     "responded with was %r.  Sorry, but we cannot retry this "
                     "request as it's an issue with the agent's request.",
                     url, response.code, text)
-                returnValue(None)
 
             else:
                 data = yield treq.json_content(response)
