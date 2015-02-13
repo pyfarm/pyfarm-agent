@@ -125,6 +125,18 @@ class skipIf(object):
             return func(*args, **kwargs)
         return wrapper
 
+
+def random_port(bind="127.0.0.1"):
+    """Returns a random port which is not in use"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((bind, 0))
+        _, port = sock.getsockname()
+        return port
+    finally:
+        sock.close()
+
+
 def requires_master(function):
     """
     Any test decorated with this function will fail if the master could
@@ -261,6 +273,7 @@ class ErrorCapturingParser(AgentArgumentParser):
 
 
 class TestCase(_TestCase):
+    longMessage = True
     POP_CONFIG_KEYS = []
     RAND_LENGTH = 8
 
@@ -318,6 +331,28 @@ class TestCase(_TestCase):
 
     # back ports of some of Python 2.7's unittest features
     if PY26:
+        def _formatMessage(self, msg, standardMsg):
+            if not self.longMessage:
+                return msg or standardMsg
+            if msg is None:
+                return standardMsg
+            try:
+                return '%s : %s' % (standardMsg, msg)
+            except UnicodeDecodeError:
+                return '%s : %s' % (standardMsg, msg)
+
+        def assertLessEqual(self, a, b, msg=None):
+            if not a <= b:
+                self.fail(
+                    self._formatMessage(
+                        msg, '%s not less than or equal to %s' % (a, b)))
+
+        def assertGreaterEqual(self, a, b, msg=None):
+            if not a >= b:
+                self.fail(
+                    self._formatMessage(
+                        msg, '%s not greater than or equal to %s' % (a, b)))
+
         def assertIsNone(self, obj, msg=None):
             if obj is not None:
                 self.fail(self._formatMessage(msg, "%r is not None" % obj))
@@ -384,6 +419,7 @@ class TestCase(_TestCase):
             config.pop(key, None)
 
         config.update({
+            "shutting_down": False,
             "jobtypes": {},
             "current_assignments": {},
             "agent_id": uuid.uuid4(),

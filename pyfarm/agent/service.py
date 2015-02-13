@@ -45,9 +45,11 @@ except ImportError:  # pragma: no cover
     from http.client import (
         responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 
+import treq
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.task import deferLater
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
 
@@ -60,7 +62,7 @@ from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
-from pyfarm.agent.http.core.client import post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
@@ -658,88 +660,81 @@ class Agent(object):
 
         return finished
 
-    def errback_post_agent_to_master(self, failure):
-        """
-        Called when there's a failure trying to post the agent to the
-        master.  This is often because of some lower level issue but it
-        may be recoverable to we retry the request.
-        """
-        delay = http_retry_delay()
-
-        if failure.type is ConnectionRefusedError and not self.shutting_down:
-            svclog.error(
-                "Failed to POST agent to master, the connection was refused. "
-                "Retrying in %s seconds", delay)
-        elif not self.shutting_down:
-            svclog.error(
-                "Unhandled error when trying to POST the agent to the master. "
-                "The error was %s.  Retrying in %s seconds.", failure, delay)
-        else:
-            svclog.error(
-                "Failed to POST agent to master. Not retrying, because the "
-                "agent is shutting down.")
-
-        if not self.shutting_down:
-            return reactor.callLater(
-                http_retry_delay(), self.post_agent_to_master)
-
-    def callback_post_agent_to_master(self, response):
-        """
-        Called when we get a response after POSTing the agent to the
-        master.
-        """
-        # Master might be down or some other internal problem
-        # that might eventually be fixed.  Retry the request.
-        if response.code >= 500:
-            if not self.shutting_down:
-                delay = http_retry_delay()
-                svclog.warning(
-                    "Failed to post to master due to a server side error "
-                    "error %s, retrying in %s seconds", response.code, delay)
-                reactor.callLater(delay, self.post_agent_to_master)
-            else:
-                svclog.warning(
-                    "Failed to post to master due to a server side error "
-                    "error %s. Not retrying, because the agent is shutting down",
-                    response.code)
-
-        # Master is up but is rejecting our request because there's something
-        # wrong with it.  Do not retry the request.
-        elif response.code >= 400:
-            svclog.error(
-                "%s accepted our POST request but responded with code %s "
-                "which is a client side error.  The message the server "
-                "responded with was %r.  Sorry, but we cannot retry this "
-                "request as it's an issue with the agent's request.",
-                self.agents_endpoint(), response.code, response.data())
-
-        else:
-            data = response.json()
-            config["agent_id"] = data["id"]
-            config.master_contacted()
-
-            if response.code == OK:
-                svclog.info(
-                    "POST to %s was successful. Agent %s was updated.",
-                    self.agents_endpoint(), config["agent_id"])
-
-            elif response.code == CREATED:
-                svclog.info(
-                    "POST to %s was successful.  A new agent "
-                    "with an id of %s was created.",
-                    self.agents_endpoint(), config["agent_id"])
-
+    @inlineCallbacks
     def post_agent_to_master(self):
         """
         Runs the POST request to contact the master.  Running this method
         multiple times should be considered safe but is generally something
         that should be avoided.
         """
-        return post(
-            self.agents_endpoint(),
-            callback=self.callback_post_agent_to_master,
-            errback=self.errback_post_agent_to_master,
-            data=self.system_data())
+        url = self.agents_endpoint()
+        data = self.system_data()
+
+        try:
+            response = yield post_direct(url, data=data)
+        except Exception as failure:
+            if isinstance(failure, ConnectionRefusedError):
+                svclog.error(
+                    "Failed to POST agent to master, the connection was "
+                    "refused. Retrying in %s seconds")
+            else:  # pragma: no cover
+                svclog.error(
+                    "Unhandled error when trying to POST the agent to the "
+                    "master. The error was %s.", failure)
+
+            if not self.shutting_down:
+                delay = http_retry_delay()
+                svclog.info(
+                    "Retrying failed POST to master in %s seconds.", delay)
+                yield deferLater(reactor, delay, self.post_agent_to_master)
+            else:
+                svclog.warning("Not retrying POST to master, shutting down.")
+
+        else:
+            # Master might be down or have some other internal problems
+            # that might eventually be fixed.  Retry the request.
+            if response.code >= INTERNAL_SERVER_ERROR:
+                if not self.shutting_down:
+                    delay = http_retry_delay()
+                    svclog.warning(
+                        "Failed to post to master due to a server side error "
+                        "error %s, retrying in %s seconds",
+                        response.code, delay)
+                    yield deferLater(reactor, delay, self.post_agent_to_master)
+                else:
+                    svclog.warning(
+                        "Failed to post to master due to a server side error "
+                        "error %s. Not retrying, because the agent is "
+                        "shutting down", response.code)
+
+            # Master is up but is rejecting our request because there's
+            # something wrong with it.  Do not retry the request.
+            elif response.code >= BAD_REQUEST:
+                text = yield response.text()
+                svclog.error(
+                    "%s accepted our POST request but responded with code %s "
+                    "which is a client side error.  The message the server "
+                    "responded with was %r.  Sorry, but we cannot retry this "
+                    "request as it's an issue with the agent's request.",
+                    url, response.code, text)
+
+            else:
+                data = yield treq.json_content(response)
+                config["agent_id"] = data["id"]
+                config.master_contacted()
+
+                if response.code == OK:
+                    svclog.info(
+                        "POST to %s was successful. Agent %s was updated.",
+                        url, config["agent_id"])
+
+                elif response.code == CREATED:
+                    svclog.info(
+                        "POST to %s was successful.  A new agent "
+                        "with an id of %s was created.",
+                        url, config["agent_id"])
+
+                returnValue(data)
 
     def callback_post_free_ram(self, response):
         """
