@@ -181,38 +181,25 @@ class DirectRequestTestCase(RequestTestCase):
 
 
 class TestRetryDelay(TestCase):
-    def test_default(self):
-        config["agent_http_retry_delay"] = .1
-        config["agent_http_retry_delay_minimum"] = .1
-        self.assertEqual(
-            http_retry_delay(uniform=True), config["agent_http_retry_delay"])
+    def test_config_defaults(self):
+        config["agent_http_retry_delay_factor"] = 0
+        config["agent_http_retry_delay_offset"] = 0
+        self.assertEqual(http_retry_delay(), 0)
+        config["agent_http_retry_delay_factor"] = 0
+        config["agent_http_retry_delay_offset"] = 1
+        self.assertEqual(http_retry_delay(), 1)
 
-    def test_custom_delay_multiplier(self):
+    def test_custom_offset_and_factor(self):
         self.assertEqual(
-            http_retry_delay(initial=1, uniform=False, get_delay=lambda: 2), 2)
+            http_retry_delay(offset=1, factor=1, rand=lambda: 1), 2)
 
-    def test_minimum_overrides(self):
-        config["agent_http_retry_delay"] = .1
-        config["agent_http_retry_delay_minimum"] = 1
-        self.assertEqual(
-            http_retry_delay(uniform=True),
-            config["agent_http_retry_delay_minimum"])
-
-    def test_minimum(self):
-        self.assertEqual(
-            http_retry_delay(
-                initial=5, uniform=True, get_delay=lambda: 1, minimum=3), 5)
-        self.assertEqual(
-            http_retry_delay(
-                initial=0, uniform=True, get_delay=lambda: 1, minimum=10), 10)
-
-    def test_invalid_type_initial(self):
+    def test_invalid_type_offset(self):
         with self.assertRaises(AssertionError):
-            http_retry_delay(initial="")
+            http_retry_delay(offset="")
 
-    def test_invalid_type_minimum(self):
+    def test_invalid_type_factor(self):
         with self.assertRaises(AssertionError):
-            http_retry_delay(minimum="")
+            http_retry_delay(factor="")
 
 
 class TestClientFunctions(RequestTestCase):
