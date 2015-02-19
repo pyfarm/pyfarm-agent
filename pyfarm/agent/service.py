@@ -49,7 +49,6 @@ import treq
 from ntplib import NTPClient
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
-from twisted.internet.task import deferLater
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
 
@@ -477,8 +476,6 @@ class Agent(object):
             "agent_id",
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
-        config.register_callback("free_ram", self.callback_free_ram_changed)
-        config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
     def stop(self):
@@ -735,111 +732,6 @@ class Agent(object):
                         url, config["agent_id"])
 
                 returnValue(data)
-
-    def callback_post_free_ram(self, response):
-        """
-        Called when we get a response back from the master
-        after POSTing a change for ``free_ram``
-        """
-        self.last_free_ram_post = time.time()
-        if response.code == OK:
-            svclog.info(
-                "POST %s {'free_ram': %d}` succeeded",
-                self.agent_api(), response.json()["free_ram"])
-
-        # Because this happens with a fairly high frequency we don't
-        # retry failed requests because we'll be running `post_free_ram`
-        # soon again anyway
-        else:
-            svclog.warning(
-                "Failed to post `free_ram` to %s: %s %s - %s",
-                self.agent_api(), response.code, responses[response.code],
-                response.json())
-
-    def errback_post_free_ram(self, failure):
-        """
-        Error handler which is called if we fail to post a ram
-        update to the master for some reason
-        """
-        svclog.error(
-            "Failed to post update to `free_ram` to the master: %s", failure)
-
-    def post_free_ram(self):
-        """
-        Posts the current nu
-        """
-        since_last_update = time.time() - self.last_free_ram_post
-        left_till_update = \
-            config["agent_ram_max_report_frequency"] - since_last_update
-
-        if left_till_update > 0:
-            svclog.debug(
-                "Skipping POST for `free_ram` change, %.2f seconds left "
-                "in current interval.", left_till_update)
-            deferred = Deferred()
-            deferred.callback("delay")
-            return deferred
-        else:
-            return post(self.agent_api(),
-                data={"free_ram": config["free_ram"]},
-                callback=self.callback_post_free_ram,
-                errback=self.errback_post_free_ram)
-
-    def callback_free_ram_changed(self, change_type, key, new_value, old_value):
-        """
-        Callback used to decide and act on changes to the
-        ``config['ram']`` value.
-        """
-        if change_type == config.MODIFIED:
-            if abs(new_value - old_value) < config["agent_ram_report_delta"]:
-                svclog.debug("Not enough change in free_ram to report")
-            else:
-                self.post_free_ram()
-
-    def errback_post_cpu_count_change(self, failure):
-        """
-        Error handler which is called if we fail to post a cpu count update
-        to an existing agent for some reason.
-        """
-        delay = http_retry_delay()
-        svclog.warning(
-            "There was error updating an existing agent: %s.  Retrying "
-            "in %r seconds", failure, delay)
-        reactor.callLater(delay, self.post_cpu_count(run=False))
-
-    def callback_post_cpu_count_change(self, response):
-        """
-        Called when we received a response from the master after
-        """
-        if response.code == OK:
-            svclog.info("CPU count change POSTed to %s", self.agent_api())
-        else:
-            delay = http_retry_delay()
-            svclog.warning(
-                "We expected to receive an OK response code but instead"
-                "we got %s.  Retrying in %s.", responses[response.code], delay)
-            reactor.callLater(delay, self.post_cpu_count(run=False))
-
-    def post_cpu_count(self, run=True):
-        """POSTs CPU count changes to the master"""
-        def run_post():
-            return post(self.agent_api(),
-                data={"cpus": config["agent_cpus"]},
-                callback=self.callback_post_cpu_count_change,
-                errback=self.errback_post_cpu_count_change)
-        return run_post() if run else run_post
-
-    def callback_cpu_count_changed(
-            self, change_type, key, new_value, old_value):
-        """
-        Callback used to decide and act on changes to the
-        ``config['cpus']`` value.
-        """
-        if change_type == config.MODIFIED and new_value != old_value:
-            svclog.debug(
-                "CPU count has been changed from %s to %s",
-                old_value, new_value)
-            self.post_cpu_count()
 
     def callback_agent_id_set(
             self, change_type, key, new_value, old_value, shutdown_events=True):
