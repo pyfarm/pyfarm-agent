@@ -106,12 +106,11 @@ agent_shutdown_timeout: 15
 
 # If an http request fails, use this as the base value
 # to help determine how long we should wait before retrying
-agent_http_retry_delay: 5
+agent_http_retry_delay_factor: 5
 
-# When the delay is calculated it can't go below certain value.  This
-# configuration variable controls what the lowest possibly retry delay
-# may be.
-agent_http_retry_delay_minimum: 1
+# Number of seconds to offset from zero when calculating the
+# http retry delay.
+agent_http_retry_delay_offset: 1
 
 # Controls if the http client connection should be persistent or
 # not.  Generally this should always be True because the connection
