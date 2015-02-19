@@ -175,7 +175,7 @@ def build_url(url, params=None):
     return quote_url(url)
 
 
-def http_retry_delay(offset=None, factor=None):
+def http_retry_delay(offset=None, factor=None, rand=None):
     """
     Returns a floating point value that can be used to delay
     an http request.  The main purpose of this is to ensure that not all
@@ -196,12 +196,14 @@ def http_retry_delay(offset=None, factor=None):
         variable.
 
     :param offset:
-        The
-        Ensures that the value returned from this function is greater than
-        or equal to a offset value.
+        The initial offset to start the calculation at.
 
         This defaults to the ``agent_http_retry_delay_offset`` configuration
         variable.
+
+    :param rand:
+        A callable to determine randomness, defaulting to :func:`random`.  This
+        is mainly used for testing purposes.
     """
     if factor is None:
         factor = config["agent_http_retry_delay_factor"]
@@ -209,10 +211,13 @@ def http_retry_delay(offset=None, factor=None):
     if offset is None:
         offset = config["agent_http_retry_delay_offset"]
 
+    if rand is None:
+        rand = random
+
     assert isinstance(factor, DELAY_NUMBER_TYPES)
     assert isinstance(offset, DELAY_NUMBER_TYPES)
 
-    return offset + (random() * factor)
+    return offset + (rand() * factor)
 
 
 class Request(namedtuple("Request", ("method", "url", "kwargs"))):
