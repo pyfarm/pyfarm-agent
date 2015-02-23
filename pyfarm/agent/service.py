@@ -590,14 +590,18 @@ class Agent(object):
                         "State update failed due to unhandled error: %s.  "
                         "Retrying in %s seconds",
                         failure, delay)
+
+                    # Wait for 'pause' to fire, introducing a delay
                     pause = Deferred()
                     reactor.callLater(delay, pause.callback, None)
                     yield pause
+
                 else:
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
                         "Shutdown timeout reached, not retrying.",
                         failure)
+                    break
 
             else:
                 data = yield treq.json_content(response)
@@ -620,6 +624,8 @@ class Agent(object):
                             "State update failed due to server error: %s.  "
                             "Retrying in %s seconds.",
                             response.data(), delay)
+
+                        # Wait for 'pause' to fire, introducing a delay
                         pause = Deferred()
                         reactor.callLater(delay, pause.callback, None)
                         yield pause
