@@ -560,6 +560,7 @@ class Agent(object):
 
         self.stop()
 
+    @inlineCallbacks
     def post_shutdown_to_master(self, stop_reactor=True):
         """
         This method is called before the reactor shuts down and lets the
@@ -567,95 +568,69 @@ class Agent(object):
         """
         svclog.info("Informing master of shutdown")
 
-        # This deferred is fired when we've either been successful
-        # or failed to letting the master know we're shutting
-        # down.  It is the last object to fire so if you have to do
-        # other things, like stop the process, that should happen before
-        # the callback for this one is run.
-        finished = Deferred()
-
-        def post_update(run=True):
-            # NOTE: current_assignments *should* be empty now because the tasks
-            # should shutdown first.  If not then we'll let the master know.
-            def perform():
-                return post(
+        # Because post_shutdown_to_master is blocking and needs to
+        # stop the reactor from finishing we perform the retry in-line
+        data = None
+        while True:
+            try:
+                response = yield post_direct(
                     self.agent_api(),
                     data={
                         "state": AgentState.OFFLINE,
                         "free_ram": memory.free_ram(),
-                        "current_assignments": config["current_assignments"]},
-                    callback=results_from_post,
-                    errback=error_while_posting)
+                        "current_assignments": config["current_assignments"]})
 
-            return perform() if run else perform
-
-        def results_from_post(response):
-            if response.code == NOT_FOUND:
-                svclog.warning(
-                    "Agent %r no longer exists, cannot update state",
-                    config["agent_id"])
-                finished.callback(NOT_FOUND)
-
-            elif response.code == OK:
-                svclog.info(
-                    "Agent %r has shutdown successfully", config["agent_id"])
-                finished.callback(OK)
-
-            elif response.code >= INTERNAL_SERVER_ERROR:
-                if self.shutdown_timeout > datetime.utcnow():
-                    delay = http_retry_delay()
-                    svclog.warning(
-                        "State update failed due to server error: %s.  "
-                        "Retrying in %s seconds.",
-                        response.data(), delay)
-                    reactor.callLater(delay, response.request.retry)
-                else:
-                    svclog.warning(
-                        "State update failed due to server error: %s.  "
-                        "Shutdown timeout reached, not retrying.",
-                        response.data())
-                    finished.errback(INTERNAL_SERVER_ERROR)
-
-            else:
+            # When we get a hard failure it could be an issue with the
+            # server, although it's unlikely, so we retry.  Only retry
+            # for a set period of time though since the shutdown as a timeout
+            except Exception as failure:
                 if self.shutdown_timeout > datetime.utcnow():
                     delay = http_retry_delay()
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
-                        "Retrying in %s seconds.",
-                        response.data(), delay)
-                    reactor.callLater(delay, response.request.retry)
+                        "Retrying in %s seconds",
+                        failure, delay)
+                    pause = Deferred()
+                    reactor.callLater(delay, pause.callback, None)
+                    yield pause
                 else:
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
                         "Shutdown timeout reached, not retrying.",
-                        response.data())
-                    finished.errback(response.code)
+                        failure)
 
-        def error_while_posting(failure):
-            if self.shutdown_timeout > datetime.utcnow():
-                delay = http_retry_delay()
-                svclog.warning(
-                    "State update failed due to unhandled error: %s.  "
-                    "Retrying in %s seconds",
-                    failure, delay)
-                reactor.callLater(delay, post_update(run=False))
             else:
-                svclog.warning(
-                    "State update failed due to unhandled error: %s.  "
-                    "Shutdown timeout reached, not retrying.",
-                    failure)
-                finished.errback(failure)
+                data = yield treq.json_content(response)
+                if response.code == NOT_FOUND:
+                    svclog.warning(
+                        "Agent %r no longer exists, cannot update state.",
+                        config["agent_id"])
+                    break
 
-        # Post our current state to the master.  We're only posting free_ram
-        # and state here because all other fields would be updated the next
-        # time the agent starts up.  free_ram would be too but having it
-        # here is beneficial in cases where the agent terminated abnormally.
-        post_update()
+                elif response.code == OK:
+                    svclog.info(
+                        "Agent %r has shutdown successfully.",
+                        config["agent_id"])
+                    break
 
-        if stop_reactor:
-            finished.addBoth(lambda *_: reactor.stop())
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    if self.shutdown_timeout > datetime.utcnow():
+                        delay = http_retry_delay()
+                        svclog.warning(
+                            "State update failed due to server error: %s.  "
+                            "Retrying in %s seconds.",
+                            response.data(), delay)
+                        pause = Deferred()
+                        reactor.callLater(delay, pause.callback, None)
+                        yield pause
+                    else:
+                        svclog.warning(
+                            "State update failed due to server error: %s.  "
+                            "Shutdown timeout reached, not retrying.",
+                            data)
+                        break
 
-        return finished
+        returnValue(data)
 
     @inlineCallbacks
     def post_agent_to_master(self):
