@@ -21,9 +21,11 @@ from datetime import datetime, timedelta
 from platform import platform
 
 try:
-    from httplib import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
+    from httplib import (
+        OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND)
 except ImportError:  # pragma: no cover
-    from http.client import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
+    from http.client import (
+        OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND)
 
 from mock import patch
 from twisted.internet import reactor
@@ -40,7 +42,7 @@ from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog
-from pyfarm.agent.sysinfo import network, graphics
+from pyfarm.agent.sysinfo import network, graphics, memory
 
 
 class HTTPReceiver(Resource):
@@ -413,6 +415,88 @@ class TestAgentPostToMaster(TestCase):
 
         for message, args, kwargs in warning_messages:
             if "Not retrying POST to master, shutting down." in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+
+class TestPostShutdownToMaster(TestCase):
+    def setUp(self):
+        super(TestPostShutdownToMaster, self).setUp()
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+        config["shutting_down"] = True
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["state"] = AgentState.ONLINE
+
+        # Mock out memory.free_ram
+        self.free_ram_mock = patch.object(
+            memory, "free_ram", return_value=424242)
+        self.free_ram_mock.start()
+
+        self.normal_result = {
+            "state": AgentState.OFFLINE,
+            "current_assignments": {},
+            "free_ram": 424242
+        }
+
+    @inlineCallbacks
+    def tearDown(self):
+        super(TestPostShutdownToMaster, self).tearDown()
+        self.free_ram_mock.stop()
+        yield self.server.loseConnection()
+
+    @inlineCallbacks
+    def test_assert_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = False
+
+        with self.assertRaises(AssertionError):
+            yield agent.post_shutdown_to_master()
+
+    @inlineCallbacks
+    def test_post_not_found(self):
+        self.fake_api.code = NOT_FOUND
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        with patch.object(svclog, "warning", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+
+        for message, args, kwargs in messages:
+            if "no longer exists, cannot update state." in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_post_ok(self):
+        self.fake_api.code = OK
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        with patch.object(svclog, "info", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+
+        for message, args, kwargs in messages:
+            if "has POSTed shutdown state change successfully." in message:
                 break
         else:
             self.fail("Never found log message.")
