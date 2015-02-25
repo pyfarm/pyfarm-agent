@@ -566,6 +566,11 @@ class Agent(object):
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``
         """
+        # We're under the assumption that something's wrong with
+        # our code if we try to call this method before self.shutting_down
+        # is set.
+        assert self.shutting_down
+
         svclog.info("Informing master of shutdown")
 
         # Because post_shutdown_to_master is blocking and needs to
