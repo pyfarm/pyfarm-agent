@@ -618,7 +618,8 @@ class Agent(object):
 
                 elif response.code == OK:
                     svclog.info(
-                        "Agent %r has shutdown successfully.",
+                        "Agent %r has POSTed shutdown state change "
+                        "successfully.",
                         config["agent_id"])
                     break
 
