@@ -141,6 +141,24 @@ class TestAgentServiceAttributes(TestCase):
         self.assertEqual(
             schedule_call_args[0][0][1], agent.reannounce)
 
+    def test_callback_shutting_down_true(self):
+        config["agent_shutdown_timeout"] = 4242
+        agent = Agent()
+        self.assertIsNone(agent.shutdown_timeout)
+        agent.shutting_down = True
+        self.assertIsInstance(agent.shutdown_timeout, datetime)
+        expected = timedelta(
+            seconds=config["agent_shutdown_timeout"]) + datetime.utcnow()
+        self.assertDateAlmostEqual(agent.shutdown_timeout, expected)
+
+    def test_callback_shutting_down_false(self):
+        config["agent_shutdown_timeout"] = 4242
+        agent = Agent()
+        self.assertIsNone(agent.shutdown_timeout)
+        agent.shutting_down = True
+        agent.shutting_down = False
+        self.assertIsNone(agent.shutdown_timeout)
+
     def test_shutting_down_getter(self):
         config["shutting_down"] = 42
         agent = Agent()
