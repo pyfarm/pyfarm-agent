@@ -87,12 +87,18 @@ class Agent(object):
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
         self.repeating_call_counter = {}
+        self.shutdown_timeout = None
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
         # that once we start the announcement process we
         # won't try another until we're finished
         self.reannounce_client_request = None
+
+        # Register a callback so self.shutdown_timeout is set when
+        # "shutting_down" is set or modified.
+        config.register_callback(
+            "shutting_down", self.callback_shutting_down_changed)
 
     @classmethod
     def agent_api(cls):
@@ -744,3 +750,21 @@ class Agent(object):
 
             self.repeating_call(
                 config["agent_master_reannounce"], self.reannounce)
+
+    def callback_shutting_down_changed(
+            self, change_type, key, new_value, old_value):
+        """
+        When `shutting_down` is changed in the configuration, set or
+        reset self.shutdown_timeout
+        """
+        if change_type not in (config.MODIFIED, config.CREATED):
+            return
+
+        if new_value is not True:
+            self.shutdown_timeout = None
+            return
+
+        self.shutdown_timeout = \
+            datetime.utcnow() + timedelta(
+                seconds=config["agent_shutdown_timeout"])
+        svclog.debug("New shutdown_timeout is %s", self.shutdown_timeout)
