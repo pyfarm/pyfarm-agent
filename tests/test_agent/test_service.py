@@ -519,3 +519,49 @@ class TestPostShutdownToMaster(TestCase):
                 break
         else:
             self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_post_internal_server_error_timeout_expired(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
+        with patch.object(svclog, "warning", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+
+        for message, args, kwargs in messages:
+            if "Shutdown timeout reached, not retrying." in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_post_internal_server_error_retries(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+        with patch.object(svclog, "warning", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+
+        count = 0
+        for message, args, kwargs in messages:
+            if "State update failed due to server error: %s.  " \
+               "Retrying in %s seconds." in message:
+                count += 1
+
+        self.assertGreaterEqual(count, 2)
