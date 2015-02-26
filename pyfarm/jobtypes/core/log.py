@@ -70,7 +70,7 @@ def open_log(path, ignore_existing=False):
                 raise
 
         logger.debug("Opening log file %r", path)
-        return open(path, "w")
+        return open(path, "wb")
 
 
 class CSVLog(object):
