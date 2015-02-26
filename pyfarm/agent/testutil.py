@@ -419,11 +419,14 @@ class TestCase(_TestCase):
             config.pop(key, None)
 
         config.update({
+            # Default to a uniform retry delay of one second
+            "agent_http_retry_delay_offset": 1,
+            "agent_http_retry_delay_factor": 0,
+
             "shutting_down": False,
             "jobtypes": {},
             "current_assignments": {},
             "agent_id": uuid.uuid4(),
-            "agent_http_retry_delay": 1,
             "agent_http_persistent_connections": False,
             "master": PYFARM_AGENT_MASTER,
             "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
