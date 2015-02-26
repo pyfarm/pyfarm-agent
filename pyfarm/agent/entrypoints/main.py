@@ -373,9 +373,17 @@ class AgentEntryPoint(object):
             help="The default location where the agent's http server should "
                  "find static files to serve.")
         start_http_group.add_argument(
-            "--http-retry-delay", config="agent_http_retry_delay", type=number,
-            help="If a http request to the master has failed, wait this amount "
-                 "of time before trying again")
+            "--http-retry-delay-offset",
+            config="agent_http_retry_delay_offset", type=number,
+            help="If a http request to the master has failed, wait at least "
+                 "this amount of time before resending the request.")
+        start_http_group.add_argument(
+            "--http-retry-delay-factor",
+            config="agent_http_retry_delay_factor", type=number,
+            help="The value provided here is used in combination with "
+                 "--http-retry-delay-offset to calculate the retry delay.  "
+                 "This is used as a multiplier against random() before being "
+                 "added to the offset.")
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
