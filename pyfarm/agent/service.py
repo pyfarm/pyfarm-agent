@@ -26,6 +26,7 @@ such as log reading, system information gathering, and management of processes.
 import atexit
 import os
 import time
+import uuid
 from datetime import datetime, timedelta
 from errno import ENOENT
 from functools import partial
@@ -44,12 +45,14 @@ except ImportError:  # pragma: no cover
     from http.client import (
         responses, OK, CREATED, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 
+import treq
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.task import deferLater
 
-from pyfarm.core.enums import AgentState
+from pyfarm.core.enums import NUMERIC_TYPES, AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
@@ -58,12 +61,11 @@ from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
-from pyfarm.agent.http.core.client import post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.tasks import ScheduledTaskManager
 from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
 
 svclog = getLogger("agent.service")
@@ -84,17 +86,13 @@ class Agent(object):
         self.services = {}
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
+        self.repeating_call_counter = {}
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
         # that once we start the announcement process we
         # won't try another until we're finished
         self.reannounce_client_request = None
-
-        # Setup scheduled tasks
-        self.scheduled_tasks = ScheduledTaskManager()
-        self.scheduled_tasks.register(
-            self.reannounce, config["agent_master_reannounce"])
 
     @classmethod
     def agent_api(cls):
@@ -125,6 +123,97 @@ class Agent(object):
     def shutting_down(self, value):
         assert value in (True, False)
         config["shutting_down"] = value
+
+    def repeating_call(
+            self, delay, function, function_args=None, function_kwargs=None,
+            now=True, repeat_max=None, function_id=None):
+        """
+        Causes ``function`` to be called repeatedly up until ``repeat_max``
+        or until stopped.
+
+        :param int delay:
+            Number of seconds to delay between calls of ``function``.
+
+            ..  note::
+
+                ``delay`` is an approximate interval between when one call ends
+                and the next one begins.  The exact time can vary due
+                to how the Twisted reactor runs, how long it takes
+                ``function`` to run and what else may be going on in the
+                agent at the time.
+
+        :param function:
+            A callable function to run
+
+        :type function_args: tuple, list
+        :keyword function_args:
+            Arguments to pass into ``function``
+
+        :keyword dict function_kwargs:
+            Keywords to pass into ``function``
+
+        :keyword bool now:
+            If True then run ``function`` right now in addition
+            to scheduling it.
+
+        :keyword int repeat_max:
+            Repeat calling ``function`` this may times.  If not provided
+            then we'll continue to repeat calling ``function`` until
+            the agent shuts down.
+
+        :keyword uuid.UUID function_id:
+            Used internally to track a function's execution count.  This
+            keyword exists so if you call :meth:`repeating_call` multiple
+            times on the same function or method it will handle ``repeat_max``
+            properly.
+        """
+        if self.shutting_down:
+            svclog.debug(
+                "Skipping task %s(*%r, **%r) [shutting down]",
+                function.__name__, function_args, function_kwargs
+            )
+            return
+
+        if function_args is None:
+            function_args = ()
+
+        if function_kwargs is None:
+            function_kwargs = {}
+
+        if function_id is None:
+            function_id = uuid.uuid4()
+
+        assert isinstance(delay, NUMERIC_TYPES[:-1])
+        assert callable(function)
+        assert isinstance(function_args, (list, tuple))
+        assert isinstance(function_kwargs, dict)
+        assert repeat_max is None or isinstance(repeat_max, int)
+        repeat_count = self.repeating_call_counter.setdefault(function_id, 0)
+
+        if repeat_max is None or repeat_count < repeat_max:
+            svclog.debug(
+                "Executing task %s(*%r, **%r).  Next execution in %s seconds.",
+                function.__name__, function_args, function_kwargs, delay
+            )
+
+            # Run this function right now using another deferLater so
+            # it's scheduled by the reactor and executed before we schedule
+            # another.
+            if now:
+                deferLater(
+                    reactor, 0, function, *function_args, **function_kwargs
+                )
+                self.repeating_call_counter[function_id] += 1
+                repeat_count = self.repeating_call_counter[function_id]
+
+            # Schedule the next call but only if we have not hit the max
+            if repeat_max is None or repeat_count < repeat_max:
+                deferLater(
+                    reactor, delay, self.repeating_call, delay,
+                    function, function_args=function_args,
+                    function_kwargs=function_kwargs, now=True,
+                    repeat_max=repeat_max, function_id=function_id
+                )
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
@@ -387,8 +476,6 @@ class Agent(object):
             "agent_id",
             partial(
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
-        config.register_callback("free_ram", self.callback_free_ram_changed)
-        config.register_callback("cpus", self.callback_cpu_count_changed)
         return self.post_agent_to_master()
 
     def stop(self):
@@ -424,8 +511,6 @@ class Agent(object):
                         config["agent_lock_file"], e)
 
             atexit.register(remove_pidfile)
-
-            self.scheduled_tasks.stop()
 
             svclog.debug("Stopping execution of jobtypes")
             for uuid, jobtype in config["jobtypes"].items():
@@ -572,193 +657,81 @@ class Agent(object):
 
         return finished
 
-    def errback_post_agent_to_master(self, failure):
-        """
-        Called when there's a failure trying to post the agent to the
-        master.  This is often because of some lower level issue but it
-        may be recoverable to we retry the request.
-        """
-        delay = http_retry_delay()
-
-        if failure.type is ConnectionRefusedError and not self.shutting_down:
-            svclog.error(
-                "Failed to POST agent to master, the connection was refused. "
-                "Retrying in %s seconds", delay)
-        elif not self.shutting_down:
-            svclog.error(
-                "Unhandled error when trying to POST the agent to the master. "
-                "The error was %s.  Retrying in %s seconds.", failure, delay)
-        else:
-            svclog.error(
-                "Failed to POST agent to master. Not retrying, because the "
-                "agent is shutting down.")
-
-        if not self.shutting_down:
-            return reactor.callLater(
-                http_retry_delay(), self.post_agent_to_master)
-
-    def callback_post_agent_to_master(self, response):
-        """
-        Called when we get a response after POSTing the agent to the
-        master.
-        """
-        # Master might be down or some other internal problem
-        # that might eventually be fixed.  Retry the request.
-        if response.code >= 500:
-            if not self.shutting_down:
-                delay = http_retry_delay()
-                svclog.warning(
-                    "Failed to post to master due to a server side error "
-                    "error %s, retrying in %s seconds", response.code, delay)
-                reactor.callLater(delay, self.post_agent_to_master)
-            else:
-                svclog.warning(
-                    "Failed to post to master due to a server side error "
-                    "error %s. Not retrying, because the agent is shutting down",
-                    response.code)
-
-        # Master is up but is rejecting our request because there's something
-        # wrong with it.  Do not retry the request.
-        elif response.code >= 400:
-            svclog.error(
-                "%s accepted our POST request but responded with code %s "
-                "which is a client side error.  The message the server "
-                "responded with was %r.  Sorry, but we cannot retry this "
-                "request as it's an issue with the agent's request.",
-                self.agents_endpoint(), response.code, response.data())
-
-        else:
-            data = response.json()
-            config["agent_id"] = data["id"]
-            config.master_contacted()
-
-            if response.code == OK:
-                svclog.info(
-                    "POST to %s was successful. Agent %s was updated.",
-                    self.agents_endpoint(), config["agent_id"])
-
-            elif response.code == CREATED:
-                svclog.info(
-                    "POST to %s was successful.  A new agent "
-                    "with an id of %s was created.",
-                    self.agents_endpoint(), config["agent_id"])
-
+    @inlineCallbacks
     def post_agent_to_master(self):
         """
         Runs the POST request to contact the master.  Running this method
         multiple times should be considered safe but is generally something
         that should be avoided.
         """
-        return post(
-            self.agents_endpoint(),
-            callback=self.callback_post_agent_to_master,
-            errback=self.errback_post_agent_to_master,
-            data=self.system_data())
+        url = self.agents_endpoint()
+        data = self.system_data()
 
-    def callback_post_free_ram(self, response):
-        """
-        Called when we get a response back from the master
-        after POSTing a change for ``free_ram``
-        """
-        self.last_free_ram_post = time.time()
-        if response.code == OK:
-            svclog.info(
-                "POST %s {'free_ram': %d}` succeeded",
-                self.agent_api(), response.json()["free_ram"])
+        try:
+            response = yield post_direct(url, data=data)
+        except Exception as failure:
+            if isinstance(failure, ConnectionRefusedError):
+                svclog.error(
+                    "Failed to POST agent to master, the connection was "
+                    "refused. Retrying in %s seconds")
+            else:  # pragma: no cover
+                svclog.error(
+                    "Unhandled error when trying to POST the agent to the "
+                    "master. The error was %s.", failure)
 
-        # Because this happens with a fairly high frequency we don't
-        # retry failed requests because we'll be running `post_free_ram`
-        # soon again anyway
-        else:
-            svclog.warning(
-                "Failed to post `free_ram` to %s: %s %s - %s",
-                self.agent_api(), response.code, responses[response.code],
-                response.json())
-
-    def errback_post_free_ram(self, failure):
-        """
-        Error handler which is called if we fail to post a ram
-        update to the master for some reason
-        """
-        svclog.error(
-            "Failed to post update to `free_ram` to the master: %s", failure)
-
-    def post_free_ram(self):
-        """
-        Posts the current nu
-        """
-        since_last_update = time.time() - self.last_free_ram_post
-        left_till_update = \
-            config["agent_ram_max_report_frequency"] - since_last_update
-
-        if left_till_update > 0:
-            svclog.debug(
-                "Skipping POST for `free_ram` change, %.2f seconds left "
-                "in current interval.", left_till_update)
-            deferred = Deferred()
-            deferred.callback("delay")
-            return deferred
-        else:
-            return post(self.agent_api(),
-                data={"free_ram": config["free_ram"]},
-                callback=self.callback_post_free_ram,
-                errback=self.errback_post_free_ram)
-
-    def callback_free_ram_changed(self, change_type, key, new_value, old_value):
-        """
-        Callback used to decide and act on changes to the
-        ``config['ram']`` value.
-        """
-        if change_type == config.MODIFIED:
-            if abs(new_value - old_value) < config["agent_ram_report_delta"]:
-                svclog.debug("Not enough change in free_ram to report")
+            if not self.shutting_down:
+                delay = http_retry_delay()
+                svclog.info(
+                    "Retrying failed POST to master in %s seconds.", delay)
+                yield deferLater(reactor, delay, self.post_agent_to_master)
             else:
-                self.post_free_ram()
+                svclog.warning("Not retrying POST to master, shutting down.")
 
-    def errback_post_cpu_count_change(self, failure):
-        """
-        Error handler which is called if we fail to post a cpu count update
-        to an existing agent for some reason.
-        """
-        delay = http_retry_delay()
-        svclog.warning(
-            "There was error updating an existing agent: %s.  Retrying "
-            "in %r seconds", failure, delay)
-        reactor.callLater(delay, self.post_cpu_count(run=False))
-
-    def callback_post_cpu_count_change(self, response):
-        """
-        Called when we received a response from the master after
-        """
-        if response.code == OK:
-            svclog.info("CPU count change POSTed to %s", self.agent_api())
         else:
-            delay = http_retry_delay()
-            svclog.warning(
-                "We expected to receive an OK response code but instead"
-                "we got %s.  Retrying in %s.", responses[response.code], delay)
-            reactor.callLater(delay, self.post_cpu_count(run=False))
+            # Master might be down or have some other internal problems
+            # that might eventually be fixed.  Retry the request.
+            if response.code >= INTERNAL_SERVER_ERROR:
+                if not self.shutting_down:
+                    delay = http_retry_delay()
+                    svclog.warning(
+                        "Failed to post to master due to a server side error "
+                        "error %s, retrying in %s seconds",
+                        response.code, delay)
+                    yield deferLater(reactor, delay, self.post_agent_to_master)
+                else:
+                    svclog.warning(
+                        "Failed to post to master due to a server side error "
+                        "error %s. Not retrying, because the agent is "
+                        "shutting down", response.code)
 
-    def post_cpu_count(self, run=True):
-        """POSTs CPU count changes to the master"""
-        def run_post():
-            return post(self.agent_api(),
-                data={"cpus": config["agent_cpus"]},
-                callback=self.callback_post_cpu_count_change,
-                errback=self.errback_post_cpu_count_change)
-        return run_post() if run else run_post
+            # Master is up but is rejecting our request because there's
+            # something wrong with it.  Do not retry the request.
+            elif response.code >= BAD_REQUEST:
+                text = yield response.text()
+                svclog.error(
+                    "%s accepted our POST request but responded with code %s "
+                    "which is a client side error.  The message the server "
+                    "responded with was %r.  Sorry, but we cannot retry this "
+                    "request as it's an issue with the agent's request.",
+                    url, response.code, text)
 
-    def callback_cpu_count_changed(
-            self, change_type, key, new_value, old_value):
-        """
-        Callback used to decide and act on changes to the
-        ``config['cpus']`` value.
-        """
-        if change_type == config.MODIFIED and new_value != old_value:
-            svclog.debug(
-                "CPU count has been changed from %s to %s",
-                old_value, new_value)
-            self.post_cpu_count()
+            else:
+                data = yield treq.json_content(response)
+                config["agent_id"] = data["id"]
+                config.master_contacted()
+
+                if response.code == OK:
+                    svclog.info(
+                        "POST to %s was successful. Agent %s was updated.",
+                        url, config["agent_id"])
+
+                elif response.code == CREATED:
+                    svclog.info(
+                        "POST to %s was successful.  A new agent "
+                        "with an id of %s was created.",
+                        url, config["agent_id"])
+
+                returnValue(data)
 
     def callback_agent_id_set(
             self, change_type, key, new_value, old_value, shutdown_events=True):
@@ -782,4 +755,5 @@ class Agent(object):
                 "`%s` was %s, adding system event trigger for shutdown",
                 key, change_type)
 
-            self.scheduled_tasks.start()
+            self.repeating_call(
+                config["agent_master_reannounce"], self.reannounce)

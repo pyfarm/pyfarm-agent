@@ -974,15 +974,15 @@ class JobType(Cache, System, Process, TypeChecks):
             process and this job type.
         """
         logger.info("Spawning %r", command)
-        logpool.log(protocol.uuid, STDERR,
+        logpool.log(protocol.uuid, "internal",
                     "Command: %s" % command.command)
-        logpool.log(protocol.uuid, STDERR,
+        logpool.log(protocol.uuid, "internal",
                     "Arguments: %s" % (command.arguments, ))
-        logpool.log(protocol.uuid, STDERR, "Work Dir: %s" % command.cwd)
-        logpool.log(protocol.uuid, STDERR, "User/Group: %s %s" % (
+        logpool.log(protocol.uuid, "internal", "Work Dir: %s" % command.cwd)
+        logpool.log(protocol.uuid, "internal", "User/Group: %s %s" % (
             command.user, command.group))
-        logpool.log(protocol.uuid, STDERR, "Environment:")
-        logpool.log(protocol.uuid, STDERR, pformat(command.env, indent=4))
+        logpool.log(protocol.uuid, "internal", "Environment:")
+        logpool.log(protocol.uuid, "internal", pformat(command.env, indent=4))
 
     def process_stopped(self, protocol, reason):
         """
@@ -1064,6 +1064,8 @@ class JobType(Cache, System, Process, TypeChecks):
             lines = output.split("\n")
             if ends_on_fragment:
                 dangling_fragment = lines.pop(-1)
+            else:
+                lines.pop(-1)
 
             for line in lines:
                 if protocol.uuid in line_fragments:
@@ -1366,7 +1368,7 @@ class JobType(Cache, System, Process, TypeChecks):
         :param protocol:
             The protocol instance which produced ``stderr``
 
-        :param string stderr:
+        :param string stdout:
             A complete line to ``stdout`` after it has been formatted and
             logged.
 
