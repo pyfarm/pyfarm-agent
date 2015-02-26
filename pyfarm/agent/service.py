@@ -764,7 +764,6 @@ class Agent(object):
             self.shutdown_timeout = None
             return
 
-        self.shutdown_timeout = \
-            datetime.utcnow() + timedelta(
-                seconds=config["agent_shutdown_timeout"])
+        self.shutdown_timeout = timedelta(
+            seconds=config["agent_shutdown_timeout"]) + datetime.utcnow()
         svclog.debug("New shutdown_timeout is %s", self.shutdown_timeout)
