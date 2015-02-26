@@ -104,13 +104,15 @@ agent_master_reannounce: 120
 # the master that it's shutting down.
 agent_shutdown_timeout: 15
 
-# If an http request fails, use this as the base value
-# to help determine how long we should wait before retrying
-agent_http_retry_delay_factor: 5
-
 # Number of seconds to offset from zero when calculating the
 # http retry delay.
 agent_http_retry_delay_offset: 1
+
+# If an http request fails, use this as the base value
+# to help determine how long we should wait before retrying.  This
+# value is then used to calculate the final delay:
+#   agent_http_retry_delay_offset + (random() * agent_http_retry_delay_factor)
+agent_http_retry_delay_factor: 5
 
 # Controls if the http client connection should be persistent or
 # not.  Generally this should always be True because the connection
