@@ -280,6 +280,9 @@ class JobType(Cache, System, Process, TypeChecks):
         # self.assignment
         logger.debug("Instanced %r", self)
 
+    def _close_logs(self):
+        logpool.close_log(self.uuid)
+
     def __repr__(self):
         formatting = "%s(job=%r, tasks=%r, jobtype=%r, version=%r, title=%r)"
         return formatting % (
@@ -974,15 +977,15 @@ class JobType(Cache, System, Process, TypeChecks):
             process and this job type.
         """
         logger.info("Spawning %r", command)
-        logpool.log(protocol.uuid, "internal",
-                    "Command: %s" % command.command)
-        logpool.log(protocol.uuid, "internal",
+        logpool.log(self.uuid, "internal",
+                    "Spawning process. Command: %s" % command.command)
+        logpool.log(self.uuid, "internal",
                     "Arguments: %s" % (command.arguments, ))
-        logpool.log(protocol.uuid, "internal", "Work Dir: %s" % command.cwd)
-        logpool.log(protocol.uuid, "internal", "User/Group: %s %s" % (
+        logpool.log(self.uuid, "internal", "Work Dir: %s" % command.cwd)
+        logpool.log(self.uuid, "internal", "User/Group: %s %s" % (
             command.user, command.group))
-        logpool.log(protocol.uuid, "internal", "Environment:")
-        logpool.log(protocol.uuid, "internal", pformat(command.env, indent=4))
+        logpool.log(self.uuid, "internal", "Environment:")
+        logpool.log(self.uuid, "internal", pformat(command.env, indent=4))
 
     def process_stopped(self, protocol, reason):
         """
@@ -1306,7 +1309,7 @@ class JobType(Cache, System, Process, TypeChecks):
         if config["jobtype_capture_process_output"]:
             process_stdout.info("task %r: %s", protocol.id, stdout)
         else:
-            logpool.log(protocol.uuid, STDOUT, stdout)
+            logpool.log(self.uuid, STDOUT, stdout, protocol.pid)
 
     def log_stderr_line(self, protocol, stderr):
         """
@@ -1331,7 +1334,7 @@ class JobType(Cache, System, Process, TypeChecks):
         if config["jobtype_capture_process_output"]:
             process_stdout.info("task %r: %s", protocol.id, stderr)
         else:
-            logpool.log(protocol.uuid, STDERR, stderr)
+            logpool.log(self.uuid, STDERR, stderr, protocol.pid)
 
     def process_stderr_line(self, protocol, stderr):
         """
