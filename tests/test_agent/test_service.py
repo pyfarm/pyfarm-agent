@@ -429,7 +429,6 @@ class TestPostShutdownToMaster(TestCase):
         self.site = Site(self.resource)
         self.server = reactor.listenTCP(random_port(), self.site)
         config["master_api"] = "http://127.0.0.1:%s" % self.server.port
-        config["shutting_down"] = True
 
         # These usually come from the master.  We're setting them here
         # so we can operate the apis without actually talking to the
@@ -470,6 +469,7 @@ class TestPostShutdownToMaster(TestCase):
             messages.append((message, args, kwargs))
 
         agent = Agent()
+        agent.shutting_down = True
         with patch.object(svclog, "warning", capture_messages):
             result = yield agent.post_shutdown_to_master()
 
@@ -490,6 +490,7 @@ class TestPostShutdownToMaster(TestCase):
             messages.append((message, args, kwargs))
 
         agent = Agent()
+        agent.shutting_down = True
         with patch.object(svclog, "info", capture_messages):
             result = yield agent.post_shutdown_to_master()
 
