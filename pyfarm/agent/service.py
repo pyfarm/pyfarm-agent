@@ -635,7 +635,7 @@ class Agent(object):
                         svclog.warning(
                             "State update failed due to server error: %s.  "
                             "Retrying in %s seconds.",
-                            response.data(), delay)
+                            data, delay)
 
                         # Wait for 'pause' to fire, introducing a delay
                         pause = Deferred()
