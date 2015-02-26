@@ -122,24 +122,26 @@ class TestCSVBase(TestCase):
 
     def get_writer(self):
         stream = open(self.create_file(), "w")
-        return UnicodeCSVWriter(stream), stream.name
+        return UnicodeCSVWriter(stream), stream
 
 
 class TestCSVWriter(TestCSVBase):
     def test_writerow(self):
-        writer, path = self.get_writer()
+        writer, stream = self.get_writer()
+        path = stream.name
         row = self.get_row()
         writer.writerow(row)
-        writer.stream.close()
+        stream.close()
         with open(path, "r") as stream:
             written_row = stream.read()
         self.assertEqual(written_row.strip(), ",".join(row))
 
     def test_writerows(self):
-        writer, path = self.get_writer()
+        writer, stream = self.get_writer()
+        path = stream.name
         rows = [self.get_row() for _ in range(5)]
         writer.writerows(rows)
-        writer.stream.close()
+        stream.close()
         with open(path, "r") as stream:
             written_rows = stream.read()
 
@@ -149,10 +151,11 @@ class TestCSVWriter(TestCSVBase):
 
 class TestCSVReader(TestCSVBase):
     def test_iter(self):
-        writer, path = self.get_writer()
+        writer, stream = self.get_writer()
+        path = stream.name
         rows = [self.get_row() for _ in range(5)]
         writer.writerows(rows)
-        writer.stream.close()
+        stream.close()
         reader = UnicodeCSVReader(open(path))
 
         written_rows = []
@@ -161,10 +164,11 @@ class TestCSVReader(TestCSVBase):
         self.assertEqual(written_rows, rows)
 
     def test_next(self):
-        writer, path = self.get_writer()
+        writer, stream = self.get_writer()
+        path = stream.name
         rows = [self.get_row() for _ in range(5)]
         writer.writerows(rows)
-        writer.stream.close()
+        stream.close()
         reader = UnicodeCSVReader(open(path))
 
         written_rows = []

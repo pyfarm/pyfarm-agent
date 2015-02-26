@@ -67,7 +67,7 @@ class TestModuleLevel(TestCase):
         result = open_log(outfile)
         self.assertTrue(isfile(outfile))
         self.assertIsInstance(result, file)
-        self.assertEqual(result.mode, "w")
+        self.assertEqual(result.mode, "wb")
 
     def test_file_exists(self):
         outdir, _ = self.create_directory(0)
