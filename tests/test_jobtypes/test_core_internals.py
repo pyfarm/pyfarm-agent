@@ -164,6 +164,11 @@ class TestProcess(TestCase):
 
         # Make sure the logfile actually exists on disk, otherwise the
         # _process_stopped tests will fail
+        try:
+            makedirs(config["jobtype_task_logs"])
+        except OSError as e:
+            if e.errno != EEXIST:
+                raise
         with open(join(config["jobtype_task_logs"],
                        self.process.log_identifier), "wb"):
             pass
@@ -176,11 +181,6 @@ class TestProcess(TestCase):
 
         # Create a dummy logfile
         logfile_path = join(config["jobtype_task_logs"], "logid")
-        try:
-            makedirs(config["jobtype_task_logs"])
-        except OSError as e:
-            if e.errno != EEXIST:
-                raise
         with open(logfile_path, "w+") as fakelog:
             fakelog.write("test")
 
