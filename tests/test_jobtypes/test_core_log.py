@@ -30,7 +30,7 @@ from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.jobtypes.core.log import (
-    STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool, open_log)
+    STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool)
 
 
 class FakeProtocol(object):
@@ -48,34 +48,11 @@ class TestModuleLevel(TestCase):
     def test_streams(self):
         self.assertEqual(STREAMS, set([STDERR, STDOUT]))
 
-    def test_open_log_creates_dir(self):
-        outdir, _ = self.create_directory(0)
-        outfile = join(outdir, "test.log")
-        open_log(outfile)
-        self.assertTrue(isdir(outdir))
-
-    def test_open_log_creates_file(self):
-        outdir, _ = self.create_directory(0)
-        outfile = join(outdir, "test.log")
-        result = open_log(outfile)
-        self.assertTrue(isfile(outfile))
-        self.assertIsInstance(result, file)
-        self.assertEqual(result.mode, "wb")
-
-    def test_file_exists(self):
-        outdir, _ = self.create_directory(0)
-        outfile = join(outdir, "test.log")
-        open_log(outfile)
-
-        with self.assertRaisesRegexp(OSError, re.compile(".*exists.*")):
-            open_log(outfile)
-
 
 class TestCSVLog(TestCase):
     def setUp(self):
         super(TestCSVLog, self).setUp()
-        self.log = CSVLog(
-            open_log(self.create_file(), ignore_existing=True))
+        self.log = CSVLog(open(self.create_file(), "wb"))
 
     @skipIf(PY26, "Python 2.7+")
     def test_lock_type(self):
@@ -104,7 +81,7 @@ class TestCSVLog(TestCase):
             CSVLog("")
 
     def test_write(self):
-        data = (datetime.utcnow(), STDOUT, 1, "hello")
+        data = (datetime.utcnow(), STDOUT, 1, 1000, "hello")
         self.log.write(data)
         self.assertEqual(self.log.written, 1)
 
@@ -152,154 +129,113 @@ class TestLoggerPool(TestCase):
         protocol = FakeProtocol()
         pool = LoggerPool()
         pool.logs[protocol.uuid] = None
-        with self.assertRaises(KeyError):
+        with self.assertRaises(OSError):
             pool.open_log(protocol, self.create_file())
-
-    def test_creates_log(self):
-        path = self.create_file(create=False)
-        protocol = FakeProtocol()
-        pool = self.pool = LoggerPool()
-        pool.start()
-        log_created = pool.open_log(protocol, path)
-
-        def created(result):
-            proto, log = result
-            self.assertEqual(proto, protocol.uuid)
-            self.assertIsInstance(log, CSVLog)
-            self.assertTrue(isfile(log.file.name))
-            self.assertEqual(abspath(log.file.name), abspath(path))
-
-        log_created.addCallback(created)
-        return log_created
 
     def test_no_log_when_stopped(self):
         path = self.create_file(create=False)
         protocol = FakeProtocol()
         pool = self.pool = LoggerPool()
         pool.start()
-        log_created = pool.open_log(protocol, path)
+        pool.open_log(protocol, path)
 
-        def created(_):
-            pool.stop()
-            pool.log(protocol.uuid, STDOUT, "")
-            self.assertEqual(pool.logs, {})
-
-        log_created.addCallback(created)
-        return log_created
+        pool.stop()
+        pool.log(protocol.uuid, STDOUT, "")
+        self.assertEqual(pool.logs, {})
 
     def test_log(self):
         path = self.create_file(create=False)
-        protocol = FakeProtocol()
+        uuid = uuid4
         pool = self.pool = LoggerPool()
         pool.start()
-        log_created = pool.open_log(protocol, path)
+        pool.open_log(uuid, path)
 
-        def created(_):
-            message = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[0][-1], message)
-            self.assertEqual(pool.logs[protocol.uuid].lines, 1)
-
-        log_created.addCallback(created)
-        return log_created
+        message = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message)
+        self.assertEqual(list(pool.logs[uuid].messages)[0][-1], message)
+        self.assertEqual(pool.logs[uuid].lines, 1)
 
     def test_flush_from_log(self):
         path = self.create_file(create=False)
-        protocol = FakeProtocol()
+        uuid = uuid4()
         pool = self.pool = LoggerPool()
         pool.max_queued_lines = 2
         pool.flush_lines = 1
         pool.start()
-        log_created = pool.open_log(protocol, path)
+        pool.open_log(uuid, path)
         finished = Deferred()
 
-        def created(_):
-            # log two messages
-            message1 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message1)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
-            message2 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message2)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
-            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+        # log two messages
+        message1 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message1)
+        self.assertEqual(list(pool.logs[uuid].messages)[0][-1], message1)
+        message2 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message2)
+        self.assertEqual(list(pool.logs[uuid].messages)[1][-1], message2)
+        self.assertEqual(pool.logs[uuid].lines, 2)
 
-            # log a third message (which should cause a flush)
-            message3 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message3)
+        # log a third message (which should cause a flush)
+        message3 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message3)
 
-            # Keep checking to see if the data has been flushed
-            def check_for_flush():
-                if list(pool.logs[protocol.uuid].messages) == []:
-                    self.assertEqual(pool.logs[protocol.uuid].written, 0)
-                    finished.callback(True)
-                else:
-                    # not flushed yet maybe?
-                    reactor.callLater(.1, check_for_flush)
+        # Keep checking to see if the data has been flushed
+        def check_for_flush():
+            if list(pool.logs[uuid].messages) == []:
+                self.assertEqual(pool.logs[uuid].written, 0)
+                finished.callback(True)
+            else:
+                # not flushed yet maybe?
+                reactor.callLater(.1, check_for_flush)
 
-            reactor.callLater(.1, check_for_flush)
+        reactor.callLater(.1, check_for_flush)
 
-        log_created.addCallback(created)
         return finished
 
     def test_flush_log_object(self):
         path = self.create_file(create=False)
-        protocol = FakeProtocol()
+        uuid = uuid4()
         pool = self.pool = LoggerPool()
         pool.flush_lines = 1
         pool.start()
-        log_created = pool.open_log(protocol, path)
+        pool.open_log(uuid, path)
 
-        def created(_):
-            # log two messages
-            message1 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message1)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
-            message2 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message2)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
-            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+        # log two messages
+        message1 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message1)
+        self.assertEqual(list(pool.logs[uuid].messages)[0][-1], message1)
+        message2 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message2)
+        self.assertEqual(
+            list(pool.logs[uuid].messages)[1][-1], message2)
+        self.assertEqual(pool.logs[uuid].lines, 2)
 
-            result = pool.flush(pool.logs[protocol.uuid])
-            self.assertEqual(list(pool.logs[protocol.uuid].messages), [])
-            self.assertIs(result, pool.logs[protocol.uuid])
-            self.assertEqual(pool.logs[protocol.uuid].written, 0)
-
-        log_created.addCallback(created)
-        return log_created
+        result = pool.flush(pool.logs[uuid])
+        self.assertEqual(list(pool.logs[uuid].messages), [])
+        self.assertIs(result, pool.logs[uuid])
+        self.assertEqual(pool.logs[uuid].written, 0)
 
     def test_stop(self):
         path = self.create_file(create=False)
-        protocol = FakeProtocol()
+        uuid = uuid4()
         pool = self.pool = LoggerPool()
         pool.start()
-        log_created = pool.open_log(protocol, path)
+        pool.open_log(uuid, path)
 
-        def created(_):
-            # log two messages
-            message1 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message1)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[0][-1], message1)
-            message2 = urandom(16).encode("hex")
-            pool.log(protocol.uuid, STDOUT, message2)
-            self.assertEqual(
-                list(pool.logs[protocol.uuid].messages)[1][-1], message2)
-            self.assertEqual(pool.logs[protocol.uuid].lines, 2)
+        # log two messages
+        message1 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message1)
+        self.assertEqual(list(pool.logs[uuid].messages)[0][-1], message1)
+        message2 = urandom(16).encode("hex")
+        pool.log(uuid, STDOUT, message2)
+        self.assertEqual(list(pool.logs[uuid].messages)[1][-1], message2)
+        self.assertEqual(pool.logs[uuid].lines, 2)
 
-            log = pool.logs[protocol.uuid]
-            self.assertFalse(pool.stopped)
-            pool.stop()
-            self.assertTrue(pool.stopped)
-            self.assertNotIn(protocol.uuid, pool.logs)
-            self.assertTrue(log.file.closed)
-
-        log_created.addCallback(created)
-        return log_created
+        log = pool.logs[uuid]
+        self.assertFalse(pool.stopped)
+        pool.stop()
+        self.assertTrue(pool.stopped)
+        self.assertNotIn(uuid, pool.logs)
+        self.assertTrue(log.file.closed)
 
     def test_start(self):
         existing_entries = reactor._eventTriggers["shutdown"].before[:]
