@@ -30,8 +30,7 @@ from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.utility import UnicodeCSVWriter
 from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.jobtypes.core.log import (
-    CREATE_LOG_LOCK, STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool,
-    open_log)
+    STDOUT, STDERR, STREAMS, CSVLog, LoggerPool, logpool, open_log)
 
 
 class FakeProtocol(object):
@@ -48,12 +47,6 @@ class TestModuleLevel(TestCase):
 
     def test_streams(self):
         self.assertEqual(STREAMS, set([STDERR, STDOUT]))
-
-    @skipIf(PY26, "Python 2.7+")
-    def test_lock_type(self):
-        # We only want one thread to run open_log
-        # can't use isinstance check....
-        self.assertEqual(CREATE_LOG_LOCK.__class__.__name__, "lock")
 
     def test_open_log_creates_dir(self):
         outdir, _ = self.create_directory(0)

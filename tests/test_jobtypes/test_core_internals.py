@@ -61,6 +61,7 @@ class FakeProcess(Process, System):
             }
         self._stopped_deferred = None
         self._start_deferred = None
+        self.uuid = uuid4()
 
     def start(self):
         self.start_called = True
@@ -76,6 +77,9 @@ class FakeProcess(Process, System):
 
     def process_started(self, protocol):
         pass
+
+    def get_csvlog_path(self, uuid):
+        return "/tmp/" + uuid
 
 
 class TestImports(TestCase):
