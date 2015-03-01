@@ -565,3 +565,58 @@ class TestPostShutdownToMaster(TestCase):
                 count += 1
 
         self.assertGreaterEqual(count, 2)
+
+    @inlineCallbacks
+    def test_post_exception_timeout_expired(self):
+        # Shutdown the server so we don't have anything to
+        # reply on.
+        yield self.server.loseConnection()
+
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
+
+        with patch.object(svclog, "warning", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertIsNone(result)
+
+        for message, args, kwargs in messages:
+            if "State update failed due to unhandled error: %s.  " \
+               "Shutdown timeout reached, not retrying." in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+    @inlineCallbacks
+    def test_post_exception_retry(self):
+        # Shutdown the server so we don't have anything to
+        # reply on.
+        yield self.server.loseConnection()
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+
+        with patch.object(svclog, "warning", capture_messages):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertIsNone(result)
+
+        count = 0
+        for message, args, kwargs in messages:
+            if "State update failed due to unhandled error: %s.  " \
+               "Retrying in %s seconds" in message:
+                count += 1
+
+        self.assertGreaterEqual(count, 2)
+
