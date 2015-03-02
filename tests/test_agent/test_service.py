@@ -17,6 +17,7 @@
 import os
 import json
 import uuid
+from contextlib import nested
 from datetime import datetime, timedelta
 from platform import platform
 
@@ -40,7 +41,7 @@ from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog
-from pyfarm.agent.sysinfo import network, graphics
+from pyfarm.agent.sysinfo import network, graphics, memory
 
 
 class HTTPReceiver(Resource):
@@ -416,3 +417,85 @@ class TestAgentPostToMaster(TestCase):
                 break
         else:
             self.fail("Never found log message.")
+
+
+class TestReannounce(TestCase):
+    def setUp(self):
+        super(TestReannounce, self).setUp()
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["state"] = AgentState.ONLINE
+
+    @inlineCallbacks
+    def tearDown(self):
+        super(TestReannounce, self).tearDown()
+        yield self.server.loseConnection()
+
+    def test_should_reannounce_locked(self):
+        agent = Agent()
+        agent.reannouce_lock.acquire()
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannounce_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = True
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannouce(self):
+        config.master_contacted()
+        contacted = config.master_contacted(update=False)
+        remaining = (datetime.utcnow() - contacted).total_seconds()
+        agent = Agent()
+        self.assertEqual(
+            remaining > config["agent_master_reannounce"],
+            agent.should_reannounce()
+        )
+
+    @inlineCallbacks
+    def test_no_reannounce(self):
+        agent = Agent()
+        config.master_contacted()
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release")
+        ) as (acquire, release):
+            result = yield agent.reannounce()
+
+        self.assertIsNone(result)
+        self.assertTrue(acquire.called)
+        self.assertTrue(release.called)
+
+    @inlineCallbacks
+    def test_ok(self):
+        self.fake_api.code = OK
+        config["agent_master_reannounce"] = 0
+        agent = Agent()
+
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=True),
+            patch.object(memory, "free_ram", return_value=424242),
+            patch.object(svclog, "info"),
+            patch.object(config, "master_contacted"),
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release")
+        ) as (_, _, info, master_contacted, acquire, release):
+            yield agent.reannounce()
+        self.assertEqual(
+            [{"state": config["state"],
+              "current_assignments": config["current_assignments"],
+              "free_ram": 424242}],
+            self.fake_api.data)
+
+        master_contacted.assert_called_with(announcement=True)
+        info.assert_called_with("Announced self to the master server.")
+        acquire.assert_any_call()
+        release.assert_any_call()
