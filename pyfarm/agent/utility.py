@@ -347,12 +347,12 @@ class AgentUUID(object):
 
 
 def remove_file(
-        path, retry_on_shutdown=False, raise_=True, ignored_errnos=(ENOENT, )):
+        path, retry_on_exit=False, raise_=True, ignored_errnos=(ENOENT, )):
     """
     Simple function to remove the provided file or retry
     on shutdown if requested.
 
-    :param bool retry_on_shutdown:
+    :param bool retry_on_exit:
         If True, retry removal of the file on shutdown.
 
     :param bool raise_:
@@ -370,7 +370,7 @@ def remove_file(
                 "Failed to remove %s (%s)", path, errorcode[error.errno])
             return
 
-        if retry_on_shutdown:
+        if retry_on_exit:
             logger.debug(
                 "Could not remove %s (%s), will retry on shutdown.",
                 path, errorcode[error.errno]
