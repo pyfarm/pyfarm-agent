@@ -21,7 +21,6 @@ import sys
 import time
 import shutil
 import zipfile
-from functools import partial
 from os.path import join, isdir, isfile
 
 # Platform specific imports.  These should either all fail or
