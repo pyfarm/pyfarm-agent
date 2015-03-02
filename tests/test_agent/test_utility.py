@@ -35,6 +35,11 @@ from pyfarm.agent.utility import (
     quote_url, request_from_master, total_seconds, validate_environment,
     AgentUUID, remove_file, logger)
 
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
+
 
 class TestValidateEnvironment(TestCase):
     def test_type(self):
@@ -281,7 +286,7 @@ class TestRemoveFile(TestCase):
     def test_retry_on_shutdown_raise(self):
         os.remove(self.path)
 
-        with self.assertRaises(OSError):
+        with self.assertRaises((WindowsError, OSError, IOError)):
             remove_file(
                 self.path, ignored_errnos=(), retry_on_exit=True, raise_=True)
 
