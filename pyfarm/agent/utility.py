@@ -30,9 +30,9 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from errno import EEXIST, ENOENT, errorcode
 from json import dumps as _dumps
-from os.path import join, dirname
+from os.path import dirname
 from UserDict import UserDict
-from uuid import UUID, uuid1, uuid4
+from uuid import UUID, uuid4
 
 try:
     from urlparse import urlsplit
