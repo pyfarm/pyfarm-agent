@@ -43,6 +43,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import remove_file
 
 logger = getLogger("agent.supervisor")
 
@@ -160,7 +161,9 @@ def supervisor():
                     os.makedirs(args.agent_package_dir)
                     with zipfile.ZipFile(update_file_path, "r") as archive:
                         archive.extractall(args.agent_package_dir)
-                    os.remove(update_file_path)
+
+                    remove_file(
+                        update_file_path, retry_on_exit=True, raise_=False)
                 except Exception as e:
                     logger.error(
                         "Caught exception trying to update agent: %r", e)
