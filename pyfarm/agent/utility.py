@@ -377,7 +377,7 @@ def remove_file(
             )
             atexit.register(
                 remove_file, path,
-                retry_on_shutdown=False, raise_=False)
+                retry_on_exit=False, raise_=False)
 
         if raise_:
             raise
