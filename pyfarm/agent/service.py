@@ -213,11 +213,7 @@ class Agent(object):
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
-        if self.reannounce_client_request is not None:
-            svclog.debug("Agent is already trying to announce itself.")
-            return
-
-        if self.shutting_down:
+        if self.reannouce_lock.locked or self.shutting_down:
             return False
 
         contacted = config.master_contacted(update=False)
