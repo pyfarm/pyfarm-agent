@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import os
 import re
 import tempfile
 from decimal import Decimal
 from datetime import datetime, timedelta
+from errno import ENOENT
 from json import dumps as dumps_
 from uuid import UUID, uuid4
-from os.path import join
+from os.path import isfile
 
 from mock import patch
 from voluptuous import Invalid
@@ -31,7 +33,7 @@ from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
-    AgentUUID)
+    AgentUUID, remove_file, logger)
 
 
 class TestValidateEnvironment(TestCase):
@@ -221,3 +223,69 @@ class TestAgentUUID(TestCase):
         path = self.create_file()
         os.remove(path)
         self.assertIsNone(AgentUUID.load(path))
+
+
+class TestRemoveFile(TestCase):
+    def setUp(self):
+        super(TestRemoveFile, self).setUp()
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        self.path = path
+        del atexit._exithandlers[:]
+
+    def test_removes_file(self):
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        with patch.object(logger, "info", capture_messages):
+            remove_file(self.path)
+
+        for message, args, kwargs in messages:
+            if "Removed %s" in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+        self.assertFalse(isfile(self.path))
+
+    def test_ignored_error(self):
+        os.remove(self.path)
+
+        messages = []
+
+        def capture_messages(message, *args, **kwargs):
+            messages.append((message, args, kwargs))
+
+        with patch.object(logger, "debug", capture_messages):
+            remove_file(self.path, ignored_errnos=(ENOENT, ))
+
+        for message, args, kwargs in messages:
+            if "Failed to remove %s (%s)" in message:
+                break
+        else:
+            self.fail("Never found log message.")
+
+        self.assertFalse(isfile(self.path))
+
+    def test_retry_on_shutdown_no_raise(self):
+        os.remove(self.path)
+        remove_file(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        self.assertEqual(
+            atexit._exithandlers,
+            [(remove_file, (self.path, ),
+              {"raise_": False, "retry_on_exit": False})])
+
+    def test_retry_on_shutdown_raise(self):
+        os.remove(self.path)
+
+        with self.assertRaises(OSError):
+            remove_file(
+                self.path, ignored_errnos=(), retry_on_exit=True, raise_=True)
+
+        self.assertEqual(
+            atexit._exithandlers,
+            [(remove_file, (self.path, ),
+              {"raise_": False, "retry_on_exit": False})])
