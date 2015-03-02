@@ -237,6 +237,9 @@ class TestRemoveFile(TestCase):
         os.close(fd)
         self.path = path
         del atexit._exithandlers[:]
+        self.atexit_signature = [
+            (remove_file, (self.path, ),
+             {"raise_": False, "retry_on_exit": False})]
 
     def test_removes_file(self):
         messages = []
@@ -278,10 +281,7 @@ class TestRemoveFile(TestCase):
         os.remove(self.path)
         remove_file(
             self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
-        self.assertEqual(
-            atexit._exithandlers,
-            [(remove_file, (self.path, ),
-              {"raise_": False, "retry_on_exit": False})])
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
 
     def test_retry_on_shutdown_raise(self):
         os.remove(self.path)
@@ -290,7 +290,16 @@ class TestRemoveFile(TestCase):
             remove_file(
                 self.path, ignored_errnos=(), retry_on_exit=True, raise_=True)
 
-        self.assertEqual(
-            atexit._exithandlers,
-            [(remove_file, (self.path, ),
-              {"raise_": False, "retry_on_exit": False})])
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
+
+    def test_retry_only_once(self):
+        os.remove(self.path)
+
+        # If remove_file is wrapped in a while loop and is being
+        # passed the same arguments, it should only be one call for atexit.
+        remove_file(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        remove_file(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
+

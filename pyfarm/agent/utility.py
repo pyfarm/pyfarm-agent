@@ -349,8 +349,10 @@ class AgentUUID(object):
 def remove_file(
         path, retry_on_exit=False, raise_=True, ignored_errnos=(ENOENT, )):
     """
-    Simple function to remove the provided file or retry
-    on shutdown if requested.
+    Simple function to remove the provided file or retry on shutdown
+    if requested.  This function standardizes the log output, ensures
+    it's only called once per path on exit and handles platform
+    specific exceptions (ie. ``WindowsError``).
 
     :param bool retry_on_exit:
         If True, retry removal of the file on shutdown.
@@ -374,9 +376,12 @@ def remove_file(
             logger.warning(
                 "Failed to remove %s (%s), will retry on exit",
                 path, errorcode[error.errno])
-            atexit.register(
-                remove_file, path,
-                retry_on_exit=False, raise_=False)
+
+            # Make sure we're not added multiple times
+            keywords = dict(retry_on_exit=False, raise_=False)
+            signature = (remove_file, (path, ), keywords)
+            if signature not in atexit._exithandlers:
+                atexit.register(remove_file, path, **keywords)
         else:
             logger.error(
                 "Failed to remove %s (%s)",
