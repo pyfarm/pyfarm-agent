@@ -22,12 +22,13 @@ Top level utilities for the agent to use internally.  Many of these
 are copied over from the master (which we can't import here).
 """
 
+import atexit
 import csv
 import codecs
 import os
 from decimal import Decimal
 from datetime import datetime, timedelta
-from errno import EEXIST, ENOENT
+from errno import EEXIST, ENOENT, errorcode
 from json import dumps as _dumps
 from os.path import join, dirname
 from UserDict import UserDict
@@ -44,6 +45,11 @@ try:
     from httplib import OK
 except ImportError:  # pragma: no cover
     from http.client import OK
+
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 from voluptuous import Schema, Any, Required, Optional, Invalid
 
@@ -338,3 +344,42 @@ class AgentUUID(object):
         agent_uuid = uuid4()
         cls.log.warning("Generated agent UUID: %s", agent_uuid)
         return agent_uuid
+
+
+def remove_file(
+        path, retry_on_shutdown=False, raise_=True, ignored_errnos=(ENOENT, )):
+    """
+    Simple function to remove the provided file or retry
+    on shutdown if requested.
+
+    :param bool retry_on_shutdown:
+        If True, retry removal of the file on shutdown.
+
+    :param bool raise_:
+        If True, raise an exceptions produced.  This will always be
+        False if :func:`remove_file` is being executed by :module:`atexit`
+
+    :param tuple ignored_errnos:
+        A tuple of ignored error numbers.  By default we only ig
+    """
+    try:
+        os.remove(path)
+    except (WindowsError, OSError, IOError) as error:
+        if error.errno in ignored_errnos:
+            logger.debug(
+                "Failed to remove %s (%s)", path, errorcode[error.errno])
+            return
+
+        if retry_on_shutdown:
+            logger.debug(
+                "Could not remove %s (%s), will retry on shutdown.",
+                path, errorcode[error.errno]
+            )
+            atexit.register(
+                remove_file, path,
+                retry_on_shutdown=False, raise_=False)
+
+        if raise_:
+            raise
+    else:
+        logger.info("Removed %s", path)
