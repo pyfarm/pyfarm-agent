@@ -64,6 +64,7 @@ from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
+from pyfarm.agent.utility import remove_file
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
@@ -827,7 +828,8 @@ class System(object):
                 os.stat(element["filepath"]).st_mtime + minimum_age <
                     time.time()):
                 logger.debug("Deleting tempfile %s", element["filepath"])
-                os.remove(element["filepath"])
+                remove_file(
+                    element["filepath"], retry_on_exit=False, raise_=False)
             else:
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
