@@ -371,13 +371,16 @@ def remove_file(
             return
 
         if retry_on_exit:
-            logger.debug(
-                "Could not remove %s (%s), will retry on shutdown.",
-                path, errorcode[error.errno]
-            )
+            logger.warning(
+                "Failed to remove %s (%s), will retry on exit",
+                path, errorcode[error.errno])
             atexit.register(
                 remove_file, path,
                 retry_on_exit=False, raise_=False)
+        else:
+            logger.error(
+                "Failed to remove %s (%s)",
+                path, errorcode[error.errno])
 
         if raise_:
             raise
