@@ -47,6 +47,7 @@ FakeProcessData = namedtuple(
 class FakeProtocol(object):
     def __init__(self):
         self.uuid = uuid4()
+        self.pid = 1000
 
 
 class FakeProcess(Process, System):
@@ -61,6 +62,7 @@ class FakeProcess(Process, System):
             }
         self._stopped_deferred = None
         self._start_deferred = None
+        self.uuid = uuid4()
 
     def start(self):
         self.start_called = True
@@ -76,6 +78,9 @@ class FakeProcess(Process, System):
 
     def process_started(self, protocol):
         pass
+
+    def get_csvlog_path(self, uuid):
+        return "/tmp/%s" % uuid
 
 
 class TestImports(TestCase):
@@ -153,66 +158,35 @@ class TestProcess(TestCase):
 
         self.protocol = FakeProtocol()
         self.process = FakeProcess()
+        self.process.log_identifier = "%s.csv" % self.process.uuid
         self.process.processes[self.protocol.uuid] = FakeProcessData(
             self.protocol, Deferred(), Deferred(), "logid")
 
-        # Clear the logger pool each time and make
-        # sure it won't flush
-        logpool.flush_lines = 1e10
-        logpool.logs.clear()
-        logpool.logs[self.protocol.uuid] = CSVLog(open(devnull, "w"))
-        logpool.stopped = False
-
-        # Create a dummy logfile
-        logfile_path = join(config["jobtype_task_logs"], "logid")
+        # Make sure the logfile actually exists on disk, otherwise the
+        # _process_stopped tests will fail
         try:
             makedirs(config["jobtype_task_logs"])
         except OSError as e:
             if e.errno != EEXIST:
                 raise
+        with open(join(config["jobtype_task_logs"],
+                       self.process.log_identifier), "wb"):
+            pass
+
+        # Clear the logger pool each time and make
+        # sure it won't flush
+        logpool.flush_lines = 1e10
+        logpool.logs.clear()
+        logpool.stopped = False
+
+        # Create a dummy logfile
+        logfile_path = join(config["jobtype_task_logs"], "logid")
         with open(logfile_path, "w+") as fakelog:
             fakelog.write("test")
-
-    def test_start_called(self):
-        self.process._start()
-        self.assertTrue(self.process.start_called)
 
     def test_stop_called(self):
         self.process._stop()
         self.assertTrue(self.process.stop_called)
-
-    def test_process_started(self):
-        self.process._process_started(self.protocol)
-        self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
-
-    def test_process_stopped_success(self):
-        result = FakeProcessResult(value=FakeExitCode(exitCode=0))
-        self.process.start_called = True
-        self.process.stopped_deferred = Deferred()
-        deferred = self.process._process_stopped(self.protocol, result)
-        def on_error(_):
-            pass
-        # The _process_stopped code will likely fail in unit tests because
-        # the job, task and log id do not actually exist on the master
-        deferred.addErrback(on_error)
-        #self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
-        self.assertEqual(self.process.failed_processes, set())
-        return deferred
-
-    def test_process_stopped_failure(self):
-        result = FakeProcessResult(value=FakeExitCode(exitCode=1))
-        self.process.start_called = True
-        self.process.stopped_deferred = Deferred()
-        deferred = self.process._process_stopped(self.protocol, result)
-        def on_error(_):
-            pass
-        # The _process_stopped code will likely fail in unit tests because
-        # the job, task and log id do not actually exist on the master
-        deferred.addErrback(on_error)
-        #self.assertEqual(len(logpool.logs[self.protocol.uuid].messages), 1)
-        self.assertEqual(
-            self.process.failed_processes, set([(self.protocol, result)]))
-        return deferred
 
     def test_get_uid_gid_value_type(self):
         with self.assertRaises(TypeError):

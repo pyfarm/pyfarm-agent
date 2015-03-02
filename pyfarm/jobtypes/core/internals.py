@@ -75,7 +75,7 @@ logcache = getLogger("jobtypes.cache")
 logger = getLogger("jobtypes.core")
 logfile = getLogger("jobtypes.log")
 ProcessData = namedtuple(
-    "ProcessData", ("protocol", "started", "stopped", "log_identifier"))
+    "ProcessData", ("protocol", "started", "stopped"))
 
 class InsufficientSpaceError(Exception):
     pass
@@ -327,7 +327,7 @@ class Process(object):
         self.before_spawn_process(command, protocol)
 
     def _spawn_twisted_process(
-            self, _, command, process_protocol, kwargs):
+            self, command, process_protocol, kwargs):
         """
         Handles the spawning of the process itself using
         :func:`reactor.spawnProcess`.
@@ -383,6 +383,17 @@ class Process(object):
         if self.start_called:
             raise RuntimeError("%s has already been started" % self)
 
+        log_path = self.get_csvlog_path(self.uuid)
+        logpool.open_log(self.uuid, log_path)
+        self.log_identifier = basename(log_path)
+
+        self._register_logfile_on_master(self.log_identifier)
+
+        logpool.log(self.uuid, "internal",
+                    "Starting work on job %s, assignment of %s tasks." %
+                    (self.assignment["job"]["title"],
+                     len(self.assignment["tasks"])))
+
         self._before_start()
         logger.debug("%r.start()", self.__class__.__name__)
         self.start()
@@ -423,7 +434,8 @@ class Process(object):
         started running.
         """
         logger.debug("%r._process_started(%r)", self, protocol)
-        logpool.log(protocol.uuid, "internal", "Started %r" % protocol)
+        logpool.log(self.uuid, "internal", "Started %r" % protocol,
+                    protocol.pid)
         process_data = self.processes[protocol.uuid]
         process_data.started.callback(protocol)
         if not self.stop_called:
@@ -446,27 +458,25 @@ class Process(object):
 
         if self.is_successful(reason):
             logpool.log(
-                protocol.uuid, "internal",
+                self.uuid, "internal",
                 "Process has terminated successfully, code %s" %
-                reason.value.exitCode)
+                reason.value.exitCode, protocol.pid)
         else:
             self.failed_processes.add((protocol, reason))
             logpool.log(
-                protocol.uuid, "internal",
+                self.uuid, "internal",
                 "Process has not terminated successfully, code %s" %
-                reason.value.exitCode)
+                reason.value.exitCode, protocol.pid)
 
         try:
             self.process_stopped(protocol, reason)
         except Exception as e:
             logger.error("Exception caught from process_stopped: %s", e)
-        logpool.close_log(protocol.uuid)
         process_data.stopped.callback(reason)
-
-        upload_deferred = self._upload_logfile(process_data.log_identifier)
 
         # If there are no processes running at this point, we assume
         # the assignment is finished
+        upload_deferred = None
         if len(self.processes) == 0:
             if not self.failed_processes:
                 logger.info("Processes in assignment %s stopped, no failures",
@@ -474,8 +484,9 @@ class Process(object):
             else:
                 logger.warning("There was at least one failed process in the "
                                "assignment %s", self)
+            upload_deferred = self._upload_logfile(self.log_identifier)
             self.stopped_deferred.callback(None)
-        return upload_deferred
+        return upload_deferred or succeed([])
 
     def _spawn_process(self, command):
         """
@@ -524,21 +535,11 @@ class Process(object):
             kwargs.update(gid=gid)
 
         # Capture the protocol instance so we can keep track
-        # of the process we're about to spawn and start the
-        # logging thread.
-        # TODO: return data from this function, we don't want to be working
-        # with Deferred object in a public method
-        log_path = self.get_csvlog_path(process_protocol.uuid)
-        deferred = logpool.open_log(process_protocol, log_path)
-        deferred.addCallback(
-            self._spawn_twisted_process, command, process_protocol, kwargs)
+        # of the process we're about to spawn.
         self.processes[process_protocol.uuid] = ProcessData(
-            protocol=process_protocol, started=Deferred(), stopped=Deferred(),
-            log_identifier=basename(log_path))
+            protocol=process_protocol, started=Deferred(), stopped=Deferred())
 
-        self._register_logfile_on_master(basename(log_path))
-
-        return deferred
+        return self._spawn_twisted_process(command, process_protocol, kwargs)
 
     def _process_output(self, protocol, output, stream):
         """
@@ -832,12 +833,12 @@ class System(object):
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
 
-    def _log(self, protocol, message):
+    def _log(self, message):
         """
         Log a message from the jobtype itself to the process' log file.
         Useful for debugging jobtypes.
         """
-        logpool.log(protocol.uuid, "jobtype", message)
+        logpool.log(self.uuid, "jobtype", message)
 
 class TypeChecks(object):
     def _check_expandvars_inputs(self, value, environment):
