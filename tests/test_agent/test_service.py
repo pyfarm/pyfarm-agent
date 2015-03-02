@@ -30,11 +30,10 @@ except ImportError:  # pragma: no cover
 from mock import patch
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
-
+from twisted.internet.error import ConnectionRefusedError
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.internet.defer import inlineCallbacks
-from twisted.internet.task import deferLater
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
@@ -481,90 +480,65 @@ class TestPostShutdownToMaster(TestCase):
     @inlineCallbacks
     def test_post_not_found(self):
         self.fake_api.code = NOT_FOUND
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
         agent.shutting_down = True
-        with patch.object(svclog, "warning", capture_messages):
+        with patch.object(svclog, "warning") as warning_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
-
-        for message, args, kwargs in messages:
-            if "no longer exists, cannot update state." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        warning_log.assert_called_with(
+            "Agent %r no longer exists, cannot update state.",
+            config["agent_id"]
+        )
 
     @inlineCallbacks
     def test_post_ok(self):
         self.fake_api.code = OK
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
         agent.shutting_down = True
-        with patch.object(svclog, "info", capture_messages):
+        with patch.object(svclog, "info") as info_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
-
-        for message, args, kwargs in messages:
-            if "has POSTed shutdown state change successfully." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        info_log.assert_called_with(
+            "Agent %r has POSTed shutdown state change successfully.",
+            config["agent_id"]
+        )
 
     @inlineCallbacks
     def test_post_internal_server_error_timeout_expired(self):
         self.fake_api.code = INTERNAL_SERVER_ERROR
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
-        with patch.object(svclog, "warning", capture_messages):
+        with patch.object(svclog, "warning") as warning_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
 
-        for message, args, kwargs in messages:
-            if "Shutdown timeout reached, not retrying." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        warning_log.assert_called_with(
+            "State update failed due to server error: %s.  Shutdown timeout "
+            "reached, not retrying.", self.fake_api.data[0]
+        )
 
     @inlineCallbacks
     def test_post_internal_server_error_retries(self):
         self.fake_api.code = INTERNAL_SERVER_ERROR
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
-        with patch.object(svclog, "warning", capture_messages):
+        with patch.object(svclog, "warning") as warning_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
-
-        count = 0
-        for message, args, kwargs in messages:
-            if "State update failed due to server error: %s.  " \
-               "Retrying in %s seconds." in message:
-                count += 1
-
-        self.assertGreaterEqual(count, 2)
+        warning_log.assert_called_with(
+            "State update failed due to server error: %s.  Shutdown timeout "
+            "reached, not retrying.", self.fake_api.data[0]
+        )
 
     @inlineCallbacks
     def test_post_exception_timeout_expired(self):
@@ -572,51 +546,39 @@ class TestPostShutdownToMaster(TestCase):
         # reply on.
         yield self.server.loseConnection()
 
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
-
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with patch.object(svclog, "warning", capture_messages):
+        with patch.object(svclog, "warning") as warning_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertIsNone(result)
-
-        for message, args, kwargs in messages:
-            if "State update failed due to unhandled error: %s.  " \
-               "Shutdown timeout reached, not retrying." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        self.assertEqual(
+            warning_log.call_args[0][0],
+            "State update failed due to unhandled error: %s.  "
+            "Shutdown timeout reached, not retrying."
+        )
 
     @inlineCallbacks
     def test_post_exception_retry(self):
         # Shutdown the server so we don't have anything to
         # reply on.
         yield self.server.loseConnection()
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
 
-        with patch.object(svclog, "warning", capture_messages):
+        with patch.object(svclog, "warning") as warning_log:
             result = yield agent.post_shutdown_to_master()
 
         self.assertIsNone(result)
+        self.assertGreaterEqual(warning_log.call_count, 3)
 
-        count = 0
-        for message, args, kwargs in messages:
-            if "State update failed due to unhandled error: %s.  " \
-               "Retrying in %s seconds" in message:
-                count += 1
-
-        self.assertGreaterEqual(count, 2)
-
+        for call in warning_log.mock_calls:
+            if (call[1][0] == "State update failed due to unhandled error: "
+                              "%s.  Retrying in %s seconds"):
+                break
+        else:
+            self.fail("State update never failed")
