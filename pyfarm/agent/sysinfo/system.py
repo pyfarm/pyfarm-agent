@@ -41,7 +41,6 @@ except NameError:  # pragma: no cover
     WindowsError = OSError
 
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo.network import mac_addresses
 
 logger = getLogger("agent.sysinfo")
 
