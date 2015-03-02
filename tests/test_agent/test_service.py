@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
 from mock import patch
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
-from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.task import deferLater
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.internet.defer import inlineCallbacks
