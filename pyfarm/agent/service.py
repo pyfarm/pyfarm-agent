@@ -48,7 +48,8 @@ except ImportError:  # pragma: no cover
 import treq
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.defer import (
+    Deferred, inlineCallbacks, returnValue, DeferredLock)
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
 
@@ -87,12 +88,7 @@ class Agent(object):
         self.register_shutdown_events = False
         self.last_free_ram_post = time.time()
         self.repeating_call_counter = {}
-
-        # reannounce_client is set when the agent id is
-        # first set. reannounce_client_instance ensures
-        # that once we start the announcement process we
-        # won't try another until we're finished
-        self.reannounce_client_request = None
+        self.reannouce_lock = DeferredLock()
 
     @classmethod
     def agent_api(cls):
@@ -228,72 +224,85 @@ class Agent(object):
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["agent_master_reannounce"]
 
+    @inlineCallbacks
     def reannounce(self):
         """
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
+        yield self.reannouce_lock.acquire()
         if not self.should_reannounce():
-            return
+            yield self.reannouce_lock.release()
+            returnValue(None)
 
         svclog.debug("Announcing %s to master", config["agent_hostname"])
+        data = None
+        while True:  # for retries
+            try:
+                response = yield post_direct(
+                    self.agent_api(),
+                    data={
+                        "state": config["state"],
+                        "current_assignments": config.get(
+                            "current_assignments", {}),  # may not be set yet
+                        "free_ram": memory.free_ram()}
+                )
 
-        def callback(response):
-            if response.code == OK:
-                self.reannounce_client_request = None
-                config.master_contacted(announcement=True)
-                svclog.info("Announced self to the master server.")
-
-            elif response.code >= INTERNAL_SERVER_ERROR:
-                if not self.shutting_down:
-                    delay = http_retry_delay()
-                    svclog.warning(
-                        "Could not announce self to the master server, "
-                        "internal server error: %s.  Retrying in %s seconds.",
-                        response.data(), delay)
-                    reactor.callLater(delay, response.request.retry)
-                else:
-                    svclog.warning("Could not announce to master. Not retrying "
-                                   "because of pending shutdown")
-
-            elif response.code == NOT_FOUND:
-                self.reannounce_client_request = None
-                svclog.warning("The master says it does not know about our "
-                               "agent id. Posting as a new agent.")
-                self.post_agent_to_master()
-
-            # If this is a client problem retrying the request
-            # is unlikely to fix the issue so we stop here
-            elif response.code >= BAD_REQUEST:
-                self.reannounce_client_request = None
+            except Exception as error:
+                # Don't retry because reannounce is called periodically
                 svclog.error(
-                    "Failed to announce self to the master, bad "
-                    "request: %s.  This request will not be retried.",
-                    response.data())
+                    "Failed to announce self to the master: %s.  This "
+                    "request will not be retried.", error)
+                break
 
             else:
-                self.reannounce_client_request = None
-                svclog.error(
-                    "Unhandled error when posting self to the "
-                    "master: %s (code: %s).  This request will not be "
-                    "retried.", response.data(), response.code)
+                data = yield treq.json_content(response)
+                if response.code == OK:
+                    config.master_contacted(announcement=True)
+                    svclog.info("Announced self to the master server.")
+                    break
 
-        # In the event of a hard failure, do not retry because we'll
-        # be rerunning this code soon anyway.
-        def errback(failure):
-            self.reannounce_client_request = None
-            svclog.error(
-                "Failed to announce self to the master: %s.  This "
-                "request will not be retried.", failure)
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    if not self.shutting_down:
+                        delay = http_retry_delay()
+                        svclog.warning(
+                            "Could not announce self to the master server, "
+                            "internal server error: %s.  Retrying in %s "
+                            "seconds.", data, delay)
 
-        self.reannounce_client_request = post(
-            self.agent_api(),
-            callback=callback, errback=errback,
-            data={
-                "state": config["state"],
-                "current_assignments": config.get(
-                    "current_assignments", {}),  # may not be set yet
-                "free_ram": memory.free_ram()})
+                        deferred = Deferred()
+                        reactor.callLater(delay, deferred.callback, None)
+                        yield deferred
+                    else:
+                        svclog.warning(
+                            "Could not announce to master. Not retrying "
+                            "because of pending shutdown.")
+                        break
+
+                elif response.code == NOT_FOUND:
+                    svclog.warning("The master says it does not know about our "
+                                   "agent id. Posting as a new agent.")
+                    yield self.post_agent_to_master()
+                    break
+
+                # If this is a client problem retrying the request
+                # is unlikely to fix the issue so we stop here
+                elif response.code >= BAD_REQUEST:
+                    svclog.error(
+                        "Failed to announce self to the master, bad "
+                        "request: %s.  This request will not be retried.",
+                        data)
+                    break
+
+                else:
+                    svclog.error(
+                        "Unhandled error when posting self to the "
+                        "master: %s (code: %s).  This request will not be "
+                        "retried.", data, response.code)
+                    break
+
+        yield self.reannouce_lock.release()
+        returnValue(data)
 
     def system_data(self, requery_timeoffset=False):
         """
