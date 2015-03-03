@@ -16,19 +16,14 @@
 
 import time
 import os
-import atexit
 from datetime import timedelta, datetime
-from errno import ENOENT, EEXIST
+from errno import EEXIST
 from os.path import isfile, dirname
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
-try:
-    WindowsError
-except NameError:  # pragma: no cover
-    WindowsError = OSError
 
 import psutil
 from twisted.internet.defer import Deferred
@@ -39,7 +34,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory
-from pyfarm.agent.utility import dumps, total_seconds
+from pyfarm.agent.utility import dumps, total_seconds, remove_file
 
 logger = getLogger("agent.http.state")
 
@@ -55,26 +50,9 @@ class Stop(APIResource):
         data = kwargs["data"]
         agent = config["agent"]
 
-        try:
-            os.remove(config["run_control_file"])
-        except (WindowsError, OSError, IOError) as e:
-            if e.errno != ENOENT:
-                logger.error("Could not delete run control file %s: %s: %s",
-                             config["run_control_file"],
-                             type(e).__name__, e)
-
-                def remove_run_control_file():
-                    try:
-                        os.remove(config["run_control_file"])
-                        logger.debug("Removed run control file %r",
-                                     config["run_control_file"])
-                    except (OSError, IOError, WindowsError) as e:
-                        logger.error("Failed to remove run control file %s: "
-                                     "%s: %s",
-                                    config["run_control_file"],
-                                    type(e).__name__, e)
-
-                atexit.register(remove_run_control_file)
+        remove_file(
+            config["run_control_file"],
+            retry_on_exit=True, raise_=False)
 
         stopping = agent.stop()
 

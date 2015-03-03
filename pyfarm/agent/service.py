@@ -23,20 +23,13 @@ Sends and receives information from the master and performs systems level tasks
 such as log reading, system information gathering, and management of processes.
 """
 
-import atexit
 import os
 import time
 import uuid
 from datetime import datetime, timedelta
-from errno import ENOENT
 from functools import partial
-from os.path import join, isfile
+from os.path import join
 from platform import platform
-
-try:
-    WindowsError
-except NameError:  # pragma: no cover
-    WindowsError = OSError
 
 try:
     from httplib import (
@@ -67,6 +60,7 @@ from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
+from pyfarm.agent import utility
 
 svclog = getLogger("agent.service")
 ntplog = getLogger("agent.service.ntp")
@@ -501,22 +495,8 @@ class Agent(object):
                 datetime.utcnow() + timedelta(
                     seconds=config["agent_shutdown_timeout"]))
 
-            def remove_pidfile():
-                if not isfile(config["agent_lock_file"]):
-                    svclog.warning(
-                        "%s does not exist", config["agent_lock_file"])
-                    return
-
-                try:
-                    os.remove(config["agent_lock_file"])
-                    svclog.debug(
-                        "Removed pidfile %r", config["agent_lock_file"])
-                except (OSError, IOError) as e:
-                    svclog.error(
-                        "Failed to remove lock file %r: %s",
-                        config["agent_lock_file"], e)
-
-            atexit.register(remove_pidfile)
+            utility.remove_file(
+                config["agent_lock_file"], retry_on_exit=True, raise_=False)
 
             svclog.debug("Stopping execution of jobtypes")
             for uuid, jobtype in config["jobtypes"].items():
@@ -543,27 +523,8 @@ class Agent(object):
             wait_on_stopped()
 
     def sigint_handler(self, *_):
-        try:
-            os.remove(config["run_control_file"])
-        except (WindowsError, OSError, IOError) as e:
-            if e.errno != ENOENT:
-                svclog.error("Could not delete run control file %s: %s: %s",
-                             config["run_control_file"],
-                             type(e).__name__, e)
-
-                def remove_run_control_file():
-                    try:
-                        os.remove(config["run_control_file"])
-                        svclog.debug("Removed run control file %r",
-                                     config["run_control_file"])
-                    except (OSError, IOError, WindowsError) as e:
-                        svclog.error("Failed to remove run control file %s: "
-                                     "%s: %s",
-                                    config["run_control_file"],
-                                    type(e).__name__, e)
-
-                atexit.register(remove_run_control_file)
-
+        utility.remove_file(
+            config["run_control_file"], retry_on_exit=True, raise_=False)
         self.stop()
 
     @inlineCallbacks
@@ -663,17 +624,17 @@ class Agent(object):
         try:
             response = yield post_direct(url, data=data)
         except Exception as failure:
+            delay = http_retry_delay()
             if isinstance(failure, ConnectionRefusedError):
                 svclog.error(
                     "Failed to POST agent to master, the connection was "
-                    "refused. Retrying in %s seconds")
+                    "refused. Retrying in %s seconds", delay)
             else:  # pragma: no cover
                 svclog.error(
                     "Unhandled error when trying to POST the agent to the "
                     "master. The error was %s.", failure)
 
             if not self.shutting_down:
-                delay = http_retry_delay()
                 svclog.info(
                     "Retrying failed POST to master in %s seconds.", delay)
                 yield deferLater(reactor, delay, self.post_agent_to_master)

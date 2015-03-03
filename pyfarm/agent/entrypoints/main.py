@@ -24,7 +24,6 @@ The main module which constructs the entrypoint for the
 
 from __future__ import division
 
-import atexit
 import os
 import sys
 import pdb
@@ -71,7 +70,12 @@ from pyfarm.agent.entrypoints.parser import (
     AgentArgumentParser, ip, port,  uidgid, enum, number, uuid_type)
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.sysinfo import memory, cpu
-from pyfarm.agent.utility import AgentUUID
+from pyfarm.agent.utility import AgentUUID, remove_file
+
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 
 logger = getLogger("agent.cmd")
@@ -373,9 +377,17 @@ class AgentEntryPoint(object):
             help="The default location where the agent's http server should "
                  "find static files to serve.")
         start_http_group.add_argument(
-            "--http-retry-delay", config="agent_http_retry_delay", type=number,
-            help="If a http request to the master has failed, wait this amount "
-                 "of time before trying again")
+            "--http-retry-delay-offset",
+            config="agent_http_retry_delay_offset", type=number,
+            help="If a http request to the master has failed, wait at least "
+                 "this amount of time before resending the request.")
+        start_http_group.add_argument(
+            "--http-retry-delay-factor",
+            config="agent_http_retry_delay_factor", type=number,
+            help="The value provided here is used in combination with "
+                 "--http-retry-delay-offset to calculate the retry delay.  "
+                 "This is used as a multiplier against random() before being "
+                 "added to the offset.")
 
         jobtype_group = start.add_argument_group("Job Types")
         jobtype_group.add_argument(
@@ -544,29 +556,10 @@ class AgentEntryPoint(object):
                     config["agent_lock_file"])
 
                 try:
-                    os.remove(config["agent_lock_file"])
-                except OSError as e:
-                    if e.errno != ENOENT:
-                        logger.warning(
-                            "Failed to remove PID file %s: %s (will retry)",
-                            config["agent_lock_file"], e)
-
-                        # Try again when the process exits since the
-                        # OS is more likely to have released the file
-                        # handle by then.
-                        @atexit.register
-                        def remove_pid_file_on_exit():
-                            logger.debug(
-                                "Trying to remove %s at exit",
-                                config["agent_lock_file"])
-                            try:
-                                os.remove(config["agent_lock_file"])
-                            except OSError as e:
-                                if e.errno != ENOENT:
-                                    logger.error(
-                                        "Failed to remove PID file %s: %s",
-                                        config["agent_lock_file"], e)
-
+                    remove_file(
+                        config["agent_lock_file"],
+                        retry_on_exit=True, raise_=True)
+                except (WindowsError, OSError, IOError):
                     return 1
         else:
             code = "%s %s" % (

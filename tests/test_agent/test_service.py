@@ -17,6 +17,7 @@
 import os
 import json
 import uuid
+from contextlib import nested
 from datetime import datetime, timedelta
 from platform import platform
 
@@ -261,13 +262,9 @@ class TestAgentPostToMaster(TestCase):
     @inlineCallbacks
     def test_post_created(self):
         self.fake_api.code = CREATED
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
-        with patch.object(svclog, "info", capture_messages):
+        with patch.object(svclog, "info") as log_info:
             result = yield agent.post_agent_to_master()
 
         self.assertEqual(result["id"], config["agent_id"])
@@ -275,26 +272,16 @@ class TestAgentPostToMaster(TestCase):
             datetime.utcnow() - config["last_master_contact"],
             timedelta(seconds=5)
         )
-
-        for message, args, kwargs in messages:
-            if "POST to %s was successful" in message:
-                self.assertIn("was created", message)
-                self.assertEqual(args[1], result["id"])
-                break
-        else:
-            self.fail("Never found log message.")
-
+        log_info.assert_called_with(
+            "POST to %s was successful.  A new agent with an id of %s was "
+            "created.", agent.agents_endpoint(), config["agent_id"])
 
     @inlineCallbacks
     def test_post_ok(self):
         self.fake_api.code = OK
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
-        with patch.object(svclog, "info", capture_messages):
+        with patch.object(svclog, "info") as log_info:
             result = yield agent.post_agent_to_master()
 
         self.assertEqual(result["id"], config["agent_id"])
@@ -302,48 +289,33 @@ class TestAgentPostToMaster(TestCase):
             datetime.utcnow() - config["last_master_contact"],
             timedelta(seconds=5)
         )
-
-        for message, args, kwargs in messages:
-            if "POST to %s was successful" in message:
-                self.assertIn("was updated", message)
-                self.assertEqual(args[1], result["id"])
-                break
-        else:
-            self.fail("Never found log message.")
+        log_info.assert_called_with(
+            "POST to %s was successful. Agent %s was updated.",
+            agent.agents_endpoint(), config["agent_id"]
+        )
 
     @inlineCallbacks
     def test_bad_request(self):
         self.fake_api.code = BAD_REQUEST
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
 
         agent = Agent()
-        with patch.object(svclog, "error", capture_messages):
+        with patch.object(svclog, "error") as error_log:
             result = yield agent.post_agent_to_master()
 
         self.assertIsNone(result)
-
-        for message, args, kwargs in messages:
-            if "accepted our POST request but responded with code" in message:
-                self.assertIn("we cannot retry this request", message)
-                break
-        else:
-            self.fail("Never found log message.")
+        error_log.assert_called_with(
+            "%s accepted our POST request but responded with code %s "
+            "which is a client side error.  The message the server "
+            "responded with was %r.  Sorry, but we cannot retry this "
+            "request as it's an issue with the agent's request.",
+            agent.agents_endpoint(), BAD_REQUEST, self.fake_api.content
+        )
 
     @inlineCallbacks
     def test_internal_server_error_retry(self):
         self.fake_api.code = INTERNAL_SERVER_ERROR
-        warning_messages = []
-        info_messages = []
+
         agent = Agent()
-
-        def capture_warning_messages(message, *args, **kwargs):
-            warning_messages.append((message, args, kwargs))
-
-        def capture_info_messages(message, *args, **kwargs):
-            info_messages.append((message, args, kwargs))
 
         def change_response_code():
             self.fake_api.code = CREATED
@@ -351,31 +323,24 @@ class TestAgentPostToMaster(TestCase):
         # TODO: lower this value once the retry delay min. is configurable
         deferLater(reactor, 2.5, change_response_code)
 
-        with patch.object(svclog, "warning", capture_warning_messages):
-            with patch.object(svclog, "info", capture_info_messages):
-                yield agent.post_agent_to_master()
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(svclog, "info")
+        ) as (warning_log, info_log):
+            yield agent.post_agent_to_master()
 
-        warning_count = 0
-        for message, args, kwargs in warning_messages:
-            if "Failed to post to master due to a server side" in message:
-                warning_count += 1
-
-        self.assertGreaterEqual(warning_count, 2)
-
-        for message, args, kwargs in info_messages:
-            if "A new agent with an id of %s was created." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        warning_log.assert_called_with(
+            "Failed to post to master due to a server side error error %s, "
+            "retrying in %s seconds", INTERNAL_SERVER_ERROR, 1.0
+        )
+        info_log.assert_called_with(
+            "POST to %s was successful.  A new agent with an id of %s "
+            "was created.", agent.agents_endpoint(), config["agent_id"]
+        )
 
     @inlineCallbacks
     def test_internal_server_error_retry_stop_on_shutdown(self):
         self.fake_api.code = INTERNAL_SERVER_ERROR
-        warning_messages = []
-
-        def capture_warning_messages(message, *args, **kwargs):
-            warning_messages.append((message, args, kwargs))
-
         agent = Agent()
 
         def shutdown():
@@ -384,15 +349,14 @@ class TestAgentPostToMaster(TestCase):
         # TODO: lower this value once the retry delay min. is configurable
         deferLater(reactor, 1.5, shutdown)
 
-        with patch.object(svclog, "warning", capture_warning_messages):
+        with patch.object(svclog, "warning") as warning_log:
             yield agent.post_agent_to_master()
 
-        for message, args, kwargs in warning_messages:
-            if ("Failed to post to master" in message
-                    and "shutting down" in message):
-                break
-        else:
-            self.fail("Never found log message.")
+        warning_log.assert_called_with(
+            "Failed to post to master due to a server side error error %s. "
+            "Not retrying, because the agent is shutting down",
+            INTERNAL_SERVER_ERROR
+        )
 
     @inlineCallbacks
     def test_exception_raised(self):
@@ -400,15 +364,7 @@ class TestAgentPostToMaster(TestCase):
         # reply on.
         yield self.server.loseConnection()
 
-        warning_messages = []
-        error_messages = []
         agent = Agent()
-
-        def capture_warning_messages(message, *args, **kwargs):
-            warning_messages.append((message, args, kwargs))
-
-        def capture_error_messages(message, *args, **kwargs):
-            error_messages.append((message, args, kwargs))
 
         def shutdown():
             agent.shutting_down = True
@@ -419,22 +375,17 @@ class TestAgentPostToMaster(TestCase):
         # the http server is not online.
         deferLater(reactor, 2.5, shutdown)
 
-        with patch.object(svclog, "warning", capture_warning_messages):
-            with patch.object(svclog, "error", capture_error_messages):
-                yield agent.post_agent_to_master()
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(svclog, "error")
+        ) as (warning_log, error_log):
+            yield agent.post_agent_to_master()
 
-        error_count = 0
-        for message, args, kwargs in error_messages:
-            if "the connection was refused" in message:
-                error_count += 1
-
-        self.assertGreaterEqual(error_count, 2)
-
-        for message, args, kwargs in warning_messages:
-            if "Not retrying POST to master, shutting down." in message:
-                break
-        else:
-            self.fail("Never found log message.")
+        warning_log.assert_called_with(
+            "Not retrying POST to master, shutting down.")
+        error_log.assert_called_with(
+            "Failed to POST agent to master, the connection was refused. "
+            "Retrying in %s seconds", 1.0)
 
 
 class TestPostShutdownToMaster(TestCase):
