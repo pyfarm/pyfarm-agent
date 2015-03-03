@@ -41,7 +41,8 @@ except ImportError:  # pragma: no cover
 import treq
 from ntplib import NTPClient
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+from twisted.internet.defer import (
+    Deferred, inlineCallbacks, returnValue, DeferredLock)
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
 
@@ -82,6 +83,7 @@ class Agent(object):
         self.last_free_ram_post = time.time()
         self.repeating_call_counter = {}
         self.shutdown_timeout = None
+        self.post_shutdown_lock = DeferredLock()
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
@@ -478,6 +480,7 @@ class Agent(object):
                 self.callback_agent_id_set, shutdown_events=shutdown_events))
         return self.post_agent_to_master()
 
+    @inlineCallbacks
     def stop(self):
         """
         Internal code which stops the agent.  This will terminate any running
@@ -515,10 +518,12 @@ class Agent(object):
 
                 if config["jobtypes"]:
                     reactor.callLater(1, wait_on_stopped)
-                elif self.agent_api() is not None:
-                    self.post_shutdown_to_master()
-                else:
-                    reactor.stop()
+                    return
+
+                if self.agent_api() is not None:
+                    yield self.post_shutdown_to_master()
+
+                reactor.stop()
 
             wait_on_stopped()
 
@@ -537,6 +542,7 @@ class Agent(object):
         # our code if we try to call this method before self.shutting_down
         # is set.
         assert self.shutting_down
+        yield self.post_shutdown_lock.acquire()
 
         svclog.info("Informing master of shutdown")
 
@@ -609,6 +615,7 @@ class Agent(object):
                             data)
                         break
 
+        yield self.post_shutdown_lock.release()
         returnValue(data)
 
     @inlineCallbacks

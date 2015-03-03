@@ -425,8 +425,15 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = False
 
-        with self.assertRaises(AssertionError):
+        with nested(
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release"),
+            self.assertRaises(AssertionError)
+        ) as (acquire, release, _):
             yield agent.post_shutdown_to_master()
+
+        self.assertFalse(acquire.called)
+        self.assertFalse(release.called)
 
     @inlineCallbacks
     def test_post_not_found(self):
@@ -434,7 +441,11 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with patch.object(svclog, "warning") as warning_log:
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
@@ -442,6 +453,8 @@ class TestPostShutdownToMaster(TestCase):
             "Agent %r no longer exists, cannot update state.",
             config["agent_id"]
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
     @inlineCallbacks
     def test_post_ok(self):
@@ -449,7 +462,11 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with patch.object(svclog, "info") as info_log:
+        with nested(
+            patch.object(svclog, "info"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (info_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
@@ -457,6 +474,8 @@ class TestPostShutdownToMaster(TestCase):
             "Agent %r has POSTed shutdown state change successfully.",
             config["agent_id"]
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
     @inlineCallbacks
     def test_post_internal_server_error_timeout_expired(self):
@@ -465,15 +484,21 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
-        with patch.object(svclog, "warning") as warning_log:
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
-
         warning_log.assert_called_with(
             "State update failed due to server error: %s.  Shutdown timeout "
             "reached, not retrying.", self.fake_api.data[0]
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
     @inlineCallbacks
     def test_post_internal_server_error_retries(self):
@@ -482,7 +507,12 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
-        with patch.object(svclog, "warning") as warning_log:
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertEqual(self.normal_result, result)
@@ -490,6 +520,8 @@ class TestPostShutdownToMaster(TestCase):
             "State update failed due to server error: %s.  Shutdown timeout "
             "reached, not retrying.", self.fake_api.data[0]
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
     @inlineCallbacks
     def test_post_exception_timeout_expired(self):
@@ -501,7 +533,11 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with patch.object(svclog, "warning") as warning_log:
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertIsNone(result)
@@ -510,6 +546,8 @@ class TestPostShutdownToMaster(TestCase):
             "State update failed due to unhandled error: %s.  "
             "Shutdown timeout reached, not retrying."
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
     @inlineCallbacks
     def test_post_exception_retry(self):
@@ -521,7 +559,11 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
 
-        with patch.object(svclog, "warning") as warning_log:
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
             result = yield agent.post_shutdown_to_master()
 
         self.assertIsNone(result)
@@ -533,3 +575,6 @@ class TestPostShutdownToMaster(TestCase):
                 break
         else:
             self.fail("State update never failed")
+
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
