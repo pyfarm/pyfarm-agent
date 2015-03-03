@@ -349,20 +349,21 @@ class AgentUUID(object):
 def remove_file(
         path, retry_on_exit=False, raise_=True, ignored_errnos=(ENOENT, )):
     """
-    Simple function to remove the provided file or retry on shutdown
+    Simple function to remove the provided file or retry on exit
     if requested.  This function standardizes the log output, ensures
     it's only called once per path on exit and handles platform
     specific exceptions (ie. ``WindowsError``).
 
     :param bool retry_on_exit:
-        If True, retry removal of the file on shutdown.
+        If True, retry removal of the file when Python exists.
 
     :param bool raise_:
         If True, raise an exceptions produced.  This will always be
         False if :func:`remove_file` is being executed by :module:`atexit`
 
     :param tuple ignored_errnos:
-        A tuple of ignored error numbers.  By default we only ig
+        A tuple of ignored error numbers.  By default this function
+        only ignores ENOENT.
     """
     try:
         os.remove(path)
