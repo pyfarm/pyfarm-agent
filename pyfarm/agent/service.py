@@ -24,6 +24,7 @@ such as log reading, system information gathering, and management of processes.
 """
 
 import os
+import sys
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -505,9 +506,18 @@ class Agent(object):
             for uuid, jobtype in config["jobtypes"].items():
                 jobtype.stop()
 
-            def wait_on_stopped():
-                svclog.info("Waiting on %s job types to terminate",
-                            len(config["jobtypes"]))
+            svclog.info("Waiting on %s job types to terminate",
+                        len(config["jobtypes"]))
+
+            while True:
+                # No jobtypes remain
+                if not config["jobtypes"]:
+                    break
+
+                # We're hit the timeout
+                if datetime.utcnow() > self.shutdown_timeout:
+                    svclog.info("Shutdown timeout reached!")
+                    break
 
                 for jobtype_id, jobtype in config["jobtypes"].copy().items():
                     if not jobtype._has_running_processes():
@@ -516,21 +526,33 @@ class Agent(object):
                             jobtype)
                         config["jobtypes"].pop(jobtype_id)
 
-                if config["jobtypes"]:
-                    reactor.callLater(1, wait_on_stopped)
-                    return
+                # Brief delay so we don't tie up the cpu
+                delay = Deferred()
+                reactor.callLater(1, delay.callback, None)
+                yield delay
 
-                if self.agent_api() is not None:
-                    yield self.post_shutdown_to_master()
-
-                reactor.stop()
-
-            wait_on_stopped()
+            if self.agent_api() is not None:
+                yield self.post_shutdown_to_master()
 
     def sigint_handler(self, *_):
         utility.remove_file(
             config["run_control_file"], retry_on_exit=True, raise_=False)
-        self.stop()
+
+        def errback(failure):
+            svclog.error(
+                "Error while attempting to shutdown the agent: %s", failure)
+
+            # Stop the reactor but handle the exit code ourselves otherwise
+            # Twisted will just exit with 0.
+            reactor.stop()
+            sys.exit(1)
+
+        # Call stop() and wait for it to finish before we stop
+        # the reactor.
+        # NOTE: We're not using inlineCallbacks here because reactor.stop()
+        # would be called in the middle of the generator unwinding
+        deferred = self.stop()
+        deferred.addCallbacks(lambda _: reactor.stop(), errback)
 
     @inlineCallbacks
     def post_shutdown_to_master(self, stop_reactor=True):
