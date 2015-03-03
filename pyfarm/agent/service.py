@@ -631,17 +631,17 @@ class Agent(object):
         try:
             response = yield post_direct(url, data=data)
         except Exception as failure:
+            delay = http_retry_delay()
             if isinstance(failure, ConnectionRefusedError):
                 svclog.error(
                     "Failed to POST agent to master, the connection was "
-                    "refused. Retrying in %s seconds")
+                    "refused. Retrying in %s seconds", delay)
             else:  # pragma: no cover
                 svclog.error(
                     "Unhandled error when trying to POST the agent to the "
                     "master. The error was %s.", failure)
 
             if not self.shutting_down:
-                delay = http_retry_delay()
                 svclog.info(
                     "Retrying failed POST to master in %s seconds.", delay)
                 yield deferLater(reactor, delay, self.post_agent_to_master)
