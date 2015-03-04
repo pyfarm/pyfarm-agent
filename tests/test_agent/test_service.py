@@ -584,11 +584,11 @@ class TestPostShutdownToMaster(TestCase):
         self.assertEqual(release.call_count, 1)
 
 
-class TestStop(TestCase):
+class TestSigintHandler(TestCase):
     POP_CONFIG_KEYS = ["run_control_file"]
 
     def setUp(self):
-        super(TestStop, self).setUp()
+        super(TestSigintHandler, self).setUp()
         config["run_control_file"] = ""
 
     def test_sigint_removes_file(self):
@@ -634,8 +634,11 @@ class TestStop(TestCase):
         self.assertEqual(agent_stop.call_count, 1)
         self.assertEqual(reactor_stop.call_count, 1)
 
+        # Manually test the call args because assert_called_with would
+        # require the exact instance of the Failure object.
         self.assertEqual(
             error_log.call_args[0][0],
             "Error while attempting to shutdown the agent: %s")
         self.assertIsInstance(error_log.call_args[0][1], Failure)
         sys_exit.assert_called_with(1)
+
