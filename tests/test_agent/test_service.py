@@ -43,6 +43,7 @@ from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog
 from pyfarm.agent.sysinfo import network, graphics, memory
+from pyfarm.agent import utility
 
 
 class HTTPReceiver(Resource):
@@ -389,6 +390,8 @@ class TestAgentPostToMaster(TestCase):
 
 
 class TestPostShutdownToMaster(TestCase):
+    POP_CONFIG_KEYS = ["master_api"]
+
     def setUp(self):
         super(TestPostShutdownToMaster, self).setUp()
         self.fake_api = FakeAgentsAPI()
@@ -578,3 +581,34 @@ class TestPostShutdownToMaster(TestCase):
 
         self.assertEqual(acquire.call_count, 1)
         self.assertEqual(release.call_count, 1)
+
+
+class TestStop(TestCase):
+    POP_CONFIG_KEYS = ["run_control_file"]
+
+    def test_sigint_removes_file(self):
+        config["run_control_file"] = ""
+        agent = Agent()
+
+        with nested(
+            patch.object(utility, "remove_file"),
+            patch.object(agent, "stop")
+        ) as (remove_file, _):
+            agent.sigint_handler()
+
+        remove_file.assert_called_with("", retry_on_exit=True, raise_=False)
+
+    def test_sigint_callback_stops_reactor(self):
+        config["run_control_file"] = ""
+        agent = Agent()
+        stop_deferred = Deferred()
+
+        with nested(
+            patch.object(agent, "stop", return_value=stop_deferred),
+            patch.object(reactor, "stop", return_value=None)
+        ) as (agent_stop, reactor_stop):
+            stop_deferred.callback(None)
+            agent.sigint_handler()
+
+        self.assertEqual(agent_stop.call_count, 1)
+        self.assertEqual(reactor_stop.call_count, 1)
