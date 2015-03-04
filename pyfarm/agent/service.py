@@ -513,7 +513,7 @@ class Agent(object):
             except Exception as error:  # pragma: no cover
                 svclog.warning(
                     "Error while calling stop() on %s (id: %s): %s",
-                    jobtype, uuid, error
+                    jobtype, jobtype_id, error
                 )
                 config["jobtypes"].pop(jobtype_id)
 
