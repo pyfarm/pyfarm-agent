@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 import json
 import uuid
 from contextlib import nested
@@ -30,11 +31,11 @@ except ImportError:  # pragma: no cover
 
 from mock import patch
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
 from twisted.internet.task import deferLater
+from twisted.python.failure import Failure
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
-from twisted.internet.defer import inlineCallbacks
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
@@ -586,8 +587,11 @@ class TestPostShutdownToMaster(TestCase):
 class TestStop(TestCase):
     POP_CONFIG_KEYS = ["run_control_file"]
 
-    def test_sigint_removes_file(self):
+    def setUp(self):
+        super(TestStop, self).setUp()
         config["run_control_file"] = ""
+
+    def test_sigint_removes_file(self):
         agent = Agent()
 
         with nested(
@@ -598,8 +602,7 @@ class TestStop(TestCase):
 
         remove_file.assert_called_with("", retry_on_exit=True, raise_=False)
 
-    def test_sigint_callback_stops_reactor(self):
-        config["run_control_file"] = ""
+    def test_sigint_callback(self):
         agent = Agent()
         stop_deferred = Deferred()
 
@@ -612,3 +615,27 @@ class TestStop(TestCase):
 
         self.assertEqual(agent_stop.call_count, 1)
         self.assertEqual(reactor_stop.call_count, 1)
+
+    def test_sigint_errback(self):
+        agent = Agent()
+        stop_deferred = Deferred()
+        failure = Exception("foobar")
+
+        with nested(
+            patch.object(svclog, "error"),
+            patch.object(agent, "stop", return_value=stop_deferred),
+            patch.object(reactor, "stop", return_value=None),
+            patch.object(sys, "exit", return_value=None),
+        ) as (error_log, agent_stop, reactor_stop, sys_exit):
+            stop_deferred.errback(failure)
+            agent.sigint_handler()
+
+        self.assertEqual(error_log.call_count, 1)
+        self.assertEqual(agent_stop.call_count, 1)
+        self.assertEqual(reactor_stop.call_count, 1)
+
+        self.assertEqual(
+            error_log.call_args[0][0],
+            "Error while attempting to shutdown the agent: %s")
+        self.assertIsInstance(error_log.call_args[0][1], Failure)
+        sys_exit.assert_called_with(1)
