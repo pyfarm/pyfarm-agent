@@ -526,7 +526,7 @@ class Agent(object):
 
             # We're hit the timeout
             if datetime.utcnow() > self.shutdown_timeout:
-                svclog.info("Shutdown timeout reached!")
+                svclog.error("Shutdown timeout reached!")
                 break
 
             for jobtype_id, jobtype in config["jobtypes"].copy().items():
