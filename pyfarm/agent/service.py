@@ -507,7 +507,7 @@ class Agent(object):
             config["agent_lock_file"], retry_on_exit=True, raise_=False)
 
         svclog.debug("Stopping execution of jobtypes")
-        for uuid, jobtype in config["jobtypes"].items():
+        for jobtype_id, jobtype in config["jobtypes"].items():
             try:
                 jobtype.stop()
             except Exception as error:  # pragma: no cover
@@ -515,6 +515,7 @@ class Agent(object):
                     "Error while calling stop() on %s (id: %s): %s",
                     jobtype, uuid, error
                 )
+                config["jobtypes"].pop(jobtype_id)
 
         svclog.info(
             "Waiting on %s job types to terminate", len(config["jobtypes"]))
