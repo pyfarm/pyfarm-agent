@@ -85,6 +85,8 @@ class Agent(object):
         self.repeating_call_counter = {}
         self.shutdown_timeout = None
         self.post_shutdown_lock = DeferredLock()
+        self.stop_lock = DeferredLock()
+        self.stopped = False
 
         # reannounce_client is set when the agent id is
         # first set. reannounce_client_instance ensures
@@ -488,51 +490,70 @@ class Agent(object):
         processes, inform the master of the terminated tasks, update the
         state of the agent on the master.
         """
+        yield self.stop_lock.acquire()
+        if self.stopped:
+            yield self.stop_lock.release()
+            svclog.warning("Agent is already stopped")
+            returnValue(None)
+
         svclog.info("Stopping the agent")
 
-        # If this is the first time we're calling stop() then
-        # setup a function call to remove the pidfile when the
-        # process exits.
-        if not self.shutting_down:
-            self.shutting_down = True
-            self.shutdown_timeout = (
-                datetime.utcnow() + timedelta(
-                    seconds=config["agent_shutdown_timeout"]))
+        self.shutting_down = True
+        self.shutdown_timeout = (
+            datetime.utcnow() + timedelta(
+                seconds=config["agent_shutdown_timeout"]))
 
-            utility.remove_file(
-                config["agent_lock_file"], retry_on_exit=True, raise_=False)
+        utility.remove_file(
+            config["agent_lock_file"], retry_on_exit=True, raise_=False)
 
-            svclog.debug("Stopping execution of jobtypes")
-            for uuid, jobtype in config["jobtypes"].items():
+        svclog.debug("Stopping execution of jobtypes")
+
+        for uuid, jobtype in config["jobtypes"].items():
+            try:
                 jobtype.stop()
+            except Exception as error:  # pragma: no cover
+                svclog.warning(
+                    "Error while calling stop() on %s (id: %s): %s",
+                    jobtype, uuid, error
+                )
 
-            svclog.info("Waiting on %s job types to terminate",
-                        len(config["jobtypes"]))
+        svclog.info(
+            "Waiting on %s job types to terminate", len(config["jobtypes"]))
 
-            while True:
-                # No jobtypes remain
-                if not config["jobtypes"]:
-                    break
+        while True:
+            # No jobtypes remain
+            if not config["jobtypes"]:
+                break
 
-                # We're hit the timeout
-                if datetime.utcnow() > self.shutdown_timeout:
-                    svclog.info("Shutdown timeout reached!")
-                    break
+            # We're hit the timeout
+            if datetime.utcnow() > self.shutdown_timeout:
+                svclog.info("Shutdown timeout reached!")
+                break
 
-                for jobtype_id, jobtype in config["jobtypes"].copy().items():
-                    if not jobtype._has_running_processes():
-                        svclog.error(
-                            "%r has not removed itself, forcing removal",
-                            jobtype)
-                        config["jobtypes"].pop(jobtype_id)
+            for jobtype_id, jobtype in config["jobtypes"].copy().items():
+                if not jobtype._has_running_processes():
+                    svclog.error(
+                        "%r has not removed itself, forcing removal",
+                        jobtype)
+                    config["jobtypes"].pop(jobtype_id)
 
-                # Brief delay so we don't tie up the cpu
-                delay = Deferred()
-                reactor.callLater(1, delay.callback, None)
-                yield delay
+            # Brief delay so we don't tie up the cpu
+            delay = Deferred()
+            reactor.callLater(1, delay.callback, None)
+            yield delay
 
-            if self.agent_api() is not None:
+        if self.agent_api() is not None:
+            try:
                 yield self.post_shutdown_to_master()
+            except Exception as error:  # pragma: no cover
+                svclog.warning(
+                    "Error while calling post_shutdown_to_master()", error)
+        else:
+            svclog.warning("Cannot post shutdown, agent_api() returned None")
+
+        self.stopped = True
+        yield self.stop_lock.release()
+        returnValue(None)
 
     def sigint_handler(self, *_):
         utility.remove_file(
