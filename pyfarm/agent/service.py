@@ -507,7 +507,6 @@ class Agent(object):
             config["agent_lock_file"], retry_on_exit=True, raise_=False)
 
         svclog.debug("Stopping execution of jobtypes")
-
         for uuid, jobtype in config["jobtypes"].items():
             try:
                 jobtype.stop()
@@ -532,7 +531,7 @@ class Agent(object):
 
             for jobtype_id, jobtype in config["jobtypes"].copy().items():
                 if not jobtype._has_running_processes():
-                    svclog.error(
+                    svclog.warning(
                         "%r has not removed itself, forcing removal",
                         jobtype)
                     config["jobtypes"].pop(jobtype_id)
