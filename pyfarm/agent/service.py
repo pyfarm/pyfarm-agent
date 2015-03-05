@@ -520,16 +520,7 @@ class Agent(object):
         svclog.info(
             "Waiting on %s job types to terminate", len(config["jobtypes"]))
 
-        while True:
-            # No jobtypes remain
-            if not config["jobtypes"]:
-                break
-
-            # We're hit the timeout
-            if datetime.utcnow() > self.shutdown_timeout:
-                svclog.error("Shutdown timeout reached!")
-                break
-
+        while config["jobtypes"] and datetime.utcnow() < self.shutdown_timeout:
             for jobtype_id, jobtype in config["jobtypes"].copy().items():
                 if not jobtype._has_running_processes():
                     svclog.warning(
