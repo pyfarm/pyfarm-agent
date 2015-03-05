@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 import json
 import uuid
 from contextlib import nested
@@ -22,18 +23,19 @@ from datetime import datetime, timedelta
 from platform import platform
 
 try:
-    from httplib import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
+    from httplib import (
+        OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND)
 except ImportError:  # pragma: no cover
-    from http.client import OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR
+    from http.client import (
+        OK, CREATED, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND)
 
-from mock import patch
+from mock import patch, Mock
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
-
+from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
+from twisted.internet.task import deferLater
+from twisted.python.failure import Failure
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
-from twisted.internet.defer import inlineCallbacks
-from twisted.internet.task import deferLater
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.sysinfo.system import operating_system
@@ -41,7 +43,8 @@ from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog
-from pyfarm.agent.sysinfo import network, graphics
+from pyfarm.agent.sysinfo import network, graphics, memory
+from pyfarm.agent import utility
 
 
 class HTTPReceiver(Resource):
@@ -139,6 +142,24 @@ class TestAgentServiceAttributes(TestCase):
             schedule_call_args[0][0][0], config["agent_master_reannounce"])
         self.assertEqual(
             schedule_call_args[0][0][1], agent.reannounce)
+
+    def test_callback_shutting_down_true(self):
+        config["agent_shutdown_timeout"] = 4242
+        agent = Agent()
+        self.assertIsNone(agent.shutdown_timeout)
+        agent.shutting_down = True
+        self.assertIsInstance(agent.shutdown_timeout, datetime)
+        expected = timedelta(
+            seconds=config["agent_shutdown_timeout"]) + datetime.utcnow()
+        self.assertDateAlmostEqual(agent.shutdown_timeout, expected)
+
+    def test_callback_shutting_down_false(self):
+        config["agent_shutdown_timeout"] = 4242
+        agent = Agent()
+        self.assertIsNone(agent.shutdown_timeout)
+        agent.shutting_down = True
+        agent.shutting_down = False
+        self.assertIsNone(agent.shutdown_timeout)
 
     def test_shutting_down_getter(self):
         config["shutting_down"] = 42
@@ -363,9 +384,446 @@ class TestAgentPostToMaster(TestCase):
             yield agent.post_agent_to_master()
 
         warning_log.assert_called_with(
-            "Not retrying POST to master, shutting down."
-        )
+            "Not retrying POST to master, shutting down.")
         error_log.assert_called_with(
             "Failed to POST agent to master, the connection was refused. "
-            "Retrying in %s seconds", 1.0
+            "Retrying in %s seconds", 1.0)
+
+
+class TestPostShutdownToMaster(TestCase):
+    POP_CONFIG_KEYS = ["master_api"]
+
+    def setUp(self):
+        super(TestPostShutdownToMaster, self).setUp()
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["state"] = AgentState.ONLINE
+
+        # Mock out memory.free_ram
+        self.free_ram_mock = patch.object(
+            memory, "free_ram", return_value=424242)
+        self.free_ram_mock.start()
+
+        self.normal_result = {
+            "state": AgentState.OFFLINE,
+            "current_assignments": {},
+            "free_ram": 424242
+        }
+
+    @inlineCallbacks
+    def tearDown(self):
+        super(TestPostShutdownToMaster, self).tearDown()
+        self.free_ram_mock.stop()
+        yield self.server.loseConnection()
+
+    @inlineCallbacks
+    def test_assert_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = False
+
+        with nested(
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release"),
+            self.assertRaises(AssertionError)
+        ) as (acquire, release, _):
+            yield agent.post_shutdown_to_master()
+
+        self.assertFalse(acquire.called)
+        self.assertFalse(release.called)
+
+    @inlineCallbacks
+    def test_post_not_found(self):
+        self.fake_api.code = NOT_FOUND
+
+        agent = Agent()
+        agent.shutting_down = True
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+        warning_log.assert_called_with(
+            "Agent %r no longer exists, cannot update state.",
+            config["agent_id"]
         )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+    @inlineCallbacks
+    def test_post_ok(self):
+        self.fake_api.code = OK
+
+        agent = Agent()
+        agent.shutting_down = True
+        with nested(
+            patch.object(svclog, "info"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (info_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+        info_log.assert_called_with(
+            "Agent %r has POSTed shutdown state change successfully.",
+            config["agent_id"]
+        )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+    @inlineCallbacks
+    def test_post_internal_server_error_timeout_expired(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+        warning_log.assert_called_with(
+            "State update failed due to server error: %s.  Shutdown timeout "
+            "reached, not retrying.", self.fake_api.data[0]
+        )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+    @inlineCallbacks
+    def test_post_internal_server_error_retries(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertEqual(self.normal_result, result)
+        warning_log.assert_called_with(
+            "State update failed due to server error: %s.  Shutdown timeout "
+            "reached, not retrying.", self.fake_api.data[0]
+        )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+    @inlineCallbacks
+    def test_post_exception_timeout_expired(self):
+        # Shutdown the server so we don't have anything to
+        # reply on.
+        yield self.server.loseConnection()
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertIsNone(result)
+        self.assertEqual(
+            warning_log.call_args[0][0],
+            "State update failed due to unhandled error: %s.  "
+            "Shutdown timeout reached, not retrying."
+        )
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+    @inlineCallbacks
+    def test_post_exception_retry(self):
+        # Shutdown the server so we don't have anything to
+        # reply on.
+        yield self.server.loseConnection()
+
+        agent = Agent()
+        agent.shutting_down = True
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
+
+        self.assertIsNone(result)
+        self.assertGreaterEqual(warning_log.call_count, 3)
+
+        for call in warning_log.mock_calls:
+            if (call[1][0] == "State update failed due to unhandled error: "
+                              "%s.  Retrying in %s seconds"):
+                break
+        else:
+            self.fail("State update never failed")
+
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
+
+
+class TestSigintHandler(TestCase):
+    POP_CONFIG_KEYS = ["run_control_file"]
+
+    def setUp(self):
+        super(TestSigintHandler, self).setUp()
+        self.fake_run_control_file = os.urandom(8).encode("hex")
+        config["run_control_file"] = self.fake_run_control_file
+
+    def test_sigint_removes_file(self):
+        agent = Agent()
+
+        with nested(
+            patch.object(utility, "remove_file"),
+            patch.object(agent, "stop")
+        ) as (remove_file, _):
+            agent.sigint_handler()
+
+        remove_file.assert_called_with(
+            self.fake_run_control_file, retry_on_exit=True, raise_=False)
+
+    def test_sigint_callback(self):
+        agent = Agent()
+        stop_deferred = Deferred()
+
+        with nested(
+            patch.object(agent, "stop", return_value=stop_deferred),
+            patch.object(reactor, "stop", return_value=None)
+        ) as (agent_stop, reactor_stop):
+            stop_deferred.callback(None)
+            agent.sigint_handler()
+
+        agent_stop.assert_called_once()
+        reactor_stop.assert_called_once()
+
+    def test_sigint_errback(self):
+        agent = Agent()
+        stop_deferred = Deferred()
+        failure = Exception("foobar")
+
+        with nested(
+            patch.object(svclog, "error"),
+            patch.object(agent, "stop", return_value=stop_deferred),
+            patch.object(reactor, "stop", return_value=None),
+            patch.object(sys, "exit", return_value=None),
+        ) as (error_log, agent_stop, reactor_stop, sys_exit):
+            stop_deferred.errback(failure)
+            agent.sigint_handler()
+
+        error_log.assert_called_once()
+        agent_stop.assert_called_once()
+        reactor_stop.assert_called_once()
+
+        # Manually test the call args because assert_called_with would
+        # require the exact instance of the Failure object.
+        self.assertEqual(
+            error_log.call_args[0][0],
+            "Error while attempting to shutdown the agent: %s")
+        self.assertIsInstance(error_log.call_args[0][1], Failure)
+        sys_exit.assert_called_with(1)
+
+
+class TestStop(TestCase):
+    POP_CONFIG_KEYS = ["run_control_file"]
+
+    def setUp(self):
+        super(TestStop, self).setUp()
+        self.fake_agent_lock_file = os.urandom(6).encode("hex")
+        config["agent_lock_file"] = self.fake_agent_lock_file
+
+    @inlineCallbacks
+    def test_already_stopped(self):
+        agent = Agent()
+        agent.stopped = True
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(svclog, "warning")
+        ) as (stop_lock_acquire, stop_lock_release, warning_log):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+        warning_log.assert_called_once()
+        warning_log.assert_called_with("Agent is already stopped")
+
+    @inlineCallbacks
+    def test_removes_file(self):
+        agent = Agent()
+        post_shutdown_deferred = Deferred()
+        post_shutdown_deferred.callback(None)
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(utility, "remove_file"),
+            patch.object(
+                agent, "post_shutdown_to_master",
+                return_value=post_shutdown_deferred)
+        ) as (
+            stop_lock_acquire, stop_lock_release, remove_file, _
+        ):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        remove_file.assert_called_with(
+            self.fake_agent_lock_file, retry_on_exit=True, raise_=False)
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+
+    @inlineCallbacks
+    def test_no_agent_api(self):
+        agent = Agent()
+        post_shutdown_deferred = Deferred()
+        post_shutdown_deferred.callback(None)
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(svclog, "warning"),
+            patch.object(agent, "agent_api", return_value=None),
+            patch.object(
+                agent, "post_shutdown_to_master",
+                return_value=post_shutdown_deferred)
+        ) as (
+            stop_lock_acquire, stop_lock_release, warning_log,
+            agent_api, post_shutdown
+        ):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        agent_api.assert_called_once()
+        warning_log.assert_called_with(
+            "Cannot post shutdown, agent_api() returned None")
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+        post_shutdown.assert_never_called()
+
+    @inlineCallbacks
+    def test_stops_and_removes_jobtypes(self):
+        agent = Agent()
+        post_shutdown_deferred = Deferred()
+        post_shutdown_deferred.callback(None)
+
+        jobtype_a = Mock(
+            stop=Mock(),
+            _has_running_processes=Mock(return_value=False))
+        jobtype_b = Mock(
+            stop=Mock(),
+            _has_running_processes=Mock(return_value=False))
+        config["jobtypes"] = {
+            uuid.uuid4(): jobtype_a,
+            uuid.uuid4(): jobtype_b
+        }
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(svclog, "warning"),
+            patch.object(
+                agent, "post_shutdown_to_master",
+                return_value=post_shutdown_deferred)
+        ) as (
+            stop_lock_acquire, stop_lock_release, warning_log,
+            post_shutdown
+        ):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+        post_shutdown.assert_called_once()
+        jobtype_a.stop.assert_called_once()
+        jobtype_b.stop.assert_called_once()
+        jobtype_a._has_running_processes.assert_called_once()
+        jobtype_b._has_running_processes.assert_called_once()
+        self.assertEqual(config["jobtypes"], {})
+        warning_log.assert_any_call(
+            "%r has not removed itself, forcing removal", jobtype_a)
+        warning_log.assert_any_call(
+            "%r has not removed itself, forcing removal", jobtype_b)
+
+    @inlineCallbacks
+    def test_removes_jobtype_on_stop_error(self):
+        agent = Agent()
+        post_shutdown_deferred = Deferred()
+        post_shutdown_deferred.callback(None)
+
+        # These 'jobtypes' will cause an error which should
+        # cause stop() to remove them from the dictionary.
+        id_a = uuid.uuid4()
+        id_b = uuid.uuid4()
+        config["jobtypes"] = {
+            id_a: None,
+            id_b: None
+        }
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(agent, "agent_api", return_value=None)
+
+        ) as (
+            stop_lock_acquire, stop_lock_release, agent_api
+        ):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+        self.assertEqual(config["jobtypes"], {})
+
+    @inlineCallbacks
+    def test_timeout(self):
+        agent = Agent()
+        config["agent_shutdown_timeout"] = -50
+        jobtype_a = Mock(
+            stop=Mock(),
+            _has_running_processes=Mock(return_value=False))
+        jobtype_b = Mock(
+            stop=Mock(),
+            _has_running_processes=Mock(return_value=False))
+        config["jobtypes"] = {
+            uuid.uuid4(): jobtype_a,
+            uuid.uuid4(): jobtype_b
+        }
+
+        with nested(
+            patch.object(agent.stop_lock, "acquire"),
+            patch.object(agent.stop_lock, "release"),
+            patch.object(agent, "agent_api", return_value=None),
+        ) as (
+            stop_lock_acquire, stop_lock_release,
+            agent_api
+        ):
+            result = yield agent.stop()
+
+        self.assertIsNone(result)
+        agent_api.assert_called_once()
+        stop_lock_acquire.assert_called_once()
+        stop_lock_release.assert_called_once()
+
