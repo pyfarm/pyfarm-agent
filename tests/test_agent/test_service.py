@@ -827,3 +827,42 @@ class TestStop(TestCase):
         stop_lock_acquire.assert_called_once()
         stop_lock_release.assert_called_once()
 
+
+class TestShouldReannounce(TestCase):
+    POP_CONFIG_KEYS = [
+        "agent_master_reannounce", "last_master_contact"
+    ]
+
+    def test_should_reannounce_locked(self):
+        agent = Agent()
+        agent.reannouce_lock.acquire()
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannounce_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = True
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannounce_master_contacted(self):
+        config["last_master_contact"] = datetime.utcnow() - timedelta(seconds=5)
+        config["agent_master_reannounce"] = 3
+        agent = Agent()
+        self.assertTrue(agent.should_reannounce())
+
+
+class TestReannounce(TestCase):
+    @inlineCallbacks
+    def test_should_not_reannounce(self):
+        agent = Agent()
+
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=False),
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+        ) as (should_reannounce, acquire_lock, release_lock):
+            result = yield agent.reannounce()
+
+        self.assertIsNone(result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+
