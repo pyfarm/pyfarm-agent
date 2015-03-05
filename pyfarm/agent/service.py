@@ -86,13 +86,8 @@ class Agent(object):
         self.shutdown_timeout = None
         self.post_shutdown_lock = DeferredLock()
         self.stop_lock = DeferredLock()
+        self.reannouce_lock = DeferredLock()
         self.stopped = False
-
-        # reannounce_client is set when the agent id is
-        # first set. reannounce_client_instance ensures
-        # that once we start the announcement process we
-        # won't try another until we're finished
-        self.reannounce_client_request = None
 
         # Register a callback so self.shutdown_timeout is set when
         # "shutting_down" is set or modified.
