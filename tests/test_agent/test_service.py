@@ -815,17 +815,15 @@ class TestStop(TestCase):
         with nested(
             patch.object(agent.stop_lock, "acquire"),
             patch.object(agent.stop_lock, "release"),
-            patch.object(svclog, "error"),
             patch.object(agent, "agent_api", return_value=None),
         ) as (
-            stop_lock_acquire, stop_lock_release, error_log,
+            stop_lock_acquire, stop_lock_release,
             agent_api
         ):
             result = yield agent.stop()
 
         self.assertIsNone(result)
         agent_api.assert_called_once()
-        error_log.assert_called_with("Shutdown timeout reached!")
         stop_lock_acquire.assert_called_once()
         stop_lock_release.assert_called_once()
 
