@@ -428,6 +428,7 @@ class TestCase(_TestCase):
             "current_assignments": {},
             "agent_id": uuid.uuid4(),
             "agent_http_persistent_connections": False,
+            "agent_shutdown_timeout": 3,
             "master": PYFARM_AGENT_MASTER,
             "agent_hostname": os.urandom(self.RAND_LENGTH).encode("hex"),
             "agent_ram": memory.total_ram(),

@@ -38,39 +38,8 @@ from pyfarm.agent.utility import UnicodeCSVWriter
 STDOUT = 0
 STDERR = 1
 STREAMS = set([STDOUT, STDERR])
-CREATE_LOG_LOCK = Lock()
 
 logger = getLogger("jobtypes.log")
-
-
-def open_log(path, ignore_existing=False):
-    """
-    Creates a log file on disk as safely as possible and returns
-    the file object.  This classmethod is meant to be run from
-    within a thread so the disk IO can be placed outside of the
-    reactor's event loop.
-
-    :raise OSError:
-        Raised if ``path`` already exists or its parent
-        directory could not be created for some reason.
-    """
-    parent_dir = dirname(path)
-
-    with CREATE_LOG_LOCK:
-        if not ignore_existing and isfile(path):
-            raise OSError("Log exists: %r" % path)
-
-        # Create the directory and raise any exception
-        # produced (except EEXIST)
-        try:
-            makedirs(parent_dir)
-            logger.debug("Created directory %r", parent_dir)
-        except OSError as e:  # pragma: no cover
-            if e.errno != EEXIST:
-                raise
-
-        logger.debug("Opening log file %r", path)
-        return open(path, "wb")
 
 
 class CSVLog(object):
@@ -93,9 +62,9 @@ class CSVLog(object):
 
     def write(self, data):
         """Writes the given data to the underlying csv object."""
-        date, streamno, lineno, message = data
+        date, streamno, lineno, pid, message = data
         self.csv.writerow(
-            [date.isoformat(), str(streamno), str(lineno), message])
+            [date.isoformat(), str(streamno), str(lineno), str(pid), message])
         self.written += 1
 
 
@@ -145,28 +114,31 @@ class LoggerPool(ThreadPool):
         """
         return deferToThreadPool(self.reactor, self, function, *args, **kwargs)
 
-    def open_log(self, protocol, path, ignore_existing=False):
+    def open_log(self, uuid, path, ignore_existing=False):
         """
-        Opens a log file for the given ``protocol`` object at ``path``.  This
-        class method will return a deferred object that will fire its callback
-        once the log is open and ready to receive data.
+        Opens a log file for the given assignment given by ``uuid`` at ``path``.
         """
-        if protocol.uuid in self.logs:
-            raise KeyError(
-                "Protocol %r is already logging to %r" % (
-                    protocol.uuid, self.logs[protocol.uuid]))
+        if uuid in self.logs:
+            raise KeyError("Log for uuid %s is already logging to %r" %
+                           (uuid, self.logs[uuid]))
 
-        def log_created(stream, impacted_protocol):
-            logger.info(
-                "Created log for protocol %r at %r",
-                impacted_protocol.uuid, stream.name)
+        if not ignore_existing and isfile(path):
+            raise OSError("Log exists: %r" % path)
 
-            self.logs[impacted_protocol.uuid] = CSVLog(stream)
-            return impacted_protocol.uuid, self.logs[impacted_protocol.uuid]
+        # Create the directory and raise any exception
+        # produced (except EEXIST)
+        parent_dir = dirname(path)
+        try:
+            makedirs(parent_dir)
+            logger.debug("Created directory %r", parent_dir)
+        except OSError as e:  # pragma: no cover
+            if e.errno != EEXIST:
+                raise
 
-        deferred = self.defer(open_log, path, ignore_existing=ignore_existing)
-        deferred.addCallback(log_created, protocol)
-        return deferred
+        logger.debug("Opening log file %r", path)
+        file = open(path, "wb")
+        logger.info("Created log for assignment %s at %r", uuid, path)
+        self.logs[uuid] = CSVLog(file)
 
     def close_log(self, protocol_uuid):
         """Closes the file handle for the given protocol id."""
@@ -176,7 +148,7 @@ class LoggerPool(ThreadPool):
             log.file.close()
             logger.info("Closed %s", log.file.name)
 
-    def log(self, protocol_id, streamno, message):
+    def log(self, uuid, stream, message, pid=None):
         """
         Places a single message to be handled by the worker threads into
         the queue for processing.
@@ -187,9 +159,10 @@ class LoggerPool(ThreadPool):
             return
 
         # This operation is atomic so we're safe to keep
-        log = self.logs[protocol_id]
+        log = self.logs[uuid]
         log.lines += 1
-        log.messages.append((datetime.utcnow(), streamno, log.lines, message))
+        log.messages.append((datetime.utcnow(), str(pid) or "", stream,
+                             log.lines, message))
 
         if len(log.messages) > self.max_queued_lines:
             self.callInThread(self.flush, log)

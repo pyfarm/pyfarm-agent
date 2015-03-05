@@ -23,25 +23,18 @@ and other relevant information.  This module may also contain os specific
 information such as the Linux distribution, Windows version, bitness, etc.
 """
 
-import atexit
 import os
 import platform
 import sys
 import time
 import tempfile
 import uuid
-from errno import ENOENT
 from os.path import isfile
 
 import psutil
 
-try:
-    WindowsError
-except NameError:  # pragma: no cover
-    WindowsError = OSError
-
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo.network import mac_addresses
+from pyfarm.agent.utility import remove_file
 
 logger = getLogger("agent.sysinfo")
 
@@ -58,22 +51,7 @@ except NameError:  # pragma: no cover
     except OSError:  # pragma: no cover
         pass
 
-    try:
-        os.remove(path)
-    except (WindowsError, OSError, NotImplementedError) as e:
-        if getattr(e, "errno", None) != ENOENT:
-            logger.warning("Could not remove temp file %s: %s: %s",
-                           path, type(e).__name__, e)
-
-            # Try to remove the file on shutdown
-            @atexit.register
-            def remove():
-                try:
-                    os.remove(path)
-                except (WindowsError, OSError, NotImplementedError) as e:
-                    if getattr(e, "errno", None) != ENOENT:
-                        logger.error("Failed to remove %s: %s", path, e)
-        del e
+    remove_file(path, retry_on_exit=True, raise_=False)
     del fd, path
 
 # Determine if environment is case sensitive
