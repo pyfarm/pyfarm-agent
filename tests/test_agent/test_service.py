@@ -866,3 +866,18 @@ class TestReannounce(TestCase):
         acquire_lock.assert_called_once()
         release_lock.assert_called_once()
 
+    @inlineCallbacks
+    def test_should_not_reannounce_no_force(self):
+        agent = Agent()
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=True),
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+        ) as (should_reannounce, acquire_lock, release_lock):
+            result = yield agent.reannounce(force=False)
+
+        self.assertIsNone(result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+
+    
