@@ -224,6 +224,7 @@ class Agent(object):
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["agent_master_reannounce"]
 
+    @inlineCallbacks
     def reannounce(self, force=False):
         """
         Method which is used to periodically contact the master.  This
