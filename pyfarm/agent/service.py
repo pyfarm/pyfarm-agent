@@ -223,8 +223,9 @@ class Agent(object):
         contacted = config.master_contacted(update=False)
         if contacted is None:
             return True
-        remaining = (datetime.utcnow() - contacted).total_seconds()
-        return remaining > config["agent_master_reannounce"]
+
+        return utility.total_seconds(
+            datetime.utcnow() - contacted) > config["agent_master_reannounce"]
 
     @inlineCallbacks
     def reannounce(self, force=False):
