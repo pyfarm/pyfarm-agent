@@ -221,6 +221,8 @@ class Agent(object):
             return False
 
         contacted = config.master_contacted(update=False)
+        if contacted is None:
+            return True
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["agent_master_reannounce"]
 
