@@ -849,8 +849,48 @@ class TestShouldReannounce(TestCase):
         agent = Agent()
         self.assertTrue(agent.should_reannounce())
 
+    def test_returns_true_if_not_contacted(self):
+        agent = Agent()
+        with patch.object(config, "master_contacted", return_value=None):
+            self.assertTrue(agent.should_reannounce())
+
 
 class TestReannounce(TestCase):
+    POP_CONFIG_KEYS = [
+        "last_announce", "last_master_contact"
+    ]
+
+    def setUp(self):
+        super(TestReannounce, self).setUp()
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["state"] = AgentState.ONLINE
+
+        # Mock out memory.free_ram
+        self.free_ram_mock = patch.object(
+            memory, "free_ram", return_value=424242)
+        self.free_ram_mock.start()
+
+        self.normal_result = {
+            "state": config["state"],
+            "current_assignments": {},
+            "free_ram": 424242
+        }
+
+    @inlineCallbacks
+    def tearDown(self):
+        super(TestReannounce, self).tearDown()
+        self.free_ram_mock.stop()
+        yield self.server.loseConnection()
+
     @inlineCallbacks
     def test_should_not_reannounce(self):
         agent = Agent()
@@ -858,26 +898,44 @@ class TestReannounce(TestCase):
         with nested(
             patch.object(agent, "should_reannounce", return_value=False),
             patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
-        ) as (should_reannounce, acquire_lock, release_lock):
-            result = yield agent.reannounce()
-
-        self.assertIsNone(result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
-
-    @inlineCallbacks
-    def test_should_not_reannounce_no_force(self):
-        agent = Agent()
-        with nested(
-            patch.object(agent, "should_reannounce", return_value=True),
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
-        ) as (should_reannounce, acquire_lock, release_lock):
+            patch.object(agent.reannouce_lock, "release")
+        ) as (_, acquire_lock, release_lock):
             result = yield agent.reannounce(force=False)
 
         self.assertIsNone(result)
         acquire_lock.assert_called_once()
         release_lock.assert_called_once()
 
-    
+    @inlineCallbacks
+    def test_reannounce_force(self):
+        self.fake_api.code = OK
+
+        agent = Agent()
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=False),
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(svclog, "debug")
+        ) as (_, acquire_lock, release_lock, debug_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        debug_log.assert_called_once_with(
+            "Announcing %s to master", config["agent_hostname"])
+
+    @inlineCallbacks
+    def test_ok(self):
+        self.fake_api.code = OK
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release")
+        ) as (acquire_lock, release_lock):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
