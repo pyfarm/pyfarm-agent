@@ -199,7 +199,9 @@ class Assign(APIResource):
 
         def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
-                config["agent"].stop()
+                stopping = config["agent"].stop()
+                stopping.addCallbacks(lambda _: reactor.stop(),
+                                      lambda _: reactor.stop())
 
         def load_jobtype_failed(result, assign_id):
             logger.error(

@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
+from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Schema, Optional
@@ -72,6 +73,8 @@ class Stop(APIResource):
             request.setResponseCode(ACCEPTED)
             request.finish()
 
+        stopping.addCallbacks(lambda _: reactor.stop(),
+                              lambda _: reactor.stop())
         return NOT_DONE_YET
 
 
@@ -108,7 +111,9 @@ class Restart(APIResource):
 
         if not config["current_assignments"] or data.get("immediately", False):
             logger.info("The agent will restart immediately.")
-            agent.stop()
+            stopping = agent.stop()
+            stopping.addCallbacks(lambda _: reactor.stop(),
+                                  lambda _: reactor.stop())
         else:
             logger.info("The agent will restart after the current assignment "
                         "is finished.")
