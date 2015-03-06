@@ -30,7 +30,7 @@ from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 from voluptuous import Schema, Required
 
-from pyfarm.core.enums import WorkState
+from pyfarm.core.enums import WorkState, AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.client import post, http_retry_delay
 from pyfarm.agent.http.api.base import APIResource
@@ -182,6 +182,8 @@ class Assign(APIResource):
 
         def assignment_started(_, assign_id):
             logger.debug("Assignment %s has started", assign_id)
+            config["state"] = AgentState.RUNNING
+            self.agent.reannounce(force=True)
 
         def assignment_stopped(_, assign_id):
             logger.debug("Assignment %s has stopped", assign_id)
@@ -190,6 +192,10 @@ class Assign(APIResource):
                 jobtype_id = assignment["jobtype"].pop("id", None)
                 if jobtype_id:
                     config["jobtypes"].pop(jobtype_id, None)
+            if (not config["current_assignments"] and
+                not self.agent.shutting_down):
+                config["state"] = AgentState.ONLINE
+                self.agent.reannounce(force=True)
 
         def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
