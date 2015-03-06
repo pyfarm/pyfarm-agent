@@ -233,12 +233,12 @@ class Agent(object):
         remaining = (datetime.utcnow() - contacted).total_seconds()
         return remaining > config["agent_master_reannounce"]
 
-    def reannounce(self):
+    def reannounce(self, force=False):
         """
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
-        if not self.should_reannounce():
+        if not self.should_reannounce() and not force:
             return
 
         svclog.debug("Announcing %s to master", config["agent_hostname"])
