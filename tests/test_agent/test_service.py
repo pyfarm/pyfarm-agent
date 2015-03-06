@@ -909,8 +909,8 @@ class TestReannounce(TestCase):
     @inlineCallbacks
     def test_reannounce_force(self):
         self.fake_api.code = OK
-
         agent = Agent()
+
         with nested(
             patch.object(agent, "should_reannounce", return_value=False),
             patch.object(agent.reannouce_lock, "acquire"),
@@ -939,3 +939,114 @@ class TestReannounce(TestCase):
         self.assertEqual(result, self.normal_result)
         acquire_lock.assert_called_once()
         release_lock.assert_called_once()
+
+    @inlineCallbacks
+    def test_internal_server_error_shutting_down(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        agent = Agent()
+        agent.shutting_down = True
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(svclog, "warning")
+        ) as (acquire_lock, release_lock, warning_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        warning_log.assert_called_once_with(
+            "Could not announce to master. Not retrying because of pending "
+            "shutdown."
+        )
+
+    @inlineCallbacks
+    def test_internal_server_error_retry(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        agent = Agent()
+        agent.shutting_down = False
+
+        def shutdown():
+            agent.shutting_down = True
+
+        reactor.callLater(3, shutdown)
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(svclog, "warning")
+        ) as (acquire_lock, release_lock, warning_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        warning_log.assert_any_call(
+            "Could not announce self to the master server, internal server "
+            "error: %s.  Retrying in %s seconds.", self.normal_result, 1.0
+        )
+        self.assertGreaterEqual(warning_log.call_count, 2)
+
+    @inlineCallbacks
+    def test_not_found(self):
+        self.fake_api.code = NOT_FOUND
+        agent = Agent()
+
+        post_deferred = Deferred()
+        post_deferred.callback(None)
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(
+                    agent, "post_agent_to_master", return_value=post_deferred),
+        ) as (acquire_lock, release_lock, post_agent):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        post_agent.assert_called_once()
+
+    @inlineCallbacks
+    def test_bad_request(self):
+        self.fake_api.code = BAD_REQUEST
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(svclog, "error")
+        ) as (acquire_lock, release_lock, error_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        error_log.assert_called_once_with(
+            "Failed to announce self to the master, bad "
+            "request: %s.  This request will not be retried.",
+            self.normal_result
+        )
+
+    @inlineCallbacks
+    def test_other(self):
+        self.fake_api.code = 42
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannouce_lock, "acquire"),
+            patch.object(agent.reannouce_lock, "release"),
+            patch.object(svclog, "error")
+        ) as (acquire_lock, release_lock, error_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        error_log.assert_called_once_with(
+            "Unhandled error when posting self to the "
+            "master: %s (code: %s).  This request will not be "
+            "retried.",
+            self.normal_result, 42
+        )
