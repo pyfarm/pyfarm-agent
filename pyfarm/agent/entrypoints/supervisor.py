@@ -42,7 +42,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.entrypoints.utility import start_daemon_posix
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.utility import remove_file
+from pyfarm.agent.utility import remove_file, remove_directory
 
 logger = getLogger("agent.supervisor")
 
@@ -156,7 +156,7 @@ def supervisor():
                 zipfile.is_zipfile(update_file_path)):
                 logger.info("Found an upgrade to pyfarm-agent")
                 try:
-                    shutil.rmtree(args.agent_package_dir)
+                    remove_directory(args.agent_package_dir, raise_=True)
                     os.makedirs(args.agent_package_dir)
                     with zipfile.ZipFile(update_file_path, "r") as archive:
                         archive.extractall(args.agent_package_dir)
