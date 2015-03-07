@@ -27,7 +27,7 @@ PyFarm Agent
 Core module containing code to run PyFarm's agent. This will allow a remote
 host to:
 
-    * Add itself to PyFarm
+    * Inform the master about itself
     * Request, receive and execute work via job types
     * Track and control individual processes
     * Measure and limit system resource usage
