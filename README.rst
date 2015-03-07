@@ -61,7 +61,7 @@ Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ for
 every commit.  They can also be run locally too using ``trial``.  Currently,
 the agent tests require:
 
-    * Access to https://httpbin.pyfarm.org for HTTP client testing.  This is
+    * Access to https://httpbin.pyfarm.net for HTTP client testing.  This is
       configurable however and could be pointed to an internal domain
       using the ``agent_unittest`` configuration variable.
     * The ``pyfarm.master`` module to run the API.  So all the setup steps
