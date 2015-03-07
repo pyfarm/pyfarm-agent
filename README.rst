@@ -65,8 +65,9 @@ the agent tests require:
       configurable however and could be pointed to an internal domain
       using the ``agent_unittest`` configuration variable.
     * The ``pyfarm.master`` module to run the API.  So all the setup steps
-      that apply to the master will apply here as well.
-    * Redis or RabbitMQ for running a a backend for celery.
+      that apply to the master will apply here as well.  This includes the
+      requirement to run Redis, RabbitMQ or another backend that supports
+      ``celery``.
     * Linux or OS X since the master is designed to operate on these
       platforms.  The below setup may work on Windows with a few configuration
       tweaks too.
