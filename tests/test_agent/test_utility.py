@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import atexit
+import shutil
 import os
 import re
 import tempfile
@@ -246,6 +247,13 @@ class TestAgentUUID(TestCase):
         path = self.create_file()
         os.remove(path)
         self.assertIsNone(AgentUUID.load(path))
+
+    def test_raises_unhandled_error(self):
+        path = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, path)
+
+        with self.assertRaises(IOError):
+            AgentUUID.load(path)
 
 
 class TestRemoveFile(TestCase):
