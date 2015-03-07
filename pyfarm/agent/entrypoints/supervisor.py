@@ -19,7 +19,6 @@ import signal
 import subprocess
 import sys
 import time
-import shutil
 import zipfile
 from os.path import join, isdir, isfile
 
