@@ -15,13 +15,14 @@
 PyFarm Agent
 ============
 
-.. image:: https://coveralls.io/repos/pyfarm/pyfarm-agent/badge.png?branch=master
-    :target: https://coveralls.io/r/pyfarm/pyfarm-agent?branch=master
-    :alt: build status (agent)
-
 .. image:: https://travis-ci.org/pyfarm/pyfarm-agent.png?branch=master
     :target: https://travis-ci.org/pyfarm/pyfarm-agent
+    :alt: build status (agent)
+
+.. image:: https://coveralls.io/repos/pyfarm/pyfarm-agent/badge.png?branch=master
+    :target: https://coveralls.io/r/pyfarm/pyfarm-agent?branch=master
     :alt: coverage
+
 
 Core module containing code to run PyFarm's agent. This will allow a remote
 host to:
