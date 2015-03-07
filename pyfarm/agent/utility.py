@@ -398,8 +398,8 @@ def remove_file(
 def remove_directory(
         path, retry_on_exit=False, raise_=True, ignored_errnos=(ENOENT, )):
     """
-    Simple function to remove the provided directory or retry on exit
-    if requested.  This function standardizes the log output, ensures
+    Simple function to **recursively** remove the provided directory or retry on
+    exit if requested.  This function standardizes the log output, ensures
     it's only called once per path on exit and handles platform
     specific exceptions (ie. ``WindowsError``).
 
