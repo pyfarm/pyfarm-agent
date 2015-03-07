@@ -21,6 +21,7 @@ import uuid
 from contextlib import nested
 from datetime import datetime, timedelta
 from platform import platform
+from os.path import join
 
 try:
     from httplib import (
@@ -38,6 +39,9 @@ from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
 from pyfarm.core.enums import AgentState
+from pyfarm.agent.http.api.base import APIRoot
+from pyfarm.agent.http.core.server import StaticPath
+from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
@@ -826,4 +830,33 @@ class TestStop(TestCase):
         agent_api.assert_called_once()
         stop_lock_acquire.assert_called_once()
         stop_lock_release.assert_called_once()
+
+
+class TestBuildHTTPResource(TestCase):
+    def test_root_resources(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+
+        root = resource.children.pop("")
+        self.assertIsInstance(root, Index)
+
+        api = resource.children.pop("api")
+        self.assertIsInstance(api, APIRoot)
+
+        configuration = resource.children.pop("configuration")
+        self.assertIsInstance(configuration, Configuration)
+
+        favicon = resource.children.pop("favicon.ico")
+        self.assertIsInstance(favicon, StaticPath)
+        self.assertEqual(
+            favicon.path, join(config["agent_static_root"], "favicon.ico"))
+        self.assertEqual(favicon.defaultType, "image/x-icon")
+
+        static = resource.children.pop("static")
+        self.assertIsInstance(static, StaticPath)
+        self.assertEqual(static.path, config["agent_static_root"])
+
+        # We should not have anything remaining.  If we do it means there's
+        # a new root resource we're not testing above.
+        self.assertNot(resource.children)
 
