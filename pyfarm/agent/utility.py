@@ -431,7 +431,7 @@ def remove_directory(
             keywords = dict(retry_on_exit=False, raise_=False)
             signature = (remove_directory, (path, ), keywords)
             if signature not in atexit._exithandlers:
-                atexit.register(remove_file, path, **keywords)
+                atexit.register(remove_directory, path, **keywords)
         else:
             logger.error(
                 "Failed to remove %s (%s)",
