@@ -33,16 +33,6 @@ except ImportError:  # pragma: no cover
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
         METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR)
 
-try:
-    from itertools import ifilter as filter_
-except ImportError:  # pragma: no cover
-    filter_ = filter
-
-try:
-    from itertools import imap as map_
-except ImportError:  # pragma: no cover
-    map_ = map
-
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
