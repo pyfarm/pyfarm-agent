@@ -150,25 +150,15 @@ class Resource(_Resource):
         ``(body, code)`` and renders the resulting data onto
         the request.
         """
+        assert isinstance(response, (list, tuple))
         if len(response) == 3:
             body, code, headers = response
 
             if isinstance(headers, dict):
-                # Set the response headers
                 for header, value in headers.items():
-                    # Response header values in Twisted are supposed
-                    # to be strings, unlike request headers, according
-                    # to the documentation.  Internally it seems to set
-                    # it as a list however that's not something the
-                    # setHeader() api exposes.
-                    if not isinstance(value, STRING_TYPES):
-                        self.error(
-                            request, INTERNAL_SERVER_ERROR,
-                            "Expected string for header values"
-                        )
-                        return
-
-                    request.setHeader(header, value)
+                    if isinstance(value, STRING_TYPES):
+                        value = [value]
+                    request.responseHeaders.setRawHeaders(header, value)
 
             request.setResponseCode(code)
             request.write(body)
