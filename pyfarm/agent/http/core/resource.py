@@ -262,6 +262,6 @@ class Resource(_Resource):
         else:
             self.error(
                 request, INTERNAL_SERVER_ERROR,
-                "Unhandled type %s in response" % response
+                "Unhandled %r in response" % response
             )
             return NOT_DONE_YET
