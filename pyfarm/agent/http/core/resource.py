@@ -131,18 +131,17 @@ class Resource(_Resource):
             result = html_error.render(
                 code=code, code_msg=responses[code], message=message)
             request.write(result)
-            request.finish()
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
             request.write({"error": message})
-            request.finish()
 
         else:
             request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
             request.write(
                 {"error": "Can only handle text/html or application/json here"})
-            request.finish()
+
+        request.finish()
 
     def render_tuple(self, request, response):
         """
