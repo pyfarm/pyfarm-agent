@@ -150,7 +150,7 @@ class Resource(_Resource):
         ``(body, code)`` and renders the resulting data onto
         the request.
         """
-        assert isinstance(response, (list, tuple))
+        assert isinstance(response, (list, tuple)), type(response)
         if len(response) == 3:
             body, code, headers = response
 
@@ -182,13 +182,9 @@ class Resource(_Resource):
         An inline callback used to unpack a deferred
         response object.
         """
+        assert isinstance(deferred, Deferred)
         response = yield deferred
-        if isinstance(response, tuple):
-            self.render_tuple(request, response)
-        else:
-            self.error(
-                request, INTERNAL_SERVER_ERROR,
-                "Expected a tuple to be returned from the deferred response.")
+        self.render_tuple(request, response)
 
     def render(self, request):
         # Check to ensure that the content type being requested
