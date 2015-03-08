@@ -31,6 +31,7 @@ except ImportError:  # pragma: no cover
 
 from mock import patch
 
+from twisted.internet.defer import inlineCallbacks, returnValue, succeed
 from twisted.web.test.requesthelper import DummyRequest
 from twisted.web.resource import Resource as _Resource
 from twisted.web.http import Headers
@@ -274,6 +275,47 @@ class TestRenderTuple(TestCase):
                 {"error": "Expected two or three length tuple for response"})])
 
 
+class TestRenderDeferred(TestCase):
+    @inlineCallbacks
+    def test_assertion(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        with self.assertRaises(AssertionError):
+            yield resource.render_deferred(request, None)
+
+    @inlineCallbacks
+    def test_deferred_tuple_two(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+
+        @inlineCallbacks
+        def render():
+            yield succeed(None)
+            returnValue(("body", OK))
+
+        yield resource.render_deferred(request, render())
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(request.written, ["body"])
+
+    @inlineCallbacks
+    def test_deferred_tuple_three(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+
+        @inlineCallbacks
+        def render():
+            yield succeed(None)
+            returnValue(("body", OK, {"Foo": "a", "Bar": ["c", "d"]}))
+
+        yield resource.render_deferred(request, render())
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(request.written, ["body"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Foo"), ["a"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
 
 # class DummyContent(StringIO):
 #     def read(self, n=-1):
