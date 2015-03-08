@@ -242,39 +242,12 @@ class TestRemoveFile(TestCase):
              {"raise_": False, "retry_on_exit": False})]
 
     def test_removes_file(self):
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
-
-        with patch.object(logger, "info", capture_messages):
-            remove_file(self.path)
-
-        for message, args, kwargs in messages:
-            if "Removed %s" in message:
-                break
-        else:
-            self.fail("Never found log message.")
-
+        remove_file(self.path)
         self.assertFalse(isfile(self.path))
 
     def test_ignored_error(self):
         os.remove(self.path)
-
-        messages = []
-
-        def capture_messages(message, *args, **kwargs):
-            messages.append((message, args, kwargs))
-
-        with patch.object(logger, "debug", capture_messages):
-            remove_file(self.path, ignored_errnos=(ENOENT, ))
-
-        for message, args, kwargs in messages:
-            if "Failed to remove %s (%s)" in message:
-                break
-        else:
-            self.fail("Never found log message.")
-
+        remove_file(self.path, ignored_errnos=(ENOENT, ), raise_=True)
         self.assertFalse(isfile(self.path))
 
     def test_retry_on_shutdown_no_raise(self):
