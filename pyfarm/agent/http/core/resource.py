@@ -128,10 +128,10 @@ class Resource(_Resource):
         if "text/html" in content_types:
             request.setResponseCode(code)
             html_error = template.load("error.html")
-            deferred = html_error.render(
+            result = html_error.render(
                 code=code, code_msg=responses[code], message=message)
-            deferred.addCallback(request.write).addCallback(
-                lambda _: request.finish())
+            request.write(result)
+            request.finish()
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
