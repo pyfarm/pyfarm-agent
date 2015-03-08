@@ -23,15 +23,16 @@ from StringIO import StringIO
 try:
     from httplib import (
         responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
-        UNSUPPORTED_MEDIA_TYPE, OK)
+        UNSUPPORTED_MEDIA_TYPE, OK, METHOD_NOT_ALLOWED)
 except ImportError:  # pragma: no cover
     from httplib.client import (
         responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
-        UNSUPPORTED_MEDIA_TYPE, OK)
+        UNSUPPORTED_MEDIA_TYPE, OK, METHOD_NOT_ALLOWED)
 
-from mock import patch
+from mock import Mock, patch
 
-from twisted.internet.defer import inlineCallbacks, returnValue, succeed
+from twisted.internet.defer import (
+    Deferred, inlineCallbacks, returnValue, succeed)
 from twisted.web.test.requesthelper import DummyRequest
 from twisted.web.resource import Resource as _Resource
 from twisted.web.http import Headers
@@ -316,6 +317,223 @@ class TestRenderDeferred(TestCase):
             request.responseHeaders.getRawHeaders("Foo"), ["a"])
         self.assertEqual(
             request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
+
+
+class TestRender(TestCase):
+    def test_unsupported_content_type(self):
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", ["foobar"])
+        content_types = resource.response_types(
+            request, default=["text/html", "application/json"])
+
+        with patch.object(resource, "error") as error:
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        error.assert_called_once_with(
+            request, UNSUPPORTED_MEDIA_TYPE,
+            "%s is not a support content type for this url" % content_types
+        )
+
+    def test_method_not_allowed(self):
+        resource = Resource()
+        request = DummyRequest("/")
+        request.method = "foobar"
+
+        with patch.object(resource, "error") as error:
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        error.assert_called_once_with(
+            request, METHOD_NOT_ALLOWED,
+            "Method %s is not supported" % request.method
+        )
+
+    def test_data_is_not_json(self):
+        for method in ("POST", "PUT"):
+            request = DummyRequest("/")
+            request.method = "POST"
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.method = method
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.content = StringIO()
+            request.content.write("invalid")
+            request.content.seek(0)
+            resource = Resource()
+            method_impl = Mock()
+            setattr(resource, method.lower(), method_impl)
+
+            with patch.object(resource, "error") as error:
+                response = resource.render(request)
+
+            self.assertEqual(response, NOT_DONE_YET)
+            error.assert_called_once_with(
+                request, BAD_REQUEST,
+                "Failed to decode json data: ValueError('No JSON object could "
+                "be decoded',)"
+            )
+            self.assertFalse(method_impl.called)
+
+    def test_data_schema_validation_failed(self):
+        for method in ("POST", "PUT"):
+            request = DummyRequest("/")
+            request.method = "POST"
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.method = method
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.content = StringIO()
+            request.content.write(json.dumps({"bar": ""}))
+            request.content.seek(0)
+            resource = Resource()
+            resource.SCHEMAS = {
+                method: Schema({Required("foo"): str})
+            }
+            method_impl = Mock(return_value=("", OK))
+            setattr(resource, method.lower(), method_impl)
+
+            with patch.object(resource, "error") as error:
+                response = resource.render(request)
+
+            self.assertEqual(response, NOT_DONE_YET)
+            error.assert_called_once_with(
+                request, BAD_REQUEST,
+                "Failed to validate the request data against the schema: extra "
+                "keys not allowed @ data[u'bar']"
+            )
+            self.assertFalse(method_impl.called)
+
+    def test_data_empty(self):
+        for method in ("POST", "PUT"):
+            request = DummyRequest("/")
+            request.method = "POST"
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.method = method
+            request.requestHeaders.setRawHeaders(
+                "Content-Type", ["application/json"])
+            request.content = StringIO()
+            request.content.write("")
+            request.content.seek(0)
+            resource = Resource()
+            resource.SCHEMAS = {
+                method: Schema({Required("foo"): str})
+            }
+            method_impl = Mock(return_value=("", OK))
+            setattr(resource, method.lower(), method_impl)
+            response = resource.render(request)
+            self.assertEqual(response, NOT_DONE_YET)
+            method_impl.assert_called_once_with(request=request)
+
+    def test_exception_in_handler_method(self):
+        def get(**_):
+            raise ValueError("error")
+
+        request = DummyRequest("/")
+        resource = Resource()
+        resource.get = get
+
+        with patch.object(resource, "error") as error:
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        error.assert_called_once_with(
+            request, INTERNAL_SERVER_ERROR,
+            "Unhandled error while rendering response: error"
+        )
+
+    def test_handle_not_done_yet(self):
+        def get(**_):
+            return NOT_DONE_YET
+
+        request = DummyRequest("/")
+        resource = Resource()
+        resource.get = get
+
+        with nested(
+            patch.object(resource, "error"),
+            patch.object(resource, "render_tuple"),
+            patch.object(resource, "render_deferred"),
+        ) as (error, render_tuple, render_deferred):
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        self.assertFalse(error.called)
+        self.assertFalse(render_tuple.called)
+        self.assertFalse(render_deferred.called)
+
+    def test_handle_tuple(self):
+        def get(**_):
+            return ("body", OK)
+
+        request = DummyRequest("/")
+        resource = Resource()
+        resource.get = get
+
+        with nested(
+            patch.object(resource, "error"),
+            patch.object(resource, "render_tuple"),
+            patch.object(resource, "render_deferred"),
+        ) as (error, render_tuple, render_deferred):
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        self.assertFalse(error.called)
+        render_tuple.assert_called_once_with(request, ("body", OK))
+        self.assertFalse(render_deferred.called)
+
+    def test_handle_deferred(self):
+        @inlineCallbacks
+        def get(**_):
+            yield succeed(None)
+            returnValue(("body", OK))
+
+        request = DummyRequest("/")
+        resource = Resource()
+        resource.get = get
+
+        with nested(
+            patch.object(resource, "error"),
+            patch.object(resource, "render_tuple"),
+            patch.object(resource, "render_deferred"),
+        ) as (error, render_tuple, render_deferred):
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        self.assertFalse(error.called)
+        self.assertFalse(render_tuple.called)
+        self.assertEqual(render_deferred.call_count, 1)
+        self.assertIs(render_deferred.call_args[0][0], request)
+        self.assertIsInstance(render_deferred.call_args[0][1], Deferred)
+
+    def test_handle_unknown_return_value(self):
+        def get(**_):
+            return None
+
+        request = DummyRequest("/")
+        resource = Resource()
+        resource.get = get
+
+        with nested(
+            patch.object(resource, "error"),
+            patch.object(resource, "render_tuple"),
+            patch.object(resource, "render_deferred"),
+        ) as (error, render_tuple, render_deferred):
+            response = resource.render(request)
+
+        self.assertEqual(response, NOT_DONE_YET)
+        error.assert_called_once_with(
+            request, INTERNAL_SERVER_ERROR,
+            "Unhandled %r in response" % None
+        )
+        self.assertFalse(render_tuple.called)
+        self.assertFalse(render_deferred.called)
+
+
 
 # class DummyContent(StringIO):
 #     def read(self, n=-1):
