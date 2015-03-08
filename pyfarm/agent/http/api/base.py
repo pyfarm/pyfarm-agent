@@ -30,7 +30,7 @@ from pyfarm.agent.utility import dumps, request_from_master
 class APIResource(Resource):
     """Base class for all api resources"""
     isLeaf = True
-    CONTENT_TYPES = set(["application/json"])
+    SUPPORTED_CONTENT_TYPES = set(["application/json"])
 
 
 class APIRoot(APIResource):
