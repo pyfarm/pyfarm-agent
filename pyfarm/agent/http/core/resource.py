@@ -204,6 +204,8 @@ class Resource(_Resource):
 
                     kwargs.update(data=data)
 
+                # TODO: tuple response support (like Flask)
+                # TODO: deferred support for inlineCallbacks
                 return getattr(self, method_name)(**kwargs)
 
         # If we could not find function to call for the given method
