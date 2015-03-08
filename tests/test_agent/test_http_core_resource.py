@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import json
 from contextlib import nested
 from functools import partial
 from StringIO import StringIO
@@ -202,6 +203,30 @@ class TestError(TestCase):
                     code_msg=responses[INTERNAL_SERVER_ERROR],
                     message="Test Error")])
 
+    def test_json(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", ["application/json"])
+        resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
+        resource.render(request)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            request.written, [json.dumps({"error": "Test Error"})])
+
+    def test_unknown_type(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", ["foobar"])
+        resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
+        resource.render(request)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, UNSUPPORTED_MEDIA_TYPE)
+        self.assertEqual(
+            request.written,
+            [json.dumps({
+                "error": "Can only handle text/html "
+                         "or application/json here"})])
 
 
 
