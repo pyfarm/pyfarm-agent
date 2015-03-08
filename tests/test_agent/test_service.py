@@ -39,7 +39,13 @@ from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
 from pyfarm.core.enums import AgentState
-from pyfarm.agent.http.api.base import APIRoot
+from pyfarm.agent.http.api.assign import Assign
+from pyfarm.agent.http.api.base import APIRoot, Versions
+from pyfarm.agent.http.api.config import Config
+from pyfarm.agent.http.api.tasks import Tasks
+from pyfarm.agent.http.api.tasklogs import TaskLogs
+from pyfarm.agent.http.api.state import Status, Stop, Restart
+from pyfarm.agent.http.api.update import Update
 from pyfarm.agent.http.core.server import StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
@@ -860,3 +866,50 @@ class TestBuildHTTPResource(TestCase):
         # a new root resource we're not testing above.
         self.assertNot(resource.children)
 
+    def test_api_children(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+
+        api = resource.children.pop("api")
+        self.assertIsInstance(api, APIRoot)
+
+        v1 = api.children.pop("v1")
+        self.assertIsInstance(v1, APIRoot)
+
+        versions = api.children.pop("versions")
+        self.assertIsInstance(versions, Versions)
+
+        self.assertNot(api.children)
+
+    def test_endpoints(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+        api = resource.children.pop("api")
+        v1 = api.children.pop("v1")
+
+        assign = v1.children.pop("assign")
+        self.assertIsInstance(assign, Assign)
+        self.assertIs(assign.agent, agent)
+
+        tasks = v1.children.pop("tasks")
+        self.assertIsInstance(tasks, Tasks)
+
+        configapi = v1.children.pop("config")
+        self.assertIsInstance(configapi, Config)
+
+        task_logs = v1.children.pop("task_logs")
+        self.assertIsInstance(task_logs, TaskLogs)
+
+        status = v1.children.pop("status")
+        self.assertIsInstance(status, Status)
+
+        stop = v1.children.pop("stop")
+        self.assertIsInstance(stop, Stop)
+
+        restart = v1.children.pop("restart")
+        self.assertIsInstance(restart, Restart)
+
+        update = v1.children.pop("update")
+        self.assertIsInstance(update, Update)
+
+        self.assertNot(v1.children)
