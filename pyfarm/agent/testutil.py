@@ -88,7 +88,6 @@ from voluptuous import Schema
 from twisted.internet.defer import Deferred, succeed
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.agent.http.core.template import DeferredTemplate
 from pyfarm.agent.utility import dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
