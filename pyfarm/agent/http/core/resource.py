@@ -110,8 +110,10 @@ class Resource(_Resource):
     def putChild(self, path, child):
         """
         Overrides the builtin putChild() so we can return the results for
-        each call and use them externally
+        each call and use them externally.
         """
+        assert isinstance(path, STRING_TYPES)
+        assert isinstance(child, Resource)
         _Resource.putChild(self, path, child)
         return child
 
