@@ -131,7 +131,7 @@ class Resource(_Resource):
         Writes the proper out an error response message depending on the
         content type in the request
         """
-        content_types = self.response_types(request, default="text/html")
+        content_types = self.response_types(request, default=["text/html"])
         logger.error(message)
 
         if "text/html" in content_types:
