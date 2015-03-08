@@ -22,7 +22,7 @@ Base resources which can be used to build top leve
 documents, pages, or other types of data for the web.
 """
 
-from json import loads
+from json import loads, dumps
 
 try:
     from httplib import (
@@ -133,12 +133,14 @@ class Resource(_Resource):
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
-            request.write({"error": message})
+            error = dumps({"error": message})
+            request.write(error.encode("ascii", "replace"))
 
         else:
             request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
-            request.write(
+            error = dumps(
                 {"error": "Can only handle text/html or application/json here"})
+            request.write(error.encode("ascii", "replace"))
 
         request.finish()
 
