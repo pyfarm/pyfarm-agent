@@ -763,7 +763,7 @@ class TestStop(TestCase):
             "Cannot post shutdown, agent_api() returned None")
         stop_lock_acquire.assert_called_once()
         stop_lock_release.assert_called_once()
-        post_shutdown.assert_never_called()
+        self.assertFalse(post_shutdown.called)
 
     @inlineCallbacks
     def test_stops_and_removes_jobtypes(self):
