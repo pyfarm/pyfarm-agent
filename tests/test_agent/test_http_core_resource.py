@@ -44,14 +44,6 @@ from pyfarm.agent.http.core import template
 from pyfarm.agent.utility import dumps
 
 
-def request_with_content_types(content_types=None, header="content-type"):
-    request = DummyRequest("/")
-    if content_types is not None:
-        assert isinstance(content_types, (list, tuple))
-        request.requestHeaders.setRawHeaders(header, list(content_types))
-    return request
-
-
 class TestTemplate(TestCase):
     def test_template_not_implemented(self):
         resource = Resource()
@@ -71,71 +63,82 @@ class TestTemplate(TestCase):
         load.assert_called_with(Foo.TEMPLATE)
 
 
-class TestRequestContentTypes(TestCase):
-    def test_request_has_headers(self):
-        resource = Resource()
-        request = request_with_content_types(["a", "b", "c"])
-        self.assertEqual(
-            resource.request_content_types(request),
-            frozenset(["a", "b", "c"])
-        )
+class TestResponseTypes(TestCase):
+    accept = ["a", "b", "c"]
+    content_types = ["d", "e", "f"]
+    default = ["g", "h", "i"]
 
-    def test_request_has_headers_ignore_default(self):
+    def test_default_assertion(self):
         resource = Resource()
-        request = request_with_content_types(["a", "b", "c"])
-        self.assertEqual(
-            resource.request_content_types(request, default=["e", "f", "g"]),
-            frozenset(["a", "b", "c"])
-        )
+        request = DummyRequest("/")
+        for value in ("", 1, 1.0, dict()):
+            with self.assertRaises(AssertionError):
+                resource.response_types(request, default=value)
 
-    def test_headers_case_insensitive(self):
-        # Headers, at least with Twisted, are treated as case-insensitive.
-        # Replicate that behavior here just to make sure our call to
-        # .getRawHeaders('content-type') does not break.
+    def test_accept(self):
         resource = Resource()
-        request = request_with_content_types(
-            ["a", "b", "c"], header="CoNtEnT-TyPe")
-        self.assertEqual(
-            resource.request_content_types(request, default=["e", "f", "g"]),
-            frozenset(["a", "b", "c"])
-        )
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", self.accept)
+        response_types = resource.response_types(request)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.accept))
 
-    def test_default_string(self):
+    def test_content_type(self):
         resource = Resource()
-        request = request_with_content_types()
-        self.assertEqual(
-            resource.request_content_types(request, default="abc"),
-            frozenset(["abc"])
-        )
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
+        response_types = resource.response_types(request)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.content_types))
 
-    def test_default_list_tuple_set(self):
+    def test_accept_overrides_content_type(self):
         resource = Resource()
-        request = request_with_content_types()
-
-        for default_type in (list, tuple, set):
-            self.assertEqual(
-                resource.request_content_types(
-                    request, default=default_type("abc")),
-                frozenset(["a", "b", "c"])
-            )
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
+        request.requestHeaders.setRawHeaders("Accept", self.accept)
+        response_types = resource.response_types(request)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.accept))
 
     def test_default_empty(self):
         resource = Resource()
-        request = request_with_content_types()
-        self.assertEqual(
-            resource.request_content_types(request, default=None),
-            frozenset([])
-        )
+        request = DummyRequest("/")
+        response_types = resource.response_types(request)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset())
 
-    def test_default_blank_string(self):
-        # Though it's unlikely we'll need this, make sure a blank
-        # string still passes through as a blank string.
+    def test_default_provided(self):
         resource = Resource()
-        request = request_with_content_types()
-        self.assertEqual(
-            resource.request_content_types(request, default=""),
-            frozenset([""])
-        )
+        request = DummyRequest("/")
+        response_types = resource.response_types(request, default=self.default)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.default))
+
+    def test_default_ignored(self):
+        # Accept
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", self.accept)
+        response_types = resource.response_types(request, default=self.default)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.accept))
+
+        # Content-Type
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
+        response_types = resource.response_types(request, default=self.default)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.content_types))
+
+        # Accept and Content-Type
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
+        request.requestHeaders.setRawHeaders("Accept", self.accept)
+        response_types = resource.response_types(request, default=self.default)
+        self.assertIsInstance(response_types, frozenset)
+        self.assertEqual(response_types, frozenset(self.accept))
 
 
 class TestPutChild(TestCase):
@@ -187,7 +190,7 @@ class FakeErrorResource(Resource):
 class TestError(TestCase):
     def test_html(self):
         resource = FakeErrorResource()
-        request = request_with_content_types()
+        request = DummyRequest("/")
         resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
         resource.render(request)
         self.assertTrue(request.finished)

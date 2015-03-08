@@ -87,25 +87,34 @@ class Resource(_Resource):
             raise NotImplementedError("You must set `TEMPLATE` first")
         return template.load(self.TEMPLATE)
 
-    def request_content_types(self, request, default=None):
+    def response_types(self, request, default=None):
         """
-        Returns the content type(s) present in the request.  By default
-        we pull the ``Content-Type`` header from the incoming request.  If
-        no headers are provided then we use the value(s) provided to
-        ``default`` instead.
+        Returns an instance of :class:`frozenset` which contains the type
+        or types of responses we can send.  We look at the ``Accept`` and
+        ``Content-Type`` headers to determine this information.  If values
+        are present in the ``Accept`` header these will be returned instead
+        of values in ``Content-Type``.  If neither of these headers are present
+        we'll return what was provided to ``default`` instead.
+
+        .. note::
+
+            This method's purpose is only to return what kinds of responses
+            are acceptable based on the request.  Ultimately, it's up to the
+            calling method to make the final determination about what kind of
+            response to send.
         """
-        headers = request.requestHeaders.getRawHeaders("content-type")
-        if headers:
-            return frozenset(headers)
+        assert default is None or isinstance(default, (list, tuple, set))
+        accepts = request.requestHeaders.getRawHeaders("Accept")
+        content_types = request.requestHeaders.getRawHeaders("Content-Type")
+
+        if accepts is not None:
+            return frozenset(accepts)
+        elif content_types is not None:
+            return frozenset(content_types)
         elif default is None:
             return frozenset()
-        elif isinstance(default, STRING_TYPES):
-            return frozenset([default])
-        elif isinstance(default, (list, tuple, set)):
-            return frozenset(default)
         else:
-            raise AssertionError(
-                "Don't know how to handle default type %s" % type(default))
+            return frozenset(default)
 
     def putChild(self, path, child):
         """
@@ -122,7 +131,7 @@ class Resource(_Resource):
         Writes the proper out an error response message depending on the
         content type in the request
         """
-        content_types = self.request_content_types(request, default="text/html")
+        content_types = self.response_types(request, default="text/html")
         logger.error(message)
 
         if "text/html" in content_types:
@@ -201,7 +210,7 @@ class Resource(_Resource):
 
     def render(self, request):
         # Check to ensure that the content type being requested
-        content_types = self.request_content_types(
+        content_types = self.response_types(
             request, default=["text/html", "application/json"])
 
         if not self.SUPPORTED_CONTENT_TYPES & content_types:
