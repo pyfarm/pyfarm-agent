@@ -222,7 +222,7 @@ class Resource(_Resource):
 
                 # We have data, check to see if we have a schema
                 # and if we do does it validate.
-                schema = self.SCHEMAS.get(request)
+                schema = self.SCHEMAS.get(request.method)
                 if isinstance(schema, Schema):
                     try:
                         schema(data)
@@ -233,7 +233,7 @@ class Resource(_Resource):
                             "against the schema: %s" % e)
                         return NOT_DONE_YET
 
-            kwargs.update(data=data)
+                kwargs.update(data=data)
 
         try:
             response = handler_method(**kwargs)
