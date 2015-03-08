@@ -15,7 +15,9 @@
 # limitations under the License.
 
 import os
+import ntplib
 import sys
+import time
 import json
 import uuid
 from contextlib import nested
@@ -42,7 +44,7 @@ from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
-from pyfarm.agent.service import Agent, svclog
+from pyfarm.agent.service import Agent, svclog, ntplog
 from pyfarm.agent.sysinfo import network, graphics, memory
 from pyfarm.agent import utility
 
@@ -76,22 +78,7 @@ class FakeAgentsAPI(HTTPReceiver):
         return NOT_DONE_YET
 
 
-# TODO: need better tests, these are a little rudimentary at the moment
-class TestAgentServiceAttributes(TestCase):
-    def test_agent_api_url(self):
-        config["agent_id"] = uuid.uuid4()
-        agent = Agent()
-        self.assertEqual(
-            agent.agent_api(),
-            "{master_api}/agents/{agent_id}".format(
-                master_api=config["master_api"],
-                agent_id=config["agent_id"]))
-
-    def test_agent_api_url_keyerror(self):
-        agent = Agent()
-        config.pop("agent_id")
-        self.assertIsNone(agent.agent_api())
-
+class TestSystemData(TestCase):
     def test_system_data(self):
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
@@ -108,19 +95,74 @@ class TestAgentServiceAttributes(TestCase):
             "port": config["agent_api_port"],
             "time_offset": config["agent_time_offset"],
             "state": config["state"],
-            "mac_addresses": list(network.mac_addresses())}
-
-        try:
-            gpu_names = graphics.graphics_cards()
-            expected["gpus"] = gpu_names
-        except graphics.GPULookupError:
-            pass
+            "mac_addresses": list(network.mac_addresses()),
+            "gpus": [1, 3, 5]
+        }
 
         agent = Agent()
-        system_data = agent.system_data()
+        with patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]):
+            system_data = agent.system_data()
+
         self.assertApproximates(
             system_data.pop("free_ram"), config["free_ram"], 64)
         self.assertEqual(system_data, expected)
+
+    def test_agent_time_offset(self):
+        config["agent_time_offset"] = "auto"
+        agent = Agent()
+        agent.system_data()
+        self.assertNotEqual(config["agent_time_offset"], "auto")
+
+    def test_get_offset(self):
+        agent = Agent()
+
+        response = Mock()
+        response.tx_time = 10
+
+        with nested(
+            patch.object(ntplib.NTPClient, "request", return_value=response),
+            patch.object(time, "time", return_value=5),
+        ):
+            agent.system_data(requery_timeoffset=True)
+
+        self.assertEqual(config["agent_time_offset"], 5)
+
+    def test_get_offset_error(self):
+        offset = config["agent_time_offset"]
+        agent = Agent()
+
+        error = Exception()
+
+        def raise_(*args, **kwargs):
+            raise error
+
+        with nested(
+            patch.object(ntplib.NTPClient, "request", raise_),
+            patch.object(time, "time", return_value=5),
+            patch.object(ntplog, "warning"),
+        ) as (_, _, warning):
+            agent.system_data(requery_timeoffset=True)
+
+        self.assertEqual(config["agent_time_offset"], offset)
+        warning.assert_called_with(
+            "Failed to determine network time: %s", error)
+
+
+# TODO: need better tests, these are a little rudimentary at the moment
+class TestAgentServiceAttributes(TestCase):
+    def test_agent_api_url(self):
+        config["agent_id"] = uuid.uuid4()
+        agent = Agent()
+        self.assertEqual(
+            agent.agent_api(),
+            "{master_api}/agents/{agent_id}".format(
+                master_api=config["master_api"],
+                agent_id=config["agent_id"]))
+
+    def test_agent_api_url_keyerror(self):
+        agent = Agent()
+        config.pop("agent_id")
+        self.assertIsNone(agent.agent_api())
 
     def test_callback_agent_id_set(self):
         schedule_call_args = []
@@ -721,7 +763,7 @@ class TestStop(TestCase):
             "Cannot post shutdown, agent_api() returned None")
         stop_lock_acquire.assert_called_once()
         stop_lock_release.assert_called_once()
-        post_shutdown.assert_never_called()
+        self.assertFalse(post_shutdown.called)
 
     @inlineCallbacks
     def test_stops_and_removes_jobtypes(self):
