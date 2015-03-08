@@ -23,11 +23,11 @@ from StringIO import StringIO
 try:
     from httplib import (
         responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
-        UNSUPPORTED_MEDIA_TYPE)
+        UNSUPPORTED_MEDIA_TYPE, OK)
 except ImportError:  # pragma: no cover
     from httplib.client import (
         responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
-        UNSUPPORTED_MEDIA_TYPE)
+        UNSUPPORTED_MEDIA_TYPE, OK)
 
 from mock import patch
 
@@ -227,6 +227,51 @@ class TestError(TestCase):
             [json.dumps({
                 "error": "Can only handle text/html "
                          "or application/json here"})])
+
+
+class TestRenderTuple(TestCase):
+    def test_assertion(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+
+        for value in ("", None, 1, set()):
+            with self.assertRaises(AssertionError):
+                resource.render_tuple(request, value)
+
+    def test_body_code_headers(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        resource.render_tuple(
+            request, ("body", OK, {"Foo": "a", "Bar": ["c", "d"]})
+        )
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(request.written, ["body"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Foo"), ["a"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
+
+    def test_body_code(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        resource.render_tuple(
+            request, ("body", OK)
+        )
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(request.written, ["body"])
+
+    def test_less_than_one_length(self):
+        resource = FakeErrorResource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders("Accept", ["application/json"])
+        resource.render_tuple(request, ())
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            request.written, [json.dumps(
+                {"error": "Expected two or three length tuple for response"})])
 
 
 
