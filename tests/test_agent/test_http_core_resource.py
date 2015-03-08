@@ -40,6 +40,14 @@ from pyfarm.agent.http.core import template
 from pyfarm.agent.utility import dumps
 
 
+def request_with_content_types(content_types=None, header="content-type"):
+    request = DummyRequest("/")
+    if content_types is not None:
+        assert isinstance(content_types, (list, tuple))
+        request.requestHeaders.setRawHeaders(header, list(content_types))
+    return request
+
+
 class TestTemplate(TestCase):
     def test_template_not_implemented(self):
         resource = Resource()
@@ -60,16 +68,9 @@ class TestTemplate(TestCase):
 
 
 class TestRequestContentTypes(TestCase):
-    def make_request(self, content_types=None, header="content-type"):
-        request = DummyRequest("/")
-        if content_types is not None:
-            assert isinstance(content_types, (list, tuple))
-            request.requestHeaders.setRawHeaders(header, list(content_types))
-        return request
-
     def test_request_has_headers(self):
         resource = Resource()
-        request = self.make_request(["a", "b", "c"])
+        request = request_with_content_types(["a", "b", "c"])
         self.assertEqual(
             resource.request_content_types(request),
             frozenset(["a", "b", "c"])
@@ -77,7 +78,7 @@ class TestRequestContentTypes(TestCase):
 
     def test_request_has_headers_ignore_default(self):
         resource = Resource()
-        request = self.make_request(["a", "b", "c"])
+        request = request_with_content_types(["a", "b", "c"])
         self.assertEqual(
             resource.request_content_types(request, default=["e", "f", "g"]),
             frozenset(["a", "b", "c"])
@@ -88,7 +89,8 @@ class TestRequestContentTypes(TestCase):
         # Replicate that behavior here just to make sure our call to
         # .getRawHeaders('content-type') does not break.
         resource = Resource()
-        request = self.make_request(["a", "b", "c"], header="CoNtEnT-TyPe")
+        request = request_with_content_types(
+            ["a", "b", "c"], header="CoNtEnT-TyPe")
         self.assertEqual(
             resource.request_content_types(request, default=["e", "f", "g"]),
             frozenset(["a", "b", "c"])
@@ -96,7 +98,7 @@ class TestRequestContentTypes(TestCase):
 
     def test_default_string(self):
         resource = Resource()
-        request = self.make_request()
+        request = request_with_content_types()
         self.assertEqual(
             resource.request_content_types(request, default="abc"),
             frozenset(["abc"])
@@ -104,7 +106,7 @@ class TestRequestContentTypes(TestCase):
 
     def test_default_list_tuple_set(self):
         resource = Resource()
-        request = self.make_request()
+        request = request_with_content_types()
 
         for default_type in (list, tuple, set):
             self.assertEqual(
@@ -115,7 +117,7 @@ class TestRequestContentTypes(TestCase):
 
     def test_default_empty(self):
         resource = Resource()
-        request = self.make_request()
+        request = request_with_content_types()
         self.assertEqual(
             resource.request_content_types(request, default=None),
             frozenset([])
@@ -125,7 +127,7 @@ class TestRequestContentTypes(TestCase):
         # Though it's unlikely we'll need this, make sure a blank
         # string still passes through as a blank string.
         resource = Resource()
-        request = self.make_request()
+        request = request_with_content_types()
         self.assertEqual(
             resource.request_content_types(request, default=""),
             frozenset([""])
