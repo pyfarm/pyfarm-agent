@@ -1,6 +1,4 @@
-usage: pyfarm-agent [status|start|stop] start [-h]
-                                              [--projects PROJECTS [PROJECTS ...]]
-                                              [--state STATE]
+usage: pyfarm-agent [status|start|stop] start [-h] [--state STATE]
                                               [--time-offset TIME_OFFSET]
                                               [--ntp-server NTP_SERVER]
                                               [--ntp-server-version NTP_SERVER_VERSION]
@@ -23,7 +21,8 @@ usage: pyfarm-agent [status|start|stop] start [-h]
                                               [--manhole-password MANHOLE_PASSWORD]
                                               [--html-templates-reload]
                                               [--static-files STATIC_FILES]
-                                              [--http-retry-delay HTTP_RETRY_DELAY]
+                                              [--http-retry-delay-offset HTTP_RETRY_DELAY_OFFSET]
+                                              [--http-retry-delay-factor HTTP_RETRY_DELAY_FACTOR]
                                               [--jobtype-no-cache]
 
 optional arguments:
@@ -33,13 +32,6 @@ General Configuration:
   These flags configure parts of the agent related to hardware, state, and
   certain timing and scheduling attributes.
 
-  --projects PROJECTS [PROJECTS ...]
-                        The project or projects this agent is dedicated to. By
-                        default the agent will service any project however
-                        specific projects may be specified. For example if you
-                        wish this agent to service 'Foo Part I' and 'Foo Part
-                        II' only just specify it as `--projects "Foo Part I"
-                        "Foo Part II"`
   --state STATE         The current agent state, valid values are ['disabled',
                         'offline', 'running', 'online']. [default: online]
   --time-offset TIME_OFFSET
@@ -159,9 +151,15 @@ HTTP Configuration:
   --static-files STATIC_FILES
                         The default location where the agent's http server
                         should find static files to serve.
-  --http-retry-delay HTTP_RETRY_DELAY
-                        If a http request to the master has failed, wait this
-                        amount of time before trying again
+  --http-retry-delay-offset HTTP_RETRY_DELAY_OFFSET
+                        If a http request to the master has failed, wait at
+                        least this amount of time before resending the
+                        request.
+  --http-retry-delay-factor HTTP_RETRY_DELAY_FACTOR
+                        The value provided here is used in combination with
+                        --http-retry-delay-offset to calculate the retry
+                        delay. This is used as a multiplier against random()
+                        before being added to the offset.
 
 Job Types:
   --jobtype-no-cache    If provided then do not cache job types, always
