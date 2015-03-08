@@ -152,41 +152,38 @@ class Resource(_Resource):
         if len(response) == 3:
             body, code, headers = response
 
-            if not isinstance(headers, dict):
-                self.error(
-                    request, INTERNAL_SERVER_ERROR,
-                    "Expected response headers to be a dictionary")
-                return
+            if isinstance(headers, dict):
+                # Set the response headers
+                for header, value in headers.items():
+                    # Response header values in Twisted are supposed
+                    # to be strings, unlike request headers, according
+                    # to the documentation.  Internally it seems to set
+                    # it as a list however that's not something the
+                    # setHeader() api exposes.
+                    if not isinstance(value, STRING_TYPES):
+                        self.error(
+                            request, INTERNAL_SERVER_ERROR,
+                            "Expected string for header values"
+                        )
+                        return
 
-            # Set the response headers
-            for header, value in headers.items():
-                # Response header values in Twisted are supposed
-                # to be strings, unlike request headers, according
-                # to the documentation.  Internally it seems to set
-                # it as a list however that's not something the
-                # setHeader() api exposes.
-                if not isinstance(value, STRING_TYPES):
-                    self.error(
-                        request, INTERNAL_SERVER_ERROR,
-                        "Expected string for header values"
-                    )
-                    return
+                    request.setHeader(header, value)
 
-                request.setHeader(header, value)
+            request.setResponseCode(code)
+            request.write(body)
+            request.finish()
 
         elif len(response) == 2:
             body, code = response
+            request.setResponseCode(code)
+            request.write(body)
+            request.finish()
 
         else:
             self.error(
                 request, INTERNAL_SERVER_ERROR,
                 "Expected two or three length tuple for response"
             )
-            return
-
-        request.setResponseCode(code)
-        request.write(body)
-        request.finish()
 
     @inlineCallbacks
     def render_deferred(self, request, deferred):
