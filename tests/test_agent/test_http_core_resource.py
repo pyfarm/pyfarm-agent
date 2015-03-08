@@ -15,14 +15,18 @@
 # limitations under the License.
 
 import os
+from contextlib import nested
+from functools import partial
 from StringIO import StringIO
 
 try:
     from httplib import (
-        BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, UNSUPPORTED_MEDIA_TYPE)
+        responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
+        UNSUPPORTED_MEDIA_TYPE)
 except ImportError:  # pragma: no cover
     from httplib.client import (
-        BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, UNSUPPORTED_MEDIA_TYPE)
+        responses, BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND,
+        UNSUPPORTED_MEDIA_TYPE)
 
 from mock import patch
 
@@ -167,6 +171,34 @@ class TestPutChild(TestCase):
         resource.putChild("/", child)
         self.assertIn("/", resource.children)
         self.assertIs(resource.children["/"], child)
+
+
+class FakeErrorResource(Resource):
+    def setup(self, request, code, message):
+        self.test_request = request
+        self.test_code = code
+        self.test_message = message
+
+    def render(self, request):
+        self.error(self.test_request, self.test_code, self.test_message)
+        return NOT_DONE_YET
+
+
+class TestError(TestCase):
+    def test_html(self):
+        resource = FakeErrorResource()
+        request = request_with_content_types()
+        resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
+        resource.render(request)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            request.written, [
+                template.load("error.html").render(
+                    code=INTERNAL_SERVER_ERROR,
+                    code_msg=responses[INTERNAL_SERVER_ERROR],
+                    message="Test Error")])
+
 
 
 
