@@ -24,7 +24,9 @@ engine.
 
 from io import BytesIO
 
-from jinja2 import Environment as _Environment, PackageLoader, BytecodeCache
+from jinja2 import (
+    Environment as _Environment, Template as _Template,
+    PackageLoader, BytecodeCache)
 
 from pyfarm.agent.config import config
 
@@ -53,12 +55,25 @@ class InMemoryCache(BytecodeCache):
         self.cache[bucket.key] = cache
 
 
+class EncodedStringTemplate(_Template):
+    """
+    A sublcass of :class:`jinja2.Template which always returns
+    a string in response to :meth:`render`.  When Twisted writes
+    a response it always expects a bytes object.  In Python 2.x this
+    means we have to encode as a string.
+    """
+    def render(self, *args, **kwargs):
+        result = super(EncodedStringTemplate, self).render(*args, **kwargs)
+        return result.encode("ascii", "replace")
+
+
 class Environment(_Environment):
     """
-    Implementation of Jinja's :class:`._Environment` class which
+    Implementation of :class:`jinja2.Environment` class which
     reads from our configuration object and establishes the
     default functions we can use in a template.
     """
+    template_class = EncodedStringTemplate
 
     def __init__(self, **kwargs):
         # default options
@@ -80,21 +95,9 @@ class Environment(_Environment):
             repr=repr)
 
 
-class Loader(object):
-    """
-    Namespace class used to simply keep track of the global environment
-    and load templates.
+try:
+    ENVIRONMENT
+except NameError:  # pragma: no cover
+    ENVIRONMENT = Environment()
 
-    >>> from pyfarm.agent.http.core import template
-    >>> template.load("index.html")
-    """
-    environment = None
-
-    @classmethod
-    def load(cls, name):
-        if cls.environment is None:
-            cls.environment = Environment()
-
-        return cls.environment.get_template(name)
-
-load = Loader.load
+load = ENVIRONMENT.get_template
