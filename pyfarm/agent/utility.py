@@ -195,7 +195,11 @@ def dumps(*args, **kwargs):
     else:
         obj = dict(*args, **kwargs)
 
-    return _dumps(obj, default=default_json_encoder, indent=indent)
+    dump = _dumps(obj, default=default_json_encoder, indent=indent)
+
+    # Many parts of Twisted will not accept the typical output
+    # from _dumps, which is unicode, so we encode into ascii here.
+    return dump.encode("ascii", "replace")
 
 
 def request_from_master(request):
