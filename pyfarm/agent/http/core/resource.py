@@ -77,6 +77,18 @@ class Resource(_Resource):
             raise NotImplementedError("You must set `TEMPLATE` first")
         return template.load(self.TEMPLATE)
 
+    def methods(self):
+        """
+        Returns a tuple of methods which an instance of this class implements
+        """
+        methods = []
+        for method_name in ("get", "put", "post", "delete", "head"):
+            method = getattr(self, method_name, None)
+            if method is not None and callable(method):
+                methods.append(method_name)
+
+        return tuple(methods)
+
     def response_types(self, request, default=None):
         """
         Returns an instance of :class:`frozenset` which contains the type

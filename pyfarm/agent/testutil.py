@@ -560,8 +560,8 @@ class BaseHTTPTestCase(TestCase):
 
     def test_implements_methods(self):
         instance = self.instance_class()
-        for method_name in instance.methods:
-            if method_name == "head":
+        for method_name in instance.methods():
+            if method_name == "HEAD":
                 continue
 
             self.assertTrue(
@@ -578,7 +578,7 @@ class BaseHTTPTestCase(TestCase):
     def test_methods_exist_for_schema(self):
         self.assertIsInstance(self.CLASS.SCHEMAS, dict)
         instance = self.instance_class()
-        methods = set(method.upper() for method in instance.methods)
+        methods = set(method.upper() for method in instance.methods())
         for method, schema in self.CLASS.SCHEMAS.items():
             self.assertIsInstance(schema, Schema)
             self.assertEqual(

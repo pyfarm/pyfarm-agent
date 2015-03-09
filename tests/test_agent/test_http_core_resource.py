@@ -60,6 +60,28 @@ class TestTemplate(TestCase):
         load.assert_called_with(Foo.TEMPLATE)
 
 
+class TestMethods(TestCase):
+    def test_methods(self):
+        resource = Resource()
+        resource.get = lambda self: None
+        resource.put = lambda self: None
+        self.assertEqual(set(resource.methods()), set(["get", "put"]))
+
+    def test_non_callable_method(self):
+        resource = Resource()
+        resource.get = lambda self: None
+        resource.put = lambda self: None
+        resource.delete = None
+        self.assertEqual(set(resource.methods()), set(["get", "put"]))
+
+    def test_ignores_twisted_named_methods(self):
+        resource = Resource()
+        resource.render_GET = lambda self: None
+        resource.render_PUT = lambda self: None
+        resource.delete = lambda self: None
+        self.assertEqual(set(resource.methods()), set(["delete"]))
+
+
 class TestResponseTypes(TestCase):
     accept = ["a", "b", "c"]
     content_types = ["d", "e", "f"]
