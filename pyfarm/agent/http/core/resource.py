@@ -27,11 +27,11 @@ from json import loads
 try:
     from httplib import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK)
 except ImportError:  # pragma: no cover
     from http.client import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK)
 
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
@@ -269,6 +269,11 @@ class Resource(_Resource):
         # we have to handle writing the response ourselves
         elif isinstance(response, Deferred):
             self.render_deferred(request, response)
+            return NOT_DONE_YET
+
+        elif isinstance(response, STRING_TYPES):
+            request.setResponseCode(OK)
+            request.write(response)
             return NOT_DONE_YET
 
         else:
