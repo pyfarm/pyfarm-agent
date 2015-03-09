@@ -20,7 +20,7 @@ from twisted.internet.defer import Deferred
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.template import (
-    InMemoryCache, Environment, DeferredTemplate, Loader, load)
+    InMemoryCache, Environment, EncodedStringTemplate, load)
 from pyfarm.agent.testutil import TestCase
 
 
@@ -52,7 +52,7 @@ class TestEnvironment(TestCase):
         self.assertIsInstance(Environment(), _Environment)
 
     def test_template_class(self):
-        self.assertIs(Environment.template_class, DeferredTemplate)
+        self.assertIs(Environment.template_class, EncodedStringTemplate)
 
     def test_global_functions(self):
         env = Environment()
@@ -67,39 +67,12 @@ class TestEnvironment(TestCase):
         self.assertEqual(env.globals["repr"]("foo"), "'foo'")
 
 
-class TestLoader(TestCase):
-    def setUp(self):
-        super(TestLoader, self).setUp()
-        self._loader_environment = Loader.environment
-        Loader.environment = None
-
-    def tearDown(self):
-        super(TestLoader, self).tearDown()
-        Loader.environment = self._loader_environment
-
-    def test_load_creates_environment(self):
-        load("index.html")
-        self.assertIsInstance(Loader.environment, Environment)
-
-    def test_load_same_template_as_environment(self):
-        self.assertEqual(
-            Loader.load("index.html").name,
-            Loader.environment.get_template("index.html").name)
-
+class TestLoad(TestCase):
     def test_loads_deferred(self):
-        self.assertIsInstance(load("index.html"), DeferredTemplate)
+        self.assertIsInstance(load("index.html"), EncodedStringTemplate)
 
     def test_render(self):
-        deferred = Deferred()
-
-        def callback(data):
-            self.assertIn("DOCTYPE html", data)
-            self.assertIn("<title>PyFarm:Agent - Information</title>", data)
-            deferred.callback(None)
-
         template = load("index.html")
-        render = template.render()
-        self.assertIsInstance(render, Deferred)
-        render.addCallback(callback)
-
-        return deferred
+        data = template.render()
+        self.assertIn("DOCTYPE html", data)
+        self.assertIn("<title>PyFarm:Agent - Information</title>", data)
