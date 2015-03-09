@@ -17,6 +17,13 @@
 from json import loads
 from datetime import datetime
 
+try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
+
+from twisted.web.server import NOT_DONE_YET
+
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.base import APIResource, Versions
@@ -30,12 +37,16 @@ class TestAPIResource(BaseAPITestCase):
 class TestVersions(BaseAPITestCase):
     URI = "/versions/"
     CLASS = Versions
+    DEFAULT_HEADERS = {"User-Agent": config["master_user_agent"]}
 
     def test_versions(self):
         request = self.get(headers={"User-Agent": config["master_user_agent"]})
         versions = Versions()
         response = versions.render(request)
-        self.assertEqual(
-            loads(response), {"versions": [1]})
+        self.assertEqual(response, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(len(request.written), 1)
+        self.assertEqual(loads(request.written[0]), {"versions": [1]})
         self.assertDateAlmostEqual(
             config.master_contacted(update=False), datetime.utcnow())
