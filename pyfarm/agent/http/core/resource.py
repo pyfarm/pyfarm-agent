@@ -274,6 +274,7 @@ class Resource(_Resource):
         elif isinstance(response, STRING_TYPES):
             request.setResponseCode(OK)
             request.write(response)
+            request.finish()
             return NOT_DONE_YET
 
         else:
