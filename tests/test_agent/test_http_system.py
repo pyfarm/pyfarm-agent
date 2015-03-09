@@ -42,11 +42,12 @@ class TestIndex(BaseHTMLTestCase):
 
     # TODO: test of response content
     def test_render_get(self):
-        request = self.get(self)
+        request = self.get()
         instance = self.instance_class()
         result = instance.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
 
 
 class TestConfiguration(BaseHTMLTestCase):
@@ -54,35 +55,38 @@ class TestConfiguration(BaseHTMLTestCase):
     CLASS = Configuration
 
     def test_render(self):
-        request = self.get(self)
+        request = self.get()
         instance = self.instance_class()
         result = instance.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
 
     def test_missing_hidden_fields(self):
-        request = self.get(self)
+        request = self.get()
         instance = self.instance_class()
         result = instance.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
-        response = request.response()
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(len(request.written), 1)
 
         for hidden_field in self.CLASS.HIDDEN_FIELDS:
-            self.assertNotIn("<td>" + hidden_field + "</td>", response)
+            self.assertNotIn(
+                "<td>" + hidden_field + "</td>", request.written[0])
 
     def test_editable_fields(self):
-
-        request = self.get(self)
+        request = self.get()
         instance = self.instance_class()
         result = instance.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
-        response = request.response()
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(len(request.written), 1)
 
         in_editable = False
         editable_fields = set(self.CLASS.EDITABLE_FIELDS)
-        for line in response.splitlines():
+        for line in request.written[0].splitlines():
             if "Editable Configuration" in line:
                 in_editable = True
 
