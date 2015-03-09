@@ -39,6 +39,7 @@ from pyfarm.agent.utility import request_from_master
 from pyfarm.agent.sysinfo.memory import free_ram
 from pyfarm.agent.utility import JOBTYPE_SCHEMA, TASKS_SCHEMA, JOB_SCHEMA
 from pyfarm.jobtypes.core.jobtype import JobType
+from pyfarm.agent.utility import dumps
 
 logger = getLogger("agent.http.assign")
 
@@ -166,7 +167,7 @@ class Assign(APIResource):
         # deferreds so we just have to respond
         # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
-        request.write({"id": assignment_uuid})
+        request.write(dumps({"id": assignment_uuid}))
         request.finish()
         logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
 
