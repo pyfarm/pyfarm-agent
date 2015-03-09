@@ -525,7 +525,6 @@ class BaseHTTPTestCase(TestCase):
     URI = NotImplemented
     CLASS = NotImplemented
     CLASS_FACTORY = NotImplemented
-    CONTENT_TYPES = NotImplemented
 
     # Only run the real _run if we're inside a child
     # class.
@@ -536,7 +535,6 @@ class BaseHTTPTestCase(TestCase):
         if self.CLASS is not NotImplemented and self.URI is NotImplemented:
             self.fail("URI not set")
 
-        self.assertIsInstance(self.CONTENT_TYPES, list, "CONTENT_TYPES not set")
         return super(BaseHTTPTestCase, self)._run(methodName, result)
 
     def setUp(self):
