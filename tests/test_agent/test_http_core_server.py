@@ -17,12 +17,12 @@
 import os
 from os.path import basename
 
-from twisted.web.test.requesthelper import DummyChannel, DummyRequest
+from twisted.web.test.requesthelper import DummyChannel
 from twisted.web.error import Error
 
 from pyfarm.core.config import read_env_bool
 from pyfarm.agent.http.core.server import Site, StaticPath
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, DummyRequest
 
 
 class DummyTransport(object):
@@ -34,6 +34,7 @@ class DummyTransport(object):
 
     def write(self, data):
         self.data.append(data)
+
 
 class TestSite(TestCase):
     def test_display_traceback(self):

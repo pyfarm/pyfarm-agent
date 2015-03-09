@@ -31,12 +31,11 @@ from mock import Mock, patch
 
 from twisted.internet.defer import (
     Deferred, inlineCallbacks, returnValue, succeed)
-from twisted.web.test.requesthelper import DummyRequest
 from twisted.web.resource import Resource as _Resource
 from twisted.web.server import NOT_DONE_YET
 from voluptuous import Schema, Required
 
-from pyfarm.agent.testutil import TestCase
+from pyfarm.agent.testutil import TestCase, DummyRequest
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core import template
 
