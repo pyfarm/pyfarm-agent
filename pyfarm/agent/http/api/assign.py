@@ -80,8 +80,8 @@ class Assign(APIResource):
                          "process of shutting down.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
-                {"error": "Agent cannot accept assignments because it is "
-                          "shutting down"})
+                dumps({"error": "Agent cannot accept assignments because it is "
+                                "shutting down"}))
             request.finish()
             return NOT_DONE_YET
 
@@ -90,8 +90,8 @@ class Assign(APIResource):
             logger.error("Rejecting assignment because of scheduled restart.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
-                {"error": "Agent cannot accept assignments because of a "
-                          "pending restart"})
+                dumps({"error": "Agent cannot accept assignments because of a "
+                                "pending restart"}))
             request.finish()
             return NOT_DONE_YET
 
@@ -101,7 +101,7 @@ class Assign(APIResource):
                 "has not been set yet.")
             request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
-                {"error": "agent_id has not been set in the config"})
+                dumps({"error": "agent_id has not been set in the config"}))
             request.finish()
             return NOT_DONE_YET
 
@@ -114,9 +114,9 @@ class Assign(APIResource):
                 request_data["job"]["id"])
             request.setResponseCode(BAD_REQUEST)
             request.write(
-                {"error": "Not enough ram",
-                 "agent_ram": memory_free,
-                 "requires_ram": requires_ram})
+                dumps({"error": "Not enough ram",
+                       "agent_ram": memory_free,
+                       "requires_ram": requires_ram}))
             request.finish()
 
             # touch the config
@@ -132,9 +132,9 @@ class Assign(APIResource):
                 request_data["job"]["id"])
             request.setResponseCode(BAD_REQUEST)
             request.write(
-                {"error": "Not enough cpus",
-                 "agent_cpus": cpus,
-                 "requires_cpus": requires_cpus})
+                dumps({"error": "Not enough cpus",
+                       "agent_cpus": cpus,
+                       "requires_cpus": requires_cpus}))
             request.finish()
             return NOT_DONE_YET
 
@@ -154,8 +154,8 @@ class Assign(APIResource):
         if existing_task_ids & new_task_ids:
             request.setResponseCode(CONFLICT)
             request.write(
-                {"error": "Double assignment of tasks",
-                 "duplicate_tasks": list(existing_task_ids & new_task_ids)})
+                dumps({"error": "Double assignment of tasks",
+                       "duplicate_tasks": list(existing_task_ids & new_task_ids)}))
             request.finish()
             return NOT_DONE_YET
 
