@@ -22,6 +22,11 @@ Contains the base resources used for building up the root
 of the agent's api.
 """
 
+try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
+
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.utility import dumps, request_from_master
@@ -70,4 +75,4 @@ class Versions(APIResource):
         if request is not None and request_from_master(request):
             config.master_contacted()
 
-        return dumps(versions=[1])
+        return str(dumps(versions=[1])), OK
