@@ -513,7 +513,7 @@ class BaseHTTPTestCase(TestCase):
                     value = [value]
 
                 self.failUnlessIsInstance(value, list)
-                request.responseHeaders.setRawHeaders(key, value)
+                request.requestHeaders.setRawHeaders(key, value)
 
         self.failUnlessEqual(kwargs, {}, "Unknown keywords %s" % kwargs.keys())
         return request
@@ -558,7 +558,10 @@ class BaseHTTPTestCase(TestCase):
 
 
 class BaseAPITestCase(BaseHTTPTestCase):
-    DEFAULT_HEADERS = {"Accept": ["application/json"]}
+    DEFAULT_HEADERS = {
+        "Accept": ["application/json"],
+        "Content-Type": ["application/json"]
+    }
 
     def test_parent(self):
         self.assertIsInstance(self.instance_class(), APIResource)
