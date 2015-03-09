@@ -75,4 +75,4 @@ class Versions(APIResource):
         if request is not None and request_from_master(request):
             config.master_contacted()
 
-        return str(dumps(versions=[1])), OK
+        return dumps(versions=[1]), OK
