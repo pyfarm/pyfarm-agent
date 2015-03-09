@@ -568,10 +568,7 @@ class BaseHTTPTestCase(TestCase):
 
 
 class BaseAPITestCase(BaseHTTPTestCase):
-    DEFAULT_HEADERS = {
-        "Accept": ["application/json"],
-        "Content-Type": ["application/json"]
-    }
+    DEFAULT_HEADERS = {"Accept": ["application/json"]}
 
     def test_parent(self):
         self.assertIsInstance(self.instance_class(), APIResource)
