@@ -45,6 +45,7 @@ from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
+from pyfarm.agent.http.core.template import EncodedStringTemplate
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.sysinfo import memory, cpu
 
@@ -569,12 +570,6 @@ class BaseHTTPTestCase(TestCase):
                 "%s does not have method %s" % (self.CLASS, method_name))
             self.assertTrue(callable(getattr(instance, method_name)))
 
-    def test_content_types(self):
-        self.assertIsInstance(self.CLASS.CONTENT_TYPES, set)
-        for content_type in self.CONTENT_TYPES:
-            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
-                          "missing content type %s" % content_type)
-
     def test_methods_exist_for_schema(self):
         self.assertIsInstance(self.CLASS.SCHEMAS, dict)
         instance = self.instance_class()
@@ -600,8 +595,6 @@ class BaseHTTPTestCase(TestCase):
 
 
 class BaseAPITestCase(BaseHTTPTestCase):
-    CONTENT_TYPES = ["application/json"]
-
     def setUp(self):
         super(BaseAPITestCase, self).setUp()
         self.assertIsNotNone(self.URI, "URI not set")
@@ -614,8 +607,6 @@ class BaseAPITestCase(BaseHTTPTestCase):
 
 
 class BaseHTMLTestCase(BaseHTTPTestCase):
-    CONTENT_TYPES = ["text/html", "application/json"]
-
     def setUp(self):
         super(BaseHTMLTestCase, self).setUp()
         self.get = partial(FakeRequest, self, "GET")
@@ -628,6 +619,6 @@ class BaseHTMLTestCase(BaseHTTPTestCase):
     def test_template_loaded(self):
         instance = self.instance_class()
         template = instance.template
-        self.assertIsInstance(template, DeferredTemplate)
+        self.assertIsInstance(template, EncodedStringTemplate)
         self.assertEqual(basename(template.filename), self.CLASS.TEMPLATE)
         self.assertTrue(isfile(template.filename))
