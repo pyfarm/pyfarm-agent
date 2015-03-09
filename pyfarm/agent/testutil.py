@@ -582,17 +582,6 @@ class BaseHTTPTestCase(TestCase):
             self.assertNotEqual(method, "GET", "cannot have schema for GET")
             self.assertIn(method, methods)
 
-    def test_missing_schemas(self):
-        missing_schemas = []
-        for method in self.CLASS.LOAD_DATA_FOR_METHODS:
-            if method not in self.CLASS.SCHEMAS:
-                missing_schemas.append(method)
-
-        if missing_schemas:
-            self.skipTest(
-                "WARNING: Missing schema(s) for %s"
-                % ", ".join(missing_schemas))
-
 
 class BaseAPITestCase(BaseHTTPTestCase):
     def setUp(self):
