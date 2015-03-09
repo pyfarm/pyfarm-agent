@@ -155,9 +155,6 @@ class Configuration(Resource):
             else:
                 non_editable_fields.append((key, value))
 
-        deferred = self.template.render(
+        return self.template.render(
             non_editable_fields=non_editable_fields,
-            editable_fields=editable_fields)
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
+            editable_fields=editable_fields), OK
