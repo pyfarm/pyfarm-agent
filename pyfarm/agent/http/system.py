@@ -50,8 +50,6 @@ class Index(Resource):
             if config["state"] == value:
                 state = key.title()
                 break
-        else:  # pragma: no cover
-            raise KeyError("Failed to find state")
 
         ram_allocated = int(
             (memory.used_ram() / float(config["agent_ram"])) * 100)
@@ -92,6 +90,7 @@ class Index(Resource):
 
         miscellaneous = [
             ("Database ID", agent_id),
+            ("Agent State", state),
             ("Logged On User(s)",
              ", ".join(sorted(set(user.name for user in psutil.get_users())))),
             ("Host Uptime",
