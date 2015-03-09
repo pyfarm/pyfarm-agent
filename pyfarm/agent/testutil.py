@@ -16,7 +16,6 @@
 
 import atexit
 import logging
-import json
 import os
 import re
 import socket
@@ -41,7 +40,7 @@ except ImportError:  # pragma: no cover
 
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
-from twisted.web.test.requesthelper import DummyRequest
+from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
@@ -212,6 +211,17 @@ class ErrorCapturingParser(AgentArgumentParser):
 
     def error(self, message):
         self.errors.append(message)
+
+
+class DummyRequest(_DummyRequest):
+    def getHeader(self, key):
+        """
+        Default override, _DummyRequest.getHeader does something different
+        than the real request object.
+        """
+        value = self.requestHeaders.getRawHeaders(key)
+        if value is not None:
+            return value[-1]
 
 
 class TestCase(_TestCase):
