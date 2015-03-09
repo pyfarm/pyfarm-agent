@@ -22,7 +22,7 @@ Base resources which can be used to build top leve
 documents, pages, or other types of data for the web.
 """
 
-from json import loads, dumps
+from json import loads
 
 try:
     from httplib import (
@@ -41,6 +41,7 @@ from voluptuous import Invalid, Schema
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.http.core import template
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import dumps
 
 logger = getLogger("agent.http.resource")
 
@@ -145,14 +146,13 @@ class Resource(_Resource):
 
         elif "application/json" in content_types:
             request.setResponseCode(code)
-            error = dumps({"error": message})
-            request.write(error.encode("ascii", "replace"))
+            request.write(dumps({"error": message}))
 
         else:
             request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
             error = dumps(
                 {"error": "Can only handle text/html or application/json here"})
-            request.write(error.encode("ascii", "replace"))
+            request.write(error)
 
         request.finish()
 
