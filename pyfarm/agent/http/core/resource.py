@@ -207,7 +207,8 @@ class Resource(_Resource):
         if not self.SUPPORTED_CONTENT_TYPES & content_types:
             self.error(
                 request, UNSUPPORTED_MEDIA_TYPE,
-                "%s is not a support content type for this url" % content_types)
+                "%s is not a supported content type for this "
+                "url" % content_types)
             return NOT_DONE_YET
 
         kwargs = {"request": request}
