@@ -23,6 +23,7 @@ import uuid
 from contextlib import nested
 from datetime import datetime, timedelta
 from platform import platform
+from os.path import join
 
 try:
     from httplib import (
@@ -40,6 +41,15 @@ from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
 from pyfarm.core.enums import AgentState
+from pyfarm.agent.http.api.assign import Assign
+from pyfarm.agent.http.api.base import APIRoot, Versions
+from pyfarm.agent.http.api.config import Config
+from pyfarm.agent.http.api.tasks import Tasks
+from pyfarm.agent.http.api.tasklogs import TaskLogs
+from pyfarm.agent.http.api.state import Status, Stop, Restart
+from pyfarm.agent.http.api.update import Update
+from pyfarm.agent.http.core.server import StaticPath
+from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
@@ -870,6 +880,7 @@ class TestStop(TestCase):
         stop_lock_release.assert_called_once()
 
 
+<<<<<<< HEAD
 class TestShouldReannounce(TestCase):
     POP_CONFIG_KEYS = [
         "agent_master_reannounce", "last_master_contact"
@@ -1092,3 +1103,81 @@ class TestReannounce(TestCase):
             "retried.",
             self.normal_result, 42
         )
+
+
+class TestBuildHTTPResource(TestCase):
+    def test_root_resources(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+
+        root = resource.children.pop("")
+        self.assertIsInstance(root, Index)
+
+        api = resource.children.pop("api")
+        self.assertIsInstance(api, APIRoot)
+
+        configuration = resource.children.pop("configuration")
+        self.assertIsInstance(configuration, Configuration)
+
+        favicon = resource.children.pop("favicon.ico")
+        self.assertIsInstance(favicon, StaticPath)
+        self.assertEqual(
+            favicon.path, join(config["agent_static_root"], "favicon.ico"))
+        self.assertEqual(favicon.defaultType, "image/x-icon")
+
+        static = resource.children.pop("static")
+        self.assertIsInstance(static, StaticPath)
+        self.assertEqual(static.path, config["agent_static_root"])
+
+        # We should not have anything remaining.  If we do it means there's
+        # a new root resource we're not testing above.
+        self.assertNot(resource.children)
+
+    def test_api_children(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+
+        api = resource.children.pop("api")
+        self.assertIsInstance(api, APIRoot)
+
+        v1 = api.children.pop("v1")
+        self.assertIsInstance(v1, APIRoot)
+
+        versions = api.children.pop("versions")
+        self.assertIsInstance(versions, Versions)
+
+        self.assertNot(api.children)
+
+    def test_endpoints(self):
+        agent = Agent()
+        resource = agent.build_http_resource()
+        api = resource.children.pop("api")
+        v1 = api.children.pop("v1")
+
+        assign = v1.children.pop("assign")
+        self.assertIsInstance(assign, Assign)
+        self.assertIs(assign.agent, agent)
+
+        tasks = v1.children.pop("tasks")
+        self.assertIsInstance(tasks, Tasks)
+
+        configapi = v1.children.pop("config")
+        self.assertIsInstance(configapi, Config)
+
+        task_logs = v1.children.pop("task_logs")
+        self.assertIsInstance(task_logs, TaskLogs)
+
+        status = v1.children.pop("status")
+        self.assertIsInstance(status, Status)
+
+        stop = v1.children.pop("stop")
+        self.assertIsInstance(stop, Stop)
+
+        restart = v1.children.pop("restart")
+        self.assertIsInstance(restart, Restart)
+
+        update = v1.children.pop("update")
+        self.assertIsInstance(update, Update)
+
+        self.assertNot(v1.children)
+

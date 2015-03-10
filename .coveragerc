@@ -13,6 +13,7 @@ exclude_lines =
     log.*\.debug.*
     log.*\.info.*
     log.*\.warning.*
+    log.*\.error.*
     log.*\.critical.*
     log.*\.fatal.*
     log.*\.log.*
