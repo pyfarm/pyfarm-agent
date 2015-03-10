@@ -880,7 +880,6 @@ class TestStop(TestCase):
         stop_lock_release.assert_called_once()
 
 
-<<<<<<< HEAD
 class TestShouldReannounce(TestCase):
     POP_CONFIG_KEYS = [
         "agent_master_reannounce", "last_master_contact"
