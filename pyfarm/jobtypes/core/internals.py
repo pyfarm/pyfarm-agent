@@ -308,16 +308,28 @@ class Process(object):
 
     @stopped_deferred.setter
     def stopped_deferred(self, value):
-        assert self.start_called
-        assert self._stopped_deferred is None
-        assert isinstance(value, Deferred)
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+
+        if self._stopped_deferred:
+            raise ValueError("Deferred already set")
+
+        if not isinstance(value, Deferred):
+            raise TypeError("Expected a Deferred instace")
+
         self._stopped_deferred = value
 
     @started_deferred.setter
     def started_deferred(self, value):
-        assert self.start_called
-        assert self._started_deferred is None
-        assert isinstance(value, Deferred)
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+
+        if self._started_deferred:
+            raise ValueError("Deferred already set")
+
+        if not isinstance(value, Deferred):
+            raise TypeError("Expected a Deferred instace")
+
         self._started_deferred = value
 
     def _before_spawn_process(self, command, protocol):
