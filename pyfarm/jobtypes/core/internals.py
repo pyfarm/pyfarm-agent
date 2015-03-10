@@ -292,7 +292,7 @@ class Process(object):
         self.start_called = False
         self.stop_called = False
         self._stopped_deferred = None
-        self._start_deferred = None
+        self._started_deferred = None
 
     @property
     def stopped_deferred(self):
@@ -301,10 +301,10 @@ class Process(object):
         return self._stopped_deferred
 
     @property
-    def start_deferred(self):
+    def started_deferred(self):
         if not self.start_called:
             raise RuntimeError("Not yet started")
-        return self._stopped_deferred
+        return self._started_deferred
 
     @stopped_deferred.setter
     def stopped_deferred(self, value):
@@ -313,12 +313,12 @@ class Process(object):
         assert isinstance(value, Deferred)
         self._stopped_deferred = value
 
-    @start_deferred.setter
-    def start_deferred(self, value):
+    @started_deferred.setter
+    def started_deferred(self, value):
         assert self.start_called
-        assert self._start_deferred is None
+        assert self._started_deferred is None
         assert isinstance(value, Deferred)
-        self._start_deferred = value
+        self._started_deferred = value
 
     def _before_spawn_process(self, command, protocol):
         logger.debug(
