@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
+from twisted.web.static import File
 from voluptuous import Invalid, Schema
 
 from pyfarm.core.enums import STRING_TYPES
@@ -125,7 +126,7 @@ class Resource(_Resource):
         each call and use them externally.
         """
         assert isinstance(path, STRING_TYPES)
-        assert isinstance(child, Resource)
+        assert isinstance(child, (Resource, File))
         _Resource.putChild(self, path, child)
         return child
 
