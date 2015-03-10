@@ -408,7 +408,7 @@ def remove_directory(
 
     :param bool raise_:
         If True, raise an exceptions produced.  This will always be
-        False if :func:`remove_file` is being executed by :module:`atexit`
+        False if :func:`remove_directory` is being executed by :module:`atexit`
 
     :param tuple ignored_errnos:
         A tuple of ignored error numbers.  By default this function
