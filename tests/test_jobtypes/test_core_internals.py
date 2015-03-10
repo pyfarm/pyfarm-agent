@@ -152,6 +152,60 @@ class TestCache(TestCase):
         return cached
 
 
+class TestProcessStartStopDeferredProperties(TestCase):
+    def test_get_start_not_called(self):
+        p = Process()
+        p.start_called = False
+
+        with self.assertRaises(RuntimeError):
+            p.started_deferred
+
+        with self.assertRaises(RuntimeError):
+            p.stopped_deferred
+
+    def test_get_start_called(self):
+        p = Process()
+        p.start_called = True
+        p._started_deferred = 123
+        p._stopped_deferred = 456
+        self.assertEqual(p.started_deferred, 123)
+        self.assertEqual(p.stopped_deferred, 456)
+
+    def test_setter_start_not_called(self):
+        p = Process()
+        p.start_called = False
+
+        with self.assertRaises(RuntimeError):
+            p.stopped_deferred = None
+
+        with self.assertRaises(RuntimeError):
+            p.started_deferred = None
+
+    def test_setter_deferred_already_set(self):
+        p = Process()
+        p.start_called = True
+        p._started_deferred = Deferred()
+        p._stopped_deferred = Deferred()
+
+        with self.assertRaises(ValueError):
+            p.stopped_deferred = None
+
+        with self.assertRaises(ValueError):
+            p.started_deferred = None
+
+    def test_setter_expected_deferred(self):
+        p = Process()
+        p.start_called = True
+        p._started_deferred = None
+        p._stopped_deferred = None
+
+        with self.assertRaises(TypeError):
+            p.stopped_deferred = None
+
+        with self.assertRaises(TypeError):
+            p.started_deferred = None
+
+
 class TestProcess(TestCase):
     def setUp(self):
         TestCase.setUp(self)
