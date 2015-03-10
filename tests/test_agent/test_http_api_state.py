@@ -24,7 +24,9 @@ except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
 
 import psutil
+import mock
 from twisted.web.server import NOT_DONE_YET
+from twisted.internet import reactor
 
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
@@ -54,6 +56,7 @@ class TestStop(BaseAPITestCase):
         self.assertTrue(request.finished)
 
     def test_stops_agent(self):
+        self.patch(reactor, 'stop', mock.Mock())
         request = self.post(data={})
         stop = Stop()
         result = stop.render(request)
@@ -66,6 +69,7 @@ class TestStop(BaseAPITestCase):
         return self.agent.stopped
 
     def test_stops_and_waits_for_agent(self):
+        self.patch(reactor, 'stop', mock.Mock())
         request = self.post(data={"wait": True})
         stop = Stop()
         result = stop.render(request)
