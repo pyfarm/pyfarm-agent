@@ -291,7 +291,7 @@ class AgentUUID(object):
 
             return UUID(data)
 
-        except (OSError, IOError) as e:
+        except (WindowsError, OSError, IOError) as e:
             if e.errno == ENOENT:
                 cls.log.warning("UUID file %s does not exist.", path)
                 return None
@@ -332,7 +332,7 @@ class AgentUUID(object):
 
             cls.log.debug("Cached %s to %r", agent_uuid, path)
 
-        except (OSError, IOError) as e:  # pragma: no cover
+        except (WindowsError, OSError, IOError) as e:  # pragma: no cover
             cls.log.error("Failed to write %s, %s", path, e)
             raise
 
