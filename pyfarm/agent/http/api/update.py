@@ -116,7 +116,8 @@ class Update(APIResource):
                 # TODO Only shut down if we were started by the supervisor
                 config["restart_requested"] = True
                 if len(config["current_assignments"]) == 0:
-                    agent.stop()
+                    stopping = agent.stop()
+                    stopping.addCallback(lambda _: reactor.stop())
             else:
                 logger.error("Unexpected return code %s on downloading update "
                              "from master", response.code)
