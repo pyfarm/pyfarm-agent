@@ -48,7 +48,7 @@ from pyfarm.agent.http.core.client import post
 from pyfarm.agent.http.core.template import EncodedStringTemplate
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.sysinfo import memory, cpu
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.utility import dumps, remove_directory
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -394,13 +394,6 @@ class TestCase(_TestCase):
             "agent_html_template_reload": True,
             "agent_master_reannounce": randint(5, 15)})
 
-    def _rmdir(self, path, on_exit=True):
-        try:
-            shutil.rmtree(path)
-        except (IOError, OSError):
-            if on_exit:
-                atexit.register(self._rmdir, path, on_exit=False)
-
     def create_file(self, content=None, dir=None, suffix=""):
         """
         Creates a test file on disk using :func:`tempfile.mkstemp`
@@ -432,7 +425,8 @@ class TestCase(_TestCase):
 
     def create_directory(self, count=10):
         directory = tempfile.mkdtemp()
-        self.addCleanup(self._rmdir, directory)
+        self.addCleanup(
+            remove_directory, directory, retry_on_exit=True, raise_=False)
 
         files = []
         for _ in range(count):

@@ -22,15 +22,13 @@ Contains classes which contain internal methods for
 the :class:`pyfarm.jobtypes.core.jobtype.JobType` class.
 """
 
-import atexit
 import imp
 import os
 import sys
-import shutil
 import tempfile
 import time
 from collections import namedtuple
-from errno import EEXIST, ENOENT
+from errno import EEXIST
 from datetime import datetime
 from os.path import dirname, join, isfile, basename
 from uuid import UUID
@@ -64,7 +62,7 @@ from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.http.core.client import get, post, http_retry_delay
-from pyfarm.agent.utility import remove_file
+from pyfarm.agent.utility import remove_file, remove_directory
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
 
@@ -765,21 +763,10 @@ class System(object):
         for each failure.
         """
         assert isinstance(directories, (list, tuple, set))
-        failed = []
 
         for directory in directories:
-            try:
-                shutil.rmtree(directory)
-                logger.debug("Removed directory %s", directory)
-
-            except OSError as e:
-                if e.errno != ENOENT:
-                    logger.error("Failed to delete %s: %s", directory, e)
-                    failed.append(directory)
-
-        if failed and retry_on_exit:
-            atexit.register(
-                self._remove_directories, failed, retry_on_exit=False)
+            remove_directory(
+                directory, raise_=False, retry_on_exit=retry_on_exit)
 
     def _remove_tempdirs(self):
         """

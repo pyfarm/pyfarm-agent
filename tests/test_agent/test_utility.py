@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from errno import ENOENT
 from json import dumps as dumps_
 from uuid import UUID, uuid4
-from os.path import isfile
+from os.path import isfile, isdir
 
 from voluptuous import Invalid
 
@@ -33,7 +33,7 @@ from pyfarm.agent.testutil import TestCase, DummyRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
-    AgentUUID, remove_file, validate_uuid)
+    AgentUUID, remove_file, remove_directory, validate_uuid)
 
 try:
     WindowsError
@@ -302,3 +302,48 @@ class TestRemoveFile(TestCase):
             self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
         self.assertEqual(atexit._exithandlers, self.atexit_signature)
 
+
+class TestRemoveDirectory(TestCase):
+    def setUp(self):
+        super(TestRemoveDirectory, self).setUp()
+        path = tempfile.mkdtemp()
+        self.path = path
+        del atexit._exithandlers[:]
+        self.atexit_signature = [
+            (remove_directory, (self.path, ),
+             {"raise_": False, "retry_on_exit": False})]
+
+    def test_removes_directory(self):
+        remove_directory(self.path)
+        self.assertFalse(isdir(self.path))
+
+    def test_ignored_error(self):
+        os.rmdir(self.path)
+        remove_directory(self.path, ignored_errnos=(ENOENT, ), raise_=True)
+        self.assertFalse(isdir(self.path))
+
+    def test_retry_on_shutdown_no_raise(self):
+        os.rmdir(self.path)
+        remove_directory(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
+
+    def test_retry_on_shutdown_raise(self):
+        os.rmdir(self.path)
+
+        with self.assertRaises((WindowsError, OSError, IOError)):
+            remove_directory(
+                self.path, ignored_errnos=(), retry_on_exit=True, raise_=True)
+
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
+
+    def test_retry_only_once(self):
+        os.rmdir(self.path)
+
+        # If remove_file is wrapped in a while loop and is being
+        # passed the same arguments, it should only be one call for atexit.
+        remove_directory(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        remove_directory(
+            self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
+        self.assertEqual(atexit._exithandlers, self.atexit_signature)
