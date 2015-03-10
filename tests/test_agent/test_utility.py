@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import atexit
+import shutil
 import os
 import re
 import tempfile
@@ -32,7 +33,7 @@ from pyfarm.agent.testutil import TestCase, DummyRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
-    AgentUUID, remove_file)
+    AgentUUID, remove_file, validate_uuid)
 
 try:
     WindowsError
@@ -53,6 +54,25 @@ class TestValidateEnvironment(TestCase):
     def test_key(self):
         with self.assertRaisesRegexp(Invalid, re.compile("Key.*string.*")):
             validate_environment({1: None})
+
+
+class TestValidateUUID(TestCase):
+    def test_uuid(self):
+        uid = uuid4()
+        self.assertIs(validate_uuid(uid), uid)
+
+    def test_hex(self):
+        uid = uuid4()
+        self.assertEqual(validate_uuid(uid.hex).hex, uid.hex)
+
+    def test_invalid_hex(self):
+        with self.assertRaises(Invalid):
+            validate_uuid("hello world")
+
+    def test_other_invalid(self):
+        for value in (None, True, lambda: None, 1):
+            with self.assertRaises(Invalid):
+                validate_uuid(value)
 
 
 class TestDefaultJsonEncoder(TestCase):
@@ -227,6 +247,13 @@ class TestAgentUUID(TestCase):
         path = self.create_file()
         os.remove(path)
         self.assertIsNone(AgentUUID.load(path))
+
+    def test_raises_unhandled_error(self):
+        path = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, path)
+
+        with self.assertRaises(IOError):
+            AgentUUID.load(path)
 
 
 class TestRemoveFile(TestCase):
