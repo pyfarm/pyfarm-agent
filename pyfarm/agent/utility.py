@@ -370,8 +370,6 @@ def remove_file(
         os.remove(path)
     except (WindowsError, OSError, IOError) as error:
         if error.errno in ignored_errnos:
-            logger.debug(
-                "Failed to remove %s (%s)", path, errorcode[error.errno])
             return
 
         if retry_on_exit:
@@ -418,8 +416,6 @@ def remove_directory(
         shutil.rmtree(path)
     except (WindowsError, OSError, IOError) as error:
         if error.errno in ignored_errnos:
-            logger.debug(
-                "Failed to remove %s (%s)", path, errorcode[error.errno])
             return
 
         if retry_on_exit:
