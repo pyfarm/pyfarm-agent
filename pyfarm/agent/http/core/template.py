@@ -55,25 +55,12 @@ class InMemoryCache(BytecodeCache):
         self.cache[bucket.key] = cache
 
 
-class EncodedStringTemplate(_Template):
-    """
-    A sublcass of :class:`jinja2.Template which always returns
-    a string in response to :meth:`render`.  When Twisted writes
-    a response it always expects a bytes object.  In Python 2.x this
-    means we have to encode as a string.
-    """
-    def render(self, *args, **kwargs):
-        result = super(EncodedStringTemplate, self).render(*args, **kwargs)
-        return result.encode("ascii", "replace")
-
-
 class Environment(_Environment):
     """
     Implementation of :class:`jinja2.Environment` class which
     reads from our configuration object and establishes the
     default functions we can use in a template.
     """
-    template_class = EncodedStringTemplate
 
     def __init__(self, **kwargs):
         # default options

@@ -38,6 +38,7 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
+from jinja2 import Template
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
@@ -45,7 +46,6 @@ from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
-from pyfarm.agent.http.core.template import EncodedStringTemplate
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.sysinfo import memory, cpu
 from pyfarm.agent.utility import dumps, remove_directory
@@ -585,6 +585,6 @@ class BaseHTMLTestCase(BaseHTTPTestCase):
     def test_template_loaded(self):
         instance = self.instance_class()
         template = instance.template
-        self.assertIsInstance(template, EncodedStringTemplate)
+        self.assertIsInstance(template, Template)
         self.assertEqual(basename(template.filename), self.CLASS.TEMPLATE)
         self.assertTrue(isfile(template.filename))
