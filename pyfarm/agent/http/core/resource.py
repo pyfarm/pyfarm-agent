@@ -27,11 +27,11 @@ from json import loads
 try:
     from httplib import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK, NOT_ACCEPTABLE)
 except ImportError:  # pragma: no cover
     from http.client import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK, NOT_ACCEPTABLE)
 
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
@@ -57,17 +57,70 @@ class Resource(_Resource):
         * Content type discovery and validation
         * Handling of deferred responses
         * Validation of POST/PUT data against a schema
+
+    :cvar string TEMPLATE:
+        The name of the template this class will use when rendering
+        an html view.
+
+    :type SCHEMAS: dict
+    :cvar SCHEMAS:
+        A dictionary of schemas to validate the data of an incoming request
+        against.  The structure of this dictionary is::
+
+            {http method: <instance of voluptuous.Schema>}
+
+        If the schema validation fails the request will be rejected with
+        ``400 BAD REQUEST``.
+
+    :type ALLOWED_CONTENT_TYPE: frozenset
+    :cvar ALLOWED_CONTENT_TYPE:
+        An instance of :class:`frozenset` which describes what this resource
+        is going to allow in the ``Content-Type`` header.  The request
+        and this instance must share at least on entry in common.  If not,
+        the request will be rejected with ``415 UNSUPPORTED MEDIA TYPE``.
+
+        **This must be defined in subclass**
+
+    :type ALLOWED_ACCEPT: frozenset
+    :cvar ALLOWED_ACCEPT:
+        An instance of :class:`frozenset` which describes what this
+        resource is going to allow in the ``Accept`` header.  The request
+        and this instance must share at least one entry in common.  If not,
+        the request will be rejected with ``406 NOT ACCEPTABLE``.
+
+        **This must be defined in subclass**
+
+    :type DEFAULT_ACCEPT: frozenset
+    :cvar DEFAULT_ACCEPT:
+        If ``Accept`` header is not present in the request, use this as the
+        value instead.  This defaults to ``frozenset(["*/*"])``
+
+    :type DEFAULT_CONTENT_TYPE: frozenset
+    :cvar DEFAULT_CONTENT_TYPE:
+        If ``Content-Type`` header is not present in the request, use this as
+        the value instead.  This defaults to ``frozenset([""])``
     """
     TEMPLATE = NotImplemented
-    SUPPORTED_CONTENT_TYPES = set(["text/html", "application/json"])
-
-    # Used by API endpoints for data validation
-    # format of this attri
     SCHEMAS = {}
+
+    # These must be set in a subclass and
+    # should contain the full range of headers
+    # allowed for Accept and Content-Type.
+    ALLOWED_ACCEPT = NotImplemented
+    ALLOWED_CONTENT_TYPE = NotImplemented
+
+    # Default values if certain headers
+    # are not present.
+    DEFAULT_ACCEPT = frozenset(["*/*"])
+    DEFAULT_CONTENT_TYPE = frozenset([""])
 
     def __init__(self):
         _Resource.__init__(self)
-        assert isinstance(self.SUPPORTED_CONTENT_TYPES, set)
+        assert isinstance(self.ALLOWED_ACCEPT, frozenset)
+        assert isinstance(self.ALLOWED_CONTENT_TYPE, frozenset)
+        assert isinstance(self.DEFAULT_ACCEPT, frozenset)
+        assert isinstance(self.DEFAULT_CONTENT_TYPE, frozenset)
+        assert isinstance(self.SCHEMAS, dict)
 
     @property
     def template(self):
@@ -91,34 +144,25 @@ class Resource(_Resource):
 
         return tuple(methods)
 
-    def response_types(self, request, default=None):
+    def get_content_type(self, request):
         """
-        Returns an instance of :class:`frozenset` which contains the type
-        or types of responses we can send.  We look at the ``Accept`` and
-        ``Content-Type`` headers to determine this information.  If values
-        are present in the ``Accept`` header these will be returned instead
-        of values in ``Content-Type``.  If neither of these headers are present
-        we'll return what was provided to ``default`` instead.
-
-        .. note::
-
-            This method's purpose is only to return what kinds of responses
-            are acceptable based on the request.  Ultimately, it's up to the
-            calling method to make the final determination about what kind of
-            response to send.
+        Return the ``Content-Type`` header(s) in the request or
+        ``DEFAULT_CONTENT_TYPE`` if the header is not set.
         """
-        assert default is None or isinstance(default, (list, tuple, set))
-        accepts = request.requestHeaders.getRawHeaders("Accept")
-        content_types = request.requestHeaders.getRawHeaders("Content-Type")
+        content_type = request.requestHeaders.getRawHeaders("Content-Type")
+        if not content_type:
+            return self.DEFAULT_CONTENT_TYPE
+        return frozenset(content_type)
 
-        if accepts is not None:
-            return frozenset(accepts)
-        elif content_types is not None:
-            return frozenset(content_types)
-        elif default is None:
-            return frozenset()
-        else:
-            return frozenset(default)
+    def get_accept(self, request):
+        """
+        Return the ``Accept`` header(s) in the request or
+        ``DEFAULT_ACCEPT`` if the header is not set.
+        """
+        accept = request.requestHeaders.getRawHeaders("Accept")
+        if not accept:
+            return self.DEFAULT_ACCEPT
+        return frozenset(accept)
 
     def putChild(self, path, child):
         """
@@ -135,17 +179,17 @@ class Resource(_Resource):
         Writes the proper out an error response message depending on the
         content type in the request
         """
-        content_types = self.response_types(request, default=["text/html"])
+        response_types = self.get_accept(request)
         logger.error(message)
 
-        if "text/html" in content_types:
+        if "text/html" in response_types:
             request.setResponseCode(code)
             html_error = template.load("error.html")
             result = html_error.render(
                 code=code, code_msg=responses[code], message=message)
             request.write(result)
 
-        elif "application/json" in content_types:
+        elif "application/json" in response_types:
             request.setResponseCode(code)
             request.write(dumps({"error": message}))
 
@@ -200,18 +244,30 @@ class Resource(_Resource):
         self.render_tuple(request, response)
 
     def render(self, request):
-        # Check to ensure that the content type being requested
-        content_types = self.response_types(
-            request, default=["text/html", "application/json"])
-
-        if not self.SUPPORTED_CONTENT_TYPES & content_types:
+        # Ensure we can handle the content of the request
+        content_types = \
+            self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
+        if not content_types:
             self.error(
                 request, UNSUPPORTED_MEDIA_TYPE,
-                "%s is not a supported content type for this "
-                "url" % content_types)
+                "Can only support content "
+                "type(s) %s" % self.ALLOWED_CONTENT_TYPE)
             return NOT_DONE_YET
 
-        kwargs = {"request": request}
+        # Determine if we'll be able to produce a response for the request
+        response_types = self.get_accept(request) & self.ALLOWED_ACCEPT
+        if not response_types:
+            self.error(
+                request, NOT_ACCEPTABLE,
+                "Can only respond with %s" % self.ALLOWED_ACCEPT)
+            return NOT_DONE_YET
+
+        # Keywords to pass into `handler_method` below
+        kwargs = dict(
+            request=request,
+            response_types=response_types,
+            content_types=content_types
+        )
 
         try:
             handler_method = getattr(self, request.method.lower())
