@@ -223,6 +223,14 @@ class DummyRequest(_DummyRequest):
         if value is not None:
             return value[-1]
 
+    def write(self, data):
+        """
+        Default override, _DummyRequest.write asserts that ``data`` must
+        be a bytes instance.  In the real Request.write implementation no
+        such assertion is made.
+        """
+        self.written.append(data)
+
 
 class TestCase(_TestCase):
     longMessage = True
