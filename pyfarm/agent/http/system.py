@@ -40,7 +40,13 @@ def seconds(value):
         return "%.2f seconds" % value
 
 
-class Index(Resource):
+class HTMLResource(Resource):
+    # TODO: add content types for forms once they work again
+    ALLOWED_CONTENT_TYPE = frozenset(["text/html", ""])
+    ALLOWED_ACCEPT = frozenset(["text/html", "*/*"])
+
+
+class Index(HTMLResource):
     """serves request for the root, '/', target"""
     TEMPLATE = "index.html"
 
@@ -108,7 +114,7 @@ class Index(Resource):
 # TODO: form submission
 # TODO: make 'port' field editable (requires restart)
 # TODO: add callbacks for any field that needs to update the db
-class Configuration(Resource):
+class Configuration(HTMLResource):
     TEMPLATE = "configuration.html"
 
     # fields which nobody can see

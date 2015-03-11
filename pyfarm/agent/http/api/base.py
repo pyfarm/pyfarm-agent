@@ -35,7 +35,13 @@ from pyfarm.agent.utility import dumps, request_from_master
 class APIResource(Resource):
     """Base class for all api resources"""
     isLeaf = True
-    SUPPORTED_CONTENT_TYPES = set(["application/json"])
+
+    # Content-Type header
+    ALLOWED_CONTENT_TYPE = frozenset(["", "application/json"])
+
+    # Accept headers
+    ALLOWED_ACCEPT = frozenset(["*/*", "application/json"])
+    DEFAULT_ACCEPT = frozenset(["application/json"])
 
 
 class APIRoot(APIResource):
