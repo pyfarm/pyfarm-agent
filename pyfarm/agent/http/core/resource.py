@@ -114,14 +114,6 @@ class Resource(_Resource):
     DEFAULT_ACCEPT = frozenset(["*/*"])
     DEFAULT_CONTENT_TYPE = frozenset([""])
 
-    def __init__(self):
-        _Resource.__init__(self)
-        assert isinstance(self.ALLOWED_ACCEPT, frozenset)
-        assert isinstance(self.ALLOWED_CONTENT_TYPE, frozenset)
-        assert isinstance(self.DEFAULT_ACCEPT, frozenset)
-        assert isinstance(self.DEFAULT_CONTENT_TYPE, frozenset)
-        assert isinstance(self.SCHEMAS, dict)
-
     @property
     def template(self):
         """
@@ -149,6 +141,8 @@ class Resource(_Resource):
         Return the ``Content-Type`` header(s) in the request or
         ``DEFAULT_CONTENT_TYPE`` if the header is not set.
         """
+        assert self.DEFAULT_CONTENT_TYPE is not None
+
         content_type = request.requestHeaders.getRawHeaders("Content-Type")
         if not content_type:
             return self.DEFAULT_CONTENT_TYPE
@@ -159,6 +153,8 @@ class Resource(_Resource):
         Return the ``Accept`` header(s) in the request or
         ``DEFAULT_ACCEPT`` if the header is not set.
         """
+        assert self.DEFAULT_ACCEPT is not NotImplemented
+
         accept = request.requestHeaders.getRawHeaders("Accept")
         if not accept:
             return self.DEFAULT_ACCEPT
@@ -244,6 +240,10 @@ class Resource(_Resource):
         self.render_tuple(request, response)
 
     def render(self, request):
+        assert self.SCHEMAS is not NotImplemented
+        assert self.ALLOWED_ACCEPT is not NotImplemented
+        assert self.ALLOWED_CONTENT_TYPE is not NotImplemented
+
         # Ensure we can handle the content of the request
         content_types = \
             self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
