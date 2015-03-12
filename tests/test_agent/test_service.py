@@ -887,7 +887,7 @@ class TestShouldReannounce(TestCase):
 
     def test_should_reannounce_locked(self):
         agent = Agent()
-        agent.reannouce_lock.acquire()
+        agent.reannounce_lock.acquire()
         self.assertFalse(agent.should_reannounce())
 
     def test_should_reannounce_shutting_down(self):
@@ -949,8 +949,8 @@ class TestReannounce(TestCase):
 
         with nested(
             patch.object(agent, "should_reannounce", return_value=False),
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release")
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release")
         ) as (_, acquire_lock, release_lock):
             result = yield agent.reannounce(force=False)
 
@@ -965,8 +965,8 @@ class TestReannounce(TestCase):
 
         with nested(
             patch.object(agent, "should_reannounce", return_value=False),
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(svclog, "debug")
         ) as (_, acquire_lock, release_lock, debug_log):
             result = yield agent.reannounce(force=True)
@@ -983,8 +983,8 @@ class TestReannounce(TestCase):
         agent = Agent()
 
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release")
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release")
         ) as (acquire_lock, release_lock):
             result = yield agent.reannounce(force=True)
 
@@ -999,8 +999,8 @@ class TestReannounce(TestCase):
         agent.shutting_down = True
 
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(svclog, "warning")
         ) as (acquire_lock, release_lock, warning_log):
             result = yield agent.reannounce(force=True)
@@ -1025,8 +1025,8 @@ class TestReannounce(TestCase):
         reactor.callLater(3, shutdown)
 
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(svclog, "warning")
         ) as (acquire_lock, release_lock, warning_log):
             result = yield agent.reannounce(force=True)
@@ -1048,8 +1048,8 @@ class TestReannounce(TestCase):
         post_deferred = Deferred()
         post_deferred.callback(None)
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(
                     agent, "post_agent_to_master", return_value=post_deferred),
         ) as (acquire_lock, release_lock, post_agent):
@@ -1066,8 +1066,8 @@ class TestReannounce(TestCase):
         agent = Agent()
 
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(svclog, "error")
         ) as (acquire_lock, release_lock, error_log):
             result = yield agent.reannounce(force=True)
@@ -1087,8 +1087,8 @@ class TestReannounce(TestCase):
         agent = Agent()
 
         with nested(
-            patch.object(agent.reannouce_lock, "acquire"),
-            patch.object(agent.reannouce_lock, "release"),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
             patch.object(svclog, "error")
         ) as (acquire_lock, release_lock, error_log):
             result = yield agent.reannounce(force=True)

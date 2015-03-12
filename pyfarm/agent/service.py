@@ -86,7 +86,7 @@ class Agent(object):
         self.shutdown_timeout = None
         self.post_shutdown_lock = DeferredLock()
         self.stop_lock = DeferredLock()
-        self.reannouce_lock = DeferredLock()
+        self.reannounce_lock = DeferredLock()
         self.stopped = False
 
         # Register a callback so self.shutdown_timeout is set when
@@ -217,7 +217,7 @@ class Agent(object):
 
     def should_reannounce(self):
         """Small method which acts as a trigger for :meth:`reannounce`"""
-        if self.reannouce_lock.locked or self.shutting_down:
+        if self.reannounce_lock.locked or self.shutting_down:
             return False
 
         contacted = config.master_contacted(update=False)
@@ -233,9 +233,9 @@ class Agent(object):
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
-        yield self.reannouce_lock.acquire()
+        yield self.reannounce_lock.acquire()
         if not self.should_reannounce() and not force:
-            yield self.reannouce_lock.release()
+            yield self.reannounce_lock.release()
             returnValue(None)
 
         svclog.debug("Announcing %s to master", config["agent_hostname"])
@@ -304,7 +304,7 @@ class Agent(object):
                         "retried.", data, response.code)
                     break
 
-        yield self.reannouce_lock.release()
+        yield self.reannounce_lock.release()
         returnValue(data)
 
     def system_data(self, requery_timeoffset=False):
