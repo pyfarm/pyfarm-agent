@@ -243,11 +243,12 @@ class Resource(_Resource):
         assert self.SCHEMAS is not NotImplemented
         assert self.ALLOWED_ACCEPT is not NotImplemented
         assert self.ALLOWED_CONTENT_TYPE is not NotImplemented
+        content = request.content.read().strip()
+        shared_content_types = \
+            self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
 
         # Ensure we can handle the content of the request
-        content_types = \
-            self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
-        if not content_types:
+        if content and not shared_content_types:
             self.error(
                 request, UNSUPPORTED_MEDIA_TYPE,
                 "Can only support content "
@@ -263,11 +264,7 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         # Keywords to pass into `handler_method` below
-        kwargs = dict(
-            request=request,
-            response_types=response_types,
-            content_types=content_types
-        )
+        kwargs = dict(request=request)
 
         try:
             handler_method = getattr(self, request.method.lower())
@@ -278,32 +275,29 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         # Attempt to load the data for the incoming request if appropriate
-        if ("application/json" in content_types
-                and request.method in ("POST", "PUT")):
-            data = request.content.read().strip()
-            if data:
+        if content and "application/json" in shared_content_types:
+            try:
+                data = loads(content)
+            except ValueError as e:
+                self.error(
+                    request, BAD_REQUEST,
+                    "Failed to decode json data: %r" % e)
+                return NOT_DONE_YET
+
+            # We have data, check to see if we have a schema
+            # and if we do does it validate.
+            schema = self.SCHEMAS.get(request.method)
+            if isinstance(schema, Schema):
                 try:
-                    data = loads(data)
-                except ValueError as e:
+                    schema(data)
+                except Invalid as e:
                     self.error(
                         request, BAD_REQUEST,
-                        "Failed to decode json data: %r" % e)
+                        "Failed to validate the request data "
+                        "against the schema: %s" % e)
                     return NOT_DONE_YET
 
-                # We have data, check to see if we have a schema
-                # and if we do does it validate.
-                schema = self.SCHEMAS.get(request.method)
-                if isinstance(schema, Schema):
-                    try:
-                        schema(data)
-                    except Invalid as e:
-                        self.error(
-                            request, BAD_REQUEST,
-                            "Failed to validate the request data "
-                            "against the schema: %s" % e)
-                        return NOT_DONE_YET
-
-                kwargs.update(data=data)
+            kwargs.update(data=data)
 
         try:
             response = handler_method(**kwargs)
