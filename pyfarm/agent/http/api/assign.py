@@ -289,6 +289,8 @@ class Assign(APIResource):
                     lambda *args: instance._remove_tempdirs())
                 stopped_deferred.addBoth(
                     lambda *args: instance._close_logs())
+                stopped_deferred.addBoth(
+                    lambda *args: instance._upload_logfile())
             except Exception as e:
                 logger.error("Error on starting jobtype, stopping it now.  "
                              "Error was: %s", e)
