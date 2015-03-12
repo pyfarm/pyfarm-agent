@@ -174,6 +174,10 @@ class Assign(APIResource):
             logger.error(
                 "Assignment %s failed, removing.", assign_id)
             logger.error(result.getTraceback())
+            if (len(config["current_assignments"]) <= 1 and
+                not self.agent.shutting_down):
+                config["state"] = AgentState.ONLINE
+                self.agent.reannounce(force=True)
             assignment = config["current_assignments"].pop(assign_id)
             if "jobtype" in assignment:
                 jobtype_id = assignment["jobtype"].pop("id", None)
