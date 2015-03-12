@@ -53,6 +53,8 @@ except NameError:  # pragma: no cover
     WindowsError = OSError
 
 from voluptuous import Schema, Any, Required, Optional, Invalid
+from twisted.internet import reactor
+from twisted.internet.defer import DeferredLock
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
@@ -437,3 +439,39 @@ def remove_directory(
             raise
     else:
         logger.info("Removed %s", path)
+
+
+class LockTimeoutError(Exception):
+    """Raised if we timeout while attempting to acquire a deferred lock"""
+
+
+class TimedDeferredLock(DeferredLock):
+    """
+    A subclass of :class:`DeferredLock` which has a timeout
+    for the :meth:`acquire` call.
+    """
+    def acquire(self, timeout):
+        """
+        This method operates the same as :meth:`DeferredLock.acquire` does
+        except it requires a timeout argument.
+
+        :param int timeout:
+            The number of seconds to wait before timing out.
+
+        :raises LockTimeoutError:
+            Raised if the timeout was reached before we could acquire
+            the lock.
+        """
+        assert isinstance(timeout, (int, float))
+        lock = DeferredLock.acquire(self)
+
+        def timeout_reached():
+            raise LockTimeoutError
+
+        scheduled_call = reactor.callLater(timeout, timeout_reached)
+        lock.addBoth(lambda _: scheduled_call.cancel())
+
+        return lock
+
+
+

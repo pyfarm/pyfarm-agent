@@ -56,7 +56,7 @@ from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
-from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
+from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
@@ -86,7 +86,7 @@ class Agent(object):
         self.shutdown_timeout = None
         self.post_shutdown_lock = DeferredLock()
         self.stop_lock = DeferredLock()
-        self.reannounce_lock = DeferredLock()
+        self.reannounce_lock = utility.TimedDeferredLock()
         self.stopped = False
 
         # Register a callback so self.shutdown_timeout is set when
@@ -233,7 +233,18 @@ class Agent(object):
         Method which is used to periodically contact the master.  This
         method is generally called as part of a scheduled task.
         """
-        yield self.reannounce_lock.acquire()
+        # Attempt to acquire the reannounce lock but fail after 70%
+        # of the total time between reannouncements elapses.  This should
+        # help prevent an accumulation of requests in the event the master
+        # is having issues.
+        try:
+            yield self.reannounce_lock.acquire(
+                config["agent_master_reannounce"] * .70
+            )
+        except utility.TimedDeferredLock:
+            svclog.debug("Timed out while waiting to acquire reannounce_lock")
+            returnValue(None)
+
         if not self.should_reannounce() and not force:
             yield self.reannounce_lock.release()
             returnValue(None)
