@@ -241,7 +241,7 @@ class Agent(object):
             yield self.reannounce_lock.acquire(
                 config["agent_master_reannounce"] * .70
             )
-        except utility.TimedDeferredLock:
+        except utility.LockTimeoutError:
             svclog.debug("Timed out while waiting to acquire reannounce_lock")
             returnValue(None)
 
