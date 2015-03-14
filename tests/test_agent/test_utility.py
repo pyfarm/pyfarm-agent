@@ -26,6 +26,7 @@ from json import dumps as dumps_
 from uuid import UUID, uuid4
 from os.path import isfile, isdir
 
+from twisted.internet.defer import DeferredLock, inlineCallbacks
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
@@ -33,7 +34,8 @@ from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
-    AgentUUID, remove_file, remove_directory, validate_uuid)
+    AgentUUID, remove_file, remove_directory, validate_uuid, TimedDeferredLock,
+    LockTimeoutError)
 
 try:
     WindowsError
@@ -347,3 +349,46 @@ class TestRemoveDirectory(TestCase):
         remove_directory(
             self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
         self.assertEqual(atexit._exithandlers, self.atexit_signature)
+
+
+class TestTimedDeferredLock(TestCase):
+    def test_parent_class(self):
+        deferred = TimedDeferredLock()
+        self.assertIsInstance(deferred, DeferredLock)
+
+    @inlineCallbacks
+    def test_acquire(self):
+        deferred = TimedDeferredLock()
+
+        # Nothing else has acquired this lock, 0 should
+        # not cause a timeout
+        yield deferred.acquire()
+
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+
+        yield deferred.release()
+
+        self.assertFalse(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+
+
+    @inlineCallbacks
+    def test_acquire_timeout(self):
+        deferred = TimedDeferredLock()
+
+        # Nothing else has acquired this lock, 0 should
+        # not cause a timeout
+        yield deferred.acquire()
+
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+
+        start = datetime.utcnow()
+        with self.assertRaises(LockTimeoutError):
+            yield deferred.acquire(1)
+        stop = datetime.utcnow()
+
+        self.assertTrue(1.1 > total_seconds(stop - start) > .9)
+
+
