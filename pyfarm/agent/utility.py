@@ -475,9 +475,9 @@ class TimedDeferredLock(DeferredLock):
     def _call_callback(self, _, deferred):
         """
         Calls the callback() on the given deferred instance, ignoring cases
-        where it may already be called
+        where it may already be called.  This can happen if acquire() has
+        already run.
         """
-
         try:
             deferred.callback(None)
         except AlreadyCalledError:  # pragma: no cover
