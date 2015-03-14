@@ -54,7 +54,8 @@ except NameError:  # pragma: no cover
 
 from voluptuous import Schema, Any, Required, Optional, Invalid
 from twisted.internet import reactor
-from twisted.internet.defer import DeferredLock
+from twisted.internet.defer import AlreadyCalledError, DeferredLock, Deferred
+from twisted.internet.error import AlreadyCalled
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.config import config
@@ -450,7 +451,39 @@ class TimedDeferredLock(DeferredLock):
     A subclass of :class:`DeferredLock` which has a timeout
     for the :meth:`acquire` call.
     """
-    def acquire(self, timeout):
+    def _timeout(self, deferred):
+        """
+        Raise a :class:`LockTimeoutError` in the given :class:`Deferred`
+        instance. This ensures that when a timeout is triggered it's
+        propagated all the way up the calling stack.
+        """
+        try:
+            raise LockTimeoutError
+        except LockTimeoutError as timeout:
+            deferred.errback(fail=timeout)
+
+    def _cancel_timeout(self, _, scheduled_call):
+        """
+        Cancels a scheduled call, ignoring cases where the event has already
+        been canceled.
+        """
+        try:
+            scheduled_call.cancel()
+        except AlreadyCalled:  # pragma: no cover
+            pass
+
+    def _call_callback(self, _, deferred):
+        """
+        Calls the callback() on the given deferred instance, ignoring cases
+        where it may already be called
+        """
+
+        try:
+            deferred.callback(None)
+        except AlreadyCalledError:  # pragma: no cover
+            pass
+
+    def acquire(self, timeout=None):
         """
         This method operates the same as :meth:`DeferredLock.acquire` does
         except it requires a timeout argument.
@@ -462,16 +495,19 @@ class TimedDeferredLock(DeferredLock):
             Raised if the timeout was reached before we could acquire
             the lock.
         """
-        assert isinstance(timeout, (int, float))
+        assert timeout is None or isinstance(timeout, (int, float))
+
         lock = DeferredLock.acquire(self)
+        if timeout is None:
+            return lock
 
-        def timeout_reached():
-            raise LockTimeoutError
+        # Schedule a call to trigger finished.errback() which will raise
+        # an exception.  If lock finishes first however cancel the timeout
+        # and unlock the lock by calling finished.
+        finished = Deferred()
+        lock.addCallback(
+            self._cancel_timeout,
+            reactor.callLater(timeout, self._timeout, finished))
+        lock.addCallback(self._call_callback, finished)
 
-        scheduled_call = reactor.callLater(timeout, timeout_reached)
-        lock.addBoth(lambda _: scheduled_call.cancel())
-
-        return lock
-
-
-
+        return finished
