@@ -495,7 +495,8 @@ class TimedDeferredLock(DeferredLock):
             Raised if the timeout was reached before we could acquire
             the lock.
         """
-        assert timeout is None or isinstance(timeout, (int, float))
+        assert timeout is None \
+            or isinstance(timeout, (int, float)) and timeout > 0
 
         lock = DeferredLock.acquire(self)
         if timeout is None:
