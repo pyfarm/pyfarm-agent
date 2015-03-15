@@ -357,21 +357,22 @@ class TestTimedDeferredLock(TestCase):
         self.assertIsInstance(deferred, DeferredLock)
 
     @inlineCallbacks
-    def test_acquire(self):
+    def test_standard_behavior(self):
         deferred = TimedDeferredLock()
-
-        # Nothing else has acquired this lock, 0 should
-        # not cause a timeout
         yield deferred.acquire()
-
         self.assertTrue(deferred.locked)
         self.assertEqual(len(deferred.waiting), 0)
-
+        second_acquire = deferred.acquire()
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 1)
+        self.assertFalse(second_acquire.called)
         yield deferred.release()
-
+        self.assertTrue(second_acquire.called)
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+        yield deferred.release()
         self.assertFalse(deferred.locked)
         self.assertEqual(len(deferred.waiting), 0)
-
 
     @inlineCallbacks
     def test_acquire_timeout(self):
