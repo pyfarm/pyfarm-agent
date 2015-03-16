@@ -1103,6 +1103,19 @@ class TestReannounce(TestCase):
             self.normal_result, 42
         )
 
+    @inlineCallbacks
+    def test_acquire_lock_timeout(self):
+        agent = Agent()
+        yield agent.reannounce_lock.acquire()
+        config["agent_master_reannounce"] = .1
+
+        with patch.object(svclog, "debug") as debug:
+            result = yield agent.reannounce()
+
+        self.assertIsNone(result)
+        debug.assert_called_with(
+            "Timed out while waiting to acquire reannounce_lock")
+
 
 class TestBuildHTTPResource(TestCase):
     def test_root_resources(self):
