@@ -146,19 +146,23 @@ class Status(APIResource):
         if isinstance(last_announce, datetime):  # pragma: no cover
             last_announce = datetime.utcnow() - last_announce
 
-        return dumps(
-            {"state": config["state"],
-             "agent_hostname": config["agent_hostname"],
-             "free_ram": memory.free_ram(),
-             "agent_process_ram": memory.process_memory(),
-             "consumed_ram": memory.total_consumption(),
-             "child_processes": direct_child_processes,
-             "grandchild_processes": grandchild_processes,
-             "pids": config["pids"],
-             "agent_id": config["agent_id"],
-             "last_master_contact": contacted,
-             "last_announce": last_announce,
-             "agent_lock_file": config["agent_lock_file"],
-             "uptime": total_seconds(
-                 timedelta(seconds=time.time() - config["start"])),
-             "jobs": list(config["jobtypes"].keys())})
+        data = {"state": config["state"],
+                "agent_hostname": config["agent_hostname"],
+                "free_ram": memory.free_ram(),
+                "agent_process_ram": memory.process_memory(),
+                "consumed_ram": memory.total_consumption(),
+                "child_processes": direct_child_processes,
+                "grandchild_processes": grandchild_processes,
+                "pids": config["pids"],
+                "agent_id": config["agent_id"],
+                "last_master_contact": contacted,
+                "last_announce": last_announce,
+                "agent_lock_file": config["agent_lock_file"],
+                "uptime": total_seconds(
+                    timedelta(seconds=time.time() - config["start"])),
+                "jobs": list(config["jobtypes"].keys())}
+
+        if config["farm_name"]:
+            data["farm_name"] = config["farm_name"]
+
+        return dumps(data)
