@@ -19,6 +19,7 @@ import shutil
 import os
 import re
 import tempfile
+from contextlib import nested
 from decimal import Decimal
 from datetime import datetime, timedelta
 from errno import ENOENT
@@ -26,6 +27,11 @@ from json import dumps as dumps_
 from uuid import UUID, uuid4
 from os.path import isfile, isdir
 
+from mock import Mock, patch
+from twisted.internet import reactor
+from twisted.internet.defer import (
+    AlreadyCalledError, DeferredLock, Deferred, inlineCallbacks)
+from twisted.internet.error import AlreadyCalled
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
@@ -33,7 +39,8 @@ from pyfarm.agent.testutil import TestCase, FakeRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
-    AgentUUID, remove_file, remove_directory, validate_uuid)
+    AgentUUID, remove_file, remove_directory, validate_uuid, TimedDeferredLock,
+    LockTimeoutError)
 
 try:
     WindowsError
@@ -347,3 +354,103 @@ class TestRemoveDirectory(TestCase):
         remove_directory(
             self.path, ignored_errnos=(), retry_on_exit=True, raise_=False)
         self.assertEqual(atexit._exithandlers, self.atexit_signature)
+
+
+class TestTimedDeferredLock(TestCase):
+    def test_parent_class(self):
+        deferred = TimedDeferredLock()
+        self.assertIsInstance(deferred, DeferredLock)
+
+    def test_exception_parent_class(self):
+        self.assertIsInstance(LockTimeoutError(), Exception)
+
+    def test_acquire_assertion(self):
+        deferred = TimedDeferredLock()
+
+        for value in (-1, 0, "", datetime.utcnow()):
+            with self.assertRaises(AssertionError):
+                deferred.acquire(value)
+
+    def test_private_call_callback_ignores_already_called_error(self):
+        deferred = TimedDeferredLock()
+
+        def raise_(_):
+            raise AlreadyCalledError
+
+        mock = Mock(callback=Mock(side_effect=raise_))
+        deferred._call_callback(None, mock)
+        mock.callback.assert_called_with(None)
+
+    def test_private_cancel_timeout_ignores_already_called(self):
+        deferred = TimedDeferredLock()
+
+        def raise_():
+            raise AlreadyCalled
+
+        mock = Mock(cancel=Mock(side_effect=raise_))
+        deferred._cancel_timeout(None, mock)
+        self.assertEqual(mock.cancel.call_count, 1)
+
+    def test_private_timeout(self):
+        deferred = TimedDeferredLock()
+        mock = Mock(errback=Mock())
+        deferred._timeout(mock)
+        self.assertEqual(mock.errback.call_count, 1)
+        keywords = mock.errback.mock_calls[0][2]
+        self.assertIn("fail", keywords)
+        self.assertIsInstance(keywords["fail"], LockTimeoutError)
+
+    @inlineCallbacks
+    def test_standard_behavior(self):
+        deferred = TimedDeferredLock()
+        yield deferred.acquire()
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+        second_acquire = deferred.acquire()
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 1)
+        self.assertFalse(second_acquire.called)
+        yield deferred.release()
+        self.assertTrue(second_acquire.called)
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+        yield deferred.release()
+        self.assertFalse(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+
+    @inlineCallbacks
+    def test_acquire_timeout(self):
+        deferred = TimedDeferredLock()
+        yield deferred.acquire()
+
+        self.assertTrue(deferred.locked)
+        self.assertEqual(len(deferred.waiting), 0)
+
+        start = datetime.utcnow()
+        with self.assertRaises(LockTimeoutError):
+            yield deferred.acquire(1)
+        stop = datetime.utcnow()
+
+        self.assertTrue(1.1 > total_seconds(stop - start) > .9)
+
+    @inlineCallbacks
+    def test_cancel_timeout(self):
+        deferred = TimedDeferredLock()
+
+        # Mock out the parts that will leak a Deferred object (which
+        # will cause the tests to fail)
+        with nested(
+            patch.object(reactor, "callLater"),
+            patch.object(deferred, "_cancel_timeout"),
+        ) as (callLater, cancel_timeout):
+            yield deferred.acquire()
+            deferred.acquire(10)
+            yield deferred.release()
+
+        self.assertEqual(callLater.call_count, 1)
+        timeout, timeout_method, finished = callLater.mock_calls[0][1]
+        self.assertEqual(timeout, 10)
+        self.assertIs(
+            timeout_method.im_func.func_name,
+            deferred._timeout.im_func.func_name)
+        self.assertIsInstance(finished, Deferred)
