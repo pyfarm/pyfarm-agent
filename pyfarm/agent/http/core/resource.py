@@ -251,9 +251,15 @@ class Resource(_Resource):
         self.render_tuple(request, response)
 
     def render(self, request):
-        assert self.SCHEMAS is not NotImplemented
-        assert self.ALLOWED_ACCEPT is not NotImplemented
-        assert self.ALLOWED_CONTENT_TYPE is not NotImplemented
+        try:
+            handler_method = getattr(self, request.method.lower())
+        except AttributeError:
+            self.error(
+                request, METHOD_NOT_ALLOWED,
+                "Method %s is not supported" % request.method)
+            return NOT_DONE_YET
+
+        assert isinstance(self.ALLOWED_CONTENT_TYPE, (set, frozenset))
         content = request.content.read().strip()
         shared_content_types = \
             self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
@@ -267,6 +273,7 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         # Determine if we'll be able to produce a response for the request
+        assert isinstance(self.ALLOWED_ACCEPT, (set, frozenset))
         response_types = self.get_accept(request) & self.ALLOWED_ACCEPT
         if not response_types:
             self.error(
@@ -276,14 +283,6 @@ class Resource(_Resource):
 
         # Keywords to pass into `handler_method` below
         kwargs = dict(request=request)
-
-        try:
-            handler_method = getattr(self, request.method.lower())
-        except AttributeError:
-            self.error(
-                request, METHOD_NOT_ALLOWED,
-                "Method %s is not supported" % request.method)
-            return NOT_DONE_YET
 
         # Attempt to load the data for the incoming request if appropriate
         if content and "application/json" in shared_content_types:
