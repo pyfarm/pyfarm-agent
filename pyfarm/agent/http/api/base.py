@@ -37,10 +37,11 @@ class APIResource(Resource):
     isLeaf = True
 
     # Content-Type header
-    ALLOWED_CONTENT_TYPE = frozenset(["", "application/json"])
+    ALLOWED_CONTENT_TYPE = frozenset(["application/json", None])
+    DEFAULT_CONTENT_TYPE = ALLOWED_CONTENT_TYPE
 
     # Accept headers
-    ALLOWED_ACCEPT = frozenset(["*/*", "application/json"])
+    ALLOWED_ACCEPT = frozenset(["*/*", "application/json", None])
     DEFAULT_ACCEPT = frozenset(["application/json"])
 
 
