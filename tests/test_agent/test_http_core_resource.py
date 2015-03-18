@@ -377,7 +377,7 @@ class TestRender(TestCase):
                 "Content-Type", ["application/json"])
             request.requestHeaders.setRawHeaders(
                 "Accept", ["application/json"])
-            request.set_content("{")
+            request.set_content("/")
             resource = Resource()
             resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
             resource.ALLOWED_ACCEPT = frozenset(["application/json"])
@@ -390,8 +390,8 @@ class TestRender(TestCase):
             self.assertEqual(response, NOT_DONE_YET)
             error.assert_called_once_with(
                 request, BAD_REQUEST,
-                "Failed to decode json data: ValueError('Expecting object: "
-                "line 1 column 1 (char 0)',)"
+                "Failed to decode json data: "
+                "ValueError('No JSON object could be decoded',)"
             )
             self.assertFalse(method_impl.called)
 
