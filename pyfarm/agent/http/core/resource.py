@@ -225,13 +225,19 @@ class Resource(_Resource):
                     request.responseHeaders.setRawHeaders(header, value)
 
             request.setResponseCode(code)
-            request.write(body)
+
+            # Cast to str, otherwise Twisted responds
+            #   TypeError: Data must not be unicode
+            request.write(str(body))
             request.finish()
 
         elif len(response) == 2:
             body, code = response
             request.setResponseCode(code)
-            request.write(body)
+
+            # Cast to str, otherwise Twisted responds
+            #   TypeError: Data must not be unicode
+            request.write(str(body))
             request.finish()
 
         else:
