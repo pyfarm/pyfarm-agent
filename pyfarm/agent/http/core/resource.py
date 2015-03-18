@@ -141,11 +141,17 @@ class Resource(_Resource):
         Return the ``Content-Type`` header(s) in the request or
         ``DEFAULT_CONTENT_TYPE`` if the header is not set.
         """
-        assert self.DEFAULT_CONTENT_TYPE is not None
-
-        content_type = request.requestHeaders.getRawHeaders("Content-Type")
-        if not content_type:
+        header = request.requestHeaders.getRawHeaders("Content-Type")
+        if not header:
             return self.DEFAULT_CONTENT_TYPE
+
+        content_type = set()
+        for value in header:
+            # Split out the various parts of the header and return them.  We
+            # ignore the q parameter here for the moment.
+            content_type.update(
+                entry.split(";")[0] for entry in value.split(","))
+
         return frozenset(content_type)
 
     def get_accept(self, request):
@@ -153,11 +159,16 @@ class Resource(_Resource):
         Return the ``Accept`` header(s) in the request or
         ``DEFAULT_ACCEPT`` if the header is not set.
         """
-        assert self.DEFAULT_ACCEPT is not NotImplemented
-
-        accept = request.requestHeaders.getRawHeaders("Accept")
-        if not accept:
+        header = request.requestHeaders.getRawHeaders("Accept")
+        if not header:
             return self.DEFAULT_ACCEPT
+
+        accept = set()
+        for value in header:
+            # Split out the various parts of the header and return them.  We
+            # ignore the q parameter here for the moment.
+            accept.update(entry.split(";")[0] for entry in value.split(","))
+
         return frozenset(accept)
 
     def putChild(self, path, child):
