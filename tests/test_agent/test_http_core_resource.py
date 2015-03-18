@@ -209,10 +209,12 @@ class TestError(TestCase):
     def test_html(self):
         resource = FakeErrorResource()
         request = DummyRequest()
+        request.requestHeaders.setRawHeaders("Accept", ["text/html"])
         resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
         resource.render(request)
         self.assertTrue(request.finished)
-        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            request.responseCode, INTERNAL_SERVER_ERROR, request.written)
         self.assertEqual(
             request.written, [
                 template.load("error.html").render(
@@ -339,6 +341,7 @@ class TestRender(TestCase):
         resource = Resource()
         resource.ALLOWED_CONTENT_TYPE = frozenset("")
         resource.ALLOWED_ACCEPT = frozenset("")
+        resource.get = lambda **_: ""
         request = DummyRequest()
         request.requestHeaders.setRawHeaders("Accept", ["foobar"])
         request.set_content("hello")
@@ -395,16 +398,15 @@ class TestRender(TestCase):
     def test_data_schema_validation_failed(self):
         for method in ("POST", "PUT"):
             request = DummyRequest()
-            request.method = "POST"
-            request.requestHeaders.setRawHeaders(
-                "Content-Type", ["application/json"])
             request.method = method
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
-            request.content = StringIO()
-            request.content.write(json.dumps({"bar": ""}))
-            request.content.seek(0)
+            request.requestHeaders.setRawHeaders(
+                "Accept", ["application/json"])
+            request.set_content(json.dumps({"bar": ""}))
             resource = Resource()
+            resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+            resource.ALLOWED_ACCEPT = frozenset(["application/json"])
             resource.SCHEMAS = {
                 method: Schema({Required("foo"): str})
             }
@@ -425,16 +427,14 @@ class TestRender(TestCase):
     def test_data_empty(self):
         for method in ("POST", "PUT"):
             request = DummyRequest()
-            request.method = "POST"
-            request.requestHeaders.setRawHeaders(
-                "Content-Type", ["application/json"])
             request.method = method
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
-            request.content = StringIO()
-            request.content.write("")
-            request.content.seek(0)
+            request.requestHeaders.setRawHeaders(
+                "Accept", ["application/json"])
             resource = Resource()
+            resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+            resource.ALLOWED_ACCEPT = frozenset(["application/json"])
             resource.SCHEMAS = {
                 method: Schema({Required("foo"): str})
             }
@@ -450,6 +450,8 @@ class TestRender(TestCase):
 
         request = DummyRequest()
         resource = Resource()
+        resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+        resource.ALLOWED_ACCEPT = frozenset(["*/*"])
         resource.get = get
 
         with patch.object(resource, "error") as error:
@@ -467,6 +469,8 @@ class TestRender(TestCase):
 
         request = DummyRequest()
         resource = Resource()
+        resource.ALLOWED_CONTENT_TYPE = frozenset([""])
+        resource.ALLOWED_ACCEPT = frozenset(["*/*"])
         resource.get = get
 
         with nested(
@@ -487,6 +491,8 @@ class TestRender(TestCase):
 
         request = DummyRequest()
         resource = Resource()
+        resource.ALLOWED_CONTENT_TYPE = frozenset([""])
+        resource.ALLOWED_ACCEPT = frozenset(["*/*"])
         resource.get = get
 
         with nested(
@@ -509,6 +515,8 @@ class TestRender(TestCase):
 
         request = DummyRequest()
         resource = Resource()
+        resource.ALLOWED_CONTENT_TYPE = frozenset([""])
+        resource.ALLOWED_ACCEPT = frozenset(["*/*"])
         resource.get = get
 
         with nested(
@@ -531,6 +539,8 @@ class TestRender(TestCase):
 
         request = DummyRequest()
         resource = Resource()
+        resource.ALLOWED_CONTENT_TYPE = frozenset([""])
+        resource.ALLOWED_ACCEPT = frozenset(["*/*"])
         resource.get = get
 
         with nested(
