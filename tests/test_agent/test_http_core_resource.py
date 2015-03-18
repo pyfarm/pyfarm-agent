@@ -81,6 +81,85 @@ class TestMethods(TestCase):
         self.assertEqual(set(resource.methods()), set(["delete"]))
 
 
+class TestHeaders(TestCase):
+    HEADER = NotImplemented
+    DEFAULT_ATTRIBUTE = NotImplemented
+    METHOD = NotImplemented
+
+    # Only run the real _run if we're inside a child
+    # class.
+    def _run(self, methodName, result):
+        if self.HEADER is NotImplemented:
+            return succeed(True)
+
+        return super(TestHeaders, self)._run(methodName, result)
+
+    def test_get_correct_header(self):
+        resource = Resource()
+        request = DummyRequest("/")
+
+        with patch.object(
+                request.requestHeaders, "getRawHeaders",
+                return_value=False) as get_headers:
+            getattr(resource, self.METHOD)(request)
+
+        get_headers.assert_called_with(self.HEADER)
+
+    def test_returns_default_if_header_not_set(self):
+        resource = Resource()
+        request = DummyRequest("/")
+
+        with patch.object(
+                request.requestHeaders, "getRawHeaders", return_value=False):
+            result = getattr(resource, self.METHOD)(request)
+
+        self.assertIs(result, getattr(resource, self.DEFAULT_ATTRIBUTE))
+
+    def test_split_header_single_entry(self):
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders(
+            self.HEADER,
+            ["text/html,application/xhtml+xml,"
+             "application/xml;q=0.9,image/webp,*/*;q=0.8"])
+        result = getattr(resource, self.METHOD)(request)
+        self.assertEqual(
+            result,
+            frozenset([
+                "*/*", "application/xhtml+xml", "application/xml",
+                "image/webp", "text/html"])
+        )
+
+    def test_split_header_multiple_entries(self):
+        resource = Resource()
+        request = DummyRequest("/")
+        request.requestHeaders.setRawHeaders(
+            self.HEADER,
+            ["text/html,application/xhtml+xml,"
+             "application/xml;q=0.9,image/webp,*/*;q=0.8",
+             "application/json", "text/plain;q=.1"])
+        result = getattr(resource, self.METHOD)(request)
+        self.assertEqual(
+            result,
+            frozenset([
+                "*/*", "application/xhtml+xml", "application/xml",
+                "image/webp", "text/html", "application/json", "text/plain"])
+        )
+
+
+class TestAccept(TestHeaders):
+    HEADER = "Accept"
+    DEFAULT_ATTRIBUTE = "DEFAULT_ACCEPT"
+    METHOD = "get_accept"
+
+
+class TestContentTypes(TestHeaders):
+    HEADER = "Content-Type"
+    DEFAULT_ATTRIBUTE = "DEFAULT_CONTENT_TYPE"
+    METHOD = "get_content_type"
+
+
+
 class TestResponseTypes(TestCase):
     accept = ["a", "b", "c"]
     content_types = ["d", "e", "f"]
