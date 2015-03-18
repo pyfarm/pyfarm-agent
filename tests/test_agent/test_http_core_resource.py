@@ -96,7 +96,7 @@ class TestHeaders(TestCase):
 
     def test_get_correct_header(self):
         resource = Resource()
-        request = DummyRequest("/")
+        request = DummyRequest()
 
         with patch.object(
                 request.requestHeaders, "getRawHeaders",
@@ -107,7 +107,7 @@ class TestHeaders(TestCase):
 
     def test_returns_default_if_header_not_set(self):
         resource = Resource()
-        request = DummyRequest("/")
+        request = DummyRequest()
 
         with patch.object(
                 request.requestHeaders, "getRawHeaders", return_value=False):
@@ -117,7 +117,7 @@ class TestHeaders(TestCase):
 
     def test_split_header_single_entry(self):
         resource = Resource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders(
             self.HEADER,
             ["text/html,application/xhtml+xml,"
@@ -132,7 +132,7 @@ class TestHeaders(TestCase):
 
     def test_split_header_multiple_entries(self):
         resource = Resource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders(
             self.HEADER,
             ["text/html,application/xhtml+xml,"
@@ -157,85 +157,6 @@ class TestContentTypes(TestHeaders):
     HEADER = "Content-Type"
     DEFAULT_ATTRIBUTE = "DEFAULT_CONTENT_TYPE"
     METHOD = "get_content_type"
-
-
-
-class TestResponseTypes(TestCase):
-    accept = ["a", "b", "c"]
-    content_types = ["d", "e", "f"]
-    default = ["g", "h", "i"]
-
-    def test_default_assertion(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        for value in ("", 1, 1.0, dict()):
-            with self.assertRaises(AssertionError):
-                resource.response_types(request, default=value)
-
-    def test_accept(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Accept", self.accept)
-        response_types = resource.response_types(request)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.accept))
-
-    def test_content_type(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
-        response_types = resource.response_types(request)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.content_types))
-
-    def test_accept_overrides_content_type(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
-        request.requestHeaders.setRawHeaders("Accept", self.accept)
-        response_types = resource.response_types(request)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.accept))
-
-    def test_default_empty(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        response_types = resource.response_types(request)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset())
-
-    def test_default_provided(self):
-        resource = Resource()
-        request = DummyRequest("/")
-        response_types = resource.response_types(request, default=self.default)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.default))
-
-    def test_default_ignored(self):
-        # Accept
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Accept", self.accept)
-        response_types = resource.response_types(request, default=self.default)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.accept))
-
-        # Content-Type
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
-        response_types = resource.response_types(request, default=self.default)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.content_types))
-
-        # Accept and Content-Type
-        resource = Resource()
-        request = DummyRequest("/")
-        request.requestHeaders.setRawHeaders("Content-Type", self.content_types)
-        request.requestHeaders.setRawHeaders("Accept", self.accept)
-        response_types = resource.response_types(request, default=self.default)
-        self.assertIsInstance(response_types, frozenset)
-        self.assertEqual(response_types, frozenset(self.accept))
 
 
 class TestPutChild(TestCase):
@@ -287,7 +208,7 @@ class FakeErrorResource(Resource):
 class TestError(TestCase):
     def test_html(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
         resource.render(request)
         self.assertTrue(request.finished)
@@ -301,7 +222,7 @@ class TestError(TestCase):
 
     def test_json(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders("Accept", ["application/json"])
         resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
         resource.render(request)
@@ -312,7 +233,7 @@ class TestError(TestCase):
 
     def test_unknown_type(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders("Accept", ["foobar"])
         resource.setup(request, INTERNAL_SERVER_ERROR, "Test Error")
         resource.render(request)
@@ -328,7 +249,7 @@ class TestError(TestCase):
 class TestRenderTuple(TestCase):
     def test_assertion(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
 
         for value in ("", None, 1, set()):
             with self.assertRaises(AssertionError):
@@ -336,7 +257,7 @@ class TestRenderTuple(TestCase):
 
     def test_body_code_headers(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource.render_tuple(
             request, ("body", OK, {"Foo": "a", "Bar": ["c", "d"]})
         )
@@ -350,7 +271,7 @@ class TestRenderTuple(TestCase):
 
     def test_body_code(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource.render_tuple(
             request, ("body", OK)
         )
@@ -360,7 +281,7 @@ class TestRenderTuple(TestCase):
 
     def test_less_than_one_length(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders("Accept", ["application/json"])
         resource.render_tuple(request, ())
         self.assertTrue(request.finished)
@@ -374,14 +295,14 @@ class TestRenderDeferred(TestCase):
     @inlineCallbacks
     def test_assertion(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         with self.assertRaises(AssertionError):
             yield resource.render_deferred(request, None)
 
     @inlineCallbacks
     def test_deferred_tuple_two(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
 
         @inlineCallbacks
         def render():
@@ -396,7 +317,7 @@ class TestRenderDeferred(TestCase):
     @inlineCallbacks
     def test_deferred_tuple_three(self):
         resource = FakeErrorResource()
-        request = DummyRequest("/")
+        request = DummyRequest()
 
         @inlineCallbacks
         def render():
@@ -414,12 +335,13 @@ class TestRenderDeferred(TestCase):
 
 
 class TestRender(TestCase):
-    def test_unsupported_content_type(self):
+    def test_unsupported_media_type(self):
         resource = Resource()
-        request = DummyRequest("/")
+        resource.ALLOWED_CONTENT_TYPE = frozenset("")
+        resource.ALLOWED_ACCEPT = frozenset("")
+        request = DummyRequest()
         request.requestHeaders.setRawHeaders("Accept", ["foobar"])
-        content_types = resource.response_types(
-            request, default=["text/html", "application/json"])
+        request.set_content("hello")
 
         with patch.object(resource, "error") as error:
             response = resource.render(request)
@@ -427,12 +349,12 @@ class TestRender(TestCase):
         self.assertEqual(response, NOT_DONE_YET)
         error.assert_called_once_with(
             request, UNSUPPORTED_MEDIA_TYPE,
-            "%s is not a support content type for this url" % content_types
+            "Can only support content type(s) frozenset([])"
         )
 
     def test_method_not_allowed(self):
         resource = Resource()
-        request = DummyRequest("/")
+        request = DummyRequest()
         request.method = "foobar"
 
         with patch.object(resource, "error") as error:
@@ -446,7 +368,7 @@ class TestRender(TestCase):
 
     def test_data_is_not_json(self):
         for method in ("POST", "PUT"):
-            request = DummyRequest("/")
+            request = DummyRequest()
             request.method = "POST"
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
@@ -473,7 +395,7 @@ class TestRender(TestCase):
 
     def test_data_schema_validation_failed(self):
         for method in ("POST", "PUT"):
-            request = DummyRequest("/")
+            request = DummyRequest()
             request.method = "POST"
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
@@ -503,7 +425,7 @@ class TestRender(TestCase):
 
     def test_data_empty(self):
         for method in ("POST", "PUT"):
-            request = DummyRequest("/")
+            request = DummyRequest()
             request.method = "POST"
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
@@ -527,7 +449,7 @@ class TestRender(TestCase):
         def get(**_):
             raise ValueError("error")
 
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource = Resource()
         resource.get = get
 
@@ -544,7 +466,7 @@ class TestRender(TestCase):
         def get(**_):
             return NOT_DONE_YET
 
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource = Resource()
         resource.get = get
 
@@ -564,7 +486,7 @@ class TestRender(TestCase):
         def get(**_):
             return ("body", OK)
 
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource = Resource()
         resource.get = get
 
@@ -586,7 +508,7 @@ class TestRender(TestCase):
             yield succeed(None)
             returnValue(("body", OK))
 
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource = Resource()
         resource.get = get
 
@@ -608,7 +530,7 @@ class TestRender(TestCase):
         def get(**_):
             return None
 
-        request = DummyRequest("/")
+        request = DummyRequest()
         resource = Resource()
         resource.get = get
 
