@@ -214,6 +214,15 @@ class ErrorCapturingParser(AgentArgumentParser):
 
 
 class DummyRequest(_DummyRequest):
+    def __init__(self, postpath="/", session=None):
+        super(DummyRequest, self).__init__(postpath, session=session)
+        self.content = StringIO()
+
+    def set_content(self, content):
+        """Sets the content of the request"""
+        self.content.write(content)
+        self.content.seek(0)
+
     def getHeader(self, key):
         """
         Default override, _DummyRequest.getHeader does something different
