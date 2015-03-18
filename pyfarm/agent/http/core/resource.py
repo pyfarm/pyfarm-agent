@@ -112,7 +112,7 @@ class Resource(_Resource):
     # Default values if certain headers
     # are not present.
     DEFAULT_ACCEPT = frozenset(["*/*"])
-    DEFAULT_CONTENT_TYPE = frozenset([""])
+    DEFAULT_CONTENT_TYPE = frozenset([None])
 
     @property
     def template(self):
