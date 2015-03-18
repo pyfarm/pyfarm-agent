@@ -369,16 +369,15 @@ class TestRender(TestCase):
     def test_data_is_not_json(self):
         for method in ("POST", "PUT"):
             request = DummyRequest()
-            request.method = "POST"
-            request.requestHeaders.setRawHeaders(
-                "Content-Type", ["application/json"])
             request.method = method
             request.requestHeaders.setRawHeaders(
                 "Content-Type", ["application/json"])
-            request.content = StringIO()
-            request.content.write("invalid")
-            request.content.seek(0)
+            request.requestHeaders.setRawHeaders(
+                "Accept", ["application/json"])
+            request.set_content("{")
             resource = Resource()
+            resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+            resource.ALLOWED_ACCEPT = frozenset(["application/json"])
             method_impl = Mock()
             setattr(resource, method.lower(), method_impl)
 
@@ -388,8 +387,8 @@ class TestRender(TestCase):
             self.assertEqual(response, NOT_DONE_YET)
             error.assert_called_once_with(
                 request, BAD_REQUEST,
-                "Failed to decode json data: ValueError('No JSON object could "
-                "be decoded',)"
+                "Failed to decode json data: ValueError('Expecting object: "
+                "line 1 column 1 (char 0)',)"
             )
             self.assertFalse(method_impl.called)
 
