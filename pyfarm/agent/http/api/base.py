@@ -38,7 +38,7 @@ class APIResource(Resource):
 
     # Content-Type header
     ALLOWED_CONTENT_TYPE = frozenset(["application/json", None])
-    DEFAULT_CONTENT_TYPE = ALLOWED_CONTENT_TYPE
+    DEFAULT_CONTENT_TYPE = frozenset(["application/json"])
 
     # Accept headers
     ALLOWED_ACCEPT = frozenset(["*/*", "application/json", None])
