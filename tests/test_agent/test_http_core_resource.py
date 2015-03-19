@@ -244,8 +244,8 @@ class TestError(TestCase):
         self.assertEqual(
             request.written,
             [json.dumps({
-                "error": "Can only handle text/html "
-                         "or application/json here"})])
+                # Expect NotImplemented because it's not set on the base class
+                "error": "Can only handle one of NotImplemented here"})])
 
 
 class TestRenderTuple(TestCase):
