@@ -464,14 +464,11 @@ class TestRender(TestCase):
         )
 
     def test_handle_not_done_yet(self):
-        def get(**_):
-            return NOT_DONE_YET
-
         request = DummyRequest()
         resource = Resource()
         resource.ALLOWED_CONTENT_TYPE = frozenset([""])
         resource.ALLOWED_ACCEPT = frozenset(["*/*"])
-        resource.get = get
+        resource.get = lambda **_: NOT_DONE_YET
 
         with nested(
             patch.object(resource, "error"),
@@ -486,14 +483,11 @@ class TestRender(TestCase):
         self.assertFalse(render_deferred.called)
 
     def test_handle_tuple(self):
-        def get(**_):
-            return ("body", OK)
-
         request = DummyRequest()
         resource = Resource()
         resource.ALLOWED_CONTENT_TYPE = frozenset([""])
         resource.ALLOWED_ACCEPT = frozenset(["*/*"])
-        resource.get = get
+        resource.get = lambda **_: ("body", OK)
 
         with nested(
             patch.object(resource, "error"),
@@ -534,14 +528,11 @@ class TestRender(TestCase):
         self.assertIsInstance(render_deferred.call_args[0][1], Deferred)
 
     def test_handle_unknown_return_value(self):
-        def get(**_):
-            return None
-
         request = DummyRequest()
         resource = Resource()
         resource.ALLOWED_CONTENT_TYPE = frozenset([""])
         resource.ALLOWED_ACCEPT = frozenset(["*/*"])
-        resource.get = get
+        resource.get = lambda **_: None
 
         with nested(
             patch.object(resource, "error"),
