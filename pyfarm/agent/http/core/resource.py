@@ -203,7 +203,8 @@ class Resource(_Resource):
         else:
             request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
             error = dumps(
-                {"error": "Can only handle text/html or application/json here"})
+                {"error":
+                     "Can only handle one of %s here" % self.ALLOWED_ACCEPT})
             request.write(error)
 
         request.finish()
