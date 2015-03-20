@@ -880,6 +880,243 @@ class TestStop(TestCase):
         stop_lock_release.assert_called_once()
 
 
+class TestShouldReannounce(TestCase):
+    POP_CONFIG_KEYS = [
+        "agent_master_reannounce", "last_master_contact"
+    ]
+
+    def test_should_reannounce_locked(self):
+        agent = Agent()
+        agent.reannounce_lock.acquire()
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannounce_shutting_down(self):
+        agent = Agent()
+        agent.shutting_down = True
+        self.assertFalse(agent.should_reannounce())
+
+    def test_should_reannounce_master_contacted(self):
+        config["last_master_contact"] = datetime.utcnow() - timedelta(seconds=5)
+        config["agent_master_reannounce"] = 3
+        agent = Agent()
+        self.assertTrue(agent.should_reannounce())
+
+    def test_returns_true_if_not_contacted(self):
+        agent = Agent()
+        with patch.object(config, "master_contacted", return_value=None):
+            self.assertTrue(agent.should_reannounce())
+
+
+class TestReannounce(TestCase):
+    POP_CONFIG_KEYS = [
+        "last_announce", "last_master_contact"
+    ]
+
+    def setUp(self):
+        super(TestReannounce, self).setUp()
+        self.fake_api = FakeAgentsAPI()
+        self.resource = Resource()
+        self.resource.putChild("agents", self.fake_api)
+        self.site = Site(self.resource)
+        self.server = reactor.listenTCP(random_port(), self.site)
+        config["master_api"] = "http://127.0.0.1:%s" % self.server.port
+
+        # These usually come from the master.  We're setting them here
+        # so we can operate the apis without actually talking to the
+        # master.
+        config["state"] = AgentState.ONLINE
+
+        # Mock out memory.free_ram
+        self.free_ram_mock = patch.object(
+            memory, "free_ram", return_value=424242)
+        self.free_ram_mock.start()
+
+        self.normal_result = {
+            "state": config["state"],
+            "current_assignments": {},
+            "free_ram": 424242
+        }
+
+    @inlineCallbacks
+    def tearDown(self):
+        super(TestReannounce, self).tearDown()
+        self.free_ram_mock.stop()
+        yield self.server.loseConnection()
+
+    @inlineCallbacks
+    def test_should_not_reannounce(self):
+        agent = Agent()
+
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=False),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release")
+        ) as (_, acquire_lock, release_lock):
+            result = yield agent.reannounce(force=False)
+
+        self.assertIsNone(result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+
+    @inlineCallbacks
+    def test_reannounce_force(self):
+        self.fake_api.code = OK
+        agent = Agent()
+
+        with nested(
+            patch.object(agent, "should_reannounce", return_value=False),
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(svclog, "debug")
+        ) as (_, acquire_lock, release_lock, debug_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        debug_log.assert_called_once_with(
+            "Announcing %s to master", config["agent_hostname"])
+
+    @inlineCallbacks
+    def test_ok(self):
+        self.fake_api.code = OK
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release")
+        ) as (acquire_lock, release_lock):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+
+    @inlineCallbacks
+    def test_internal_server_error_shutting_down(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        agent = Agent()
+        agent.shutting_down = True
+
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(svclog, "warning")
+        ) as (acquire_lock, release_lock, warning_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        warning_log.assert_called_once_with(
+            "Could not announce to master. Not retrying because of pending "
+            "shutdown."
+        )
+
+    @inlineCallbacks
+    def test_internal_server_error_retry(self):
+        self.fake_api.code = INTERNAL_SERVER_ERROR
+        agent = Agent()
+        agent.shutting_down = False
+
+        def shutdown():
+            agent.shutting_down = True
+
+        reactor.callLater(3, shutdown)
+
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(svclog, "warning")
+        ) as (acquire_lock, release_lock, warning_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        warning_log.assert_any_call(
+            "Could not announce self to the master server, internal server "
+            "error: %s.  Retrying in %s seconds.", self.normal_result, 1.0
+        )
+        self.assertGreaterEqual(warning_log.call_count, 2)
+
+    @inlineCallbacks
+    def test_not_found(self):
+        self.fake_api.code = NOT_FOUND
+        agent = Agent()
+
+        post_deferred = Deferred()
+        post_deferred.callback(None)
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(
+                    agent, "post_agent_to_master", return_value=post_deferred),
+        ) as (acquire_lock, release_lock, post_agent):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        post_agent.assert_called_once()
+
+    @inlineCallbacks
+    def test_bad_request(self):
+        self.fake_api.code = BAD_REQUEST
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(svclog, "error")
+        ) as (acquire_lock, release_lock, error_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        error_log.assert_called_once_with(
+            "Failed to announce self to the master, bad "
+            "request: %s.  This request will not be retried.",
+            self.normal_result
+        )
+
+    @inlineCallbacks
+    def test_other(self):
+        self.fake_api.code = 42
+        agent = Agent()
+
+        with nested(
+            patch.object(agent.reannounce_lock, "acquire"),
+            patch.object(agent.reannounce_lock, "release"),
+            patch.object(svclog, "error")
+        ) as (acquire_lock, release_lock, error_log):
+            result = yield agent.reannounce(force=True)
+
+        self.assertEqual(result, self.normal_result)
+        acquire_lock.assert_called_once()
+        release_lock.assert_called_once()
+        error_log.assert_called_once_with(
+            "Unhandled error when posting self to the "
+            "master: %s (code: %s).  This request will not be "
+            "retried.",
+            self.normal_result, 42
+        )
+
+    @inlineCallbacks
+    def test_acquire_lock_timeout(self):
+        agent = Agent()
+        yield agent.reannounce_lock.acquire()
+        config["agent_master_reannounce"] = .1
+
+        with patch.object(svclog, "debug") as debug:
+            result = yield agent.reannounce()
+
+        self.assertIsNone(result)
+        debug.assert_called_with(
+            "Timed out while waiting to acquire reannounce_lock")
+
+
 class TestBuildHTTPResource(TestCase):
     def test_root_resources(self):
         agent = Agent()
@@ -955,3 +1192,4 @@ class TestBuildHTTPResource(TestCase):
         self.assertIsInstance(update, Update)
 
         self.assertNot(v1.children)
+

@@ -487,17 +487,9 @@ class Process(object):
 
         # If there are no processes running at this point, we assume
         # the assignment is finished
-        upload_deferred = None
         if len(self.processes) == 0:
-            if not self.failed_processes:
-                logger.info("Processes in assignment %s stopped, no failures",
-                            self)
-            else:
-                logger.warning("There was at least one failed process in the "
-                               "assignment %s", self)
-            upload_deferred = self._upload_logfile(self.log_identifier)
             self.stopped_deferred.callback(None)
-        return upload_deferred or succeed([])
+        return succeed([])
 
     def _spawn_process(self, command):
         """
@@ -636,13 +628,13 @@ class Process(object):
         for task in self.assignment["tasks"]:
             post_logfile(task, log_path)
 
-    def _upload_logfile(self, log_identifier):
-        path = join(config["jobtype_task_logs"], log_identifier)
+    def _upload_logfile(self):
+        path = join(config["jobtype_task_logs"], self.log_identifier)
         url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s/logfile" % (
                 config["master_api"], self.assignment["job"]["id"],
                 self.assignment["tasks"][0]["id"],
                 self.assignment["tasks"][0]["attempt"],
-                log_identifier)
+                self.log_identifier)
         upload_deferred = Deferred()
 
         def upload(url, log_identifier, delay=0):
@@ -704,9 +696,9 @@ class Process(object):
                 log_identifier, failure_reason, delay)
             upload(url, log_identifier, delay=delay)
 
-        logger.info("Uploading log file %s to master, URL %r", log_identifier,
-                    url)
-        upload(url, log_identifier)
+        logger.info("Uploading log file %s to master, URL %r",
+                    self.log_identifier, url)
+        upload(url, self.log_identifier)
         return upload_deferred
 
 
