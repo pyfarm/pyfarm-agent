@@ -510,6 +510,10 @@ class TestSystemUidGid(TestCase):
                     )
                 )
                 success = True
+
+            # There's numerous ways this could happen including
+            # the user being a part of the group however the group
+            # itself is undefined.
             except KeyError:
                 pass
 
