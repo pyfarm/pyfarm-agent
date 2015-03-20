@@ -17,7 +17,7 @@
 
 import re
 from collections import namedtuple
-from os import urandom, devnull, makedirs
+from os import urandom, makedirs
 from os.path import isdir, join, isfile
 from errno import EEXIST
 from uuid import uuid4
@@ -36,7 +36,7 @@ from pyfarm.agent.testutil import (
 from pyfarm.agent.config import config
 from pyfarm.jobtypes.core.internals import (
     ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp)
-from pyfarm.jobtypes.core.log import logpool, CSVLog
+from pyfarm.jobtypes.core.log import logpool
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
 FakeProcessResult = namedtuple("FakeProcessResult", ("value", ))
