@@ -707,9 +707,8 @@ class System(object):
     _tempdirs = NotImplemented
     uuid = NotImplemented
 
-    # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
-                           module, module_name):  # pragma: no cover
+                           module, module_name):
         """
         Internal function which handles both user name and group conversion.
         """
@@ -743,6 +742,9 @@ class System(object):
 
         # Verify that the provided user/group string is real
         elif isinstance(value, INTEGER_TYPES):
+            #
+            # TODO: implementation...
+            #
             try:
                 if module_name == "pwd":
                     pass
