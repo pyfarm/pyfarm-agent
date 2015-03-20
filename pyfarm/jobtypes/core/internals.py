@@ -703,7 +703,9 @@ class Process(object):
 
 
 class System(object):
-    _tempdirs = set()  # overridden in the job type
+    # overridden in the job type
+    _tempdirs = NotImplemented
+    uuid = NotImplemented
 
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
@@ -838,7 +840,9 @@ class System(object):
         Log a message from the jobtype itself to the process' log file.
         Useful for debugging jobtypes.
         """
+        assert isinstance(self.uuid, UUID)
         logpool.log(self.uuid, "jobtype", message)
+
 
 class TypeChecks(object):
     def _check_expandvars_inputs(self, value, environment):

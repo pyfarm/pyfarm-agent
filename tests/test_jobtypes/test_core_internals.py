@@ -481,7 +481,7 @@ class TestSystemTempDirs(TestCase):
 
     def test_does_nothing_if_empty_tempdirs(self):
         system = System()
-        system._tempdirs.clear()  # just to be sure there's nothing in there yet
+        system._tempdirs = set()
 
         with patch.object(reactor, "callInThread") as callInThread:
             system._remove_tempdirs()
@@ -490,7 +490,7 @@ class TestSystemTempDirs(TestCase):
 
     def test_calls_removes_directories(self):
         system = System()
-        system._tempdirs.add(None)
+        system._tempdirs = set([None])
 
         with patch.object(reactor, "callInThread") as callInThread:
             system._remove_tempdirs()
