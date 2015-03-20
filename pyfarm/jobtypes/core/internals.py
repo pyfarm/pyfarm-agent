@@ -703,6 +703,8 @@ class Process(object):
 
 
 class System(object):
+    _tempdirs = set()  # overridden in the job type
+
     # complete coverage provided by other tests
     def _get_uid_gid_value(self, value, value_name, func_name,
                            module, module_name):  # pragma: no cover
@@ -778,7 +780,12 @@ class System(object):
         them from disk.  This work will be done in a thread so it does not
         block the reactor.
         """
-        reactor.callInThread(self._remove_directories, self._tempdirs)
+        assert isinstance(self._tempdirs, set)
+        if not self._tempdirs:
+            return
+
+        reactor.callInThread(self._remove_directories, self._tempdirs.copy())
+        self._tempdirs.clear()
 
     def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
