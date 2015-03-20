@@ -16,9 +16,9 @@
 
 import atexit
 import re
+import os
 import tempfile
 from collections import namedtuple
-from os import urandom, makedirs
 from os.path import isdir, join, isfile
 from errno import EEXIST
 from uuid import uuid4
@@ -28,6 +28,16 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import CREATED, OK
 
+try:
+    import pwd
+except ImportError:  # pragma: no cover
+    pwd = NotImplemented
+
+try:
+    import grp
+except ImportError:
+    grp = NotImplemented
+
 from mock import patch
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -36,8 +46,10 @@ from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
 from pyfarm.agent.testutil import (
     TestCase, skipIf, requires_master, create_jobtype)
 from pyfarm.agent.config import config
+from pyfarm.agent.sysinfo import user
 from pyfarm.jobtypes.core.internals import (
-    ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp)
+    ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp,
+    logger)
 from pyfarm.jobtypes.core.log import logpool
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
@@ -103,7 +115,7 @@ class TestCache(TestCase):
 
     @requires_master
     def test_download(self):
-        classname = "AgentUnittest" + urandom(8).encode("hex")
+        classname = "AgentUnittest" + os.urandom(8).encode("hex")
         created = create_jobtype(classname=classname)
         cache = Cache()
         finished = Deferred()
@@ -136,9 +148,9 @@ class TestCache(TestCase):
 
     def test_cache(self):
         cache = Cache()
-        classname = "Test%s" % urandom(8).encode("hex")
+        classname = "Test%s" % os.urandom(8).encode("hex")
         version = 1
-        code = urandom(8).encode("hex")
+        code = os.urandom(8).encode("hex")
         cache_key = "Key%s" % classname
         filepath = cache._cache_filepath(cache_key, classname, version)
         jobtype = {"classname": classname, "code": code, "version": version}
@@ -221,7 +233,7 @@ class TestProcess(TestCase):
         # Make sure the logfile actually exists on disk, otherwise the
         # _process_stopped tests will fail
         try:
-            makedirs(config["jobtype_task_logs"])
+            os.makedirs(config["jobtype_task_logs"])
         except OSError as e:
             if e.errno != EEXIST:
                 raise
@@ -462,6 +474,68 @@ class TestSystemMisc(TestCase):
     def test_not_implemented_attributes(self):
         self.assertIs(System._tempdirs, NotImplemented)
         self.assertIs(System.uuid, NotImplemented)
+
+
+class TestSystemUidGid(TestCase):
+    def test_value_type(self):
+        system = System()
+        for entry in (1, None, [], tuple(), dict(), 1.0):
+            with self.assertRaises(TypeError):
+                system._get_uid_gid_value(entry, None, None, None, None)
+
+    def test_module_not_implemented(self):
+        system = System()
+
+        with patch.object(logger, "warning") as warning:
+            system._get_uid_gid_value(
+                "", None, "function", NotImplemented, "module")
+
+        warning.assert_called_with(
+            "This platform does not implement the %r module, skipping %s()",
+            "module", "function"
+        )
+
+    @skipIf(grp is NotImplemented, "grp module is NotImplemented")
+    def test_get_grp_from_string(self):
+        system = System()
+        success = True
+        for group_id in os.getgroups():
+            group_entry = grp.getgrgid(group_id)
+
+            try:
+                self.assertEqual(
+                    group_entry.gr_gid,
+                    system._get_uid_gid_value(
+                        group_entry.gr_name, None, None, "getgrnam", "grp"
+                    )
+                )
+                success = True
+            except KeyError:
+                pass
+
+        self.failUnless(success, "Expected at least one successful resolution")
+
+    @skipIf(pwd is NotImplemented, "pwd module is NotImplemented")
+    def test_get_pwd_from_string(self):
+        system = System()
+        username = user.username()
+        self.assertEqual(
+            pwd.getpwnam(username).pw_uid,
+            system._get_uid_gid_value(
+                username, None, None, "getpwnam", "pwd"
+            )
+        )
+
+    def test_string_no_such_module(self):
+        system = System()
+        with self.assertRaises(ValueError):
+            system._get_uid_gid_value(
+                "", None, None, "getpwnam", "foo"
+            )
+
+    # TODO: tests for when pwd/grp raises KeyError (for strings)
+    # TODO: tests for when pwd/grp raises KeyError (for integers)
+
 
 
 class TestSystemTempDirs(TestCase):
