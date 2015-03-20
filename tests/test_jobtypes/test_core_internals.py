@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import atexit
 import re
+import tempfile
 from collections import namedtuple
 from os import urandom, makedirs
 from os.path import isdir, join, isfile
@@ -27,7 +28,8 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import CREATED, OK
 
-
+from mock import patch
+from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
@@ -433,3 +435,68 @@ class TestMiscTypeChecks(TestCase):
         with self.assertRaisesRegexp(ValueError,
                                      re.compile(".*Expected.*state.*")):
             checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
+
+
+class TestSystemTempDirs(TestCase):
+    def test_remove_directories_exception(self):
+        system = System()
+        for entry in ("", 1, None, 1.0):
+            with self.assertRaises(AssertionError):
+                system._remove_directories(entry)
+
+    def test_removes_directories(self):
+        directories = [
+            tempfile.mkdtemp(), tempfile.mkdtemp(),
+            tempfile.mkdtemp(), tempfile.mkdtemp(),
+            "THIS PATH DOES NOT EXIST"
+        ]
+        system = System()
+        system._remove_directories(directories)
+
+        for directory in directories:
+
+            # This is here because the default behavior for the
+            # underlying remove_directory() function is to ignore
+            # ENOENT
+            if directory == "THIS PATH DOES NOT EXIST":
+                continue
+
+            if not isdir(directory):
+                continue
+
+            # Maybe the directory was not removed?  If not
+            # then we should expect it to be in atexit
+            for function, args, keywords in atexit._exithandlers:
+                if directory in args:
+                    break
+            else:
+                self.fail("Directory %s not removed" % directory)
+
+    def test_remote_tempdirs_assertion(self):
+        system = System()
+        for entry in ("", 1, None, [], tuple(), dict()):
+            system._tempdirs = entry
+            with self.assertRaises(AssertionError):
+                system._remove_tempdirs()
+
+    def test_does_nothing_if_empty_tempdirs(self):
+        system = System()
+        system._tempdirs.clear()  # just to be sure there's nothing in there yet
+
+        with patch.object(reactor, "callInThread") as callInThread:
+            system._remove_tempdirs()
+
+        self.assertEqual(callInThread.call_count, 0)
+
+    def test_calls_removes_directories(self):
+        system = System()
+        system._tempdirs.add(None)
+
+        with patch.object(reactor, "callInThread") as callInThread:
+            system._remove_tempdirs()
+
+        self.assertEqual(callInThread.call_count, 1)
+        self.assertEqual(system._tempdirs, set())
+        callInThread.assert_called_with(system._remove_directories, set([None]))
+
+
