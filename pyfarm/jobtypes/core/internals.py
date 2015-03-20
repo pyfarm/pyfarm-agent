@@ -456,7 +456,7 @@ class Process(object):
         process_data = self.processes.pop(protocol.uuid)
 
         try:
-            successful = self.is_successful(reason)
+            successful = self.is_successful(protocol, reason)
         except Exception as e:
             logger.error("Exception caught from is_successful: %s: \"%s\". "
                          "Assuming not successful.", e.__class__.__name__, e)
