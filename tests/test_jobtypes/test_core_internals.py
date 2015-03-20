@@ -437,6 +437,33 @@ class TestMiscTypeChecks(TestCase):
             checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
 
 
+class TestSystemMisc(TestCase):
+    def test_log_assertion(self):
+        system = System()
+        for entry in ("", 1, None, [], tuple(), dict(), 1.0):
+            system.uuid = entry
+            with self.assertRaises(AssertionError):
+                system._log("")
+
+    def test_log_to_logpool(self):
+        system = System()
+        system.uuid = uuid4()
+
+        with patch.object(logpool, "log") as log:
+            system._log("Hello, World.")
+
+        self.assertEqual(log.call_count, 1)
+        log.assert_called_with(system.uuid, "jobtype", "Hello, World.")
+
+    def test_no_parent_class(self):
+        # The system class is meant to be a mixin.
+        self.assertEqual(System.__bases__, (object, ))
+
+    def test_not_implemented_attributes(self):
+        self.assertIs(System._tempdirs, NotImplemented)
+        self.assertIs(System.uuid, NotImplemented)
+
+
 class TestSystemTempDirs(TestCase):
     def test_remove_directories_exception(self):
         system = System()
