@@ -17,6 +17,7 @@
 import atexit
 import re
 import os
+import shutil
 import tempfile
 from collections import namedtuple
 from datetime import timedelta
@@ -39,6 +40,7 @@ try:
 except ImportError:
     grp = NotImplemented
 
+import psutil
 from mock import patch
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -49,8 +51,8 @@ from pyfarm.agent.testutil import (
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import user
 from pyfarm.jobtypes.core.internals import (
-    ITERABLE_CONTAINERS, Cache, Process, System, TypeChecks, pwd, grp,
-    logger)
+    ITERABLE_CONTAINERS, InsufficientSpaceError, Cache, Process, System,
+    TypeChecks, pwd, grp, logger)
 from pyfarm.jobtypes.core.log import logpool
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
@@ -681,3 +683,39 @@ class TestSystemTempDirs(TestCase):
         callInThread.assert_called_with(system._remove_directories, set([None]))
 
 
+class TestSystemEnsureFreeDiskSpace(TestCase):
+    def test_has_enough_free_space(self):
+        tempdir = tempfile.mkdtemp()
+        self.addCleanup(os.removedirs, tempdir)
+        system = System()
+        free_space = psutil.disk_usage(tempdir).free
+        system._ensure_free_space_in_temp_dir(tempdir, free_space - 2048)
+
+    def test_insufficient_disk_space(self):
+        tempdir = tempfile.mkdtemp()
+        self.addCleanup(os.removedirs, tempdir)
+        system = System()
+        free_space = psutil.disk_usage(tempdir).free
+
+        with self.assertRaises(InsufficientSpaceError):
+            system._ensure_free_space_in_temp_dir(tempdir, free_space * 2)
+
+    def test_cleans_up_disk_space(self):
+        tempdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tempdir)
+        system = System()
+        paths = [
+            join(tempdir, "a.dat"), join(tempdir, "b.dat"),
+            join(tempdir, "c.dat"), join(tempdir, "d.dat")
+        ]
+
+        # Create 5MB files on disk in the above directories
+        size_per_file = 5242880
+        for path in paths:
+            with open(path, "wb") as output:
+                output.write("0" * size_per_file)
+
+        free_space = psutil.disk_usage(tempdir).free
+        space_to_free = free_space + (size_per_file * len(paths) / 2)
+        system._ensure_free_space_in_temp_dir(tempdir, space_to_free)
+        self.assertEqual(set(os.listdir(tempdir)), set(["c.dat", "d.dat"]))

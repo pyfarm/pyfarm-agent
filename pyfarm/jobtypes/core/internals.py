@@ -800,7 +800,7 @@ class System(object):
 
         try:
             os.makedirs(tempdir)
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if e.errno != EEXIST:
                 raise
 
@@ -831,7 +831,7 @@ class System(object):
                 logger.debug("Deleting tempfile %s", element["filepath"])
                 remove_file(
                     element["filepath"], retry_on_exit=False, raise_=False)
-            else:
+            else:  # pragma: no cover
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
 
