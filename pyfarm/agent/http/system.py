@@ -23,7 +23,6 @@ except ImportError:  # pragma: no cover
     from http.client import OK
 
 import psutil
-from twisted.web.server import NOT_DONE_YET
 from pyfarm.core.enums import AgentState
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
@@ -41,29 +40,25 @@ def seconds(value):
         return "%.2f seconds" % value
 
 
-class Index(Resource):
+class HTMLResource(Resource):
+    # TODO: add content types for forms once they work again
+    ALLOWED_CONTENT_TYPE = frozenset(["text/html", ""])
+    ALLOWED_ACCEPT = frozenset(["text/html", "*/*"])
+
+
+class Index(HTMLResource):
     """serves request for the root, '/', target"""
     TEMPLATE = "index.html"
 
-    def get(self, **kwargs):
-        request = kwargs["request"]
-
-        # write out the results from the template back
-        # to the original request
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(OK)
-            request.finish()
-
+    def get(self, **_):
         # convert the state integer to a string
         for key, value in AgentState._asdict().iteritems():
             if config["state"] == value:
                 state = key.title()
                 break
-        else:  # pragma: no cover
-            raise KeyError("failed to find state")
 
-        ram_allocated = int((memory.used_ram() / float(config["agent_ram"])) * 100)
+        ram_allocated = int(
+            (memory.used_ram() / float(config["agent_ram"])) * 100)
 
         if ram_allocated >= 100:  # pragma: no cover
             ram_css = "danger"
@@ -101,6 +96,7 @@ class Index(Resource):
 
         miscellaneous = [
             ("Database ID", agent_id),
+            ("Agent State", state),
             ("Logged On User(s)",
              ", ".join(sorted(set(user.name for user in psutil.get_users())))),
             ("Host Uptime",
@@ -108,20 +104,17 @@ class Index(Resource):
             ("Agent Uptime",
              str(timedelta(seconds=time.time() - config["start"])))]
 
-        deferred = self.template.render(
+        return self.template.render(
             memory_info=memory_info,
             network_info=network_info,
             cpu_info=cpu_info,
-            miscellaneous=miscellaneous)
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
+            miscellaneous=miscellaneous), OK
 
 
 # TODO: form submission
 # TODO: make 'port' field editable (requires restart)
 # TODO: add callbacks for any field that needs to update the db
-class Configuration(Resource):
+class Configuration(HTMLResource):
     TEMPLATE = "configuration.html"
 
     # fields which nobody can see
@@ -135,18 +128,10 @@ class Configuration(Resource):
         "agent_ram_report_delta", "agent_time_offset", "state",
         "agent_http_retry_delay_factor", "agent_http_retry_delay_offset")
 
-    def get(self, **kwargs):
-        request = kwargs["request"]
-
-        # write out the results from the template back
-        # to the original request
-        def cb(content):
-            request.write(content)
-            request.setResponseCode(OK)
-            request.finish()
-
+    def get(self, **_):
         editable_fields = []
         non_editable_fields = []
+
         for key, value in sorted(config.items()):
             if key in self.HIDDEN_FIELDS:
                 pass
@@ -155,9 +140,6 @@ class Configuration(Resource):
             else:
                 non_editable_fields.append((key, value))
 
-        deferred = self.template.render(
+        return self.template.render(
             non_editable_fields=non_editable_fields,
-            editable_fields=editable_fields)
-        deferred.addCallback(cb)
-
-        return NOT_DONE_YET
+            editable_fields=editable_fields), OK

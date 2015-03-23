@@ -35,7 +35,7 @@ from twisted.internet.error import AlreadyCalled
 from voluptuous import Invalid
 
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, FakeRequest
+from pyfarm.agent.testutil import TestCase, DummyRequest
 from pyfarm.agent.utility import (
     UnicodeCSVWriter, UnicodeCSVReader, default_json_encoder, dumps,
     quote_url, request_from_master, total_seconds, validate_environment,
@@ -133,15 +133,15 @@ class TestDumpsJson(TestCase):
 
 class TestGeneral(TestCase):
     def test_request_from_master(self):
-        request = FakeRequest(
-            self, "GET", "/",
-            headers={"User-Agent": config["master_user_agent"]})
+        request = DummyRequest("")
+        request.requestHeaders.setRawHeaders(
+            "User-Agent", [config["master_user_agent"]])
         self.assertTrue(request_from_master(request))
 
     def test_request_not_from_master(self):
-        request = FakeRequest(
-            self, "GET", "/",
-            headers={"User-Agent": "foobar"})
+        request = DummyRequest("")
+        request.requestHeaders.setRawHeaders(
+            "User-Agent", ["foobar"])
         self.assertFalse(request_from_master(request))
 
     def test_total_seconds(self):

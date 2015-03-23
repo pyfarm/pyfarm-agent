@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from json import loads
 from os import urandom
 from random import randint
 from uuid import UUID
@@ -63,11 +64,13 @@ class FakeJobType(object):
         return self.started
 """
 
+
 class FakeAgent(object):
     def __init__(self):
        self.shutting_down = False
 
 fake_agent = FakeAgent()
+
 
 class AssignFactory(object):
     def __init__(self, fake_agent):
@@ -113,11 +116,12 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = self.instance_class()
         result = assign.render(request)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.code, SERVICE_UNAVAILABLE)
         self.assertEqual(result, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, SERVICE_UNAVAILABLE)
+        self.assertEqual(len(request.written), 1)
         self.assertEqual(
-            request.response()["error"],
+            loads(request.written[0])["error"],
             "Agent cannot accept assignments because of a pending restart")
 
     def test_agent_id_not_set(self):
@@ -127,11 +131,12 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = self.instance_class()
         result = assign.render(request)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.code, SERVICE_UNAVAILABLE)
         self.assertEqual(result, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, SERVICE_UNAVAILABLE)
+        self.assertEqual(len(request.written), 1)
         self.assertEqual(
-            request.response()["error"],
+            loads(request.written[0])["error"],
             "agent_id has not been set in the config")
 
     def test_not_enough_ram(self):
@@ -141,10 +146,11 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = self.instance_class()
         result = assign.render(request)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.code, BAD_REQUEST)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.response()["error"], "Not enough ram")
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+        self.assertEqual(len(request.written), 1)
+        self.assertEqual(loads(request.written[0])["error"], "Not enough ram")
 
     def test_not_enough_cpus(self):
         self.data["job"]["cpus"] = int(total_cpus() * 10)
@@ -153,10 +159,11 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = self.instance_class()
         result = assign.render(request)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.code, BAD_REQUEST)
         self.assertEqual(result, NOT_DONE_YET)
-        response = request.response()
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+        self.assertEqual(len(request.written), 1)
+        response = loads(request.written[0])
         self.assertEqual(response["requires_cpus"], int(total_cpus() * 10))
         self.assertEqual(response["error"], "Not enough cpus")
 
@@ -176,10 +183,11 @@ class TestAssign(BaseAPITestCase):
             headers={"User-Agent": config["master_user_agent"]})
         assign = self.instance_class()
         result = assign.render(request)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.code, CONFLICT)
         self.assertEqual(result, NOT_DONE_YET)
-        response = request.response()
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, CONFLICT)
+        self.assertEqual(len(request.written), 1)
+        response = loads(request.written[0])
         self.assertEqual(set(response["duplicate_tasks"]), set(tasks))
         self.assertEqual(response["error"], "Double assignment of tasks")
 
@@ -203,9 +211,9 @@ class TestAssign(BaseAPITestCase):
         result = assign.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertTrue(request.finished)
-        response = request.response()
-        self.assertEqual(request.code, ACCEPTED)
-        response_id = UUID(response["id"])
+        self.assertEqual(request.responseCode, ACCEPTED)
+        self.assertEqual(len(request.written), 1)
+        response_id = UUID(loads(request.written[0])["id"])
         self.assertIn(response_id, config["current_assignments"])
 
         # An assignment uuid has been added

@@ -25,8 +25,8 @@ engine.
 from io import BytesIO
 
 from jinja2 import (
-    Environment as _Environment, Template, PackageLoader, BytecodeCache)
-from twisted.internet.defer import Deferred
+    Environment as _Environment, Template as _Template,
+    PackageLoader, BytecodeCache)
 
 from pyfarm.agent.config import config
 
@@ -55,32 +55,12 @@ class InMemoryCache(BytecodeCache):
         self.cache[bucket.key] = cache
 
 
-class DeferredTemplate(Template):
-    """
-    Overrides the default :class:`.PackageLoader` so we
-    can produced the rendered result as a deferred call.
-    """
-    def render(self, *args, **kwargs):
-        deferred = Deferred()
-
-        try:
-            # get the results then convert to a string, Twisted can't handle
-            # unicode from here
-            deferred.callback(
-                str(super(DeferredTemplate, self).render(*args, **kwargs)))
-        except Exception as e:  # pragma: no cover
-            deferred.errback(e)
-
-        return deferred
-
-
 class Environment(_Environment):
     """
-    Implementation of Jinja's :class:`._Environment` class which
+    Implementation of :class:`jinja2.Environment` class which
     reads from our configuration object and establishes the
     default functions we can use in a template.
     """
-    template_class = DeferredTemplate
 
     def __init__(self, **kwargs):
         # default options
@@ -102,21 +82,9 @@ class Environment(_Environment):
             repr=repr)
 
 
-class Loader(object):
-    """
-    Namespace class used to simply keep track of the global environment
-    and load templates.
+try:
+    ENVIRONMENT
+except NameError:  # pragma: no cover
+    ENVIRONMENT = Environment()
 
-    >>> from pyfarm.agent.http.core import template
-    >>> template.load("index.html")
-    """
-    environment = None
-
-    @classmethod
-    def load(cls, name):
-        if cls.environment is None:
-            cls.environment = Environment()
-
-        return cls.environment.get_template(name)
-
-load = Loader.load
+load = ENVIRONMENT.get_template

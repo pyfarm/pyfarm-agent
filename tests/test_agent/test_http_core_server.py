@@ -21,9 +21,8 @@ from twisted.web.test.requesthelper import DummyChannel
 from twisted.web.error import Error
 
 from pyfarm.core.config import read_env_bool
-from pyfarm.agent.http.core.server import RewriteRequest, Site, StaticPath
-from pyfarm.agent.testutil import TestCase
-from pyfarm.agent.utility import dumps
+from pyfarm.agent.http.core.server import Site, StaticPath
+from pyfarm.agent.testutil import TestCase, DummyRequest
 
 
 class DummyTransport(object):
@@ -37,31 +36,7 @@ class DummyTransport(object):
         self.data.append(data)
 
 
-class TestRequest(TestCase):
-    def test_remove_extra_delimiters(self):
-        tests = (
-            ("//", "/"), ("//foo", "/foo"), ("//foo//bar", "/foo/bar"),
-            ("//////foo", "/foo"), ("///foo///bar", "/foo/bar"),
-            ("/foo/bar//", "/foo/bar/"))
-        for bad_url, result in tests:
-            request = RewriteRequest(DummyChannel(), 1)
-            request.gotLength(0)
-            request.requestReceived("GET", bad_url, "HTTP/1.0")
-            self.assertEqual(request.uri, result)
-            self.assertEqual(request.path, result)
-
-    def test_write_json(self):
-        channel = DummyChannel()
-        request = RewriteRequest(channel, 1)
-        request.transport = DummyTransport()
-        request.write({"true": True})
-        self.assertIn(dumps({"true": True}), request.transport.data)
-
-
 class TestSite(TestCase):
-    def test_request_factory(self):
-        self.assertIs(Site.requestFactory, RewriteRequest)
-
     def test_display_traceback(self):
         self.assertEqual(
             read_env_bool("PYFARM_AGENT_API_DISPLAY_TRACEBACKS", True),
@@ -83,7 +58,7 @@ class TestStaticPath(TestCase):
 
     def test_render_cache_header(self):
         path = self.create_file()
-        request = RewriteRequest(DummyChannel(), 1)
+        request = DummyRequest(DummyChannel(), 1)
         request.method = "GET"
         static_path = StaticPath(path)
         static_path.render(request)
