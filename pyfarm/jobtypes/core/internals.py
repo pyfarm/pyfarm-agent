@@ -458,10 +458,10 @@ class Process(object):
         try:
             successful = self.is_successful(protocol, reason)
         except Exception as e:
-            logger.error("Exception caught from is_successful: %s: \"%s\". "
-                         "Assuming not successful.", e.__class__.__name__, e)
-            self._log("Exception caught from is_successful: %s: \"%s\". "
-                      "Assuming not successful." % (e.__class__.__name__, e))
+            message = ("Exception caught from is_successful(): %r. "
+                       "Assuming not successful." % e)
+            logger.error(message)
+            self._log(message)
             successful = False
         if successful:
             logpool.log(
