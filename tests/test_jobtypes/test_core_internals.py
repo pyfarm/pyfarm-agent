@@ -72,7 +72,7 @@ class FakeProcess(Process, System):
         self.failed_processes = set()
         self.processes = {}
         self.assignment = {
-            "job":  {"id": 1},
+            "job": {"id": 1},
             "tasks": [{"id": 1, "attempt": 1}]
             }
         self._stopped_deferred = None
@@ -294,7 +294,9 @@ class TestProcess(TestCase):
 
         config["jobtype_ignore_id_mapping_errors"] = True
 
-        for grp_struct in grp.getgrall():
+        for i, grp_struct in enumerate(grp.getgrall()):
+            if i == 5:
+                break
             self.assertIsNone(
                 self.process._get_uid_gid_value(
                     grp_struct.gr_name + "foo",
@@ -302,7 +304,9 @@ class TestProcess(TestCase):
 
         config.pop("jobtype_ignore_id_mapping_errors")
 
-        for grp_struct in grp.getgrall():
+        for i, grp_struct in enumerate(grp.getgrall()):
+            if i == 5:
+                break
             with self.assertRaises(KeyError):
                 self.assertIsNone(
                     self.process._get_uid_gid_value(
@@ -315,7 +319,9 @@ class TestProcess(TestCase):
 
         config["jobtype_ignore_id_mapping_errors"] = True
 
-        for pwd_struct in pwd.getpwall():
+        for i, pwd_struct in enumerate(pwd.getpwall()):
+            if i == 5:
+                break
             self.assertIsNone(
                 self.process._get_uid_gid_value(
                     pwd_struct.pw_name + "foo",
@@ -323,7 +329,9 @@ class TestProcess(TestCase):
 
         config.pop("jobtype_ignore_id_mapping_errors")
 
-        for pwd_struct in pwd.getpwall():
+        for i, pwd_struct in enumerate(pwd.getpwall()):
+            if i == 5:
+                break
             with self.assertRaises(KeyError):
                 self.assertIsNone(
                     self.process._get_uid_gid_value(
@@ -555,6 +563,7 @@ class TestSystemUidGid(TestCase):
                 pass
 
         self.failUnless(success, "Expected at least one successful resolution")
+
 
 
 class TestSystemTempDirs(TestCase):
