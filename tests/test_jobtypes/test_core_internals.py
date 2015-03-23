@@ -564,6 +564,58 @@ class TestSystemUidGid(TestCase):
 
         self.failUnless(success, "Expected at least one successful resolution")
 
+    def test_from_integer_no_such_module(self):
+        system = System()
+        with self.assertRaises(ValueError):
+            system._get_uid_gid_value(
+                0, None, None, "getpwnam", "foo"
+            )
+
+    @skipIf(grp is NotImplemented, "grp module is NotImplemented")
+    def test_from_integer_grp_no_such_value(self):
+        config["jobtype_ignore_id_mapping_errors"] = False
+        system = System()
+        all_ids = set(group.gr_gid for group in grp.getgrall())
+
+        bad_id = 0
+        while True:
+            if bad_id not in all_ids:
+                break
+            bad_id += 1
+
+        with self.assertRaises(KeyError):
+            system._get_uid_gid_value(
+                bad_id, None, None, "getgrgid", "grp"
+            )
+
+        config["jobtype_ignore_id_mapping_errors"] = True
+        value = system._get_uid_gid_value(
+            bad_id, None, None, "getgrgid", "grp"
+        )
+        self.assertIsNone(value)
+
+    @skipIf(pwd is NotImplemented, "grp module is NotImplemented")
+    def test_from_integer_pwd_no_such_value(self):
+        config["jobtype_ignore_id_mapping_errors"] = False
+        system = System()
+        all_ids = set(user.pw_uid for user in pwd.getpwall())
+
+        bad_id = 0
+        while True:
+            if bad_id not in all_ids:
+                break
+            bad_id += 1
+
+        with self.assertRaises(KeyError):
+            system._get_uid_gid_value(
+                bad_id, None, None, "getpwuid", "pwd"
+            )
+
+        config["jobtype_ignore_id_mapping_errors"] = True
+        value = system._get_uid_gid_value(
+            bad_id, None, None, "getpwuid", "pwd"
+        )
+        self.assertIsNone(value)
 
 
 class TestSystemTempDirs(TestCase):
