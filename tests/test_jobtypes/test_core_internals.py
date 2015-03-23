@@ -19,6 +19,7 @@ import re
 import os
 import tempfile
 from collections import namedtuple
+from datetime import timedelta
 from os.path import isdir, join, isfile
 from errno import EEXIST
 from uuid import uuid4
@@ -422,6 +423,13 @@ class TestMiscTypeChecks(TestCase):
         with self.assertRaisesRegexp(
                 TypeError, re.compile("Expected UUID for `protocol_uuid`")):
             checks._check_csvlog_path_inputs([], "")
+
+    def test_csvlog_path_time_type(self):
+        checks = TypeChecks()
+
+        with self.assertRaises(TypeError):
+            for value in ("", 1, 1.0, timedelta(seconds=1)):
+                checks._check_csvlog_path_inputs(uuid4(), value)
 
     def test_command_list(self):
         checks = TypeChecks()
