@@ -41,7 +41,7 @@ except ImportError:  # pragma: no cover
 
 try:
     import grp
-except ImportError:
+except ImportError:  # pragma: no cover
     grp = NotImplemented
 
 try:
