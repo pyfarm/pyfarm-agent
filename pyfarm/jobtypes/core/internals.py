@@ -791,9 +791,12 @@ class System(object):
         Ensures that at least space bytes of data can be stored on the volume
         on which tempdir is located, deleting files from tempdir if necessary.
 
-        WARNING: Will delete files in tempdir to reclaim storage space.
+        .. warning::
 
-        Will raise InsufficientSpaceError if enough space cannot be claimed.
+            This will delete files in tempdir to reclaim storage space.
+
+        :raises InsufficientSpaceError:
+            Raised if enough space cannot be claimed.
         """
         assert isinstance(tempdir, STRING_TYPES)
         assert isinstance(space, INTEGER_TYPES)
