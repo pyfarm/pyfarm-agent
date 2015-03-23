@@ -479,7 +479,7 @@ class TestSystemMisc(TestCase):
 class TestSystemUidGid(TestCase):
     def test_value_type(self):
         system = System()
-        for entry in (1, None, [], tuple(), dict(), 1.0):
+        for entry in (None, [], tuple(), dict(), 1.0):
             with self.assertRaises(TypeError):
                 system._get_uid_gid_value(entry, None, None, None, None)
 
@@ -530,16 +530,75 @@ class TestSystemUidGid(TestCase):
             )
         )
 
-    def test_string_no_such_module(self):
+    def test_from_string_no_such_module(self):
         system = System()
         with self.assertRaises(ValueError):
             system._get_uid_gid_value(
                 "", None, None, "getpwnam", "foo"
             )
 
-    # TODO: tests for when pwd/grp raises KeyError (for strings)
-    # TODO: tests for when pwd/grp raises KeyError (for integers)
+    @skipIf(pwd is NotImplemented, "pwd module is NotImplemented")
+    def test_from_string_conversion_failure(self):
+        config["jobtype_ignore_id_mapping_errors"] = True
+        system = System()
+        username = os.urandom(8).encode("hex")
 
+        with patch.object(logger, "error") as error:
+            value = system._get_uid_gid_value(
+                username, None, "foo_bar", "getpwnam", "pwd"
+            )
+
+        error.assert_called_with(
+            "Failed to convert %s to a %s", username, "bar")
+        self.assertIsNone(value)
+
+        config["jobtype_ignore_id_mapping_errors"] = False
+        username = os.urandom(8).encode("hex")
+
+        with patch.object(logger, "error") as error:
+            with self.assertRaises(KeyError):
+                value = system._get_uid_gid_value(
+                    username, None, "foo_bar", "getpwnam", "pwd"
+                )
+
+        error.assert_called_with(
+            "Failed to convert %s to a %s", username, "bar")
+        self.assertIsNone(value)
+
+    @skipIf(pwd is NotImplemented, "pwd module is NotImplemented")
+    def test_get_pwd_from_int(self):
+        system = System()
+        username = user.username()
+        uid = pwd.getpwnam(username).pw_uid
+
+        self.assertEqual(
+            uid,
+            system._get_uid_gid_value(
+                uid, None, None, "getpwnam", "pwd"
+            )
+        )
+
+    @skipIf(grp is NotImplemented, "grp module is NotImplemented")
+    def test_get_grp_from_integer(self):
+        system = System()
+        success = True
+        for group_id in os.getgroups():
+            try:
+                self.assertEqual(
+                    group_id,
+                    system._get_uid_gid_value(
+                        group_id, None, None, "getgrnam", "grp"
+                    )
+                )
+                success = True
+
+            # There's numerous ways this could happen including
+            # the user being a part of the group however the group
+            # itself is undefined.
+            except KeyError:
+                pass
+
+        self.failUnless(success, "Expected at least one successful resolution")
 
 
 class TestSystemTempDirs(TestCase):
