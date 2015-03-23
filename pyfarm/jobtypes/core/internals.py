@@ -742,14 +742,11 @@ class System(object):
 
         # Verify that the provided user/group string is real
         elif isinstance(value, INTEGER_TYPES):
-            #
-            # TODO: implementation...
-            #
             try:
                 if module_name == "pwd":
-                    pass
+                    pwd.getpwuid(value)
                 elif module_name == "grp":
-                    pass
+                    grp.getgrgid(value)
                 else:
                     raise ValueError(
                         "Internal error, failed to get module to use for "
