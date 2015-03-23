@@ -816,7 +816,7 @@ class System(object):
             for filename in files:
                 fullpath = join(root, filename)
                 atime = os.stat(fullpath).st_atime
-                tempfiles.append({ "filepath": fullpath, "atime": atime })
+                tempfiles.append({"filepath": fullpath, "atime": atime})
 
         tempfiles.sort(key=lambda x: x["atime"])
 
