@@ -16,7 +16,6 @@
 
 import atexit
 import logging
-import json
 import os
 import re
 import socket
@@ -39,15 +38,17 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
+from jinja2 import Template
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
+from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
 from pyfarm.core.config import read_env, read_env_bool
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
 from pyfarm.agent.sysinfo import memory, cpu
-from pyfarm.agent.utility import remove_directory
+from pyfarm.agent.utility import dumps, remove_directory
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -89,8 +90,6 @@ from voluptuous import Schema
 from twisted.internet.defer import Deferred, succeed
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
-from pyfarm.agent.http.core.template import DeferredTemplate
-from pyfarm.agent.utility import dumps
 
 ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
@@ -193,65 +192,6 @@ class FakeRequestHeaders(object):
         return self.headers.get(header)
 
 
-class FakeRequest(object):
-    def __init__(self, test, method, uri, headers=None, data=None):
-        if headers is None:
-            headers = {}
-
-        if "Content-Type" not in headers:
-            headers.update({"Content-Type": ["application/json"]})
-
-        if data is not None:
-            data = dumps(data)
-
-        self.test = test
-        self.method = method
-        self.uri = uri
-        self.code = None
-        self.finished = None
-        self.requestHeaders = FakeRequestHeaders(test, headers)
-        self.content = StringIO()
-        self._response = StringIO()
-
-        if isinstance(data, STRING_TYPES):
-            self.content.write(data)
-            self.content.seek(0)
-
-    def getHeader(self, header):
-        return self.requestHeaders.getRawHeaders(header)
-
-    def setResponseCode(self, code):
-        self.test.assertIsNone(
-            self.finished, "finished() called before setResponseCode()")
-        self.code = code
-
-    def write(self, data):
-        self.test.assertIsNone(
-            self.finished, "finished() called before write()")
-        if not isinstance(data, STRING_TYPES):
-            data = dumps(data)
-        self._response.write(data)
-
-    def finish(self):
-        self.test.assertIsNone(self.finished, "finish() already called")
-        self._response.seek(0)
-        self.finished = True
-
-    def response(self):
-        self.test.assertIsNotNone(self.finished, "finish() not called")
-        if not self._response.len:
-            raise ValueError("Not content.")
-
-        try:
-            response = json.load(self._response)
-        except ValueError:
-            self._response.seek(0)
-            response = self._response.read()
-
-        self._response.seek(0)
-        return response
-
-
 class FakeAgent(object):
     def __init__(self, stopped=None):
         if stopped is None:
@@ -271,6 +211,34 @@ class ErrorCapturingParser(AgentArgumentParser):
 
     def error(self, message):
         self.errors.append(message)
+
+
+class DummyRequest(_DummyRequest):
+    def __init__(self, postpath="/", session=None):
+        super(DummyRequest, self).__init__(postpath, session=session)
+        self.content = StringIO()
+
+    def set_content(self, content):
+        """Sets the content of the request"""
+        self.content.write(content)
+        self.content.seek(0)
+
+    def getHeader(self, key):
+        """
+        Default override, _DummyRequest.getHeader does something different
+        than the real request object.
+        """
+        value = self.requestHeaders.getRawHeaders(key)
+        if value is not None:
+            return value[-1]
+
+    def write(self, data):
+        """
+        Default override, _DummyRequest.write asserts that ``data`` must
+        be a bytes instance.  In the real Request.write implementation no
+        such assertion is made.
+        """
+        self.written.append(data)
 
 
 class TestCase(_TestCase):
@@ -520,7 +488,7 @@ class BaseHTTPTestCase(TestCase):
     URI = NotImplemented
     CLASS = NotImplemented
     CLASS_FACTORY = NotImplemented
-    CONTENT_TYPES = NotImplemented
+    DEFAULT_HEADERS = NotImplemented
 
     # Only run the real _run if we're inside a child
     # class.
@@ -531,13 +499,45 @@ class BaseHTTPTestCase(TestCase):
         if self.CLASS is not NotImplemented and self.URI is NotImplemented:
             self.fail("URI not set")
 
-        self.assertIsInstance(self.CONTENT_TYPES, list, "CONTENT_TYPES not set")
         return super(BaseHTTPTestCase, self)._run(methodName, result)
 
     def setUp(self):
         super(BaseHTTPTestCase, self).setUp()
         self.agent = config["agent"] = FakeAgent()
         self.assertIsNotNone(self.CLASS, "CLASS not set")
+        self.assertIsNotNone(self.URI, "URI not set")
+        self.get = partial(self.request, "GET")
+        self.put = partial(self.request, "PUT")
+        self.post = partial(self.request, "POST")
+        self.delete = partial(self.request, "DELETE")
+
+    def request(self, method, **kwargs):
+        data = kwargs.pop("data", None)
+        headers = kwargs.pop("headers", {})
+        uri = kwargs.pop("uri", self.URI)
+
+        request = DummyRequest(uri)
+        request.method = method.upper()
+
+        if data is not None:
+            request.content = StringIO()
+            request.content.write(dumps(data))
+            request.content.seek(0)
+
+        if self.DEFAULT_HEADERS is not NotImplemented:
+            headers.update(self.DEFAULT_HEADERS)
+
+        if headers:
+            self.failUnlessIsInstance(headers, dict)
+            for key, value in headers.items():
+                if isinstance(value, STRING_TYPES):
+                    value = [value]
+
+                self.failUnlessIsInstance(value, list)
+                request.requestHeaders.setRawHeaders(key, value)
+
+        self.failUnlessEqual(kwargs, {}, "Unknown keywords %s" % kwargs.keys())
+        return request
 
     def instance_class(self):
         if self.CLASS_FACTORY is not NotImplemented:
@@ -556,8 +556,8 @@ class BaseHTTPTestCase(TestCase):
 
     def test_implements_methods(self):
         instance = self.instance_class()
-        for method_name in instance.methods:
-            if method_name == "head":
+        for method_name in instance.methods():
+            if method_name == "HEAD":
                 continue
 
             self.assertTrue(
@@ -565,16 +565,10 @@ class BaseHTTPTestCase(TestCase):
                 "%s does not have method %s" % (self.CLASS, method_name))
             self.assertTrue(callable(getattr(instance, method_name)))
 
-    def test_content_types(self):
-        self.assertIsInstance(self.CLASS.CONTENT_TYPES, set)
-        for content_type in self.CONTENT_TYPES:
-            self.assertIn(content_type, self.CLASS.CONTENT_TYPES,
-                          "missing content type %s" % content_type)
-
     def test_methods_exist_for_schema(self):
         self.assertIsInstance(self.CLASS.SCHEMAS, dict)
         instance = self.instance_class()
-        methods = set(method.upper() for method in instance.methods)
+        methods = set(method.upper() for method in instance.methods())
         for method, schema in self.CLASS.SCHEMAS.items():
             self.assertIsInstance(schema, Schema)
             self.assertEqual(
@@ -583,40 +577,16 @@ class BaseHTTPTestCase(TestCase):
             self.assertNotEqual(method, "GET", "cannot have schema for GET")
             self.assertIn(method, methods)
 
-    def test_missing_schemas(self):
-        missing_schemas = []
-        for method in self.CLASS.LOAD_DATA_FOR_METHODS:
-            if method not in self.CLASS.SCHEMAS:
-                missing_schemas.append(method)
-
-        if missing_schemas:
-            self.skipTest(
-                "WARNING: Missing schema(s) for %s"
-                % ", ".join(missing_schemas))
-
 
 class BaseAPITestCase(BaseHTTPTestCase):
-    CONTENT_TYPES = ["application/json"]
-
-    def setUp(self):
-        super(BaseAPITestCase, self).setUp()
-        self.assertIsNotNone(self.URI, "URI not set")
-        self.get = partial(FakeRequest, self, "GET", self.URI)
-        self.post = partial(FakeRequest, self, "POST", self.URI)
-        self.put = partial(FakeRequest, self, "PUT", self.URI)
+    DEFAULT_HEADERS = {"Accept": ["application/json"]}
 
     def test_parent(self):
         self.assertIsInstance(self.instance_class(), APIResource)
 
 
 class BaseHTMLTestCase(BaseHTTPTestCase):
-    CONTENT_TYPES = ["text/html", "application/json"]
-
-    def setUp(self):
-        super(BaseHTMLTestCase, self).setUp()
-        self.get = partial(FakeRequest, self, "GET")
-        self.post = partial(FakeRequest, self, "POST")
-        self.put = partial(FakeRequest, self, "PUT")
+    DEFAULT_HEADERS = {"Accept": ["text/html"]}
 
     def test_template_set(self):
         self.assertIsNot(self.CLASS.TEMPLATE, NotImplemented)
@@ -624,6 +594,6 @@ class BaseHTMLTestCase(BaseHTTPTestCase):
     def test_template_loaded(self):
         instance = self.instance_class()
         template = instance.template
-        self.assertIsInstance(template, DeferredTemplate)
+        self.assertIsInstance(template, Template)
         self.assertEqual(basename(template.filename), self.CLASS.TEMPLATE)
         self.assertTrue(isfile(template.filename))

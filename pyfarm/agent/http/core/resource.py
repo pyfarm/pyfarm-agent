@@ -27,29 +27,22 @@ from json import loads
 try:
     from httplib import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK, NOT_ACCEPTABLE)
 except ImportError:  # pragma: no cover
     from http.client import (
         responses, NOT_FOUND, BAD_REQUEST, UNSUPPORTED_MEDIA_TYPE,
-        METHOD_NOT_ALLOWED)
+        METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, OK, NOT_ACCEPTABLE)
 
-try:
-    from itertools import ifilter as filter_
-except ImportError:  # pragma: no cover
-    filter_ = filter
-
-try:
-    from itertools import imap as map_
-except ImportError:  # pragma: no cover
-    map_ = map
-
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
+from twisted.web.static import File
 from voluptuous import Invalid, Schema
 
 from pyfarm.core.enums import STRING_TYPES
 from pyfarm.agent.http.core import template
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.utility import dumps
 
 logger = getLogger("agent.http.resource")
 
@@ -60,22 +53,66 @@ class Resource(_Resource):
     specific methods.  Unlike :class:`._Resource` however this will
     will also handle:
 
-        * rewriting of request objects
-        * templating
-        * content type discovery and validation
-        * unpacking of request data
-        * rerouting of request to specific internal methods
+        * Templates
+        * Content type discovery and validation
+        * Handling of deferred responses
+        * Validation of POST/PUT data against a schema
+
+    :cvar string TEMPLATE:
+        The name of the template this class will use when rendering
+        an html view.
+
+    :type SCHEMAS: dict
+    :cvar SCHEMAS:
+        A dictionary of schemas to validate the data of an incoming request
+        against.  The structure of this dictionary is::
+
+            {http method: <instance of voluptuous.Schema>}
+
+        If the schema validation fails the request will be rejected with
+        ``400 BAD REQUEST``.
+
+    :type ALLOWED_CONTENT_TYPE: frozenset
+    :cvar ALLOWED_CONTENT_TYPE:
+        An instance of :class:`frozenset` which describes what this resource
+        is going to allow in the ``Content-Type`` header.  The request
+        and this instance must share at least on entry in common.  If not,
+        the request will be rejected with ``415 UNSUPPORTED MEDIA TYPE``.
+
+        **This must be defined in subclass**
+
+    :type ALLOWED_ACCEPT: frozenset
+    :cvar ALLOWED_ACCEPT:
+        An instance of :class:`frozenset` which describes what this
+        resource is going to allow in the ``Accept`` header.  The request
+        and this instance must share at least one entry in common.  If not,
+        the request will be rejected with ``406 NOT ACCEPTABLE``.
+
+        **This must be defined in subclass**
+
+    :type DEFAULT_ACCEPT: frozenset
+    :cvar DEFAULT_ACCEPT:
+        If ``Accept`` header is not present in the request, use this as the
+        value instead.  This defaults to ``frozenset(["*/*"])``
+
+    :type DEFAULT_CONTENT_TYPE: frozenset
+    :cvar DEFAULT_CONTENT_TYPE:
+        If ``Content-Type`` header is not present in the request, use this as
+        the value instead.  This defaults to ``frozenset([""])``
     """
     TEMPLATE = NotImplemented
-    CONTENT_TYPES = set(["text/html", "application/json"])
-    LOAD_DATA_FOR_METHODS = set(["POST", "PUT"])
-
-    # Used by APIResource
     SCHEMAS = {}
 
-    def __init__(self):
-        _Resource.__init__(self)
-        assert isinstance(self.CONTENT_TYPES, set)
+    # These must be set in a subclass and
+    # should contain the full range of headers
+    # allowed for Accept and Content-Type.
+    ALLOWED_ACCEPT = NotImplemented
+    ALLOWED_CONTENT_TYPE = NotImplemented
+
+    # Default values if certain headers
+    # are not present.
+    DEFAULT_ACCEPT = frozenset(["*/*"])
+    DEFAULT_CONTENT_TYPE = frozenset([None])
 
     @property
     def template(self):
@@ -87,40 +124,60 @@ class Resource(_Resource):
             raise NotImplementedError("You must set `TEMPLATE` first")
         return template.load(self.TEMPLATE)
 
-    @property
     def methods(self):
-        """A set containing all the methods this resource implements."""
-        methods = set()
-        for method in ("get", "post", "put", "delete", "head"):
-            attribute_count = 0
-            for attribute_name in (method, "render_%s" % method.upper()):
-                attribute = getattr(self, attribute_name, None)
-                if attribute is not None:
-                    attribute_count += 1
-                    methods.add(method)
+        """
+        Returns a tuple of methods which an instance of this class implements
+        """
+        methods = []
+        for method_name in ("get", "put", "post", "delete", "head"):
+            method = getattr(self, method_name, None)
+            if method is not None and callable(method):
+                methods.append(method_name)
 
-            if attribute_count == 2:
-                raise ValueError(
-                    "%s has both `%s` and `%s` methods" % (
-                        self.__class__.__name__,
-                        method, "render_%s" % method.upper()))
+        return tuple(methods)
 
-        return methods
+    def get_content_type(self, request):
+        """
+        Return the ``Content-Type`` header(s) in the request or
+        ``DEFAULT_CONTENT_TYPE`` if the header is not set.
+        """
+        header = request.requestHeaders.getRawHeaders("Content-Type")
+        if not header:
+            return self.DEFAULT_CONTENT_TYPE
 
-    def content_types(self, request, default=None):
-        """Returns the content type(s) present in the request"""
-        headers = request.requestHeaders.getRawHeaders("content-type")
-        if isinstance(default, STRING_TYPES):
-            default = [default]
-        elif default is None:
-            default = []
-        return set(headers) if headers is not None else set(default)
+        content_type = set()
+        for value in header:
+            # Split out the various parts of the header and return them.  We
+            # ignore the q parameter here for the moment.
+            content_type.update(
+                entry.split(";")[0] for entry in value.split(","))
+
+        return frozenset(content_type)
+
+    def get_accept(self, request):
+        """
+        Return the ``Accept`` header(s) in the request or
+        ``DEFAULT_ACCEPT`` if the header is not set.
+        """
+        header = request.requestHeaders.getRawHeaders("Accept")
+        if not header:
+            return self.DEFAULT_ACCEPT
+
+        accept = set()
+        for value in header:
+            # Split out the various parts of the header and return them.  We
+            # ignore the q parameter here for the moment.
+            accept.update(entry.split(";")[0] for entry in value.split(","))
+
+        return frozenset(accept)
 
     def putChild(self, path, child):
         """
         Overrides the builtin putChild() so we can return the results for
-        each call and use them externally
+        each call and use them externally.
         """
+        assert isinstance(path, STRING_TYPES)
+        assert isinstance(child, (Resource, File))
         _Resource.putChild(self, path, child)
         return child
 
@@ -129,90 +186,169 @@ class Resource(_Resource):
         Writes the proper out an error response message depending on the
         content type in the request
         """
-        content_types = self.content_types(request, default="text/html")
+        response_types = self.get_accept(request)
         logger.error(message)
 
-        if "text/html" in content_types:
+        if "text/html" in response_types:
             request.setResponseCode(code)
             html_error = template.load("error.html")
-            deferred = html_error.render(
+            result = html_error.render(
                 code=code, code_msg=responses[code], message=message)
-            deferred.addCallback(request.write).addCallback(
-                lambda _: request.finish())
+            request.write(result)
 
-        elif "application/json" in content_types:
+        elif "application/json" in response_types:
             request.setResponseCode(code)
-            request.write({"error": message})
-            request.finish()
+            request.write(dumps({"error": message}))
 
         else:
             request.setResponseCode(UNSUPPORTED_MEDIA_TYPE)
-            request.write(
-                {"error": "Can only handle text/html or application/json here"})
+            error = dumps(
+                {"error":
+                     "Can only handle one of %s here" % self.ALLOWED_ACCEPT})
+            request.write(error)
+
+        request.finish()
+
+    def render_tuple(self, request, response):
+        """
+        Takes a response tuple of ``(body, code, headers)`` or
+        ``(body, code)`` and renders the resulting data onto
+        the request.
+        """
+        assert isinstance(response, (list, tuple)), type(response)
+        if len(response) == 3:
+            body, code, headers = response
+
+            if isinstance(headers, dict):
+                for header, value in headers.items():
+                    if isinstance(value, STRING_TYPES):
+                        value = [value]
+                    request.responseHeaders.setRawHeaders(header, value)
+
+            request.setResponseCode(code)
+
+            # Cast to str, otherwise Twisted responds
+            #   TypeError: Data must not be unicode
+            request.write(str(body))
             request.finish()
 
-    def render(self, request):
-        # make sure that the requested content type is supported
-        content_type = self.content_types(request, default=["text/html",
-                                                            "application/json"])
-        if not self.CONTENT_TYPES & content_type:
+        elif len(response) == 2:
+            body, code = response
+            request.setResponseCode(code)
+
+            # Cast to str, otherwise Twisted responds
+            #   TypeError: Data must not be unicode
+            request.write(str(body))
+            request.finish()
+
+        else:
             self.error(
-                request, UNSUPPORTED_MEDIA_TYPE,
-                "%s is not a support content type for this url" % content_type)
+                request, INTERNAL_SERVER_ERROR,
+                "Expected two or three length tuple for response"
+            )
+
+    @inlineCallbacks
+    def render_deferred(self, request, deferred):
+        """
+        An inline callback used to unpack a deferred
+        response object.
+        """
+        assert isinstance(deferred, Deferred)
+        response = yield deferred
+        self.render_tuple(request, response)
+
+    def render(self, request):
+        try:
+            handler_method = getattr(self, request.method.lower())
+        except AttributeError:
+            self.error(
+                request, METHOD_NOT_ALLOWED,
+                "Method %s is not supported" % request.method)
             return NOT_DONE_YET
 
-        # Try to find the method this web request is making by first trying
-        # our usual convention then the 'standard' convention.
-        request_methods = (request.method.lower(), "render_%s" % request.method)
-        for method_name in request_methods:
-            if hasattr(self, method_name):
-                kwargs = {"request": request}
+        assert isinstance(self.ALLOWED_CONTENT_TYPE, (set, frozenset))
+        content = request.content.read().strip()
+        shared_content_types = \
+            self.get_content_type(request) & self.ALLOWED_CONTENT_TYPE
 
-                # Unpack the incoming data for the request
-                if "application/json" in content_type \
-                        and request.method in self.LOAD_DATA_FOR_METHODS:
-                    request_content = request.content.read()
+        # Ensure we can handle the content of the request
+        if content and not shared_content_types:
+            self.error(
+                request, UNSUPPORTED_MEDIA_TYPE,
+                "Can only support content "
+                "type(s) %s" % self.ALLOWED_CONTENT_TYPE)
+            return NOT_DONE_YET
 
-                    # Check to see if we have any incoming data at all
-                    if not request_content.strip():
-                        self.error(request, BAD_REQUEST, "No data provided")
-                        return NOT_DONE_YET
+        # Determine if we'll be able to produce a response for the request
+        assert isinstance(self.ALLOWED_ACCEPT, (set, frozenset))
+        response_types = self.get_accept(request) & self.ALLOWED_ACCEPT
+        if not response_types:
+            self.error(
+                request, NOT_ACCEPTABLE,
+                "Can only respond with %s" % self.ALLOWED_ACCEPT)
+            return NOT_DONE_YET
 
-                    # Either load the data or handle the error, don't call
-                    # the method unless we're successful.
-                    try:
-                        data = loads(request_content)
+        # Keywords to pass into `handler_method` below
+        kwargs = dict(request=request)
 
-                    except ValueError as e:
-                        self.error(
-                            request, BAD_REQUEST,
-                            "Failed to decode json data: %r" % e)
-                        return NOT_DONE_YET
+        # Attempt to load the data for the incoming request if appropriate
+        if content and "application/json" in shared_content_types:
+            try:
+                data = loads(content)
+            except ValueError as e:
+                self.error(
+                    request, BAD_REQUEST,
+                    "Failed to decode json data: %r" % e)
+                return NOT_DONE_YET
 
-                    # We have data, check to see if we have a schema
-                    # and if we do does it validate.
-                    schema = self.SCHEMAS.get(request.method)
-                    if isinstance(schema, Schema):
-                        try:
-                            schema(data)
-                        except Invalid as e:
-                            self.error(
-                                request, BAD_REQUEST,
-                                "Failed to validate the request data "
-                                "against the schema: %s" % e)
-                            return NOT_DONE_YET
+            # We have data, check to see if we have a schema
+            # and if we do does it validate.
+            schema = self.SCHEMAS.get(request.method)
+            if isinstance(schema, Schema):
+                try:
+                    schema(data)
+                except Invalid as e:
+                    self.error(
+                        request, BAD_REQUEST,
+                        "Failed to validate the request data "
+                        "against the schema: %s" % e)
+                    return NOT_DONE_YET
 
-                    kwargs.update(data=data)
+            kwargs.update(data=data)
 
-                return getattr(self, method_name)(**kwargs)
+        try:
+            response = handler_method(**kwargs)
+        except Exception as error:
+            self.error(
+                request, INTERNAL_SERVER_ERROR,
+                "Unhandled error while rendering response: %s" % error
+            )
+            return NOT_DONE_YET
 
-        # If we could not find function to call for the given method
-        # produce an error.
+        # The handler_method is going to handle everything
+        if response == NOT_DONE_YET:
+            return NOT_DONE_YET
+
+        # Flask style response
+        elif isinstance(response, tuple):
+            self.render_tuple(request, response)
+            return NOT_DONE_YET
+
+        # handler_method() is returns a Deferred which means
+        # we have to handle writing the response ourselves
+        elif isinstance(response, Deferred):
+            self.render_deferred(request, response)
+            return NOT_DONE_YET
+
+        elif isinstance(response, STRING_TYPES):
+            request.setResponseCode(OK)
+            request.write(response)
+            request.finish()
+            return NOT_DONE_YET
+
         else:
-            supported_methods = self.methods
-            message = "%r only supports the %s method(s)" % (
-                request.uri,
-                ", ".join(list(map_(str.upper, supported_methods))))
-
-            self.error(request, METHOD_NOT_ALLOWED, message)
+            self.error(
+                request, INTERNAL_SERVER_ERROR,
+                "Unhandled %r in response" % response
+            )
             return NOT_DONE_YET

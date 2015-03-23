@@ -45,15 +45,17 @@ class TestStop(BaseAPITestCase):
         config.update(run_control_file="/tmp/pyfarm/agent/should_be_running")
 
     def test_invalid_type_for_data(self):
-        request = self.post(data={"foo": 1})
+        request = self.post(
+            data={"foo": 1},)
         stop = Stop()
         result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+        self.assertEqual(len(request.written), 1)
         self.assertIn(
             "Failed to validate the request data against the schema",
-            request.response()["error"])
-        self.assertEqual(request.code, BAD_REQUEST)
-        self.assertTrue(request.finished)
+            loads(request.written[0])["error"])
 
     def test_stops_agent(self):
         self.patch(reactor, 'stop', mock.Mock())
@@ -61,11 +63,9 @@ class TestStop(BaseAPITestCase):
         stop = Stop()
         result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, ACCEPTED)
         self.assertTrue(request.finished)
-        with self.assertRaises(ValueError):
-            request.response()
-
+        self.assertEqual(request.responseCode, ACCEPTED)
+        self.assertTrue(self.agent.stopped)
         return self.agent.stopped
 
     def test_stops_and_waits_for_agent(self):
@@ -74,10 +74,9 @@ class TestStop(BaseAPITestCase):
         stop = Stop()
         result = stop.render(request)
         self.assertEqual(result, NOT_DONE_YET)
-        self.assertEqual(request.code, OK)
         self.assertTrue(request.finished)
-        with self.assertRaises(ValueError):
-            request.response()
+        self.assertEqual(request.responseCode, OK)
+        self.assertTrue(self.agent.stopped)
         return self.agent.stopped
 
 
@@ -95,7 +94,12 @@ class TestStatus(BaseAPITestCase):
     def test_get_requires_no_input(self):
         request = self.get()
         status = Status()
-        self.assertIsInstance(loads(status.render(request)), dict)
+        result = status.render(request)
+        self.assertEqual(result, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(len(request.written), 1)
+        self.assertIsInstance(loads(request.written[0]), dict)
 
     def test_get_result(self):
         process = psutil.Process()
@@ -132,7 +136,12 @@ class TestStatus(BaseAPITestCase):
 
         request = self.get()
         status = Status()
-        data = loads(status.render(request))
+        response = status.render(request)
+        self.assertEqual(response, NOT_DONE_YET)
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(len(request.written), 1)
+        data = loads(request.written[0])
 
         # Pop off and test keys which are 'close'
         self.assertApproximates(

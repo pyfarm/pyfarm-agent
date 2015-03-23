@@ -24,8 +24,6 @@ a service that the  :class:`pyfarm.agent.manager.service.ManagerServiceMaker`
 class can consume on start.
 """
 
-import re
-
 try:
     from httplib import FORBIDDEN
 except ImportError:  # pragma: no cover
@@ -33,42 +31,9 @@ except ImportError:  # pragma: no cover
 
 from os.path import exists
 
-from twisted.web.server import Site as _Site, Request as _Request
+from twisted.web.server import Site as _Site
 from twisted.web.static import File
 from twisted.web.error import Error
-
-from pyfarm.core.enums import STRING_TYPES
-from pyfarm.agent.utility import dumps
-
-
-class RewriteRequest(_Request):
-    """
-    A custom implementation of :class:`._Request` that will allow us
-    to modify an incoming request before it reaches the HTTP server..
-    """
-    REPLACE_REPEATED_DELIMITER = re.compile("/{2,}")
-
-    def requestReceived(self, command, path, version):
-        """
-        Override the built in :meth:`._Request.requestReceived` so we
-        can rewrite portions of the request, such as the url, before it's
-        passed along to the internal server.
-        """
-        # before we give the path to Twisted, replace any
-        # repeated `/`s with `/`
-        if "//" in path:
-            path = self.REPLACE_REPEATED_DELIMITER.sub("/", path)
-        _Request.requestReceived(self, command, path, version)
-
-    def write(self, data):
-        """
-        Override the built in :meth:`._Request.write` so that any data
-        that's not a string will be dumped to json using :func:`.dumps`
-        """
-        if not isinstance(data, STRING_TYPES):
-            data = dumps(data)
-
-        _Request.write(self, data)
 
 
 class Site(_Site):
@@ -77,7 +42,6 @@ class Site(_Site):
     some of the internal agent data.
     """
     displayTracebacks = True
-    requestFactory = RewriteRequest
 
 
 class StaticPath(File):

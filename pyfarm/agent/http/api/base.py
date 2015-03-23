@@ -22,6 +22,11 @@ Contains the base resources used for building up the root
 of the agent's api.
 """
 
+try:
+    from httplib import OK
+except ImportError:  # pragma: no cover
+    from http.client import OK
+
 from pyfarm.agent.config import config
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.utility import dumps, request_from_master
@@ -30,7 +35,14 @@ from pyfarm.agent.utility import dumps, request_from_master
 class APIResource(Resource):
     """Base class for all api resources"""
     isLeaf = True
-    CONTENT_TYPES = set(["application/json"])
+
+    # Content-Type header
+    ALLOWED_CONTENT_TYPE = frozenset(["application/json", None])
+    DEFAULT_CONTENT_TYPE = frozenset(["application/json"])
+
+    # Accept headers
+    ALLOWED_ACCEPT = frozenset(["*/*", "application/json", None])
+    DEFAULT_ACCEPT = frozenset(["application/json"])
 
 
 class APIRoot(APIResource):
@@ -70,4 +82,4 @@ class Versions(APIResource):
         if request is not None and request_from_master(request):
             config.master_contacted()
 
-        return dumps(versions=[1])
+        return dumps(versions=[1]), OK
