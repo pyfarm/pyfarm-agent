@@ -76,6 +76,7 @@ logfile = getLogger("jobtypes.log")
 ProcessData = namedtuple(
     "ProcessData", ("protocol", "started", "stopped"))
 
+
 class InsufficientSpaceError(Exception):
     pass
 
