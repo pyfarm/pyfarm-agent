@@ -712,9 +712,6 @@ class System(object):
         """
         Internal function which handles both user name and group conversion.
         """
-        if not isinstance(value, STRING_TYPES):
-            raise TypeError("Expected string for `value`")
-
         # This platform does not implement the module
         if module is NotImplemented:
             logger.warning(
@@ -761,7 +758,7 @@ class System(object):
                 if not config.get("jobtype_ignore_id_mapping_errors"):
                     raise
         else:
-            raise ValueError(
+            raise TypeError(
                 "Expected an integer or string for `%s`" % value_name)
 
     def _remove_directories(self, directories, retry_on_exit=True):
