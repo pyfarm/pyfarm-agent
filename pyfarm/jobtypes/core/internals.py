@@ -795,6 +795,9 @@ class System(object):
 
         Will raise InsufficientSpaceError if enough space cannot be claimed.
         """
+        assert isinstance(tempdir, STRING_TYPES)
+        assert isinstance(space, INTEGER_TYPES)
+
         try:
             os.makedirs(tempdir)
         except OSError as e:
