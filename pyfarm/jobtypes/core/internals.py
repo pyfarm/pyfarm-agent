@@ -455,7 +455,15 @@ class Process(object):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
         process_data = self.processes.pop(protocol.uuid)
 
-        if self.is_successful(reason):
+        try:
+            successful = self.is_successful(protocol, reason)
+        except Exception as e:
+            message = ("Exception caught from is_successful(): %r. "
+                       "Assuming not successful." % e)
+            logger.error(message)
+            self._log(message)
+            successful = False
+        if successful:
             logpool.log(
                 self.uuid, "internal",
                 "Process has terminated successfully, code %s" %

@@ -918,7 +918,7 @@ class JobType(Cache, System, Process, TypeChecks):
         else:
             return None
 
-    def is_successful(self, reason):
+    def is_successful(self, protocol, reason):
         """
         **Overridable**.  This method that determines whether the process
         referred to by a protocol instance has exited successfully.
