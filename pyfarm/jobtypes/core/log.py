@@ -57,7 +57,6 @@ class CSVLog(object):
         self.file = fileobj
         self.messages = deque()
         self.lines = 0
-        self.written = 0
         self.csv = UnicodeCSVWriter(self.file)
 
     def write(self, data):
@@ -65,7 +64,6 @@ class CSVLog(object):
         date, streamno, lineno, pid, message = data
         self.csv.writerow(
             [date.isoformat(), str(streamno), str(lineno), str(pid), message])
-        self.written += 1
 
 
 class LoggerPool(ThreadPool):
@@ -172,48 +170,39 @@ class LoggerPool(ThreadPool):
         Takes the given log object and flushes the messages it
         contains to the attached file object.
         """
-        while True:
-            # Only one thread at a time may retrieve objects, write
-            # to the file, and flush.  This helps to preserve the
-            # order of the messages and cuts down on wasted cycles
-            # from switching contexts.
-            with log.lock:
+        # Only one thread at a time may retrieve objects, write
+        # to the file, and flush.  This helps to preserve the
+        # order of the messages and cuts down on wasted cycles
+        # from switching contexts.
+        with log.lock:
+            num_messages = len(log.messages)
+            lines_written = 0
+            # Only write as many messages as have been in the queue when this
+            # thread started. This keeps us from hogging the lock forever if
+            # a lot of logs are produced.
+            while lines_written < num_messages:
                 try:
                     data = log.messages.popleft()
+                    log.write(data)
+                    lines_written += 1
                 except IndexError:
                     break
-                else:
-                    try:
-                        log.write(data)
-                    except (OSError, IOError) as e:  # pragma: no cover
-                        # Put the log message back in the queue
-                        # so we're not losing data.  It may be lightly
-                        # out of order now but we have a date stamp
-                        # and it's more important we don't lose data.
-                        log.messages.appendleft(data)
-                        logger.error(
-                            "Failed to write to %s: %s", log.file.name, e)
+                except (OSError, IOError) as e:  # pragma: no cover
+                    # Put the log message back in the queue
+                    # so we're not losing data.  It may be lightly
+                    # out of order now but we have a date stamp
+                    # and it's more important we don't lose data.
+                    log.messages.appendleft(data)
+                    logger.error(
+                        "Failed to write to %s: %s", log.file.name, e)
 
-        # Check if we should flush to disk.  We're doing
-        # this outside the above because it ensures we
-        # only have to run this logic once instead of
-        # once per message.
-        with log.lock:
-            if log.written >= self.flush_lines:
+            if lines_written > 0:
                 try:
                     log.file.flush()
                 except (OSError, IOError) as e:  # pragma: no cover
                     logger.error(
                         "Failed to flush output to %s: %s",
                         log.file.name, e)
-                else:
-                    logger.debug(
-                        "%s wrote %s lines to %s",
-                        self.currentThread().name, log.written,
-                        log.file.name)
-                    log.written = 0
-
-        return log
 
     def stop(self):
         """
