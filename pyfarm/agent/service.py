@@ -386,6 +386,9 @@ class Agent(object):
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
 
+        if config["farm_name"]:
+            data["farm_name"] = config["farm_name"]
+
         return data
 
     def build_http_resource(self):
