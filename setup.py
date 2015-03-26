@@ -35,20 +35,34 @@ if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
 # Windows is a little special because we have to have pywin32
-# installed.  pyfarm.core uses it and certain components of
-# other libraries use it too, such as twisted, so we check for
-# it here.  Unfortunately, we can't use PyPi for this.
+# installed.  It's a requirement of Twisted mainly because of spawnProcess
+# however other parts of Twisted can use it as well.  Twisted's setup.py itself
+# does not declare this dependency, likely because of the difficulties
+# associated with installing the package.
 if sys.platform.startswith("win"):
     try:
         import win32api
     except ImportError:
         raise ImportError(
-            "On Windows, you must manually install pywin32 before running "
-            "pyfarm.core's setup.py.  This is required because there's not "
-            "a package that we can pull down and reliably install from the "
-            "Python package repository.  Please visit "
-            "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
-            "download and install this package.")
+            "\r\nOn Windows, you must manually install pywin32 before running "
+            "pyfarm.agents's setup.py.  This is not a package that can "
+            "reliably be installed from PyPi so there's three options here:\r\n"
+            "  * Download and run one of the official installers:\r\n "
+            "    http://sourceforge.net/projects/pywin32/files/pywin32/\r\n"
+            "  * Install from a prebuilt binary wheel:\r\n"
+            "    http://www.lfd.uci.edu/~gohlke/pythonlibs/#pywin32\r\n"
+            "  * Install an alternative Python distribution such as \r\n"
+            "    ActiveState's ActivePython or Continuum's Anaconda.\r\n"
+            "    PyWin32, as we as many other packages, can usually \r\n"
+            "    be installed from pre-built binaries.\r\n\r\n"
+            "If you are unsure which option to pick, it's suggested that you "
+            "install from the wheel file:\r\n"
+            "    http://www.lfd.uci.edu/~gohlke/pythonlibs/#pywin32\r\n"
+            "This will be the fastest method for installing the missing "
+            "dependency.  To install the wheel run:\r\n"
+            "   * pip install --upgrade pip\r\n"
+            "   * pip install wheel\r\n"
+            "   * pip install <path to wheel file from lfd.uci.edu>")
     install_requires += ["wmi"]
 
 if sys.version_info[0:2] == (2, 6):
