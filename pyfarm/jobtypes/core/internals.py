@@ -829,6 +829,7 @@ class System(object):
         """
         logpool.log(self.uuid, "jobtype", message)
 
+
 class TypeChecks(object):
     def _check_expandvars_inputs(self, value, environment):
         """Checks input arguments for :meth:`expandvars`"""
