@@ -468,7 +468,15 @@ class Process(object):
         logger.info("%r stopped (code: %r)", protocol, reason.value.exitCode)
         process_data = self.processes.pop(protocol.uuid)
 
-        if self.is_successful(reason):
+        try:
+            successful = self.is_successful(protocol, reason)
+        except Exception as e:
+            message = ("Exception caught from is_successful(): %r. "
+                       "Assuming not successful." % e)
+            logger.error(message)
+            self._log(message)
+            successful = False
+        if successful:
             logpool.log(
                 self.uuid, "internal",
                 "Process has terminated successfully, code %s" %
@@ -848,7 +856,12 @@ class System(object):
 
 
 class TypeChecks(object):
-    def _check_expandvars_inputs(self, value, environment):
+    """
+    Helper static methods for performing type checks on
+    input arguments.
+    """
+    @staticmethod
+    def _check_expandvars_inputs(value, environment):
         """Checks input arguments for :meth:`expandvars`"""
         if not isinstance(value, STRING_TYPES):
             raise TypeError("Expected a string for `value`")
@@ -856,12 +869,14 @@ class TypeChecks(object):
         if environment is not None and not isinstance(environment, dict):
             raise TypeError("Expected None or a dictionary for `environment`")
 
-    def _check_map_path_inputs(self, path):
+    @staticmethod
+    def _check_map_path_inputs(path):
         """Checks input arguments for :meth:`map_path`"""
         if not isinstance(path, STRING_TYPES):
             raise TypeError("Expected string for `path`")
 
-    def _check_csvlog_path_inputs(self, protocol_uuid, now):
+    @staticmethod
+    def _check_csvlog_path_inputs(protocol_uuid, now):
         """Checks input arguments for :meth:`get_csvlog_path`"""
         if not isinstance(protocol_uuid, UUID):
             raise TypeError("Expected UUID for `protocol_uuid`")
@@ -869,12 +884,14 @@ class TypeChecks(object):
         if now is not None and not isinstance(now, datetime):
             raise TypeError("Expected None or datetime for `now`")
 
-    def _check_command_list_inputs(self, cmdlist):
+    @staticmethod
+    def _check_command_list_inputs(cmdlist):
         """Checks input arguments for :meth:`get_command_list`"""
         if not isinstance(cmdlist, (tuple, list)):
             raise TypeError("Expected tuple or list for `cmdlist`")
 
-    def _check_set_states_inputs(self, tasks, state):
+    @staticmethod
+    def _check_set_states_inputs(tasks, state):
         """Checks input arguments for :meth:`set_states`"""
         if not isinstance(tasks, ITERABLE_CONTAINERS):
             raise TypeError("Expected tuple, list or set for `tasks`")

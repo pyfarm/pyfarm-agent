@@ -250,7 +250,8 @@ class UnicodeCSVWriter(object):
         self.writer = csv.writer(f, dialect=dialect, **kwds)
 
     def writerow(self, row):
-        self.writer.writerow([s.encode("utf-8") for s in row])
+        self.writer.writerow([s.encode("utf-8") if isinstance(s, unicode) else s
+                              for s in row])
 
     def writerows(self, rows):
         for row in rows:

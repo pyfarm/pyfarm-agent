@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The name of the render farm this agent belongs to.  If specified, the agent
+# will not join a farm with a different name.  If not specified, the agent will
+# join any farm.
+farm_name: null
+
 # The platform specific locations where the agent uuid
 # file is default.  This can be overridden with --agent-id-file flag.
 agent_id_file_platform_defaults:

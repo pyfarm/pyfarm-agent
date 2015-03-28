@@ -341,46 +341,41 @@ class TestProcess(TestCase):
                         "username", "get_uid", pwd, "pwd"))
 
 
-class TestMiscTypeChecks(TestCase):
+class TestTypeChecks(TestCase):
     def test_expandvars_value_not_string(self):
-        checks = TypeChecks()
-        checks._check_expandvars_inputs("", {})
+        TypeChecks._check_expandvars_inputs("", {})
 
         with self.assertRaisesRegexp(TypeError,
                                      re.compile(".*for.*value.*")):
-            checks._check_expandvars_inputs(None, None)
+            TypeChecks._check_expandvars_inputs(None, None)
 
     def test_expandvars_environment_not_dict(self):
-        checks = TypeChecks()
-        checks._check_expandvars_inputs("", None)
+        TypeChecks._check_expandvars_inputs("", None)
 
         with self.assertRaisesRegexp(TypeError,
                                      re.compile(".*for.*environment.*")):
-            checks._check_expandvars_inputs("", 1)
+            TypeChecks._check_expandvars_inputs("", 1)
 
     def test_map(self):
-        checks = TypeChecks()
         for objtype in STRING_TYPES:
-            checks._check_map_path_inputs(objtype())
+            TypeChecks._check_map_path_inputs(objtype())
 
         with self.assertRaisesRegexp(TypeError, re.compile(".*for.*path.*")):
-            checks._check_map_path_inputs(None)
+            TypeChecks._check_map_path_inputs(None)
 
     def test_csvlog_path_tasks(self):
-        checks = TypeChecks()
-        checks._check_csvlog_path_inputs(uuid4(), None)
+        TypeChecks._check_csvlog_path_inputs(uuid4(), None)
 
         with self.assertRaisesRegexp(
                 TypeError, re.compile("Expected UUID for `protocol_uuid`")):
-            checks._check_csvlog_path_inputs(None, None)
+            TypeChecks._check_csvlog_path_inputs(None, None)
 
     def test_csvlog_path_time(self):
-        checks = TypeChecks()
-        checks._check_csvlog_path_inputs(uuid4(), None)
+        TypeChecks._check_csvlog_path_inputs(uuid4(), None)
 
         with self.assertRaisesRegexp(
-                TypeError, re.compile("Expected UUID for `protocol_uuid`")):
-            checks._check_csvlog_path_inputs([], "")
+                TypeError, re.compile("Expected None or datetime for `now`")):
+            TypeChecks._check_csvlog_path_inputs(uuid4(), "")
 
     def test_csvlog_path_time_type(self):
         checks = TypeChecks()
@@ -390,29 +385,26 @@ class TestMiscTypeChecks(TestCase):
                 checks._check_csvlog_path_inputs(uuid4(), value)
 
     def test_command_list(self):
-        checks = TypeChecks()
-        checks._check_command_list_inputs(tuple())
-        checks._check_command_list_inputs([])
+        TypeChecks._check_command_list_inputs(tuple())
+        TypeChecks._check_command_list_inputs([])
 
         with self.assertRaisesRegexp(TypeError, re.compile(".*for.*cmdlist.*")):
-            checks._check_command_list_inputs(None)
+            TypeChecks._check_command_list_inputs(None)
 
     def test_set_state_tasks(self):
-        checks = TypeChecks()
         for objtype in ITERABLE_CONTAINERS:
-            checks._check_set_states_inputs(objtype(), WorkState.DONE)
+            TypeChecks._check_set_states_inputs(objtype(), WorkState.DONE)
 
         with self.assertRaisesRegexp(TypeError, re.compile(".*for.*tasks.*")):
-            checks._check_set_states_inputs(None, None)
+            TypeChecks._check_set_states_inputs(None, None)
 
     def test_set_state_state(self):
-        checks = TypeChecks()
         for state in WorkState:
-            checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), state)
+            TypeChecks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), state)
 
         with self.assertRaisesRegexp(ValueError,
                                      re.compile(".*Expected.*state.*")):
-            checks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
+            TypeChecks._check_set_states_inputs(ITERABLE_CONTAINERS[0](), None)
 
 
 class TestSystemMisc(TestCase):
