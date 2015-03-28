@@ -295,8 +295,8 @@ class TestTypeChecks(TestCase):
         TypeChecks._check_csvlog_path_inputs(uuid4(), None)
 
         with self.assertRaisesRegexp(
-                TypeError, re.compile("Expected UUID for `protocol_uuid`")):
-            TypeChecks._check_csvlog_path_inputs([], "")
+                TypeError, re.compile("Expected None or datetime for `now`")):
+            TypeChecks._check_csvlog_path_inputs(uuid4(), "")
 
     def test_command_list(self):
         TypeChecks._check_command_list_inputs(tuple())
