@@ -16,6 +16,7 @@
 
 import time
 from json import loads
+from contextlib import nested
 from datetime import datetime, timedelta
 
 try:
@@ -118,6 +119,7 @@ class TestStatus(BaseAPITestCase):
         if isinstance(last_announce, datetime):
             last_announce = datetime.utcnow() - last_announce
 
+        future_time = config["start"] + 30
         expected_data = {
             "state": config["state"],
             "agent_hostname": config["agent_hostname"],
@@ -132,23 +134,20 @@ class TestStatus(BaseAPITestCase):
             "agent_lock_file": config["agent_lock_file"],
             "free_ram": 4242,
             "uptime": total_seconds(
-                timedelta(seconds=time.time() - config["start"])),
+                timedelta(seconds=future_time - config["start"])),
             "jobs": list(config["jobtypes"].keys())}
 
         request = self.get()
         status = Status()
 
-        with mock.patch.object(memory, "free_ram", return_value=4242):
+        with nested(
+            mock.patch.object(memory, "free_ram", return_value=4242),
+            mock.patch.object(time, "time", return_value=future_time)
+        ):
             response = status.render(request)
 
         self.assertEqual(response, NOT_DONE_YET)
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-        data = loads(request.written[0])
-
-        # Pop off and test keys which are 'close'
-        self.assertApproximates(
-            data.pop("uptime"), expected_data.pop("uptime"), .5)
-
-        self.assertEqual(data, expected_data)
+        self.assertEqual(loads(request.written[0]), expected_data)
