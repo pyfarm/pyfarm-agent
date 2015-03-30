@@ -251,6 +251,11 @@ class AgentEntryPoint(object):
                  "agent is supposed to be restarted if it stops for whatever "
                  "reason."
                  "[default: %(default)s]")
+        start_general_group.add_argument(
+            "--farm-name", config="farm_name",
+            default=None,
+            help="The name of the farm the agent should join.  If unset, the "
+                 "agent will join any farm.")
 
         # start hardware group
         start_hardware_group = start.add_argument_group(

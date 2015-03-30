@@ -386,6 +386,9 @@ class Agent(object):
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
 
+        if config["farm_name"]:
+            data["farm_name"] = config["farm_name"]
+
         return data
 
     def build_http_resource(self):
@@ -585,7 +588,7 @@ class Agent(object):
         deferred.addCallbacks(lambda _: reactor.stop(), errback)
 
     @inlineCallbacks
-    def post_shutdown_to_master(self, stop_reactor=True):
+    def post_shutdown_to_master(self):
         """
         This method is called before the reactor shuts down and lets the
         master know that the agent's state is now ``offline``

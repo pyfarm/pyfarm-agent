@@ -67,9 +67,6 @@ class TestCSVLog(TestCase):
     def test_lines(self):
         self.assertEqual(self.log.lines, 0)
 
-    def test_written(self):
-        self.assertEqual(self.log.written, 0)
-
     def test_writer(self):
         self.assertIsInstance(self.log.csv, UnicodeCSVWriter)
 
@@ -79,11 +76,6 @@ class TestCSVLog(TestCase):
     def test_not_a_file(self):
         with self.assertRaises(TypeError):
             CSVLog("")
-
-    def test_write(self):
-        data = (datetime.utcnow(), STDOUT, 1, 1000, "hello")
-        self.log.write(data)
-        self.assertEqual(self.log.written, 1)
 
 
 class TestLoggerPool(TestCase):
@@ -181,7 +173,11 @@ class TestLoggerPool(TestCase):
         # Keep checking to see if the data has been flushed
         def check_for_flush():
             if list(pool.logs[uuid].messages) == []:
-                self.assertEqual(pool.logs[uuid].written, 0)
+                num_lines = 0
+                with open(path, "rb") as f:
+                    for line in f:
+                        num_lines += 1
+                self.assertEqual(num_lines, 3)
                 finished.callback(True)
             else:
                 # not flushed yet maybe?
@@ -209,10 +205,13 @@ class TestLoggerPool(TestCase):
             list(pool.logs[uuid].messages)[1][-1], message2)
         self.assertEqual(pool.logs[uuid].lines, 2)
 
-        result = pool.flush(pool.logs[uuid])
+        pool.flush(pool.logs[uuid])
         self.assertEqual(list(pool.logs[uuid].messages), [])
-        self.assertIs(result, pool.logs[uuid])
-        self.assertEqual(pool.logs[uuid].written, 0)
+        num_lines = 0
+        with open(path, "rb") as f:
+            for line in f:
+                num_lines += 1
+        self.assertEqual(num_lines, 2)
 
     def test_stop(self):
         path = self.create_file(create=False)
