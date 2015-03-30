@@ -329,9 +329,9 @@ def configure_logger_level():
     assert isinstance(root_level, int)
 
     levels = CONFIGURATION["levels"]
-    for i, (name, level) in enumerate(levels):
+    for index, (name, level) in enumerate(levels):
         if name == "":
-            levels[0] = ("", root_level)
+            levels[index] = ("", root_level)
             break
     else:
         levels.insert(0, ("", root_level))
