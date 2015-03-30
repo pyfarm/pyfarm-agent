@@ -739,7 +739,8 @@ class JobType(Cache, System, Process, TypeChecks):
                         "state to failed", task["id"])
         else:
             for task in self.assignment["tasks"]:
-                if task["id"] not in self.failed_tasks:
+                if (task["id"] not in self.failed_tasks and
+                    task["id"] not in self.finished_tasks):
                     self.set_task_state(task, None, dissociate_agent=True)
                 else:
                     logger.info(
