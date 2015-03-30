@@ -356,10 +356,13 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+    # If the config logger really needs to be turned on someone
+    # can do so in setUp.  This is pretty verbose and will make
+    # it difficult to debug tests.
+    config_logger.disabled = True
+
     def setUp(self):
         super(TestCase, self).setUp()
-        self._config_logger_disabled = config_logger.disabled
-        config_logger.disabled = True
 
         try:
             self._pop_config_keys
@@ -377,10 +380,6 @@ class TestCase(_TestCase):
 
         DelayedCall.debug = True
         self.prepare_config()
-
-    def tearDown(self):
-        super(TestCase, self).tearDown()
-        config_logger.disabled = self._config_logger_disabled
 
     def prepare_config(self):
         for key in self._pop_config_keys:
