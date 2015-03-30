@@ -204,13 +204,13 @@ class LoggingConfiguration(Configuration):
         assert old_value is NOTSET if change_type == self.CREATED else True
 
         if change_type == self.MODIFIED:
-            logger.debug("modified %r = %r", key, new_value)
+            logger.debug("Modified %r = %r", key, new_value)
 
         elif change_type == self.CREATED:
-            logger.debug("set %r = %r", key, new_value)
+            logger.debug("Set %r = %r", key, new_value)
 
         elif change_type == self.DELETED:
-            logger.debug("deleted %r", key)
+            logger.debug("Deleted %r", key)
 
         else:
             raise NotImplementedError(
