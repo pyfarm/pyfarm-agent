@@ -85,12 +85,18 @@ class TestStatus(BaseAPITestCase):
     URI = "/status"
     CLASS = Status
 
+    def setUp(self):
+        super(TestStatus, self).setUp()
+        self._config = config.copy()
+
+    def tearDown(self):
+        super(TestStatus, self).tearDown()
+        config.update(self._config)
+
     def prepare_config(self):
         super(TestStatus, self).prepare_config()
         config.update(
-            state=AgentState.ONLINE,
-            pids=[1, 2, 3],
-            start=time.time())
+            state=AgentState.ONLINE, pids=[1, 2, 3])
 
     def test_get_requires_no_input(self):
         request = self.get()
