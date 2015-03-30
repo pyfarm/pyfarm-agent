@@ -91,7 +91,6 @@ from twisted.internet.defer import Deferred, succeed
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 
-ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
 
 if ":" not in PYFARM_AGENT_MASTER:
@@ -359,6 +358,8 @@ class TestCase(_TestCase):
 
     def setUp(self):
         super(TestCase, self).setUp()
+        self._config_logger_disabed = config_logger.disabled
+        config_logger.disabled = True
 
         try:
             self._pop_config_keys
@@ -375,13 +376,11 @@ class TestCase(_TestCase):
             "last_master_contact"])
 
         DelayedCall.debug = True
-        if not ENABLE_LOGGING:
-            logging.getLogger("pf").setLevel(logging.CRITICAL)
-
-        config_logger_disabled = config_logger.disabled
-        config_logger.disabled = True
         self.prepare_config()
-        config_logger.disabled = config_logger_disabled
+
+    def tearDown(self):
+        super(TestCase, self).tearDown()
+        config_logger.disabled = self._config_logger_disabed
 
     def prepare_config(self):
         for key in self._pop_config_keys:
