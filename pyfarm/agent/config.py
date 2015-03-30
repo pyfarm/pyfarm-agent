@@ -266,7 +266,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            logger.warning(
+            logger.debug(
                 "%r is already a registered callback for %r", callback, key)
             return
 
@@ -280,7 +280,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         """
         results = cls.callbacks.pop(key, None)
         if results is None:  # pragma: no cover
-            logger.warning(
+            logger.debug(
                 "%r is not a registered callback for %r", callback, key)
 
     def clear(self, callbacks=False):
