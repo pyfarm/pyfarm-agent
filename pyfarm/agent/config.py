@@ -33,8 +33,9 @@ module to be used:
 import os
 from datetime import datetime
 from os.path import join, abspath, dirname
+from logging import _levelNames, getLogger as _getLogger
 
-from pyfarm.core.enums import NOTSET
+from pyfarm.core.enums import NOTSET, STRING_TYPES
 from pyfarm.core.config import Configuration
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, cpu, network
@@ -309,8 +310,40 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
                     "Key %r was %r, calling callback %s",
                     key, change_type, callback)
 
+
+def configure_logger_level():
+    """
+    When called this will set the root logger level based
+    on the ``agent_global_logger_level`` configuration
+    variable.
+    """
+    # Import here to prevent circular imports and because we
+    # don't want CONFIGURATION in the namespace of this module.
+    from pyfarm.agent.logger.twistd import CONFIGURATION
+
+    root_level = config["agent_global_logger_level"]
+
+    if isinstance(root_level, STRING_TYPES):
+        root_level = _levelNames[root_level.upper()]
+
+    assert isinstance(root_level, int)
+
+    levels = CONFIGURATION["levels"]
+    for i, (name, level) in enumerate(levels):
+        if name == "":
+            levels[0] = ("", root_level)
+            break
+    else:
+        levels.insert(0, ("", root_level))
+
+    # Just to be safe, we also set pf's root level
+    pf = _getLogger("pf")
+    pf.setLevel(root_level)
+
 # Prevent a call to reload() from dumping the config object
 try:
     config
 except NameError:
     config = ConfigurationWithCallbacks()
+
+configure_logger_level()
