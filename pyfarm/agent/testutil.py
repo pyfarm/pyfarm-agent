@@ -358,7 +358,7 @@ class TestCase(_TestCase):
 
     def setUp(self):
         super(TestCase, self).setUp()
-        self._config_logger_disabed = config_logger.disabled
+        self._config_logger_disabled = config_logger.disabled
         config_logger.disabled = True
 
         try:
@@ -380,7 +380,7 @@ class TestCase(_TestCase):
 
     def tearDown(self):
         super(TestCase, self).tearDown()
-        config_logger.disabled = self._config_logger_disabed
+        config_logger.disabled = self._config_logger_disabled
 
     def prepare_config(self):
         for key in self._pop_config_keys:
