@@ -130,13 +130,17 @@ class TestStatus(BaseAPITestCase):
             "last_master_contact": contacted,
             "last_announce": last_announce,
             "agent_lock_file": config["agent_lock_file"],
+            "free_ram": 4242,
             "uptime": total_seconds(
                 timedelta(seconds=time.time() - config["start"])),
             "jobs": list(config["jobtypes"].keys())}
 
         request = self.get()
         status = Status()
-        response = status.render(request)
+
+        with mock.patch.object(memory, "free_ram", return_value=4242):
+            response = status.render(request)
+
         self.assertEqual(response, NOT_DONE_YET)
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
@@ -146,7 +150,5 @@ class TestStatus(BaseAPITestCase):
         # Pop off and test keys which are 'close'
         self.assertApproximates(
             data.pop("uptime"), expected_data.pop("uptime"), .5)
-        self.assertApproximates(
-            data.pop("free_ram"), memory.free_ram(), 25)
 
         self.assertEqual(data, expected_data)
