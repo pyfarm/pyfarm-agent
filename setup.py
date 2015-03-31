@@ -35,8 +35,8 @@ if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
 # Windows is a little special because we have to have pywin32
-# installed.  It's a requirement of Twisted mainly because of spawnProcess
-# however other parts of Twisted can use it as well.  Twisted's setup.py itself
+# installed.  It's a requirement of Twisted, mainly because of spawnProcess,
+# however other parts of Twisted use it as well.  Twisted's setup.py itself
 # does not declare this dependency, likely because of the difficulties
 # associated with installing the package.
 if sys.platform.startswith("win"):
