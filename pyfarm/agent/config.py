@@ -204,13 +204,13 @@ class LoggingConfiguration(Configuration):
         assert old_value is NOTSET if change_type == self.CREATED else True
 
         if change_type == self.MODIFIED:
-            logger.info("modified %r = %r", key, new_value)
+            logger.debug("Modified %r = %r", key, new_value)
 
         elif change_type == self.CREATED:
-            logger.info("set %r = %r", key, new_value)
+            logger.debug("Set %r = %r", key, new_value)
 
         elif change_type == self.DELETED:
-            logger.warning("deleted %r", key)
+            logger.debug("Deleted %r", key)
 
         else:
             raise NotImplementedError(
@@ -266,7 +266,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         callbacks = cls.callbacks.setdefault(key, [])
 
         if callback in callbacks and not append:
-            logger.warning(
+            logger.debug(
                 "%r is already a registered callback for %r", callback, key)
             return
 
@@ -280,7 +280,7 @@ class ConfigurationWithCallbacks(LoggingConfiguration):
         """
         results = cls.callbacks.pop(key, None)
         if results is None:  # pragma: no cover
-            logger.warning(
+            logger.debug(
                 "%r is not a registered callback for %r", callback, key)
 
     def clear(self, callbacks=False):
