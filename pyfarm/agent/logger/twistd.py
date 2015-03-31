@@ -44,11 +44,10 @@ CONFIGURATION = {
     "datefmt": "%Y-%m-%d %H:%M:%S",
     "format": "%(asctime)s %(levelname)-8s - %(name)-15s - %(message)s",
 
-    # Defines the cutoff level for different loggers.  By default
-    # the only defined cutoff is for root ("").  Logger names
+    # Defines the cutoff level for different loggers.  Logger names
     # should be defined using *'s to define matches.
     "levels": [
-        ("", DEBUG),
+        ("", INFO),
         ("HTTP11ClientProtocol*", INFO)]}
 
 # Only setup colorama if we're not inside

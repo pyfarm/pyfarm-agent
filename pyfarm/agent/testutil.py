@@ -91,7 +91,6 @@ from twisted.internet.defer import Deferred, succeed
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 
-ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
 
 if ":" not in PYFARM_AGENT_MASTER:
@@ -357,6 +356,11 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+    # If the config logger really needs to be turned on someone
+    # can do so in setUp.  This is pretty verbose and will make
+    # it difficult to debug tests.
+    config_logger.disabled = True
+
     def setUp(self):
         super(TestCase, self).setUp()
 
@@ -375,13 +379,7 @@ class TestCase(_TestCase):
             "last_master_contact"])
 
         DelayedCall.debug = True
-        if not ENABLE_LOGGING:
-            logging.getLogger("pf").setLevel(logging.CRITICAL)
-
-        config_logger_disabled = config_logger.disabled
-        config_logger.disabled = True
         self.prepare_config()
-        config_logger.disabled = config_logger_disabled
 
     def prepare_config(self):
         for key in self._pop_config_keys:
