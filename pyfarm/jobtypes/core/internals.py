@@ -806,8 +806,11 @@ class System(object):
         :raises InsufficientSpaceError:
             Raised if enough space cannot be claimed.
         """
-        assert isinstance(tempdir, STRING_TYPES)
-        assert isinstance(space, INTEGER_TYPES)
+        assert isinstance(tempdir, STRING_TYPES), "Expected string for tempdir"
+        try:
+            space = int(space)
+        except (ValueError, TypeError):
+            raise TypeError("Could not convert %r to an integer" % space)
 
         try:
             os.makedirs(tempdir)
