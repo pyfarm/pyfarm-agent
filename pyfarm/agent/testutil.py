@@ -89,6 +89,7 @@ from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
+DEFAULT_SOCKET_TIMEOUT = socket.getdefaulttimeout()
 
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
@@ -463,12 +464,17 @@ class BaseRequestTestCase(TestCase):
         RESOLVED_DNS_NAME = True
 
     # Basic http request working?
-    try:
-        urlopen(TEST_URL)
-    except IOError:
-        HTTP_REQUEST_SUCCESS = False
-    else:
-        HTTP_REQUEST_SUCCESS = True
+    HTTP_REQUEST_SUCCESS = False
+    if RESOLVED_DNS_NAME:
+        # If there's network issues, ensure we don't
+        # block forever.
+        socket.setdefaulttimeout(5)
+        try:
+            urlopen(TEST_URL)
+            HTTP_REQUEST_SUCCESS = True
+        finally:
+            socket.setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
+
 
     def setUp(self):
         if not self.RESOLVED_DNS_NAME:
