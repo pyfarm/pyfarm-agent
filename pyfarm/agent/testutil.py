@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
-import logging
 import os
 import re
 import socket
 import sys
-import shutil
 import tempfile
 import time
 import uuid
@@ -43,7 +40,7 @@ from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
-from pyfarm.core.config import read_env, read_env_bool
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
