@@ -811,7 +811,7 @@ class System(object):
             space = int(space)
         except (ValueError, TypeError):
             raise TypeError(
-                "Could not value %r for `space` in "
+                "Could not convert value %r for `space` in "
                 "_ensure_free_space_in_temp_dir() to an integer." % space)
 
         try:
