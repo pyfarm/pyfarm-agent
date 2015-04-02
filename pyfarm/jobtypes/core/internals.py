@@ -810,7 +810,9 @@ class System(object):
         try:
             space = int(space)
         except (ValueError, TypeError):
-            raise TypeError("Could not convert %r to an integer" % space)
+            raise TypeError(
+                "Could not value %r for `space` in "
+                "_ensure_free_space_in_temp_dir() to an integer." % space)
 
         try:
             os.makedirs(tempdir)
