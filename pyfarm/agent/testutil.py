@@ -475,7 +475,6 @@ class BaseRequestTestCase(TestCase):
         finally:
             socket.setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
 
-
     def setUp(self):
         if not self.RESOLVED_DNS_NAME:
             self.skipTest("Could not resolve hostname %s" % self.DNS_HOSTNAME)
