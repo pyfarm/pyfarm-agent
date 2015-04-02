@@ -450,34 +450,26 @@ class TestCase(_TestCase):
 
 class BaseRequestTestCase(TestCase):
     HTTP_SCHEME = read_env("PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    DNS_HOSTNAME = config["agent_unittest"]["dns_test_hostname"]
-    TEST_URL = config[
-        "agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
+    TEST_URL = config["agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
     REDIRECT_TARGET = config["agent_unittest"]["client_redirect_target"]
-
-    # DNS working?
-    try:
-        socket.gethostbyname(DNS_HOSTNAME)
-    except socket.gaierror:
-        RESOLVED_DNS_NAME = False
-    else:
-        RESOLVED_DNS_NAME = True
-
-    # Basic http request working?
-    HTTP_REQUEST_SUCCESS = False
-    if RESOLVED_DNS_NAME:
-        # If there's network issues, ensure we don't
-        # block forever.
-        socket.setdefaulttimeout(5)
-        try:
-            urlopen(TEST_URL)
-            HTTP_REQUEST_SUCCESS = True
-        finally:
-            socket.setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
+    HTTP_REQUEST_SUCCESS = None
 
     def setUp(self):
-        if not self.RESOLVED_DNS_NAME:
-            self.skipTest("Could not resolve hostname %s" % self.DNS_HOSTNAME)
+        if not self.TEST_URL:
+            self.skipTest("TEST_URL is undefined")
+
+        # This is the first test we're running, check to see if we
+        # can access the test url.
+        if BaseRequestTestCase.HTTP_REQUEST_SUCCESS is None:
+            socket.setdefaulttimeout(5)
+            try:
+                urlopen(self.TEST_URL)
+            except Exception:
+                BaseRequestTestCase.HTTP_REQUEST_SUCCESS = False
+            else:
+                BaseRequestTestCase.HTTP_REQUEST_SUCCESS = True
+            finally:
+                socket.setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
 
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(
