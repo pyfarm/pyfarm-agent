@@ -24,8 +24,8 @@ except ImportError:  # pragma: no cover
     from http.client import (
         ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
 
-from functools import partial
 import traceback
+from functools import partial
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
