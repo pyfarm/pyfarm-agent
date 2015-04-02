@@ -902,6 +902,42 @@ class JobType(Cache, System, Process, TypeChecks):
             # delay.
             post_update(url, data, delay=0)
 
+            tasklog_url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s" % (
+                 config["master_api"], self.assignment["job"]["id"],
+                 task["id"], task["attempt"], self.log_identifier)
+            tasklog_data = {"state": state or "queued"}
+
+            def post_tasklog_update(url, data, delay=0):
+                post_func = partial(
+                    post, url,
+                    data=data,
+                    callback=lambda x: tasklog_result_callback(url, data, x),
+                    errback=lambda x: error_callback(url, data, x))
+                reactor.callLater(delay, post_func)
+
+            def tasklog_result_callback(url, data, response):
+                if 500 <= response.code < 600:
+                    logger.error(
+                        "Error while posting state update for tasklog to %s, "
+                        "return code is %s, retrying",
+                        url, response.code)
+                    post_tasklog_update(url, data, delay=http_retry_delay())
+
+                elif response.code != OK:
+                    logger.error("Could not update tasklog at %s, server "
+                                 "response code was %s.", url, response.code)
+
+                else:
+                    logger.info("Updated tasklog at %s", url)
+
+            def error_callback(url, data, failure_reason):
+                logger.error(
+                    "Error while updating tasklog at %s: %s, retrying",
+                    url, failure_reason)
+                post_update(url, data, delay=http_retry_delay())
+
+            post_tasklog_update(tasklog_url, tasklog_data, delay=0)
+
             # TODO: if new state is the equiv. of 'stopped', stop the process
             # and POST the change
 
