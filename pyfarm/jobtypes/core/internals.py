@@ -41,7 +41,7 @@ except ImportError:  # pragma: no cover
 
 try:
     import grp
-except ImportError:
+except ImportError:  # pragma: no cover
     grp = NotImplemented
 
 try:
@@ -75,6 +75,7 @@ logger = getLogger("jobtypes.core")
 logfile = getLogger("jobtypes.log")
 ProcessData = namedtuple(
     "ProcessData", ("protocol", "started", "stopped"))
+
 
 class InsufficientSpaceError(Exception):
     pass
@@ -292,7 +293,7 @@ class Process(object):
         self.start_called = False
         self.stop_called = False
         self._stopped_deferred = None
-        self._start_deferred = None
+        self._started_deferred = None
 
     @property
     def stopped_deferred(self):
@@ -301,24 +302,36 @@ class Process(object):
         return self._stopped_deferred
 
     @property
-    def start_deferred(self):
+    def started_deferred(self):
         if not self.start_called:
             raise RuntimeError("Not yet started")
-        return self._stopped_deferred
+        return self._started_deferred
 
     @stopped_deferred.setter
     def stopped_deferred(self, value):
-        assert self.start_called
-        assert self._stopped_deferred is None
-        assert isinstance(value, Deferred)
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+
+        if self._stopped_deferred:
+            raise ValueError("Deferred already set")
+
+        if not isinstance(value, Deferred):
+            raise TypeError("Expected a Deferred instace")
+
         self._stopped_deferred = value
 
-    @start_deferred.setter
-    def start_deferred(self, value):
-        assert self.start_called
-        assert self._start_deferred is None
-        assert isinstance(value, Deferred)
-        self._start_deferred = value
+    @started_deferred.setter
+    def started_deferred(self, value):
+        if not self.start_called:
+            raise RuntimeError("Not yet started")
+
+        if self._started_deferred:
+            raise ValueError("Deferred already set")
+
+        if not isinstance(value, Deferred):
+            raise TypeError("Expected a Deferred instace")
+
+        self._started_deferred = value
 
     def _before_spawn_process(self, command, protocol):
         logger.debug(
@@ -699,15 +712,15 @@ class Process(object):
 
 
 class System(object):
-    # complete coverage provided by other tests
+    # overridden in the job type
+    _tempdirs = NotImplemented
+    uuid = NotImplemented
+
     def _get_uid_gid_value(self, value, value_name, func_name,
-                           module, module_name):  # pragma: no cover
+                           module, module_name):
         """
         Internal function which handles both user name and group conversion.
         """
-        if not isinstance(value, STRING_TYPES):
-            raise TypeError("Expected string for `value`")
-
         # This platform does not implement the module
         if module is NotImplemented:
             logger.warning(
@@ -737,9 +750,9 @@ class System(object):
         elif isinstance(value, INTEGER_TYPES):
             try:
                 if module_name == "pwd":
-                    pass
+                    pwd.getpwuid(value)
                 elif module_name == "grp":
-                    pass
+                    grp.getgrgid(value)
                 else:
                     raise ValueError(
                         "Internal error, failed to get module to use for "
@@ -754,7 +767,7 @@ class System(object):
                 if not config.get("jobtype_ignore_id_mapping_errors"):
                     raise
         else:
-            raise ValueError(
+            raise TypeError(
                 "Expected an integer or string for `%s`" % value_name)
 
     def _remove_directories(self, directories, retry_on_exit=True):
@@ -774,20 +787,36 @@ class System(object):
         them from disk.  This work will be done in a thread so it does not
         block the reactor.
         """
-        reactor.callInThread(self._remove_directories, self._tempdirs)
+        assert isinstance(self._tempdirs, set)
+        if not self._tempdirs:
+            return
+
+        reactor.callInThread(self._remove_directories, self._tempdirs.copy())
+        self._tempdirs.clear()
 
     def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
         Ensures that at least space bytes of data can be stored on the volume
         on which tempdir is located, deleting files from tempdir if necessary.
 
-        WARNING: Will delete files in tempdir to reclaim storage space.
+        .. warning::
 
-        Will raise InsufficientSpaceError if enough space cannot be claimed.
+            This will delete files in tempdir to reclaim storage space.
+
+        :raises InsufficientSpaceError:
+            Raised if enough space cannot be claimed.
         """
+        assert isinstance(tempdir, STRING_TYPES), "Expected string for tempdir"
+        try:
+            space = int(space)
+        except (ValueError, TypeError):
+            raise TypeError(
+                "Could not convert value %r for `space` in "
+                "_ensure_free_space_in_temp_dir() to an integer." % space)
+
         try:
             os.makedirs(tempdir)
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if e.errno != EEXIST:
                 raise
 
@@ -803,7 +832,7 @@ class System(object):
             for filename in files:
                 fullpath = join(root, filename)
                 atime = os.stat(fullpath).st_atime
-                tempfiles.append({ "filepath": fullpath, "atime": atime })
+                tempfiles.append({"filepath": fullpath, "atime": atime})
 
         tempfiles.sort(key=lambda x: x["atime"])
 
@@ -818,7 +847,7 @@ class System(object):
                 logger.debug("Deleting tempfile %s", element["filepath"])
                 remove_file(
                     element["filepath"], retry_on_exit=False, raise_=False)
-            else:
+            else:  # pragma: no cover
                 logger.debug("Not deleting tempfile %s, it is newer than %s "
                              "seconds", element["filepath"], minimum_age)
 
@@ -827,6 +856,7 @@ class System(object):
         Log a message from the jobtype itself to the process' log file.
         Useful for debugging jobtypes.
         """
+        assert isinstance(self.uuid, UUID)
         logpool.log(self.uuid, "jobtype", message)
 
 

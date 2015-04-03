@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
     from http.client import (
         ACCEPTED, BAD_REQUEST, CONFLICT, SERVICE_UNAVAILABLE, OK)
 
+import traceback
 from functools import partial
 
 from twisted.web.server import NOT_DONE_YET
@@ -165,7 +166,6 @@ class Assign(APIResource):
 
         # In all other cases we have some work to do inside of
         # deferreds so we just have to respond
-        # TODO Mark this agent as running on the master
         request.setResponseCode(ACCEPTED)
         request.write(dumps({"id": assignment_uuid}))
         request.finish()
@@ -298,9 +298,12 @@ class Assign(APIResource):
                     lambda *args: instance._upload_logfile())
             except Exception as e:
                 logger.error("Error on starting jobtype, stopping it now.  "
-                             "Error was: %s", e)
+                             "Error was: %r. Traceback: %s", e,
+                             traceback.format_exc())
                 instance.stop(assignment_failed=True,
-                              error="Error while loading jobtype: %s" % e)
+                              error="Error while loading jobtype: %r. "
+                                    "Traceback: %s" %
+                                    (e, traceback.format_exc()))
                 assignment = config["current_assignments"].pop(assign_id)
                 if "jobtype" in assignment:
                     jobtype_id = assignment["jobtype"].pop("id", None)

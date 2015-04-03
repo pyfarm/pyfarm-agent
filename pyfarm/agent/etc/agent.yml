@@ -80,6 +80,10 @@ agent_api_port: 50000
 agent_log: $agent_logs_root/agent.log
 supervisor_log: $agent_logs_root/supervisor.log
 
+# Controls the log level for all loggers.  Valid levels
+# are 'debug', 'info', 'warning', 'error' and 'critical'.
+agent_global_logger_level: info
+
 # The user agent the master will use when connecting to the agent's
 # REST api.  This value should only be changed if the master's code
 # is updated with a new user agent.  Change this value has not effect
@@ -181,7 +185,6 @@ agent_manhole_password: admin
 # NOTE: The following values are used by the unittests and should be
 # generally ignored for anything other than development.
 agent_unittest:
-  dns_test_hostname: example.com
   client_redirect_target: http://example.com
   client_api_test_url_https: https://httpbin.pyfarm.net
   client_api_test_url_http: http://httpbin.pyfarm.net

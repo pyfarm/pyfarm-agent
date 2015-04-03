@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
-import logging
 import os
 import re
 import socket
 import sys
-import shutil
 import tempfile
 import time
 import uuid
@@ -43,7 +40,7 @@ from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
-from pyfarm.core.config import read_env, read_env_bool
+from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
@@ -91,8 +88,8 @@ from twisted.internet.defer import Deferred, succeed
 from pyfarm.agent.entrypoints.parser import AgentArgumentParser
 from pyfarm.agent.http.api.base import APIResource
 
-ENABLE_LOGGING = read_env_bool("PYFARM_AGENT_TEST_LOGGING", False)
 PYFARM_AGENT_MASTER = read_env("PYFARM_AGENT_TEST_MASTER", "127.0.0.1:80")
+DEFAULT_SOCKET_TIMEOUT = socket.getdefaulttimeout()
 
 if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
@@ -357,6 +354,11 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+    # If the config logger really needs to be turned on someone
+    # can do so in setUp.  This is pretty verbose and will make
+    # it difficult to debug tests.
+    config_logger.disabled = True
+
     def setUp(self):
         super(TestCase, self).setUp()
 
@@ -375,13 +377,7 @@ class TestCase(_TestCase):
             "last_master_contact"])
 
         DelayedCall.debug = True
-        if not ENABLE_LOGGING:
-            logging.getLogger("pf").setLevel(logging.CRITICAL)
-
-        config_logger_disabled = config_logger.disabled
-        config_logger.disabled = True
         self.prepare_config()
-        config_logger.disabled = config_logger_disabled
 
     def prepare_config(self):
         for key in self._pop_config_keys:
@@ -454,30 +450,26 @@ class TestCase(_TestCase):
 
 class BaseRequestTestCase(TestCase):
     HTTP_SCHEME = read_env("PYFARM_AGENT_TEST_HTTP_SCHEME", "http")
-    DNS_HOSTNAME = config["agent_unittest"]["dns_test_hostname"]
-    TEST_URL = config[
-        "agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
+    TEST_URL = config["agent_unittest"]["client_api_test_url_%s" % HTTP_SCHEME]
     REDIRECT_TARGET = config["agent_unittest"]["client_redirect_target"]
-
-    # DNS working?
-    try:
-        socket.gethostbyname(DNS_HOSTNAME)
-    except socket.gaierror:
-        RESOLVED_DNS_NAME = False
-    else:
-        RESOLVED_DNS_NAME = True
-
-    # Basic http request working?
-    try:
-        urlopen(TEST_URL)
-    except IOError:
-        HTTP_REQUEST_SUCCESS = False
-    else:
-        HTTP_REQUEST_SUCCESS = True
+    HTTP_REQUEST_SUCCESS = None
 
     def setUp(self):
-        if not self.RESOLVED_DNS_NAME:
-            self.skipTest("Could not resolve hostname %s" % self.DNS_HOSTNAME)
+        if not self.TEST_URL:
+            self.skipTest("TEST_URL is undefined")
+
+        # This is the first test we're running, check to see if we
+        # can access the test url.
+        if BaseRequestTestCase.HTTP_REQUEST_SUCCESS is None:
+            socket.setdefaulttimeout(5)
+            try:
+                urlopen(self.TEST_URL)
+            except Exception:
+                BaseRequestTestCase.HTTP_REQUEST_SUCCESS = False
+            else:
+                BaseRequestTestCase.HTTP_REQUEST_SUCCESS = True
+            finally:
+                socket.setdefaulttimeout(DEFAULT_SOCKET_TIMEOUT)
 
         if not self.HTTP_REQUEST_SUCCESS:
             self.skipTest(

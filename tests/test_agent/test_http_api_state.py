@@ -16,6 +16,7 @@
 
 import time
 from json import loads
+from contextlib import nested
 from datetime import datetime, timedelta
 
 try:
@@ -84,12 +85,18 @@ class TestStatus(BaseAPITestCase):
     URI = "/status"
     CLASS = Status
 
+    def setUp(self):
+        super(TestStatus, self).setUp()
+        self._config = config.copy()
+
+    def tearDown(self):
+        super(TestStatus, self).tearDown()
+        config.update(self._config)
+
     def prepare_config(self):
         super(TestStatus, self).prepare_config()
         config.update(
-            state=AgentState.ONLINE,
-            pids=[1, 2, 3],
-            start=time.time())
+            state=AgentState.ONLINE, pids=[1, 2, 3])
 
     def test_get_requires_no_input(self):
         request = self.get()
@@ -118,6 +125,7 @@ class TestStatus(BaseAPITestCase):
         if isinstance(last_announce, datetime):
             last_announce = datetime.utcnow() - last_announce
 
+        future_time = config["start"] + 30
         expected_data = {
             "state": config["state"],
             "agent_hostname": config["agent_hostname"],
@@ -130,23 +138,22 @@ class TestStatus(BaseAPITestCase):
             "last_master_contact": contacted,
             "last_announce": last_announce,
             "agent_lock_file": config["agent_lock_file"],
+            "free_ram": 4242,
             "uptime": total_seconds(
-                timedelta(seconds=time.time() - config["start"])),
+                timedelta(seconds=future_time - config["start"])),
             "jobs": list(config["jobtypes"].keys())}
 
         request = self.get()
         status = Status()
-        response = status.render(request)
+
+        with nested(
+            mock.patch.object(memory, "free_ram", return_value=4242),
+            mock.patch.object(time, "time", return_value=future_time)
+        ):
+            response = status.render(request)
+
         self.assertEqual(response, NOT_DONE_YET)
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-        data = loads(request.written[0])
-
-        # Pop off and test keys which are 'close'
-        self.assertApproximates(
-            data.pop("uptime"), expected_data.pop("uptime"), .5)
-        self.assertApproximates(
-            data.pop("free_ram"), memory.free_ram(), 25)
-
-        self.assertEqual(data, expected_data)
+        self.assertEqual(loads(request.written[0]), expected_data)
