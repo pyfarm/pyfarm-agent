@@ -46,7 +46,7 @@ if "READTHEDOCS" in os.environ:
 if sys.platform.startswith("win"):
     install_requires += ["wmi"]
     try:
-        import win32api, win32process
+        import win32api
     except ImportError:
         install_requires += ["pypiwin32"]
 
@@ -60,7 +60,6 @@ if sys.platform.startswith("win"):
                 "step is required in order to download and install one of the "
                 "dependencies, pypiwin32."
             )
-    install_requires += ["wmi", "pypiwin32"]
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
