@@ -56,7 +56,7 @@ if sys.platform.startswith("win"):
             import wheel
         except ImportError:
             raise ImportError(
-                "Please run `pip install wheel.  This step is required in "
+                "Please run `pip install wheel`.  This step is required in "
                 "order to download and install one of the dependencies, "
                 "pypiwin32."
             )
