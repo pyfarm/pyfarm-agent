@@ -38,32 +38,13 @@ if "READTHEDOCS" in os.environ:
 # installed.  It's a requirement of Twisted, mainly because of spawnProcess,
 # however other parts of Twisted use it as well.  Twisted's setup.py itself
 # does not declare this dependency, likely because of the difficulties
-# associated with installing the package.
+# associated with installing the package.  Eventually Twisted will move
+# away from this requirement once https://twistedmatrix.com/trac/ticket/7477
+# is closed.  In the mean time however we'll use pypiwin32 which is built
+# by some of Twisted's maintainers:
+#   http://sourceforge.net/p/pywin32/feature-requests/110/
 if sys.platform.startswith("win"):
-    try:
-        import win32api
-    except ImportError:
-        raise ImportError(
-            "\r\nOn Windows, you must manually install pywin32 before running "
-            "pyfarm.agents's setup.py.  This is not a package that can "
-            "reliably be installed from PyPi so there's three options here:\r\n"
-            "  * Download and run one of the official installers:\r\n "
-            "    http://sourceforge.net/projects/pywin32/files/pywin32/\r\n"
-            "  * Install from a prebuilt binary wheel:\r\n"
-            "    http://www.lfd.uci.edu/~gohlke/pythonlibs/#pywin32\r\n"
-            "  * Install an alternative Python distribution such as \r\n"
-            "    ActiveState's ActivePython or Continuum's Anaconda.\r\n"
-            "    PyWin32, as we as many other packages, can usually \r\n"
-            "    be installed from pre-built binaries.\r\n\r\n"
-            "If you are unsure which option to pick, it's suggested that you "
-            "install from the wheel file:\r\n"
-            "    http://www.lfd.uci.edu/~gohlke/pythonlibs/#pywin32\r\n"
-            "This will be the fastest method for installing the missing "
-            "dependency.  To install the wheel run:\r\n"
-            "   * pip install --upgrade pip\r\n"
-            "   * pip install wheel\r\n"
-            "   * pip install <path to wheel file from lfd.uci.edu>")
-    install_requires += ["wmi"]
+    install_requires += ["wmi", "pypiwin32"]
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
