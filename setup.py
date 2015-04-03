@@ -44,6 +44,22 @@ if "READTHEDOCS" in os.environ:
 # by some of Twisted's maintainers:
 #   http://sourceforge.net/p/pywin32/feature-requests/110/
 if sys.platform.startswith("win"):
+    install_requires += ["wmi"]
+    try:
+        import win32api, win32process
+    except ImportError:
+        install_requires += ["pypiwin32"]
+
+        # The wheel package understands and can handle the wheel
+        # format (which we need in order to handle pypiwin32).
+        try:
+            import wheel
+        except ImportError:
+            raise ImportError(
+                "Please run `pip install wheel` as an administrator.  This "
+                "step is required in order to download and install one of the "
+                "dependencies, pypiwin32."
+            )
     install_requires += ["wmi", "pypiwin32"]
 
 if sys.version_info[0:2] == (2, 6):
