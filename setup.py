@@ -56,9 +56,9 @@ if sys.platform.startswith("win"):
             import wheel
         except ImportError:
             raise ImportError(
-                "Please run `pip install wheel` as an administrator.  This "
-                "step is required in order to download and install one of the "
-                "dependencies, pypiwin32."
+                "Please run `pip install wheel.  This step is required in "
+                "order to download and install one of the dependencies, "
+                "pypiwin32."
             )
 
 if sys.version_info[0:2] == (2, 6):
