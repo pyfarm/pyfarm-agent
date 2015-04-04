@@ -370,12 +370,9 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
 
         agent = Agent()
-
-        def change_response_code():
-            self.fake_api.code = CREATED
-
-        # TODO: lower this value once the retry delay min. is configurable
-        deferLater(reactor, 2.5, change_response_code)
+        reactor.callLater(
+            config["agent_http_retry_delay_offset"] * 8,
+            setattr, self.fake_api, "code", CREATED)
 
         with nested(
             patch.object(svclog, "warning"),
@@ -385,7 +382,8 @@ class TestAgentPostToMaster(TestCase):
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s, "
-            "retrying in %s seconds", INTERNAL_SERVER_ERROR, 1.0
+            "retrying in %s seconds", INTERNAL_SERVER_ERROR,
+            config["agent_http_retry_delay_offset"]
         )
         info_log.assert_called_with(
             "POST to %s was successful.  A new agent with an id of %s "
@@ -397,11 +395,9 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
         agent = Agent()
 
-        def shutdown():
-            agent.shutting_down = True
-
-        # TODO: lower this value once the retry delay min. is configurable
-        deferLater(reactor, 1.5, shutdown)
+        reactor.callLater(
+            config["agent_http_retry_delay_offset"] * 1.1,
+            setattr, agent, "shutting_down", True)
 
         with patch.object(svclog, "warning") as warning_log:
             yield agent.post_agent_to_master()
@@ -423,11 +419,8 @@ class TestAgentPostToMaster(TestCase):
         def shutdown():
             agent.shutting_down = True
 
-        # TODO: lower this value once the retry delay min. is configurable
-        # NOTE: In other tests we specifically test shutdown behavior.  Here
-        # we're not doing that because it can be done in one test and because
-        # the http server is not online.
-        deferLater(reactor, 2.5, shutdown)
+        reactor.callLater(
+            config["agent_http_retry_delay_offset"] * 1.1, shutdown)
 
         with nested(
             patch.object(svclog, "warning"),
@@ -439,7 +432,7 @@ class TestAgentPostToMaster(TestCase):
             "Not retrying POST to master, shutting down.")
         error_log.assert_called_with(
             "Failed to POST agent to master, the connection was refused. "
-            "Retrying in %s seconds", 1.0)
+            "Retrying in %s seconds", config["agent_http_retry_delay_offset"])
 
 
 class TestPostShutdownToMaster(TestCase):
@@ -562,7 +555,7 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
 
         with nested(
             patch.object(svclog, "warning"),
@@ -613,7 +606,7 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=3)
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
 
         with nested(
             patch.object(svclog, "warning"),
@@ -1019,10 +1012,9 @@ class TestReannounce(TestCase):
         agent = Agent()
         agent.shutting_down = False
 
-        def shutdown():
-            agent.shutting_down = True
-
-        reactor.callLater(3, shutdown)
+        reactor.callLater(
+            config["agent_http_retry_delay_offset"],
+            setattr, agent, "shutting_down", True)
 
         with nested(
             patch.object(agent.reannounce_lock, "acquire"),
@@ -1036,7 +1028,8 @@ class TestReannounce(TestCase):
         release_lock.assert_called_once()
         warning_log.assert_any_call(
             "Could not announce self to the master server, internal server "
-            "error: %s.  Retrying in %s seconds.", self.normal_result, 1.0
+            "error: %s.  Retrying in %s seconds.", self.normal_result,
+            config["agent_http_retry_delay_offset"]
         )
         self.assertGreaterEqual(warning_log.call_count, 2)
 
