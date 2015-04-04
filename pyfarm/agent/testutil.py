@@ -385,7 +385,7 @@ class TestCase(_TestCase):
 
         config.update({
             # Default to a uniform retry delay of one second
-            "agent_http_retry_delay_offset": 1,
+            "agent_http_retry_delay_offset": .1,
             "agent_http_retry_delay_factor": 0,
 
             "shutting_down": False,
