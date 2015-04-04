@@ -155,7 +155,17 @@ class Observer(object):
         levelno = event.get("logLevel", DEBUG)
         levelname = _levelNames[levelno]
         name = event.get("system", "twisted")
-        message = text % event.get("args", ())
+        args = event.get("args", ())
+        try:
+            message = text % args
+
+        # If the text itself has formatting in it that we're not expecting
+        # this can sometimes cause output problems.
+        except TypeError:
+            message = \
+                "Could not process log message %s with args %r" % (text, args)
+            levelno = WARNING
+            levelname = _levelNames[levelno]
 
         if name == "-":
             name = "twisted"
