@@ -263,11 +263,20 @@ class Agent(object):
                 )
 
             except Exception as error:
-                # Don't retry because reannounce is called periodically
-                svclog.error(
-                    "Failed to announce self to the master: %s.  This "
-                    "request will not be retried.", error)
-                break
+                if force:
+                    delay = http_retry_delay()
+                    svclog.error(
+                        "Failed to announce self to the master: %s.  Will "
+                        "retry in %s seconds.", error, delay)
+                    deferred = Deferred()
+                    reactor.callLater(delay, deferred.callback, None)
+                    yield deferred
+                else:
+                    # Don't retry because reannounce is called periodically
+                    svclog.error(
+                        "Failed to announce self to the master: %s.  This "
+                        "request will not be retried.", error)
+                    break
 
             else:
                 data = yield treq.json_content(response)

@@ -292,46 +292,6 @@ class Process(object):
     def __init__(self):
         self.start_called = False
         self.stop_called = False
-        self._stopped_deferred = None
-        self._started_deferred = None
-
-    @property
-    def stopped_deferred(self):
-        if not self.start_called:
-            raise RuntimeError("Not yet started")
-        return self._stopped_deferred
-
-    @property
-    def started_deferred(self):
-        if not self.start_called:
-            raise RuntimeError("Not yet started")
-        return self._started_deferred
-
-    @stopped_deferred.setter
-    def stopped_deferred(self, value):
-        if not self.start_called:
-            raise RuntimeError("Not yet started")
-
-        if self._stopped_deferred:
-            raise ValueError("Deferred already set")
-
-        if not isinstance(value, Deferred):
-            raise TypeError("Expected a Deferred instace")
-
-        self._stopped_deferred = value
-
-    @started_deferred.setter
-    def started_deferred(self, value):
-        if not self.start_called:
-            raise RuntimeError("Not yet started")
-
-        if self._started_deferred:
-            raise ValueError("Deferred already set")
-
-        if not isinstance(value, Deferred):
-            raise TypeError("Expected a Deferred instace")
-
-        self._started_deferred = value
 
     def _before_spawn_process(self, command, protocol):
         logger.debug(
@@ -399,35 +359,44 @@ class Process(object):
         logpool.open_log(self.uuid, log_path)
         self.log_identifier = basename(log_path)
 
-        self._register_logfile_on_master(self.log_identifier)
+        register_log_deferred = self._register_logfile_on_master(
+            self.log_identifier)
 
-        logpool.log(self.uuid, "internal",
-                    "Starting work on job %s, assignment of %s tasks." %
-                    (self.assignment["job"]["title"],
-                     len(self.assignment["tasks"])))
+        self.started_deferred = Deferred()
+        self.stopped_deferred = Deferred()
 
-        self._before_start()
-        logger.debug("%r.start()", self.__class__.__name__)
-        self.start()
-        self.start_called = True
-        logger.debug("Collecting started deferreds from spawned processes")
+        def start_processes(_):
+            logpool.log(self.uuid, "internal",
+                        "Starting work on job %s, assignment of %s tasks." %
+                        (self.assignment["job"]["title"],
+                        len(self.assignment["tasks"])))
 
-        if not self.processes:
-            logger.warning(
-                "There are no started deferreds present, using succeed([]) for "
-                "self.started_deferred")
-            self.started_deferred = succeed([])
-        else:
-            logger.debug("Making deferred list for self.started_deferred")
-            self.started_deferred = DeferredList(
-                [process.started for process in self.processes.values()])
+            self._before_start()
+            logger.debug("%r.start()", self.__class__.__name__)
+            self.start()
+            self.start_called = True
+            logger.debug("Collecting started deferreds from spawned processes")
 
-        if self.processes:
-            self.stopped_deferred = Deferred()
-        else:
-            # Similar thing as for started, make sure the assignment is cleaned
-            # up if no processes have been started
-            self.stopped_deferred = succeed([])
+            if not self.processes:
+                logger.warning(
+                    "No processes have been started, firing deferreds "
+                    "immediately.")
+                self.started_deferred.callback(None)
+                self.stopped_deferred.callback(None)
+            else:
+                logger.debug("Making deferred list for %s started processes",
+                             len(self.processes))
+                processes_deferred = DeferredList(
+                    [process.started for process in self.processes.values()])
+                processes_deferred.addCallback(
+                    lambda x: self.started_deferred.callback(x))
+                processes_deferred.addErrback(
+                    lambda x: self.started_deferred.errback(x))
+
+        register_log_deferred.addCallback(start_processes)
+        register_log_deferred.addErrback(
+            lambda x: self.start_deferred.errback(x))
+
         return self.started_deferred, self.stopped_deferred
 
     def _stop(self):
@@ -586,6 +555,7 @@ class Process(object):
 
     def _register_logfile_on_master(self, log_path):
         def post_logfile(task, log_path, delay=0):
+            deferred = Deferred()
             url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
                 config["master_api"], self.assignment["job"]["id"], task["id"],
                 task["attempt"])
@@ -593,24 +563,25 @@ class Process(object):
                     "agent_id": self.node()["id"]}
             post_func = partial(
                 post, url, data=data,
-                callback=lambda x: result_callback(task, log_path, x),
-                errback=lambda x: error_callback(task, log_path, x))
+                callback=lambda x: result_callback(task, log_path, deferred, x),
+                errback=lambda x: error_callback(task, log_path, deferred, x))
             reactor.callLater(delay, post_func)
+            return deferred
 
-        def result_callback(task, log_path, response):
+        def result_callback(task, log_path, deferred, response):
             if 500 <= response.code < 600:
                 delay = http_retry_delay()
                 logger.error(
                     "Server side error while registering log file %s for "
                     "task %s (frame %s) in job %s (id %s), status code: %s. "
-                    "Retrying. in %s seconds",
+                    "Retrying in %s seconds",
                     log_path, task["id"], task["frame"],
                     self.assignment["job"]["title"],
                     self.assignment["job"]["id"], response.code, delay)
                 post_logfile(task, log_path, delay=delay)
 
             # The server will return CONFLICT if we try to register a logfile
-            # twice
+            # twice.
             elif response.code not in [OK, CONFLICT, CREATED]:
                 # Nothing else we could do about that, this is
                 # a problem on our end.
@@ -621,10 +592,12 @@ class Process(object):
                     log_path, task["id"], task["frame"],
                     self.assignment["job"]["title"],
                     self.assignment["job"]["id"], response.code)
+                deferred.errback(None)
 
             else:
                 logger.info("Registered logfile %s for task %s on master",
                             log_path, task["id"])
+                deferred.callback(None)
 
         def error_callback(task, log_path, failure_reason):
             delay = http_retry_delay()
@@ -634,8 +607,11 @@ class Process(object):
                 log_path, task["id"], failure_reason, delay)
             post_logfile(task, log_path, delay=delay)
 
+        deferreds = []
         for task in self.assignment["tasks"]:
-            post_logfile(task, log_path)
+            deferreds.append(post_logfile(task, log_path))
+
+        return DeferredList(deferreds)
 
     def _upload_logfile(self):
         path = join(config["jobtype_task_logs"], self.log_identifier)
