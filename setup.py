@@ -35,21 +35,31 @@ if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
 
 # Windows is a little special because we have to have pywin32
-# installed.  pyfarm.core uses it and certain components of
-# other libraries use it too, such as twisted, so we check for
-# it here.  Unfortunately, we can't use PyPi for this.
+# installed.  It's a requirement of Twisted, mainly because of spawnProcess,
+# however other parts of Twisted use it as well.  Twisted's setup.py itself
+# does not declare this dependency, likely because of the difficulties
+# associated with installing the package.  Eventually Twisted will move
+# away from this requirement once https://twistedmatrix.com/trac/ticket/7477
+# is closed.  In the mean time however we'll use pypiwin32 which is built
+# by some of Twisted's maintainers:
+#   http://sourceforge.net/p/pywin32/feature-requests/110/
 if sys.platform.startswith("win"):
+    install_requires += ["wmi"]
     try:
         import win32api
     except ImportError:
-        raise ImportError(
-            "On Windows, you must manually install pywin32 before running "
-            "pyfarm.core's setup.py.  This is required because there's not "
-            "a package that we can pull down and reliably install from the "
-            "Python package repository.  Please visit "
-            "http://sourceforge.net/projects/pywin32/files/pywin32/ to "
-            "download and install this package.")
-    install_requires += ["wmi"]
+        install_requires += ["pypiwin32"]
+
+        # The wheel package understands and can handle the wheel
+        # format (which we need in order to handle pypiwin32).
+        try:
+            import wheel
+        except ImportError:
+            raise ImportError(
+                "Please run `pip install wheel`.  This step is required in "
+                "order to download and install one of the dependencies, "
+                "pypiwin32."
+            )
 
 if sys.version_info[0:2] == (2, 6):
     install_requires += ["importlib", "ordereddict", "argparse"]
