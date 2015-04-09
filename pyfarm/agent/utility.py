@@ -394,7 +394,7 @@ def remove_file(
         if raise_:
             raise
     else:
-        logger.info("Removed %s", path)
+        logger.debug("Removed %s", path)
 
 
 def remove_directory(
@@ -440,7 +440,7 @@ def remove_directory(
         if raise_:
             raise
     else:
-        logger.info("Removed %s", path)
+        logger.debug("Removed %s", path)
 
 
 class LockTimeoutError(Exception):
