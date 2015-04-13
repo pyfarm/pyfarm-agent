@@ -183,7 +183,12 @@ class Assign(APIResource):
             if "jobtype" in assignment:
                 jobtype_id = assignment["jobtype"].pop("id", None)
                 if jobtype_id:
-                    config["jobtypes"].pop(jobtype_id, None)
+                    instance = config["jobtypes"].pop(jobtype_id, None)
+                    instance.stop(
+                        assignment_failed=True,
+                        error="Error in jobtype: %r. "
+                              "Traceback: %s" % (result,
+                                                 traceback.format_exc()))
 
         def assignment_started(_, assign_id):
             logger.debug("Assignment %s has started", assign_id)

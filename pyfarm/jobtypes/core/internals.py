@@ -373,29 +373,34 @@ class Process(object):
 
             self._before_start()
             logger.debug("%r.start()", self.__class__.__name__)
-            self.start()
-            self.start_called = True
-            logger.debug("Collecting started deferreds from spawned processes")
+            try:
+                self.start()
+                self.start_called = True
+                logger.debug("Collecting started deferreds from spawned "
+                             "processes")
 
-            if not self.processes:
-                logger.warning(
-                    "No processes have been started, firing deferreds "
-                    "immediately.")
-                self.started_deferred.callback(None)
-                self.stopped_deferred.callback(None)
-            else:
-                logger.debug("Making deferred list for %s started processes",
-                             len(self.processes))
-                processes_deferred = DeferredList(
-                    [process.started for process in self.processes.values()])
-                processes_deferred.addCallback(
-                    lambda x: self.started_deferred.callback(x))
-                processes_deferred.addErrback(
-                    lambda x: self.started_deferred.errback(x))
+                if not self.processes:
+                    logger.warning(
+                        "No processes have been started, firing deferreds "
+                        "immediately.")
+                    self.started_deferred.callback(None)
+                    self.stopped_deferred.callback(None)
+                else:
+                    logger.debug("Making deferred list for %s started "
+                                 "processes", len(self.processes))
+                    processes_deferred = DeferredList(
+                        [process.started for process in self.processes.values()])
+                    processes_deferred.addCallback(
+                        lambda x: self.started_deferred.callback(x))
+            except Exception as e:
+                self.started_deferred.errback(e)
+                self.stopped_deferred.errback(e)
 
         register_log_deferred.addCallback(start_processes)
         register_log_deferred.addErrback(
-            lambda x: self.start_deferred.errback(x))
+            lambda x: self.started_deferred.errback(x))
+        register_log_deferred.addErrback(
+            lambda x: self.stopped_deferred.errback(x))
 
         return self.started_deferred, self.stopped_deferred
 
