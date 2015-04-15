@@ -267,10 +267,11 @@ class Agent(object):
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
                 num_retry_errors += 1
-                if num_retry_errors > 3:
+                if num_retry_errors > config["broken_connection_max_retry"]:
                     svclog.error(
                         "Failed to announce self to the master, "
-                        "caught try-again type errors three times in a row.")
+                        "caught try-again type errors %s times in a row.",
+                        num_retry_errors)
                     break
                 else:
                     svclog.debug("While announcing self to master, caught "
@@ -639,10 +640,11 @@ class Agent(object):
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
                 num_retry_errors += 1
-                if num_retry_errors > 3:
+                if num_retry_errors > config["broken_connection_max_retry"]:
                     svclog.error(
                         "Failed to post shutdown to the master, "
-                        "caught try-again errors three times in a row.")
+                        "caught try-again errors %s times in a row.",
+                        num_retry_errors)
                     break
                 elif self.shutdown_timeout < datetime.utcnow():
                     svclog.error("While posting shutdown to master, caught "

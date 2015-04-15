@@ -130,6 +130,13 @@ agent_http_retry_delay_factor: 5
 # be False.
 agent_http_persistent_connections: True
 
+# When using persistent connections, twisted will sometimes run requests over
+# connections that have already been closed by the server without realizing it.
+# When this happens, we catch the resulting failure and retry the request.
+# We do this up to $agent_broken_connection_max_retry times, assuming that if
+# it still fails at that point, there is probably something else wrong.
+broken_connection_max_retry: 20
+
 # If True then html templates will be reloaded with
 # every request instead of cached.
 agent_html_template_reload: False
