@@ -111,6 +111,11 @@ TASK_SCHEMA = Schema({
     Required("frame"): NUMBERS,
     Required("attempt", default=0): WHOLE_NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
+NOTIFIED_USERS_SCHEMA = Schema({
+    Required("username"): STRINGS,
+    Required("on_success", default=True): bool,
+    Required("on_failure", default=True): bool,
+    Required("on_deletion", default=False): bool})
 JOB_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("by"): NUMBERS,
@@ -122,7 +127,11 @@ JOB_SCHEMA = Schema({
     Optional("cpus"): WHOLE_NUMBERS,
     Optional("data"): dict,
     Optional("environ"): validate_environment,
-    Optional("title"): STRINGS})
+    Optional("title"): STRINGS,
+    Optional("notified_users"): [NOTIFIED_USERS_SCHEMA],
+    Optional("priority"): WHOLE_NUMBERS,
+    Optional("notes"): STRINGS,
+    Optional("tags"): [STRINGS]})
 
 
 def default_json_encoder(obj, return_obj=False):
