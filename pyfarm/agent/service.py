@@ -533,6 +533,15 @@ class Agent(object):
             datetime.utcnow() + timedelta(
                 seconds=config["agent_shutdown_timeout"]))
 
+        if self.agent_api() is not None:
+            try:
+                yield self.post_shutdown_to_master()
+            except Exception as error:  # pragma: no cover
+                svclog.warning(
+                    "Error while calling post_shutdown_to_master()", error)
+        else:
+            svclog.warning("Cannot post shutdown, agent_api() returned None")
+
         utility.remove_file(
             config["agent_lock_file"], retry_on_exit=True, raise_=False)
 
@@ -562,15 +571,6 @@ class Agent(object):
             delay = Deferred()
             reactor.callLater(1, delay.callback, None)
             yield delay
-
-        if self.agent_api() is not None:
-            try:
-                yield self.post_shutdown_to_master()
-            except Exception as error:  # pragma: no cover
-                svclog.warning(
-                    "Error while calling post_shutdown_to_master()", error)
-        else:
-            svclog.warning("Cannot post shutdown, agent_api() returned None")
 
         self.stopped = True
         yield self.stop_lock.release()
