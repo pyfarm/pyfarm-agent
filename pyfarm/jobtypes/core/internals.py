@@ -554,8 +554,8 @@ class Process(object):
         return False
 
     def _register_logfile_on_master(self, log_path):
-        def post_logfile(task, log_path, delay=0):
-            deferred = Deferred()
+        def post_logfile(task, log_path, post_deferred=None, delay=0):
+            deferred = post_deferred or Deferred()
             url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
                 config["master_api"], self.assignment["job"]["id"], task["id"],
                 task["attempt"])
@@ -578,7 +578,8 @@ class Process(object):
                     log_path, task["id"], task["frame"],
                     self.assignment["job"]["title"],
                     self.assignment["job"]["id"], response.code, delay)
-                post_logfile(task, log_path, delay=delay)
+                post_logfile(task, log_path, post_deferred=deferred,
+                             delay=delay)
 
             # The server will return CONFLICT if we try to register a logfile
             # twice.
@@ -599,13 +600,13 @@ class Process(object):
                             log_path, task["id"])
                 deferred.callback(None)
 
-        def error_callback(task, log_path, failure_reason):
+        def error_callback(task, log_path, deferred, failure_reason):
             delay = http_retry_delay()
             logger.error(
                 "Error while registering logfile %s for task %s on master: "
                 "\"%s\", retrying in %s seconds.",
                 log_path, task["id"], failure_reason, delay)
-            post_logfile(task, log_path, delay=delay)
+            post_logfile(task, log_path, post_deferred=deferred, delay=delay)
 
         deferreds = []
         for task in self.assignment["tasks"]:
