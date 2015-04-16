@@ -73,6 +73,8 @@ from twisted.python import log
 from twisted.python.failure import Failure
 from twisted.web.client import (
     Response as TWResponse, GzipDecoder as TWGzipDecoder, ResponseDone)
+from twisted.web._newclient import (
+    ResponseNeverReceived, RequestTransmissionFailed)
 
 from pyfarm.core.enums import STRING_TYPES, NOTSET, INTEGER_TYPES
 from pyfarm.core.utility import ImmutableDict
@@ -137,10 +139,15 @@ class HTTPLog(object):
         """
         assert isinstance(uid, UUID)
         assert isinstance(failure, Failure)
-        logger.error(
-            "%s %s has failed (uid: %s):%s%s",
-            method, url, uid.hex[20:], os.linesep, failure.getTraceback()
-        )
+        message = ("%s %s has failed (uid: %s):%s%s" %
+            (method, url, uid.hex[20:], os.linesep, failure.getTraceback()))
+
+        # RequestTransmissionFailed and ResponseNeverReceived can happen as
+        # part of normal operations, and do not necessarily count as errors
+        if failure.type in (ResponseNeverReceived, RequestTransmissionFailed):
+            logger.debug(message)
+        else:
+            logger.error(message)
 
         # Reraise the error so other code can handle the error
         raise failure

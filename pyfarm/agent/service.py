@@ -46,6 +46,8 @@ from twisted.internet.defer import (
     Deferred, inlineCallbacks, returnValue, DeferredLock)
 from twisted.internet.error import ConnectionRefusedError
 from twisted.internet.task import deferLater
+from twisted.web._newclient import (
+    ResponseNeverReceived, RequestTransmissionFailed)
 
 from pyfarm.core.enums import NUMERIC_TYPES, AgentState
 from pyfarm.agent.config import config
@@ -251,6 +253,7 @@ class Agent(object):
 
         svclog.debug("Announcing %s to master", config["agent_hostname"])
         data = None
+        num_retry_errors = 0
         while True:  # for retries
             try:
                 response = yield post_direct(
@@ -262,6 +265,18 @@ class Agent(object):
                         "free_ram": memory.free_ram()}
                 )
 
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    svclog.error(
+                        "Failed to announce self to the master, "
+                        "caught try-again type errors %s times in a row.",
+                        num_retry_errors)
+                    break
+                else:
+                    svclog.debug("While announcing self to master, caught "
+                                 "%s. Retrying immediately.",
+                                 error.__class__.__name__)
             except Exception as error:
                 if force:
                     delay = http_retry_delay()
@@ -613,6 +628,7 @@ class Agent(object):
         # Because post_shutdown_to_master is blocking and needs to
         # stop the reactor from finishing we perform the retry in-line
         data = None
+        num_retry_errors = 0
         while True:
             try:
                 response = yield post_direct(
@@ -622,6 +638,24 @@ class Agent(object):
                         "free_ram": memory.free_ram(),
                         "current_assignments": config["current_assignments"]})
 
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    svclog.error(
+                        "Failed to post shutdown to the master, "
+                        "caught try-again errors %s times in a row.",
+                        num_retry_errors)
+                    break
+                elif self.shutdown_timeout < datetime.utcnow():
+                    svclog.error("While posting shutdown to master, caught "
+                                 "%s. Shutdown timeout has been reached, not "
+                                 "retrying.",
+                                 error.__class__.__name__)
+                    break
+                else:
+                    svclog.debug("While posting shutdown to master, caught "
+                                 "%s. Retrying immediately.",
+                                 error.__class__.__name__)
             # When we get a hard failure it could be an issue with the
             # server, although it's unlikely, so we retry.  Only retry
             # for a set period of time though since the shutdown as a timeout

@@ -55,6 +55,8 @@ from psutil import disk_usage
 
 from twisted.internet import reactor, threads
 from twisted.internet.defer import Deferred, DeferredList, succeed
+from twisted.web._newclient import (
+    ResponseNeverReceived, RequestTransmissionFailed)
 
 import treq
 
@@ -680,12 +682,20 @@ class Process(object):
                         e)
 
         def error_callback(url, log_identifier, failure_reason):
-            delay = http_retry_delay()
-            logger.error(
-                "Error while uploading logfile %s to master: "
-                "%r, retrying in %s seconds.",
-                log_identifier, failure_reason, delay)
-            upload(url, log_identifier, delay=delay)
+            if (failure_reason.type in
+                (ResponseNeverReceived, RequestTransmissionFailed)):
+                logger.debug(
+                    "Error while uploading logfile %s to master: "
+                    "%s, retrying immediately",
+                    log_identifier, failure_reason.type.__name__)
+                upload(url, log_identifier)
+            else:
+                delay = http_retry_delay()
+                logger.error(
+                    "Error while uploading logfile %s to master: "
+                    "%r, retrying in %s seconds.",
+                    log_identifier, failure_reason, delay)
+                upload(url, log_identifier, delay=delay)
 
         logger.info("Uploading log file %s to master, URL %r",
                     self.log_identifier, url)
