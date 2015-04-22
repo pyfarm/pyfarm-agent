@@ -36,19 +36,24 @@ from pprint import pformat
 from uuid import uuid4
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
+    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED
+    from http.client import (
+        OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND)
 
+import treq
 from twisted.internet import reactor
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
+from twisted.internet.defer import inlineCallbacks, Deferred
+from twisted.web._newclient import (
+    ResponseNeverReceived, RequestTransmissionFailed)
 from voluptuous import Schema, Required, Optional
 
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import post, http_retry_delay
+from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
@@ -788,6 +793,93 @@ class JobType(Cache, System, Process, TypeChecks):
 
         for task in tasks:
             self.set_task_state(task, state, error=error)
+
+    @inlineCallbacks
+    def set_task_progress(self, task, progress):
+        """
+        Sets the progress of the given task
+
+        :param dict task:
+            The dictionary containing the task we're changing the progress
+            for.
+
+        :param float progress:
+            The progress to set on ``task``
+        """
+        if not isinstance(task, dict):
+            raise TypeError(
+                "Expected a dictionary for `task`, cannot set progress")
+
+        if "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
+            raise TypeError(
+                "Expected to find 'id' in `task` or for `task['id']` to "
+                "be an integer.")
+
+        if progress < 0.0 or progress > 1.0:
+            raise ValueError("`progress` needs to be between 0.0 and 1.0")
+
+        url = "%s/jobs/%s/tasks/%s" % (
+            config["master_api"], self.assignment["job"]["id"], task["id"])
+        data = {"progress": progress}
+
+        updated = False
+        num_retry_errors = 0
+        while not updated:
+            try:
+                response = yield post_direct(url, data=data)
+                response_data = yield treq.json_content(response)
+                if response.code == OK:
+                    logger.info("Set progress of task %s to %s on master",
+                                task ["id"], progress)
+                    updated = True
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = http_retry_delay()
+                    logger.warning(
+                        "Could not post progress update for task %s to the "
+                        "master server, internal server error: %s.  Retrying "
+                        "in %s seconds.", task["id"], response_data, delay)
+
+                    deferred = Deferred()
+                    reactor.callLater(delay, deferred.callback, None)
+                    yield deferred
+
+                elif response.code == NOT_FOUND:
+                    logger.error("Got 404 NOT FOUND error on updating progress "
+                                 "for task %s", task["id"])
+                    break
+
+                elif response.code >= BAD_REQUEST:
+                    logger.error(
+                        "Failed to post progress update for task %s to the "
+                        "master, bad request: %s. Server.  This request will "
+                        "not be retried.", task["id"], response_data)
+                    break
+
+                else:
+                    logger.error(
+                        "Unhandled error when posting progress update for task "
+                        "%s to the master: %s (code: %s).  This request will "
+                        "not be retried.", response_data, response.code)
+                    break
+
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    logger.error(
+                        "Failed to post progress update for task %s to the "
+                        "master, caught try-again type errors %s times in a "
+                        "row.", task["id"], num_retry_errors)
+                    break
+                else:
+                    logger.debug("While posting progress update for task %s to "
+                                 "master, caught %s. Retrying immediately.",
+                                 task["id"], error.__class__.__name__)
+            except Exception as error:
+                logger.error(
+                    "Failed to post progress update for task %s to the master: "
+                    "%r.", task["id"], error)
+                break
 
     # TODO: refactor so `task` is an integer, not a dictionary
     def set_task_state(self, task, state, error=None, dissociate_agent=False):
