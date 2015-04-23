@@ -1126,7 +1126,8 @@ class JobType(Cache, System, Process, TypeChecks):
         if len(self.failed_processes) == 0 and not self.stop_called:
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.failed_tasks:
-                    self.set_task_state(task, WorkState.DONE)
+                    if task["id"] not in self.finished_tasks:
+                        self.set_task_state(task, WorkState.DONE)
                 else:
                     logger.info(
                         "Task %r is already in failed tasks, not setting state "
@@ -1134,7 +1135,8 @@ class JobType(Cache, System, Process, TypeChecks):
         elif not self.stop_called:
             for task in self.assignment["tasks"]:
                 if task["id"] not in self.finished_tasks:
-                    self.set_task_state(task, WorkState.FAILED)
+                    if task["id"] not in self.failed_tasks:
+                        self.set_task_state(task, WorkState.FAILED)
                 else:
                     logger.info(
                         "Task %r is already in finished tasks, not setting "
