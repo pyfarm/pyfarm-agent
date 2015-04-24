@@ -832,6 +832,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.info("Set progress of task %s to %s on master",
                                 task ["id"], progress)
                     updated = True
+                    returnValue(None)
 
                 elif response.code >= INTERNAL_SERVER_ERROR:
                     delay = http_retry_delay()
@@ -845,41 +846,46 @@ class JobType(Cache, System, Process, TypeChecks):
                     yield deferred
 
                 elif response.code == NOT_FOUND:
-                    logger.error("Got 404 NOT FOUND error on updating progress "
-                                 "for task %s", task["id"])
-                    break
+                    message = ("Got 404 NOT FOUND error on updating progress "
+                               "for task %s" % task["id"])
+                    logger.error(message)
+                    raise Exception(message)
 
                 elif response.code >= BAD_REQUEST:
-                    logger.error(
+                    message = (
                         "Failed to post progress update for task %s to the "
                         "master, bad request: %s. Server.  This request will "
-                        "not be retried.", task["id"], response_data)
-                    break
+                        "not be retried." % (task["id"], response_data))
+                    logger.error(message)
+                    raise Exception(message)
 
                 else:
-                    logger.error(
+                    message = (
                         "Unhandled error when posting progress update for task "
                         "%s to the master: %s (code: %s).  This request will "
-                        "not be retried.", response_data, response.code)
-                    break
+                        "not be retried." % (response_data, response.code))
+                    logger.error(message)
+                    raise Exception(message)
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
                 num_retry_errors += 1
                 if num_retry_errors > config["broken_connection_max_retry"]:
-                    logger.error(
+                    message = (
                         "Failed to post progress update for task %s to the "
                         "master, caught try-again type errors %s times in a "
-                        "row.", task["id"], num_retry_errors)
-                    break
+                        "row." % (task["id"], num_retry_errors))
+                    logger.error(message)
+                    raise Exception(message)
                 else:
                     logger.debug("While posting progress update for task %s to "
                                  "master, caught %s. Retrying immediately.",
                                  task["id"], error.__class__.__name__)
             except Exception as error:
-                logger.error(
+                message = (
                     "Failed to post progress update for task %s to the master: "
-                    "%r.", task["id"], error)
-                break
+                    "%r." % (task["id"], error))
+                logger.error(message)
+                raise Exception(message)
 
     # TODO: refactor so `task` is an integer, not a dictionary
     def set_task_state(self, task, state, error=None, dissociate_agent=False):
