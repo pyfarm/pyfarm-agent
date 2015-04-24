@@ -29,6 +29,7 @@ from functools import partial
 
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
+from twisted.internet.defer import DeferredList
 from voluptuous import Schema, Required
 
 from pyfarm.core.enums import WorkState, AgentState
@@ -195,17 +196,29 @@ class Assign(APIResource):
             config["state"] = AgentState.RUNNING
             self.agent.reannounce(force=True)
 
+        def remove_assignment(_, assign_id):
+            assignment = config["current_assignments"].pop(assign_id)
+            if "jobtype" in assignment:
+                jobtype_id = assignment["jobtype"].pop("id", None)
+                if jobtype_id:
+                    config["jobtypes"].pop(jobtype_id, None)
+
         def assignment_stopped(_, assign_id):
             logger.debug("Assignment %s has stopped", assign_id)
             if (len(config["current_assignments"]) <= 1 and
                 not self.agent.shutting_down):
                 config["state"] = AgentState.ONLINE
                 self.agent.reannounce(force=True)
-            assignment = config["current_assignments"].pop(assign_id)
+            assignment = config["current_assignments"][assign_id]
             if "jobtype" in assignment:
                 jobtype_id = assignment["jobtype"].pop("id", None)
                 if jobtype_id:
-                    config["jobtypes"].pop(jobtype_id, None)
+                    jobtype = config["jobtypes"].pop(jobtype_id, None)
+                    updates_deferred = DeferredList(
+                        jobtype.task_update_deferreds)
+                    updates_deferred.addBoth(remove_assignment, assign_id)
+            else:
+                config["current_assignments"].pop(assign_id)
 
         def restart_if_necessary(_):  # pragma: no cover
             if "restart_requested" in config and config["restart_requested"]:
