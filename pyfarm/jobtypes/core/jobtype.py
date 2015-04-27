@@ -45,7 +45,7 @@ import treq
 from twisted.internet import reactor
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
-from twisted.internet.defer import inlineCallbacks, Deferred
+from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
 from twisted.web._newclient import (
     ResponseNeverReceived, RequestTransmissionFailed)
 from voluptuous import Schema, Required, Optional
