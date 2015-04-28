@@ -925,7 +925,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     post, url,
                     data=data,
                     callback=lambda x: tasklog_result_callback(url, data, x),
-                    errback=lambda x: error_callback(url, data, x))
+                    errback=lambda x: tasklog_error_callback(url, data, x))
                 reactor.callLater(delay, post_func)
 
             def tasklog_result_callback(url, data, response):
@@ -945,11 +945,11 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.info("Updated tasklog at %s", url)
                     log_deferred.callback(None)
 
-            def error_callback(url, data, failure_reason):
+            def tasklog_error_callback(url, data, failure_reason):
                 logger.error(
                     "Error while updating tasklog at %s: %s, retrying",
                     url, failure_reason)
-                post_update(url, data, delay=http_retry_delay())
+                post_tasklog_update(url, data, delay=http_retry_delay())
 
             post_tasklog_update(tasklog_url, tasklog_data, delay=0)
             log_deferred.addBoth(lambda _:
