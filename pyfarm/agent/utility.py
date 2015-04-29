@@ -130,6 +130,8 @@ JOB_SCHEMA = Schema({
     Optional("title"): STRINGS,
     Optional("notified_users"): [NOTIFIED_USERS_SCHEMA],
     Optional("priority"): WHOLE_NUMBERS,
+    Optional("job_group_id"): WHOLE_NUMBERS,
+    Optional("job_group"): STRINGS,
     Optional("notes"): STRINGS,
     Optional("tags"): [STRINGS]})
 
