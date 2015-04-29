@@ -827,6 +827,9 @@ class JobType(Cache, System, Process, TypeChecks):
                 "Cannot set state, expected task %r to be a member of this "
                 "job type's assignments", task)
 
+        elif state == WorkState.FAILED and config["agent"].shutting_down:
+            logger.error("Not setting task to failed: agent is shutting down.")
+
         else:
             # The task has failed
             if state == WorkState.FAILED:
