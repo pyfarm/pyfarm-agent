@@ -36,10 +36,11 @@ from pprint import pformat
 from uuid import uuid4
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND
+    from httplib import (
+        OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND, BAD_REQUEST)
 except ImportError:  # pragma: no cover
     from http.client import (
-        OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND)
+        OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND, BAD_REQUEST)
 
 import treq
 from twisted.internet import reactor
