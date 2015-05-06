@@ -534,15 +534,7 @@ class AgentEntryPoint(object):
                 try:
                     process = psutil.Process(pid)
 
-                # Process in the pid file does not exist
-                except psutil.NoSuchProcess:
-                    logger.debug(
-                        "Process ID in %s is stale.",
-                        config["agent_lock_file"])
-                    remove_lock_file = True
-
-                # Process does exist, does it appear to be our agent?
-                else:
+                    # Process does exist, does it appear to be our agent?
                     if process.name() == "pyfarm-agent":
                         logger.error(
                             "Agent is already running, pid %s", pid)
@@ -554,6 +546,19 @@ class AgentEntryPoint(object):
                             "Process %s does not appear to be the "
                             "agent.", pid)
                         remove_lock_file = True
+
+                # Process in the pid file does not exist
+                except psutil.NoSuchProcess:
+                    logger.debug(
+                        "Process ID in %s is stale.",
+                        config["agent_lock_file"])
+                    remove_lock_file = True
+                # We lack the rights to access the pid from the pid file
+                except psutil.AccessDenied:
+                    logger.debug(
+                        "Process ID in %s is stale.",
+                        config["agent_lock_file"])
+                    remove_lock_file = True
 
             if remove_lock_file:
                 logger.debug(
