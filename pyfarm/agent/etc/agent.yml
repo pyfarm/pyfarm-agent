@@ -209,3 +209,5 @@ sysinfo_command_lspci:
   - /sbin/lspci
   - /usr/sbin/lspci
   - /usr/bin/lspci
+
+agent_allow_sharing: False
