@@ -173,7 +173,8 @@ class TestAssign(BaseAPITestCase):
         tasks = []
         config["current_assignments"] = {}
         assignment = config["current_assignments"][
-            self.data["job"]["id"]] = {"tasks": []}
+            self.data["job"]["id"]] = {"tasks": [],
+                                       "id": self.data["job"]["id"]}
         for task in self.data["tasks"]:
             tasks.append(task["id"])
             assignment["tasks"].append(task)
@@ -185,11 +186,10 @@ class TestAssign(BaseAPITestCase):
         result = assign.render(request)
         self.assertEqual(result, NOT_DONE_YET)
         self.assertTrue(request.finished)
-        self.assertEqual(request.responseCode, CONFLICT)
+        self.assertEqual(request.responseCode, ACCEPTED)
         self.assertEqual(len(request.written), 1)
         response = loads(request.written[0])
-        self.assertEqual(set(response["duplicate_tasks"]), set(tasks))
-        self.assertEqual(response["error"], "Double assignment of tasks")
+        self.assertEqual(response["id"], self.data["job"]["id"])
 
     def test_accepted(self):
         # Cache the fake job type and make sure the config

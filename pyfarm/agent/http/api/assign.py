@@ -153,7 +153,7 @@ class Assign(APIResource):
             # If the assignment is identical to one we already have
             if existing_task_ids == new_task_ids:
                 request.setResponseCode(ACCEPTED)
-                request.write(dumps({"id": existing_assignment_id}))
+                request.write(dumps({"id": assignment["id"]}))
                 request.finish()
                 return NOT_DONE_YET
             # If there is only a partial overlap
