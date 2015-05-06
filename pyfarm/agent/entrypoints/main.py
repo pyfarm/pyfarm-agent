@@ -547,14 +547,9 @@ class AgentEntryPoint(object):
                             "agent.", pid)
                         remove_lock_file = True
 
-                # Process in the pid file does not exist
-                except psutil.NoSuchProcess:
-                    logger.debug(
-                        "Process ID in %s is stale.",
-                        config["agent_lock_file"])
-                    remove_lock_file = True
-                # We lack the rights to access the pid from the pid file
-                except psutil.AccessDenied:
+                # Process in the pid file does not exist or we don't have the
+                # rights to access it
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     logger.debug(
                         "Process ID in %s is stale.",
                         config["agent_lock_file"])
