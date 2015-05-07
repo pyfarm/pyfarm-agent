@@ -210,4 +210,8 @@ sysinfo_command_lspci:
   - /usr/sbin/lspci
   - /usr/bin/lspci
 
+# If this is False, the agent will not allow two or more assignments to run
+# on this node at the same time.
+# If we still have at least one assignment with at least one task that isn't
+# failed or done, new assignments will be rejected.
 agent_allow_sharing: False
