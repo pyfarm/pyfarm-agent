@@ -158,7 +158,7 @@ class Assign(APIResource):
                 request.finish()
                 return NOT_DONE_YET
             # If there is only a partial overlap
-            elif existing_task_ids ^ new_task_ids:
+            elif existing_task_ids & new_task_ids:
                 logger.error("Rejecting assignment with partial overlap with "
                              "existing assignment.")
                 unknown_task_ids = new_task_ids - existing_task_ids
