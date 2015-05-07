@@ -882,11 +882,10 @@ class JobType(Cache, System, Process, TypeChecks):
                                  "master, caught %s. Retrying immediately.",
                                  task["id"], error.__class__.__name__)
             except Exception as error:
-                message = (
+                logger.error(
                     "Failed to post progress update for task %s to the master: "
                     "%r." % (task["id"], error))
-                logger.error(message)
-                raise Exception(message)
+                raise
 
     # TODO: refactor so `task` is an integer, not a dictionary
     def set_task_state(self, task, state, error=None, dissociate_agent=False):
