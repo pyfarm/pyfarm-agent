@@ -175,9 +175,9 @@ class Assign(APIResource):
             except AttributeError:  # pragma: no cover
                 current_jobtypes = config["jobtypes"].values
             for jobtype in current_jobtypes():
-                finished_jobs = (len(jobtype.finished_tasks) +
-                                 len(jobtype.failed_tasks))
-                if len(assignment["tasks"]) > finished_jobs:
+                num_finished_tasks = (len(jobtype.finished_tasks) +
+                                      len(jobtype.failed_tasks))
+                if len(jobtype.assignment["tasks"]) > num_finished_tasks:
                     logger.error("Rejecting an assignment that would require "
                                  "agent sharing")
                     request.setResponseCode(CONFLICT)
