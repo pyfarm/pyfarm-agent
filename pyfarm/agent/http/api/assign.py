@@ -152,12 +152,15 @@ class Assign(APIResource):
 
             # If the assignment is identical to one we already have
             if existing_task_ids == new_task_ids:
+                logger.debug("Ignoring repeated assignment of the same batch")
                 request.setResponseCode(ACCEPTED)
                 request.write(dumps({"id": assignment["id"]}))
                 request.finish()
                 return NOT_DONE_YET
             # If there is only a partial overlap
             elif existing_task_ids ^ new_task_ids:
+                logger.error("Rejecting assignment with partial overlap with "
+                             "existing assignment.")
                 unknown_task_ids = new_task_ids - existing_task_ids
                 request.setResponseCode(CONFLICT)
                 request.write(dumps(
@@ -175,6 +178,8 @@ class Assign(APIResource):
                 finished_jobs = (len(jobtype.finished_tasks) +
                                  len(jobtype.failed_tasks))
                 if len(assignment["tasks"]) > finished_jobs:
+                    logger.error("Rejecting an assignment that would require "
+                                 "agent sharing")
                     request.setResponseCode(CONFLICT)
                     request.write(
                     dumps({"error":
