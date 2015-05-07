@@ -145,20 +145,43 @@ class Assign(APIResource):
         except AttributeError:  # pragma: no cover
             current_assignments = config["current_assignments"].values
 
-        existing_task_ids = set()
         new_task_ids = set(task["id"] for task in request_data["tasks"])
 
         for assignment in current_assignments():
-            for task in assignment["tasks"]:
-                existing_task_ids.add(task["id"])
+            existing_task_ids = set(x["id"] for x in assignment["tasks"])
 
-        if existing_task_ids & new_task_ids:
-            request.setResponseCode(CONFLICT)
-            request.write(
-                dumps({"error": "Double assignment of tasks",
-                       "duplicate_tasks": list(existing_task_ids & new_task_ids)}))
-            request.finish()
-            return NOT_DONE_YET
+            # If the assignment is identical to one we already have
+            if existing_task_ids == new_task_ids:
+                request.setResponseCode(ACCEPTED)
+                request.write(dumps({"id": assignment["id"]}))
+                request.finish()
+                return NOT_DONE_YET
+            # If there is only a partial overlap
+            elif existing_task_ids ^ new_task_ids:
+                unknown_task_ids = new_task_ids - existing_task_ids
+                request.setResponseCode(CONFLICT)
+                request.write(dumps(
+                    {"error": "Partial overlap of tasks",
+                     "rejected_task_ids": list(unknown_task_ids)}))
+                request.finish()
+                return NOT_DONE_YET
+
+        if not config["agent_allow_sharing"]:
+            try:
+                current_jobtypes = config["jobtypes"].itervalues
+            except AttributeError:  # pragma: no cover
+                current_jobtypes = config["jobtypes"].values
+            for jobtype in current_jobtypes():
+                finished_jobs = (len(jobtype.finished_tasks) +
+                                 len(jobtype.failed_tasks))
+                if len(assignment["tasks"]) > finished_jobs:
+                    request.setResponseCode(CONFLICT)
+                    request.write(
+                    dumps({"error":
+                               "Agent does not allow multiple assignments",
+                           "rejected_task_ids": list(new_task_ids)}))
+                    request.finish()
+                    return NOT_DONE_YET
 
         assignment_uuid = uuid4()
         request_data.update(id=assignment_uuid)
