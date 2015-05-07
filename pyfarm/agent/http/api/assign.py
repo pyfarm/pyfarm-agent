@@ -148,7 +148,7 @@ class Assign(APIResource):
         new_task_ids = set(task["id"] for task in request_data["tasks"])
 
         for assignment in current_assignments():
-            existing_task_ids = set([x["id"] for x in assignment["tasks"]])
+            existing_task_ids = set(x["id"] for x in assignment["tasks"])
 
             # If the assignment is identical to one we already have
             if existing_task_ids == new_task_ids:
