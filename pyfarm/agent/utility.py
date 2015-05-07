@@ -119,6 +119,7 @@ NOTIFIED_USERS_SCHEMA = Schema({
 JOB_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("by"): NUMBERS,
+    Optional("agent_id"): WHOLE_NUMBERS,
     Optional("batch"): WHOLE_NUMBERS,
     Optional("user"): STRINGS,
     Optional("ram"): WHOLE_NUMBERS,
