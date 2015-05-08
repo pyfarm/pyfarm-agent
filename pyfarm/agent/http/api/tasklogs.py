@@ -82,8 +82,11 @@ class TaskLogs(APIResource):
         log_identifier = request.postpath[0]
         if "/" in log_identifier or "\\" in log_identifier:
             request.setResponseCode(BAD_REQUEST)
+            request.setHeader("Content-Type", "application/json")
             request.write(dumps({"error": "log_identifier must not contain "
                                           "directory separators"}))
+
+            return NOT_DONE_YET
 
         path = join(config["jobtype_task_logs"], log_identifier)
         request.setResponseCode(OK)
