@@ -114,11 +114,11 @@ class TaskLogs(APIResource):
             request.write(dumps({"error": str(error)}))
             return NOT_DONE_YET
 
-        logfile = open(path, "rb")
+        # TODO: deferToThread for open? (and possibly send)
+        request.setResponseCode(OK)
+        request.setHeader("Content-Type", "text/csv")
         deferred = FileSender().beginFileTransfer(logfile, request)
-        def transfer_finished(_):
-            request.finish()
-            logfile.close()
-        deferred.addCallback(transfer_finished)
+        deferred.addCallback(lambda *_: request.finish())
+        deferred.addCallback(lambda *_: logfile.close())
 
         return NOT_DONE_YET
