@@ -75,7 +75,9 @@ class TaskLogs(APIResource):
 
         if len(request.postpath) != 1:
             request.setResponseCode(BAD_REQUEST)
+            request.setHeader("Content-Type", "application/json")
             request.write(dumps({"error": "Did not specify a log identifier"}))
+            return NOT_DONE_YET
 
         log_identifier = request.postpath[0]
         if "/" in log_identifier or "\\" in log_identifier:
