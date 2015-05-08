@@ -30,7 +30,10 @@ from twisted.protocols.basic import FileSender
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
+from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master
+
+logger = getLogger("agent.http.tasklogs")
 
 
 class TaskLogs(APIResource):
