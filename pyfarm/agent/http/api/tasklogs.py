@@ -1,6 +1,7 @@
 # No shebang line, this module is meant to be imported
 #
 # Copyright 2014 Ambient Entertainment GmbH & Co. KG
+# Copyright 2015 Oliver Palmer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +35,38 @@ from pyfarm.agent.utility import request_from_master
 class TaskLogs(APIResource):
     def get(self, **kwargs):
         """
-        Get the contents of the specified task log
+        Get the contents of the specified task log.  The log will be
+        returned in CSV format with the following fields:
+
+            * ISO8601 timestamp
+            * Stream number (0 == stdout, 1 == stderr)
+            * Line number
+            * Parent process ID
+            * Message the process produced
+
+        The log file identifier is configurable and relies on the
+        `jobtype_task_log_filename` configuration option.  See the
+        configuration documentation for more information about the
+        default value.
+
+        .. http:get:: /api/v1/tasklogs/<identifier> HTTP/1.1
+
+            **Request**
+
+            .. sourcecode:: http
+
+                GET /api/v1/tasklogs/<identifier> HTTP/1.1
+
+            **Response**
+
+            .. sourcecode:: http
+
+                HTTP/1.1 200 OK
+                Content-Type: text/csv
+
+                2015-05-07T23:42:53.730975,0,15,42,Hello world
+
+        :statuscode 200: The log file was found, it's content will be returned.
         """
         request = kwargs["request"]
 
