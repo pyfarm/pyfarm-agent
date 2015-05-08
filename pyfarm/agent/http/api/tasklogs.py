@@ -16,11 +16,12 @@
 # limitations under the License.
 
 from json import dumps
+from errno import ENOENT
 
 try:
-    from httplib import BAD_REQUEST, OK
+    from httplib import BAD_REQUEST, OK, NOT_FOUND, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
-    from http.client import BAD_REQUEST, OK
+    from http.client import BAD_REQUEST, OK, NOT_FOUND, INTERNAL_SERVER_ERROR
 
 from os.path import join
 
@@ -33,6 +34,14 @@ from pyfarm.agent.utility import request_from_master
 
 
 class TaskLogs(APIResource):
+    def _open_file(self, path, mode="rb"):
+        """
+        Small wrapper around the built-in :func:`open`.  We mainly
+        use this for patching behavior in tests but could also use
+        this for handling additional modes/exception/etc
+        """
+        return open(path, mode=mode)
+
     def get(self, **kwargs):
         """
         Get the contents of the specified task log.  The log will be
@@ -89,8 +98,21 @@ class TaskLogs(APIResource):
             return NOT_DONE_YET
 
         path = join(config["jobtype_task_logs"], log_identifier)
-        request.setResponseCode(OK)
-        request.setHeader("Content-Type", "text/csv")
+
+        try:
+            logfile = self._open_file(path, "rb")
+        except Exception as error:
+            request.setHeader("Content-Type", "application/json")
+
+            if getattr(error, "errno", None) == ENOENT:
+                request.setResponseCode(NOT_FOUND)
+                request.write(dumps({"error": "%s does not exist" % path}))
+                return NOT_DONE_YET
+
+            logger.error("GET %s failed: %s", request.postpath, error)
+            request.setResponseCode(INTERNAL_SERVER_ERROR)
+            request.write(dumps({"error": str(error)}))
+            return NOT_DONE_YET
 
         logfile = open(path, "rb")
         deferred = FileSender().beginFileTransfer(logfile, request)
