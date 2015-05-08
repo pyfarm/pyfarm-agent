@@ -82,7 +82,7 @@ class TaskLogs(APIResource):
         log_identifier = request.postpath[0]
         if "/" in log_identifier or "\\" in log_identifier:
             request.setResponseCode(BAD_REQUEST)
-            request.write(dumps({"error": "log_identifier must not contain"
+            request.write(dumps({"error": "log_identifier must not contain "
                                           "directory separators"}))
 
         path = join(config["jobtype_task_logs"], log_identifier)
