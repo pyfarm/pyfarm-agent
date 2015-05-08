@@ -44,6 +44,7 @@ except ImportError:  # pragma: no cover
 
 import treq
 from twisted.internet import reactor
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
@@ -275,6 +276,8 @@ class JobType(Cache, System, Process, TypeChecks):
         self.finished_tasks = set()
         self.assignment = ImmutableDict(self.ASSIGNMENT_SCHEMA(assignment))
         self.persistent_job_data = None
+        # Deferreds for currently running task updates
+        self.task_update_deferreds = []
 
         # Add our instance to the job type instance tracker dictionary
         # as well as the dictionary containing the current assignment.
@@ -962,6 +965,9 @@ class JobType(Cache, System, Process, TypeChecks):
             if dissociate_agent:
                 data.update(agent_id=None)
 
+            task_deferred = Deferred()
+            self.task_update_deferreds.append(task_deferred)
+
             def post_update(post_url, post_data, delay=0):
                 post_func = partial(
                     post, post_url,
@@ -987,11 +993,13 @@ class JobType(Cache, System, Process, TypeChecks):
                         "Could not set state for task %s to %s, server "
                         "response code was %s",
                         task_id, cbstate, response.code)
+                    task_deferred.errback(None)
 
                 else:
                     logger.info(
                         "Set state of task %s to %s on master",
                         task_id, cbstate)
+                    task_deferred.callback(None)
 
             def error_callback(cburl, cbdata, failure_reason):
                 logger.error(
@@ -999,21 +1007,26 @@ class JobType(Cache, System, Process, TypeChecks):
                     failure_reason)
                 post_update(cburl, cbdata, delay=http_retry_delay())
 
-            # Initial attempt to make an update with an explicit zero
-            # delay.
+            # Initial attempt to make an update with an explicit zero delay.
             post_update(url, data, delay=0)
+            task_deferred.addBoth(lambda _:
+                                      self.task_update_deferreds.remove(
+                                          task_deferred))
 
             tasklog_url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s" % (
                  config["master_api"], self.assignment["job"]["id"],
                  task["id"], task["attempt"], self.log_identifier)
             tasklog_data = {"state": state or "queued"}
 
+            log_deferred = Deferred()
+            self.task_update_deferreds.append(log_deferred)
+
             def post_tasklog_update(url, data, delay=0):
                 post_func = partial(
                     post, url,
                     data=data,
                     callback=lambda x: tasklog_result_callback(url, data, x),
-                    errback=lambda x: error_callback(url, data, x))
+                    errback=lambda x: tasklog_error_callback(url, data, x))
                 reactor.callLater(delay, post_func)
 
             def tasklog_result_callback(url, data, response):
@@ -1027,20 +1040,22 @@ class JobType(Cache, System, Process, TypeChecks):
                 elif response.code != OK:
                     logger.error("Could not update tasklog at %s, server "
                                  "response code was %s.", url, response.code)
+                    log_deferred.errback(None)
 
                 else:
                     logger.info("Updated tasklog at %s", url)
+                    log_deferred.callback(None)
 
-            def error_callback(url, data, failure_reason):
+            def tasklog_error_callback(url, data, failure_reason):
                 logger.error(
                     "Error while updating tasklog at %s: %s, retrying",
                     url, failure_reason)
-                post_update(url, data, delay=http_retry_delay())
+                post_tasklog_update(url, data, delay=http_retry_delay())
 
             post_tasklog_update(tasklog_url, tasklog_data, delay=0)
-
-            # TODO: if new state is the equiv. of 'stopped', stop the process
-            # and POST the change
+            log_deferred.addBoth(lambda _:
+                                      self.task_update_deferreds.remove(
+                                          log_deferred))
 
     def get_local_task_state(self, task_id):
         """
