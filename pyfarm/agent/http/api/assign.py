@@ -75,7 +75,8 @@ class Assign(APIResource):
             request.setResponseCode(BAD_REQUEST)
             request.write(dumps(
                 {"error": "You have the wrong agent. I am %s." %
-                    config["agent_id"]}))
+                    config["agent_id"],
+                 "agent_id": config["agent_id"]}))
             request.finish()
             return NOT_DONE_YET
 
