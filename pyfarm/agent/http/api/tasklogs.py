@@ -86,21 +86,20 @@ class TaskLogs(APIResource):
             config.master_contacted()
 
         if len(request.postpath) != 1:
-            request.setResponseCode(BAD_REQUEST)
-            request.responseHeaders.setRawHeaders(
-                "Content-Type", ["application/json"])
-            request.write(dumps({"error": "Did not specify a log identifier"}))
-            return NOT_DONE_YET
+            return (
+                dumps({"error": "Did not specify a log identifier"}),
+                BAD_REQUEST,
+                {"Content-Type": ["application/json"]}
+            )
 
         log_identifier = request.postpath[0]
         if "/" in log_identifier or "\\" in log_identifier:
-            request.setResponseCode(BAD_REQUEST)
-            request.responseHeaders.setRawHeaders(
-                "Content-Type", ["application/json"])
-            request.write(dumps({"error": "log_identifier must not contain "
-                                          "directory separators"}))
-
-            return NOT_DONE_YET
+            return (
+                dumps({"error": "log_identifier must not contain "
+                                "directory separators"}),
+                BAD_REQUEST,
+                {"Content-Type": ["application/json"]}
+            )
 
         path = join(config["jobtype_task_logs"], log_identifier)
 
@@ -111,14 +110,10 @@ class TaskLogs(APIResource):
                 "Content-Type", ["application/json"])
 
             if getattr(error, "errno", None) == ENOENT:
-                request.setResponseCode(NOT_FOUND)
-                request.write(dumps({"error": "%s does not exist" % path}))
-                return NOT_DONE_YET
+                return dumps({"error": "%s does not exist" % path}), NOT_FOUND
 
             logger.error("GET %s failed: %s", request.postpath, error)
-            request.setResponseCode(INTERNAL_SERVER_ERROR)
-            request.write(dumps({"error": str(error)}))
-            return NOT_DONE_YET
+            return dumps({"error": str(error)}), INTERNAL_SERVER_ERROR
 
         # TODO: deferToThread for open? (and possibly send)
         request.setResponseCode(OK)
