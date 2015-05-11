@@ -143,7 +143,7 @@ class Resource(_Resource):
         """
         header = request.requestHeaders.getRawHeaders("Content-Type")
         if not header:
-            return self.DEFAULT_CONTENT_TYPE
+            return list(self.DEFAULT_CONTENT_TYPE)
 
         content_type = set()
         for value in header:
@@ -152,7 +152,7 @@ class Resource(_Resource):
             content_type.update(
                 entry.split(";")[0] for entry in value.split(","))
 
-        return frozenset(content_type)
+        return list(content_type)
 
     def get_accept(self, request):
         """
