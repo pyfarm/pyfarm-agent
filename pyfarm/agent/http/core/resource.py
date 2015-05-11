@@ -143,7 +143,7 @@ class Resource(_Resource):
         """
         header = request.requestHeaders.getRawHeaders("Content-Type")
         if not header:
-            return list(self.DEFAULT_CONTENT_TYPE)
+            return self.DEFAULT_CONTENT_TYPE
 
         content_type = set()
         for value in header:
@@ -152,7 +152,7 @@ class Resource(_Resource):
             content_type.update(
                 entry.split(";")[0] for entry in value.split(","))
 
-        return list(content_type)
+        return content_type
 
     def get_accept(self, request):
         """
@@ -234,8 +234,14 @@ class Resource(_Resource):
 
         elif len(response) == 2:
             body, code = response
-            content_type = self.get_content_type(request)
-            request.responseHeaders.setRawHeaders("Content-Type", content_type)
+
+            # Set Content-Type if it has not already been set
+            if not request.responseHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
             request.setResponseCode(code)
 
             # Cast to str, otherwise Twisted responds
@@ -343,8 +349,13 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         elif isinstance(response, STRING_TYPES):
-            content_type = self.get_content_type(request)
-            request.responseHeaders.setRawHeaders("Content-Type", content_type)
+            # Set Content-Type if it has not already been set
+            if not request.responseHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
             request.setResponseCode(OK)
             request.write(response)
             request.finish()
