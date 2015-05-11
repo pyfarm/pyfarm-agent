@@ -234,6 +234,8 @@ class Resource(_Resource):
 
         elif len(response) == 2:
             body, code = response
+            content_type = self.get_content_type(request)
+            request.responseHeaders.setRawHeaders("Content-Type", content_type)
             request.setResponseCode(code)
 
             # Cast to str, otherwise Twisted responds
@@ -341,6 +343,8 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         elif isinstance(response, STRING_TYPES):
+            content_type = self.get_content_type(request)
+            request.responseHeaders.setRawHeaders("Content-Type", content_type)
             request.setResponseCode(OK)
             request.write(response)
             request.finish()
