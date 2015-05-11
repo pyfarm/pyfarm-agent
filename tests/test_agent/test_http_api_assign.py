@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover
 
 
 from twisted.web.server import NOT_DONE_YET
+from twisted.internet.defer import DeferredLock
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
@@ -68,6 +69,7 @@ class FakeJobType(object):
 class FakeAgent(object):
     def __init__(self):
        self.shutting_down = False
+       self.reannounce_lock = DeferredLock()
 
 fake_agent = FakeAgent()
 

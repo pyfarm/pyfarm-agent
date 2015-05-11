@@ -81,7 +81,7 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
-        if config["agent"].reannounce_lock.locked:
+        if self.agent.reannounce_lock.locked:
             logger.warning("Temporarily rejecting assignment because we "
                            "are in the middle of a reannounce.")
             request.setResponseCode(BAD_REQUEST)
