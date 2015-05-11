@@ -69,6 +69,18 @@ class Assign(APIResource):
         if request_from_master(request):
             config.master_contacted()
 
+        if ("agent_id" in request_data and
+            request_data["agent_id"] != config["agent_id"]):
+            logger.error("Wrong agent_id in assignemnt: %s. Our id is %s",
+                         request_data["agent_id"], config["agent_id"])
+            request.setResponseCode(BAD_REQUEST)
+            request.write(dumps(
+                {"error": "You have the wrong agent. I am %s." %
+                    config["agent_id"],
+                 "agent_id": config["agent_id"]}))
+            request.finish()
+            return NOT_DONE_YET
+
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
         # entries in `config` could be slightly out of sync with the system.
