@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+from json import dumps
+
 try:
     from httplib import OK
 except ImportError:  # pragma: no cover
@@ -29,30 +32,35 @@ from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.tasks import Tasks
 
 
-class TestTasks(BaseAPITestCase):
+class TestGetTasks(BaseAPITestCase):
     URI = "/tasks/"
     CLASS = Tasks
-    DEFAULT_HEADERS = {"User-Agent": config["master_user_agent"]}
 
-    def setUp(self):
-        super(TestTasks, self).setUp()
-        config["current_assignments"] = {}
-        self.assignments = []
-        for i in range(5):
-            self.assignments.append(i)
-            config["current_assignments"][i] = {"tasks": [i]}
+    def test_master_contacted(self):
+        try:
+            last_master_contact = config["last_master_contact"]
+        except KeyError:
+            last_master_contact = None
 
-    def test_get_tasks(self):
+        request = self.get(headers={"User-Agent": config["master_user_agent"]})
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertNotEqual(last_master_contact, config["last_master_contact"])
+
+    def test_returns_current_assignments(self):
+        # NOTE: current_assignments is improperly constructed here but we
+        # only care about the values.
+        config["current_assignments"] = {
+            "a": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 1}]},
+            "b": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 2}]},
+            "c": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 3}]}
+        }
+        current_tasks = []
+        for item in config["current_assignments"].values():
+            current_tasks += item["tasks"]
+
         request = self.get()
         tasks = Tasks()
-        response = tasks.render(request)
-        self.assertEqual(response, NOT_DONE_YET)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.responseCode, OK)
-        self.assertEqual(len(request.written), 1)
-        self.assertEqual(loads(request.written[0]), self.assignments)
-        self.assertDateAlmostEqual(
-            config.master_contacted(update=False), datetime.utcnow())
+        tasks.render(request)
+        self.assertEqual(request.written, [dumps(current_tasks)])
 
-    def test_delete_tasks(self):
-        self.skipTest("TODO: test_delete_tasks()")
