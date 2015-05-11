@@ -225,6 +225,12 @@ class Resource(_Resource):
                         value = [value]
                     request.responseHeaders.setRawHeaders(header, value)
 
+            if not request.requestHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
             request.setResponseCode(code)
 
             # Cast to str, otherwise Twisted responds
