@@ -212,7 +212,7 @@ class Resource(_Resource):
 
     def set_response_code_if_not_set(self, request, code):
         """Sets the response code if one has not already been set"""
-        if request.code == OK and code != OK:
+        if request.code == OK:
             request.setResponseCode(code)
 
     def render_tuple(self, request, response):
