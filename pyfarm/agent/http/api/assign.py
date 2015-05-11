@@ -78,6 +78,7 @@ class Assign(APIResource):
                 {"error": "You have the wrong agent. I am %s." %
                     config["agent_id"],
                  "agent_id": config["agent_id"]}))
+            request.finish()
             return NOT_DONE_YET
 
         if config["agent"].reannounce_lock.locked:
