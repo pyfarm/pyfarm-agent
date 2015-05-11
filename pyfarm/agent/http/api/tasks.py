@@ -36,6 +36,43 @@ logger = getLogger("agent.http.api.tasks")
 
 class Tasks(APIResource):
     def get(self, **kwargs):
+        """
+        Returns all tasks which are currently being
+        processed locally by the agent.
+
+        .. http:get:: /api/v1/tasks/ HTTP/1.1
+
+            **Request**
+
+            .. sourcecode:: http
+
+                GET /api/v1/tasks/ HTTP/1.1
+
+            **Response**
+
+            .. sourcecode:: http
+
+                HTTP/1.1 200 OK
+                Content-Type: application/json
+
+                [{
+                    "id": "732c1ef0-9488-4914-adef-c29f481f3f5b",
+                    "frame": 1,
+                    "attempt": 1
+                },
+                {
+                    "id": "34ce3964-b654-4ad4-8416-f5ddba67806e",
+                    "frame": 2,
+                    "attempt": 1
+                }]
+
+        .. note::
+
+            The above output is an example only and may not exactly
+            replicate the fields present in the response.
+
+        :statuscode 200: The request was processed successfully
+        """
         request = kwargs["request"]
 
         if request_from_master(request):
