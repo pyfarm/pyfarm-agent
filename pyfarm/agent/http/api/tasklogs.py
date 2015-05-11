@@ -87,14 +87,16 @@ class TaskLogs(APIResource):
 
         if len(request.postpath) != 1:
             request.setResponseCode(BAD_REQUEST)
-            request.setHeader("Content-Type", "application/json")
+            request.responseHeaders.setRawHeader(
+                "Content-Type", ["application/json"])
             request.write(dumps({"error": "Did not specify a log identifier"}))
             return NOT_DONE_YET
 
         log_identifier = request.postpath[0]
         if "/" in log_identifier or "\\" in log_identifier:
             request.setResponseCode(BAD_REQUEST)
-            request.setHeader("Content-Type", "application/json")
+            request.responseHeaders.setRawHeader(
+                "Content-Type", ["application/json"])
             request.write(dumps({"error": "log_identifier must not contain "
                                           "directory separators"}))
 
@@ -105,7 +107,8 @@ class TaskLogs(APIResource):
         try:
             logfile = self._open_file(path, "rb")
         except Exception as error:
-            request.setHeader("Content-Type", "application/json")
+            request.responseHeaders.setRawHeader(
+                "Content-Type", ["application/json"])
 
             if getattr(error, "errno", None) == ENOENT:
                 request.setResponseCode(NOT_FOUND)
@@ -119,7 +122,7 @@ class TaskLogs(APIResource):
 
         # TODO: deferToThread for open? (and possibly send)
         request.setResponseCode(OK)
-        request.setHeader("Content-Type", "text/csv")
+        request.responseHeaders.setRawHeader("Content-Type", ["text/csv"])
         deferred = FileSender().beginFileTransfer(logfile, request)
         deferred.addCallback(lambda *_: request.finish())
         deferred.addCallback(lambda *_: logfile.close())
