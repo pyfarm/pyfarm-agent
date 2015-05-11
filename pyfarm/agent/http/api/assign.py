@@ -78,6 +78,15 @@ class Assign(APIResource):
                 {"error": "You have the wrong agent. I am %s." %
                     config["agent_id"],
                  "agent_id": config["agent_id"]}))
+            return NOT_DONE_YET
+
+        if config["agent"].reannounce_lock.locked:
+            logger.warning("Temporarily rejecting assignment because we "
+                           "are in the middle of a reannounce.")
+            request.setResponseCode(BAD_REQUEST)
+            request.write(
+                dumps({"error": "Agent cannot accept assignments because of a "
+                                "reannounce in progress. Try again shortly."}))
             request.finish()
             return NOT_DONE_YET
 
