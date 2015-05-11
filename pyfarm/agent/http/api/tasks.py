@@ -104,9 +104,7 @@ class Tasks(APIResource):
 
         # Postpath must be exactly one element, and that needs to be an integer
         if len(request.postpath) != 1:
-            request.setResponseCode(BAD_REQUEST)
-            request.write({"error": "Did not specify a task id"})
-            return NOT_DONE_YET
+            return dumps({"error": "Did not specify a task id"}), BAD_REQUEST
 
         try:
             task_id = int(request.postpath[0])
@@ -128,9 +126,7 @@ class Tasks(APIResource):
 
         if not assignment:
             logger.info("Cannot cancel task %s: not found", task_id)
-            request.setResponseCode(NO_CONTENT)
-            request.finish()
-            return NOT_DONE_YET
+            return "", NO_CONTENT
 
         if "jobtype" in assignment and "id" in assignment["jobtype"]:
             jobtype = config["jobtypes"][assignment["jobtype"]["id"]]
@@ -139,13 +135,8 @@ class Tasks(APIResource):
         else:
             logger.error("Tried stopping assigment %s, but found no jobtype "
                          "instance", assignment.uuid)
-            request.setResponseCode(INTERNAL_SERVER_ERROR)
-            request.write({"error": "Assignment found, but no jobtype instance "
-                                    "exists."})
-            request.finish()
-            return NOT_DONE_YET
+            return dumps(
+                {"error": "Assignment found, but no jobtype instance "
+                          "exists."}), INTERNAL_SERVER_ERROR
 
-        request.setResponseCode(ACCEPTED)
-        request.finish()
-
-        return NOT_DONE_YET
+        return "", ACCEPTED
