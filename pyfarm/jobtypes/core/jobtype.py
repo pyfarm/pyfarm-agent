@@ -932,6 +932,13 @@ class JobType(Cache, System, Process, TypeChecks):
             logger.error("Not setting task to failed: agent is shutting down.")
 
         else:
+            assignment_id = self.assignment["id"]
+            assignment = config["current_assignments"].get(assignment_id, None)
+            if assignment:
+                task_ = next(x for x in assignment["tasks"] if
+                             x["id"] == task["id"])
+                task_["local_state"] = state
+
             # The task has failed
             if state == WorkState.FAILED:
                 error = self.format_error(error)
