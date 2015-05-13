@@ -81,6 +81,16 @@ class Assign(APIResource):
             request.finish()
             return NOT_DONE_YET
 
+        if self.agent.reannounce_lock.locked:
+            logger.warning("Temporarily rejecting assignment because we "
+                           "are in the middle of a reannounce.")
+            request.setResponseCode(BAD_REQUEST)
+            request.write(
+                dumps({"error": "Agent cannot accept assignments because of a "
+                                "reannounce in progress. Try again shortly."}))
+            request.finish()
+            return NOT_DONE_YET
+
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
         # entries in `config` could be slightly out of sync with the system.
