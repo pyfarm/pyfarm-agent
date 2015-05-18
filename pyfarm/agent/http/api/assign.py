@@ -84,7 +84,7 @@ class Assign(APIResource):
         if self.agent.reannounce_lock.locked:
             logger.warning("Temporarily rejecting assignment because we "
                            "are in the middle of a reannounce.")
-            request.setResponseCode(BAD_REQUEST)
+            request.setResponseCode(SERVICE_UNAVAILABLE)
             request.write(
                 dumps({"error": "Agent cannot accept assignments because of a "
                                 "reannounce in progress. Try again shortly."}))
