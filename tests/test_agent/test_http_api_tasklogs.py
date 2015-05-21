@@ -59,9 +59,9 @@ class TestTaskLogs(BaseAPITestCase):
 
     def test_master_contacted(self):
         """
-        Make sure that if the request is coming
-        from the master that is sets the value in
-        the config.
+        If the request appears to be coming from the
+        master then `last_master_contact` should be
+        updated.
         """
         self.create_log()
         try:
