@@ -220,6 +220,17 @@ class DummyRequest(_DummyRequest):
         self.content.write(content)
         self.content.seek(0)
 
+    def setHeader(self, name, value):
+        """
+        Default override, _DummyRequest.setHeader does not actually
+        set the response headers.  Instead it sets the value in
+        a different location that's never used in an actual request.
+        """
+        if isinstance(value, STRING_TYPES):
+            value = [value]
+
+        self.responseHeaders.setRawHeaders(name, value)
+
     def getHeader(self, key):
         """
         Default override, _DummyRequest.getHeader does something different
