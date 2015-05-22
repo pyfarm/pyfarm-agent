@@ -211,6 +211,8 @@ class ErrorCapturingParser(AgentArgumentParser):
 
 
 class DummyRequest(_DummyRequest):
+    code = OK
+
     def __init__(self, postpath="/", session=None):
         super(DummyRequest, self).__init__(postpath, session=session)
         self.content = StringIO()

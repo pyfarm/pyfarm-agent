@@ -37,6 +37,7 @@ from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.web.server import NOT_DONE_YET
 from twisted.web.resource import Resource as _Resource
 from twisted.web.static import File
+from twisted.web.http import Request
 from voluptuous import Invalid, Schema
 
 from pyfarm.core.enums import STRING_TYPES
@@ -152,7 +153,7 @@ class Resource(_Resource):
             content_type.update(
                 entry.split(";")[0] for entry in value.split(","))
 
-        return frozenset(content_type)
+        return content_type
 
     def get_accept(self, request):
         """
@@ -209,6 +210,11 @@ class Resource(_Resource):
 
         request.finish()
 
+    def set_response_code_if_not_set(self, request, code):
+        """Sets the response code if one has not already been set"""
+        if request.code == OK:
+            request.setResponseCode(code)
+
     def render_tuple(self, request, response):
         """
         Takes a response tuple of ``(body, code, headers)`` or
@@ -225,6 +231,14 @@ class Resource(_Resource):
                         value = [value]
                     request.responseHeaders.setRawHeaders(header, value)
 
+            if not request.responseHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
+            # Don't use set_response_code_if_not_set, always honor the return
+            # value from the function.
             request.setResponseCode(code)
 
             # Cast to str, otherwise Twisted responds
@@ -234,6 +248,16 @@ class Resource(_Resource):
 
         elif len(response) == 2:
             body, code = response
+
+            # Set Content-Type if it has not already been set
+            if not request.responseHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
+            # Don't use set_response_code_if_not_set, always honor the return
+            # value from the function.
             request.setResponseCode(code)
 
             # Cast to str, otherwise Twisted responds
@@ -341,7 +365,14 @@ class Resource(_Resource):
             return NOT_DONE_YET
 
         elif isinstance(response, STRING_TYPES):
-            request.setResponseCode(OK)
+            # Set Content-Type if it has not already been set
+            if not request.responseHeaders.hasHeader("Content-Type"):
+                request.responseHeaders.setRawHeaders(
+                    "Content-Type",
+                    list(self.DEFAULT_CONTENT_TYPE)
+                )
+
+            self.set_response_code_if_not_set(request, OK)
             request.write(response)
             request.finish()
             return NOT_DONE_YET
