@@ -921,8 +921,10 @@ class JobType(Cache, System, Process, TypeChecks):
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
 
-        url = "%s/jobs/%s/tasks/%s" % (
-            config["master_api"], self.assignment["job"]["id"], task["id"])
+        url = "{master_api}/jobs/{job_id}/{task_id}".format(
+            master_api=config["master_api"],
+            job_id=self.assignment["job"]["id"],
+            task_id=task["id"])
         data = {"time_started": "now"}
 
         updated = False
