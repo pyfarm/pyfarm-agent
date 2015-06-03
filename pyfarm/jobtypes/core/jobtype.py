@@ -1137,7 +1137,12 @@ class JobType(Cache, System, Process, TypeChecks):
             which contains the protocol used to communicate between the
             process and this job type.
         """
-        logger.info("Spawning %r", command)
+        command_line = command.command
+        for argument in command.arguments:
+            command_line += " "
+            command_line += argument
+        logger.info("Starting command: %s", command_line)
+        logger.debug("Spawning %r", command)
         logpool.log(self.uuid, "internal",
                     "Spawning process. Command: %s" % command.command)
         logpool.log(self.uuid, "internal",
