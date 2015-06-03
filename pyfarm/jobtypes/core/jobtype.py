@@ -75,6 +75,14 @@ process_stderr = getLogger("jobtypes.process.stderr")
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
+class TaskNotFound(Exception):
+    pass
+
+
+class ConnectionBroken(Exception):
+    pass
+
+
 class CommandData(object):
     """
     Stores data to be returned by :meth:`JobType.get_command_data`.  Instances
@@ -944,7 +952,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     message = ("Got 404 NOT FOUND error on setting start time "
                                "for task %s" % task["id"])
                     logger.error(message)
-                    raise Exception(message)
+                    raise TaskNotFound(message)
 
                 elif response.code >= BAD_REQUEST:
                     message = (
@@ -970,7 +978,7 @@ class JobType(Cache, System, Process, TypeChecks):
                         "master, caught try-again type errors %s times in a "
                         "row." % (task["id"], num_retry_errors))
                     logger.error(message)
-                    raise Exception(message)
+                    raise ConnectionBroken(message)
                 else:
                     logger.debug("While setting start time for task %s on "
                                  "master, caught %s. Retrying immediately.",
