@@ -895,6 +895,7 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         Sets the time_started of the given task to the current time on the
         master.
+
         This method is useful for batched tasks, where the actual work on a
         single task may start much later than the work the assignment as a
         whole.
