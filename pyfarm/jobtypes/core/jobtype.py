@@ -298,9 +298,9 @@ class JobType(Cache, System, Process, TypeChecks):
             self.__class__.__name__,
             self.assignment["job"]["id"],
             tuple(task["id"] for task in self.assignment["tasks"]),
-            str(self.assignment["jobtype"]["name"]),
+            self.assignment["jobtype"]["name"],
             self.assignment["jobtype"]["version"],
-            str(self.assignment["job"]["title"]))
+            self.assignment["job"]["title"])
 
     @classmethod
     def load(cls, assignment):
