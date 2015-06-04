@@ -75,6 +75,14 @@ process_stderr = getLogger("jobtypes.process.stderr")
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
+class TaskNotFound(Exception):
+    pass
+
+
+class ConnectionBroken(Exception):
+    pass
+
+
 class CommandData(object):
     """
     Stores data to be returned by :meth:`JobType.get_command_data`.  Instances
@@ -887,6 +895,99 @@ class JobType(Cache, System, Process, TypeChecks):
             except Exception as error:
                 logger.error(
                     "Failed to post progress update for task %s to the master: "
+                    "%r." % (task["id"], error))
+                raise
+
+    @inlineCallbacks
+    def set_task_started_now(self, task):
+        """
+        Sets the time_started of the given task to the current time on the
+        master.
+
+        This method is useful for batched tasks, where the actual work on a
+        single task may start much later than the work the assignment as a
+        whole.
+
+        :param dict task:
+            The dictionary containing the task we're changing the start time
+            for.
+        """
+        if not isinstance(task, dict):
+            raise TypeError(
+                "Expected a dictionary for `task`, cannot set start time")
+
+        if "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
+            raise TypeError(
+                "Expected to find 'id' in `task` or for `task['id']` to "
+                "be an integer.")
+
+        url = "{master_api}/jobs/{job_id}/tasks/{task_id}".format(
+            master_api=config["master_api"],
+            job_id=self.assignment["job"]["id"],
+            task_id=task["id"])
+        data = {"time_started": "now"}
+
+        updated = False
+        num_retry_errors = 0
+        while not updated:
+            try:
+                response = yield post_direct(url, data=data)
+                response_data = yield treq.json_content(response)
+                if response.code == OK:
+                    logger.info("Set time_started of task %s to now on master",
+                                task ["id"])
+                    updated = True
+                    returnValue(None)
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = http_retry_delay()
+                    logger.warning(
+                        "Could not post start time for task %s to the "
+                        "master server, internal server error: %s.  Retrying "
+                        "in %s seconds.", task["id"], response_data, delay)
+
+                    deferred = Deferred()
+                    reactor.callLater(delay, deferred.callback, None)
+                    yield deferred
+
+                elif response.code == NOT_FOUND:
+                    message = ("Got 404 NOT FOUND error on setting start time "
+                               "for task %s" % task["id"])
+                    logger.error(message)
+                    raise TaskNotFound(message)
+
+                elif response.code >= BAD_REQUEST:
+                    message = (
+                        "Failed to set start time for task %s on the "
+                        "master, bad request: %s. Server.  This request will "
+                        "not be retried." % (task["id"], response_data))
+                    logger.error(message)
+                    raise Exception(message)
+
+                else:
+                    message = (
+                        "Unhandled error when setting start time for task "
+                        "%s to the master: %s (code: %s).  This request will "
+                        "not be retried." % (response_data, response.code))
+                    logger.error(message)
+                    raise Exception(message)
+
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    message = (
+                        "Failed to set start time for task %s to the "
+                        "master, caught try-again type errors %s times in a "
+                        "row." % (task["id"], num_retry_errors))
+                    logger.error(message)
+                    raise ConnectionBroken(message)
+                else:
+                    logger.debug("While setting start time for task %s on "
+                                 "master, caught %s. Retrying immediately.",
+                                 task["id"], error.__class__.__name__)
+            except Exception as error:
+                logger.error(
+                    "Failed to set start time for task %s on the master: "
                     "%r." % (task["id"], error))
                 raise
 
