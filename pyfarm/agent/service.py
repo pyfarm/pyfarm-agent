@@ -63,7 +63,7 @@ from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
+from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics, disks
 from pyfarm.agent import utility
 
 svclog = getLogger("agent.service")
@@ -256,13 +256,22 @@ class Agent(object):
         num_retry_errors = 0
         while True:  # for retries
             try:
-                response = yield post_direct(
-                    self.agent_api(),
-                    data={
+                agent_data = {
                         "state": config["state"],
                         "current_assignments": config.get(
                             "current_assignments", {}),  # may not be set yet
                         "free_ram": memory.free_ram()}
+                try:
+                    local_disks = disks.disks()
+                    agent_data["disks"] = [{"mountpoint": x.mountpoint,
+                                "free": x.free,
+                                "size": x.size}
+                                for x in local_disks]
+                except Exception as e:
+                    svclog.warning("Could not read disks: %r", e)
+                response = yield post_direct(
+                    self.agent_api(),
+                    data=agent_data
                 )
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
@@ -406,6 +415,15 @@ class Agent(object):
             data["gpus"] = gpu_names
         except graphics.GPULookupError:
             pass
+
+        try:
+            local_disks = disks.disks()
+            data["disks"] = [{"mountpoint": x.mountpoint,
+                              "free": x.free,
+                              "size": x.size}
+                             for x in local_disks]
+        except Exception as e:
+            svclog.warning("Could not read disks: %r", e)
 
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
