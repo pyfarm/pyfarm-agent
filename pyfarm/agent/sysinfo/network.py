@@ -95,11 +95,11 @@ def hostname(trust_name_from_ips=True):
 
     ip_addresses = addresses()
 
-    local_fqdn_query = socket.getfqdn()
+    local_fqdn_query = socket.getfqdn().lower()
     _h, _a, ips_from_fqdn = socket.gethostbyname_ex(local_fqdn_query)
     if set(ip_addresses) & set(ips_from_fqdn):
         return local_fqdn_query
-    local_hostname = socket.gethostname()
+    local_hostname = socket.gethostname().lower()
     _h, _a, ips_from_hostname = socket.gethostbyname_ex(local_hostname)
     if set(ip_addresses) & set(ips_from_hostname):
         return local_hostname
@@ -117,7 +117,7 @@ def hostname(trust_name_from_ips=True):
                 "Could not resolve %s to a hostname using DNS.", address)
         else:
             if address in dns_addresses:
-                reverse_hostnames.add(dns_name)
+                reverse_hostnames.add(dns_name.lower())
                 logger.debug(
                     "Lookup of %s resolved to %s", address, dns_name)
 
@@ -130,7 +130,7 @@ def hostname(trust_name_from_ips=True):
     # produce the wrong information when resolving the local
     # hostname.
     if len(reverse_hostnames) == 1 and trust_name_from_ips:
-        return reverse_hostnames.pop()
+        return reverse_hostnames.pop().lower()
 
     if not reverse_hostnames:
         logger.warning(
