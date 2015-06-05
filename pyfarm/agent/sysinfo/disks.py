@@ -21,7 +21,10 @@ Disks
 Contains information about the local disks.
 """
 
-from os import statvfs
+try:
+    from os import statvfs
+except ImportError:  # pragma: no cover
+    statvfs = NotImplemented
 
 try:
     from wmi import WMI
