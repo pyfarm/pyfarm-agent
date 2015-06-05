@@ -94,8 +94,8 @@ def hostname(trust_name_from_ips=True):
     logger.debug("Attempting to discover the hostname")
 
     # For every address retrieve the hostname we can resolve it
-    # to.  We'll use this set later to compare again what the system
-    # is telling is the hostname should be.
+    # to.  We'll use this set later to compare against what the system
+    # is telling us the hostname should be.
     reverse_hostnames = set()
     ip_addresses = addresses()
     for address in ip_addresses:
