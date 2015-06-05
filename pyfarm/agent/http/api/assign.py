@@ -71,7 +71,7 @@ class Assign(APIResource):
 
         if ("agent_id" in request_data and
             request_data["agent_id"] != config["agent_id"]):
-            logger.error("Wrong agent_id in assignemnt: %s. Our id is %s",
+            logger.error("Wrong agent_id in assignment: %s. Our id is %s",
                          request_data["agent_id"], config["agent_id"])
             request.setResponseCode(BAD_REQUEST)
             request.write(dumps(
