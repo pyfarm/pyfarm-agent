@@ -31,7 +31,7 @@ matrix:
   fast_finish: true
 
 before_install:
-  - curl https://raw.githubusercontent.com/pyfarm/pyfarm/master/misc/retry.sh -o retry.sh
+  - curl -o retry.sh https://raw.githubusercontent.com/pyfarm/pyfarm-build/master/travis/retry.sh
   - source retry.sh
   - mkdir -p $PIP_DOWNLOAD_CACHE
 
