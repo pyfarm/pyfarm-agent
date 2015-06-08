@@ -130,7 +130,7 @@ def hostname(trust_name_from_ips=True):
     # produce the wrong information when resolving the local
     # hostname.
     if len(reverse_hostnames) == 1 and trust_name_from_ips:
-        return reverse_hostnames.pop().lower()
+        return reverse_hostnames.pop()
 
     if not reverse_hostnames:
         logger.warning(
