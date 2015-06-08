@@ -21,58 +21,28 @@ Disks
 Contains information about the local disks.
 """
 
-try:
-    from os import statvfs
-except ImportError:  # pragma: no cover
-    statvfs = NotImplemented
+import psutil
 
-try:
-    from wmi import WMI
-except ImportError:  # pragma: no cover
-    WMI = NotImplemented
-
-from pyfarm.core.enums import WINDOWS, LINUX, BSD
 from pyfarm.agent.logger import getLogger
+
+from collections import namedtuple
+DiskInfo = namedtuple("DiskInfo", ("mountpoint", "free", "size"))
 
 logger = getLogger("agent.disks")
 
 
-class DiskLookupError(Exception):
-    pass
-
-
-class DiskInfo:
-    def __init__(self, mountpoint, free, size):
-        self.mountpoint = mountpoint
-        self.free = free
-        self.size = size
-
-
 def disks():
     """
-    Returns a list of disks in the system, in the for of DiskInfo objects
+    Returns a list of disks in the system, in the form of DiskInfo objects
     """
-    if WINDOWS:
-        wmi = WMI()
-        disks = wmi.Win32_LogicalDisk(DriveType=3)
-        disk_info_list = [DiskInfo(x.Caption, x.FreeSpace, x.Size)
-                          for x in disks]
-        return disk_info_list
+    out = []
+    for partition in psutil.disk_partitions():
+        usage = psutil.disk_usage(partition.mountpoint)
 
-    elif LINUX or BSD:
-        disk_info_list = []
-        with open("/etc/mtab", "r") as mtab:
-            for line in mtab:
-                # Simple heuristic to filter out pseudo filesystems
-                # (proc, sys and such) and net mounts
-                if line.startswith("/") and not line.startswith("//"):
-                    cols = line.split()
-                    mountpoint = cols[1]
-                    stat_struct = statvfs(mountpoint)
-                    disk_info_list.append(DiskInfo(
-                        mountpoint,
-                        stat_struct.f_bavail * stat_struct.f_bsize,
-                        stat_struct.f_blocks * stat_struct.f_frsize))
-        return disk_info_list
+        info = DiskInfo(
+            mountpoint=partition.mountpoint,
+            free=usage.free,
+            size=usage.total)
+        out.append(info)
 
-    raise DiskLookupError("Don't know how to read disks on this OS")
+    return out
