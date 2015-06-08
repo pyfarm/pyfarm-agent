@@ -194,7 +194,7 @@ class Cache(object):
                 logger.debug("Created %s", parent_dir)
 
             if isfile(filename):  # pragma: no cover
-                logcache.warning("%s is already cached on disk", filename)
+                logcache.debug("%s is already cached on disk", filename)
                 jobtype.pop("code", None)
                 return jobtype, filename
 

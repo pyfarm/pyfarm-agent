@@ -220,7 +220,10 @@ class Assign(APIResource):
         request.setResponseCode(ACCEPTED)
         request.write(dumps({"id": assignment_uuid}))
         request.finish()
-        logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
+        logger.debug("Accepted assignment %s: %r",
+                     assignment_uuid, request_data)
+        logger.info("Accept assignment from job %s with %s tasks",
+                    request_data["job"]["title"], len(request_data["tasks"]))
 
         def assignment_failed(result, assign_id):
             logger.error(
