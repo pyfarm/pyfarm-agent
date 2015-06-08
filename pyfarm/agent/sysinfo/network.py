@@ -96,13 +96,19 @@ def hostname(trust_name_from_ips=True):
     ip_addresses = addresses()
 
     local_fqdn_query = socket.getfqdn().lower()
-    _h, _a, ips_from_fqdn = socket.gethostbyname_ex(local_fqdn_query)
-    if set(ip_addresses) & set(ips_from_fqdn):
-        return local_fqdn_query
+    try:
+        _h, _a, ips_from_fqdn = socket.gethostbyname_ex(local_fqdn_query)
+        if set(ip_addresses) & set(ips_from_fqdn):
+            return local_fqdn_query
+    except socket.gaierror as error:
+        logger.warning("Could not resolve hostname %s.", local_fqdn_query)
     local_hostname = socket.gethostname().lower()
-    _h, _a, ips_from_hostname = socket.gethostbyname_ex(local_hostname)
-    if set(ip_addresses) & set(ips_from_hostname):
-        return local_hostname
+    try:
+        _h, _a, ips_from_hostname = socket.gethostbyname_ex(local_hostname)
+        if set(ip_addresses) & set(ips_from_hostname):
+            return local_hostname
+    except socket.gaierror as error:
+        logger.warning("Could not resolve hostname %s.", local_hostname)
 
     # For every address retrieve the hostname we can resolve it
     # to.  We'll use this set later to compare against what the system
