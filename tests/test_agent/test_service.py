@@ -55,7 +55,7 @@ from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog, ntplog
-from pyfarm.agent.sysinfo import network, graphics, memory
+from pyfarm.agent.sysinfo import network, graphics, memory, disks
 from pyfarm.agent import utility
 
 
@@ -94,6 +94,7 @@ class TestSystemData(TestCase):
         expected = {
             "id": config["agent_id"],
             "current_assignments": {},
+            "disks": [{"free": 50000, "mountpoint": "/", 'size': 100000}],
             "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],
@@ -924,10 +925,19 @@ class TestReannounce(TestCase):
             memory, "free_ram", return_value=424242)
         self.free_ram_mock.start()
 
+        # Mock out disks.disks
+        self.disks_mock = patch.object(
+            disks, "disks", return_value=[disks.DiskInfo("/", 50000, 100000)])
+        self.disks_mock.start()
+
         self.normal_result = {
             "state": config["state"],
             "current_assignments": {},
-            "free_ram": 424242
+            "free_ram": 424242,
+            "disks": [{
+                "mountpoint": "/",
+                "size": 100000,
+                "free": 50000}]
         }
 
     @inlineCallbacks
