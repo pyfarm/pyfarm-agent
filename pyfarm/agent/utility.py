@@ -109,6 +109,7 @@ JOBTYPE_SCHEMA = Schema({
 TASK_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("frame"): NUMBERS,
+    Optional("tile"): Any(WHOLE_NUMBERS, type(None)),
     Required("attempt", default=0): WHOLE_NUMBERS})
 TASKS_SCHEMA = lambda values: map(TASK_SCHEMA, values)
 NOTIFIED_USERS_SCHEMA = Schema({
@@ -119,6 +120,7 @@ NOTIFIED_USERS_SCHEMA = Schema({
 JOB_SCHEMA = Schema({
     Required("id"): WHOLE_NUMBERS,
     Required("by"): NUMBERS,
+    Optional("num_tiles"): Any(WHOLE_NUMBERS, type(None)),
     Optional("agent_id"): WHOLE_NUMBERS,
     Optional("batch"): WHOLE_NUMBERS,
     Optional("user"): STRINGS,
