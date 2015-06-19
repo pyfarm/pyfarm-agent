@@ -1194,5 +1194,8 @@ class TestBuildHTTPResource(TestCase):
         update = v1.children.pop("update")
         self.assertIsInstance(update, Update)
 
+        check_software = v1.children.pop("check_software")
+        self.assertIsInstance(update, Update)
+
         self.assertNot(v1.children)
 
