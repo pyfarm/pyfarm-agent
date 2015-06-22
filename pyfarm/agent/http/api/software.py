@@ -174,8 +174,8 @@ class CheckSoftware(APIResource):
                     elif response.code >= INTERNAL_SERVER_ERROR:
                         delay = http_retry_delay()
                         logger.warning(
-                            "Could not get post availability of software "
-                            " %s, version %s. The master responded with "
+                            "Could not remove software %s, version %s from "
+                            "this agent. The master responded with "
                             "INTERNAL_SERVER_ERROR.  Retrying in %s "
                             "seconds.", software, version, delay)
 
