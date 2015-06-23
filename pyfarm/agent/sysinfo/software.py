@@ -46,6 +46,17 @@ class VersionNotFound(Exception):
 
 @inlineCallbacks
 def get_software_version_data(software, version):
+    """
+    Asynchronously fetches the known data about the given software version from
+    the master.  Will call its callback function with the dict returned by the
+    server.
+
+    :param str software:
+        The name of the software to get data for
+
+    :param str version:
+        The name of the version to get data for
+    """
     url = "{master_api}/software/{software}/versions/{version}".\
         format(master_api=config.get("master_api"),
                software=software, version=version)
@@ -86,7 +97,8 @@ def get_software_version_data(software, version):
                 logger.error("Got 404 NOT FOUND from server on getting data "
                              "for software %s, version %s", software, version)
                 query_done = True
-                raise VersionNotFound("This software version was not found")
+                raise VersionNotFound("This software version was not found or "
+                                      "has no discovery code.")
 
             else:
                 logger.error(
@@ -99,6 +111,17 @@ def get_software_version_data(software, version):
 
 @inlineCallbacks
 def get_discovery_code(software, version):
+    """
+    Asynchronously fetches the discovery code for the given software version
+    from the master.  Will call its callback function with the returned code as
+    a string.
+
+    :param str software:
+        The name of the software to get the discovery code for
+
+    :param str version:
+        The name of the version to get the discovery code for
+    """
     url = "{master_api}/software/{software}/versions/{version}/discovery_code".\
         format(master_api=config.get("master_api"),
                software=software, version=version)
@@ -154,6 +177,19 @@ def get_discovery_code(software, version):
 
 @inlineCallbacks
 def check_software_availability(software, version):
+    """
+    Asynchronously checks for the availability of a given software in a given
+    version.  Will pass True to its callback function if the software could be
+    found, False otherwise.
+    Works only for software versions that have a discovery registered on the
+    master.
+
+    :param str software:
+        The name of the software to check for
+
+    :param str version:
+        The name of the version to check for
+    """
     version_data = yield get_software_version_data(software, version)
     discovery_code = yield get_discovery_code(software, version)
 
