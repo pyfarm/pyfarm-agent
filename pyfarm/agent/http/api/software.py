@@ -16,7 +16,7 @@
 
 """
 Check Software Endpoint
-===============
+=======================
 
 This endpoint is used to instruct the agent to check whether a given version of
 a software is installed and usable locally.
