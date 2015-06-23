@@ -195,7 +195,7 @@ class Resource(_Resource):
             html_error = template.load("error.html")
             result = html_error.render(
                 code=code, code_msg=responses[code], message=message)
-            request.write(result)
+            request.write(result.encode())
 
         elif "application/json" in response_types:
             request.setResponseCode(code)
