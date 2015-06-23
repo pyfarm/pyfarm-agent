@@ -192,7 +192,7 @@ class CheckSoftware(APIResource):
                         break
 
         def on_check_software_return(result):
-            if result == True:
+            if result is True:
                 mark_software_available(data["software"], data["version"])
             else:
                 mark_software_not_available(data["software"], data["version"])
