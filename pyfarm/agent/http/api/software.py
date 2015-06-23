@@ -28,11 +28,11 @@ try:
 except ImportError:  # pragma: no cover
     from http.client import OK, ACCEPTED, INTERNAL_SERVER_ERROR, NO_CONTENT
 
+import treq
+
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks
-
-import treq
 
 from voluptuous import Schema, Required
 
