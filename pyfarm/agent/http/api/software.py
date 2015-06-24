@@ -81,6 +81,7 @@ class CheckSoftware(APIResource):
             Required("software"): STRINGS,
             Required("version"): STRINGS})}
     isLeaf = False  # this is not really a collection of things
+    testing = False
 
     def post(self, **kwargs):
         request = kwargs["request"]
@@ -89,8 +90,8 @@ class CheckSoftware(APIResource):
         logger.info("Checking whether software %s, version %s is present",
                     data["software"], data["version"])
 
-        deferred = check_software_availability(data["software"],
-                                               data["version"])
+        if self.testing:
+            self.operation_deferred = Deferred()
 
         @inlineCallbacks
         def mark_software_available(software, version):
@@ -114,7 +115,7 @@ class CheckSoftware(APIResource):
                     yield deferred
 
                 else:
-                    data = yield treq.json_content(response)
+                    data = yield treq.content(response)
 
                     if response.code == OK:
                         logger.info("Posted availability of software %s, "
@@ -141,6 +142,9 @@ class CheckSoftware(APIResource):
                             "Unexpected status from server %s. Data: %s",
                             software, version, response.code, data)
                         break
+
+            if self.testing:
+                self.operation_deferred.callback(None)
 
         @inlineCallbacks
         def mark_software_not_available(software, version):
@@ -191,13 +195,20 @@ class CheckSoftware(APIResource):
                             software, version, response.code, data)
                         break
 
+            if self.testing:
+                self.operation_deferred.callback(None)
+
         def on_check_software_return(result):
             if result is True:
                 mark_software_available(data["software"], data["version"])
             else:
                 mark_software_not_available(data["software"], data["version"])
 
+        deferred = check_software_availability(data["software"],
+                                               data["version"])
         deferred.addCallback(on_check_software_return)
+        if self.testing:
+            deferred.addErrback(lambda _: self.operation_deferred.errback())
 
         request.setResponseCode(ACCEPTED)
         request.finish()
