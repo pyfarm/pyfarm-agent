@@ -23,9 +23,9 @@ machine.
 """
 
 try:
-    from httplib import OK, INTERNAL_SERVER_ERROR
+    from httplib import OK, INTERNAL_SERVER_ERROR, NOT_FOUND
 except ImportError:  # pragma: no cover
-    from http.client import OK, INTERNAL_SERVER_ERROR
+    from http.client import OK, INTERNAL_SERVER_ERROR, NOT_FOUND
 
 import imp, sys
 
