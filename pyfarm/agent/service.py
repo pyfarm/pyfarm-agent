@@ -58,6 +58,7 @@ from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
+from pyfarm.agent.http.api.software import CheckSoftware
 from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
@@ -468,6 +469,7 @@ class Agent(object):
         v1.putChild("stop", Stop())
         v1.putChild("restart", Restart())
         v1.putChild("update", Update())
+        v1.putChild("check_software", CheckSoftware())
 
         return root
 
