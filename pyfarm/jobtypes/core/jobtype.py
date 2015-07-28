@@ -921,6 +921,9 @@ class JobType(Cache, System, Process, TypeChecks):
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
 
+        # Task progress should be at 0% now if we just started
+        self.set_task_progress(task, 0.0)
+
         url = "{master_api}/jobs/{job_id}/tasks/{task_id}".format(
             master_api=config["master_api"],
             job_id=self.assignment["job"]["id"],

@@ -661,8 +661,8 @@ class TestSigintHandler(TestCase):
             stop_deferred.callback(None)
             agent.sigint_handler()
 
-        agent_stop.assert_called_once()
-        reactor_stop.assert_called_once()
+        agent_stop.assert_called_once_with()
+        reactor_stop.assert_called_once_with()
 
     def test_sigint_errback(self):
         agent = Agent()
@@ -678,9 +678,9 @@ class TestSigintHandler(TestCase):
             stop_deferred.errback(failure)
             agent.sigint_handler()
 
-        error_log.assert_called_once()
-        agent_stop.assert_called_once()
-        reactor_stop.assert_called_once()
+        self.assertEqual(error_log.call_count, 1)
+        agent_stop.assert_called_once_with()
+        self.assertEqual(reactor_stop.call_count, 1)
 
         # Manually test the call args because assert_called_with would
         # require the exact instance of the Failure object.
@@ -712,9 +712,8 @@ class TestStop(TestCase):
             result = yield agent.stop()
 
         self.assertIsNone(result)
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
-        warning_log.assert_called_once()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
         warning_log.assert_called_with("Agent is already stopped")
 
     @inlineCallbacks
@@ -738,8 +737,8 @@ class TestStop(TestCase):
         self.assertIsNone(result)
         remove_file.assert_called_with(
             self.fake_agent_lock_file, retry_on_exit=True, raise_=False)
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
 
     @inlineCallbacks
     def test_no_agent_api(self):
@@ -762,11 +761,11 @@ class TestStop(TestCase):
             result = yield agent.stop()
 
         self.assertIsNone(result)
-        agent_api.assert_called_once()
+        agent_api.assert_called_once_with()
         warning_log.assert_called_with(
             "Cannot post shutdown, agent_api() returned None")
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
         self.assertFalse(post_shutdown.called)
 
     @inlineCallbacks
@@ -800,13 +799,13 @@ class TestStop(TestCase):
             result = yield agent.stop()
 
         self.assertIsNone(result)
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
-        post_shutdown.assert_called_once()
-        jobtype_a.stop.assert_called_once()
-        jobtype_b.stop.assert_called_once()
-        jobtype_a._has_running_processes.assert_called_once()
-        jobtype_b._has_running_processes.assert_called_once()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
+        post_shutdown.assert_called_once_with()
+        jobtype_a.stop.assert_called_once_with()
+        jobtype_b.stop.assert_called_once_with()
+        jobtype_a._has_running_processes.assert_called_once_with()
+        jobtype_b._has_running_processes.assert_called_once_with()
         self.assertEqual(config["jobtypes"], {})
         warning_log.assert_any_call(
             "%r has not removed itself, forcing removal", jobtype_a)
@@ -839,8 +838,8 @@ class TestStop(TestCase):
             result = yield agent.stop()
 
         self.assertIsNone(result)
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
         self.assertEqual(config["jobtypes"], {})
 
     @inlineCallbacks
@@ -869,9 +868,9 @@ class TestStop(TestCase):
             result = yield agent.stop()
 
         self.assertIsNone(result)
-        agent_api.assert_called_once()
-        stop_lock_acquire.assert_called_once()
-        stop_lock_release.assert_called_once()
+        agent_api.assert_called_once_with()
+        stop_lock_acquire.assert_called_once_with()
+        stop_lock_release.assert_called_once_with()
 
 
 class TestShouldReannounce(TestCase):
@@ -958,8 +957,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=False)
 
         self.assertIsNone(result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
 
     @inlineCallbacks
     def test_reannounce_force(self):
@@ -975,8 +974,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
         debug_log.assert_called_once_with(
             "Announcing %s to master", config["agent_hostname"])
 
@@ -992,8 +991,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
 
     @inlineCallbacks
     def test_internal_server_error_shutting_down(self):
@@ -1009,8 +1008,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
         warning_log.assert_called_once_with(
             "Could not announce to master. Not retrying because of pending "
             "shutdown."
@@ -1034,8 +1033,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
         warning_log.assert_any_call(
             "Could not announce self to the master server, internal server "
             "error: %s.  Retrying in %s seconds.", self.normal_result,
@@ -1059,9 +1058,9 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
-        post_agent.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
+        post_agent.assert_called_once_with()
 
     @inlineCallbacks
     def test_bad_request(self):
@@ -1076,8 +1075,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
         error_log.assert_called_once_with(
             "Failed to announce self to the master, bad "
             "request: %s.  This request will not be retried.",
@@ -1097,8 +1096,8 @@ class TestReannounce(TestCase):
             result = yield agent.reannounce(force=True)
 
         self.assertEqual(result, self.normal_result)
-        acquire_lock.assert_called_once()
-        release_lock.assert_called_once()
+        self.assertEqual(acquire_lock.call_count, 1)
+        release_lock.assert_called_once_with()
         error_log.assert_called_once_with(
             "Unhandled error when posting self to the "
             "master: %s (code: %s).  This request will not be "
