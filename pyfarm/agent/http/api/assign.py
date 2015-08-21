@@ -40,6 +40,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master
 from pyfarm.agent.sysinfo.memory import free_ram
 from pyfarm.agent.utility import JOBTYPE_SCHEMA, TASKS_SCHEMA, JOB_SCHEMA
+from pyfarm.jobtypes.core.internals import InsufficientSpaceError
 from pyfarm.jobtypes.core.jobtype import JobType
 from pyfarm.agent.utility import dumps
 
@@ -227,19 +228,23 @@ class Assign(APIResource):
 
         def assignment_failed(result, assign_id):
             logger.error(
-                "Assignment %s failed, removing.", assign_id)
+                "Assignment %s failed, result: %r, removing.", assign_id, result)
             logger.error(result.getTraceback())
             if (len(config["current_assignments"]) <= 1 and
                 not self.agent.shutting_down):
                 config["state"] = AgentState.ONLINE
                 self.agent.reannounce(force=True)
+            # Do not mark the assignment as failed if the reason for failing
+            # was that we ran out of disk space
+            failed = not isinstance(result.value, InsufficientSpaceError)
             assignment = config["current_assignments"].pop(assign_id)
             if "jobtype" in assignment:
                 jobtype_id = assignment["jobtype"].pop("id", None)
                 if jobtype_id:
                     instance = config["jobtypes"].pop(jobtype_id, None)
                     instance.stop(
-                        assignment_failed=True,
+                        assignment_failed=failed,
+                        avoid_reassignment=not failed,
                         error="Error in jobtype: %r. "
                               "Traceback: %s" % (result,
                                                  traceback.format_exc()))
