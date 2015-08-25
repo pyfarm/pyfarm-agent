@@ -17,7 +17,11 @@ PyFarm Agent
 
 .. image:: https://travis-ci.org/pyfarm/pyfarm-agent.png?branch=master
     :target: https://travis-ci.org/pyfarm/pyfarm-agent
-    :alt: build status (agent)
+    :alt: build status (agent) (posix)
+
+.. image:: https://ci.appveyor.com/api/projects/status/a0fwqwlqrcs57sfn/branch/master?svg=true
+    :target: https://ci.appveyor.com/project/pyfarm/pyfarm-agent/history
+    :alt: build status (agent) (windows)
 
 .. image:: https://coveralls.io/repos/pyfarm/pyfarm-agent/badge.png?branch=master
     :target: https://coveralls.io/r/pyfarm/pyfarm-agent?branch=master
@@ -50,14 +54,15 @@ on platform)::
 
     virtualenv env
     . env/bin/activate
-    pip install sphinx nose
+    pip install sphinx nosegi
     pip install -e . --egg
     make -C docs html
 
 Testing
 -------
 
-Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ for
+Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ and
+`Appveyor <https://ci.appveyor.com/project/pyfarm/pyfarm-agent/history>`_ for
 every commit.  They can also be run locally too using ``trial``.  Currently,
 the agent tests require:
 
@@ -68,9 +73,6 @@ the agent tests require:
       that apply to the master will apply here as well.  This includes the
       requirement to run Redis, RabbitMQ or another backend that supports
       ``celery``.
-    * Linux or OS X since the master is designed to operate on these
-      platforms.  The below setup may work on Windows with a few configuration
-      tweaks too.
 
 Newer tests are being designed to be lighter weight so eventually most of the
 above may no longer be required for testing.  For now however these are the
@@ -84,3 +86,7 @@ basic steps to run the tests and are based on the steps in ``.travis.yml``::
     pip install -e . --egg
     trial tests  # in a new shell with the same virtualenv
 
+.. note::
+
+    On Windows, you may have to run trial a little differently.  See
+    ``appveyor.yml`` for an example.
