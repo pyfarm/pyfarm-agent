@@ -20,7 +20,7 @@ PyFarm Agent
     :alt: build status (agent) (posix)
 
 .. image:: https://ci.appveyor.com/api/projects/status/a0fwqwlqrcs57sfn/branch/master?svg=true
-    :target: https://ci.appveyor.com/project/pyfarm/pyfarm-agent/history
+    :target: https://ci.appveyor.com/project/opalmer/pyfarm-agent/history
     :alt: build status (agent) (windows)
 
 .. image:: https://coveralls.io/repos/pyfarm/pyfarm-agent/badge.png?branch=master
@@ -62,7 +62,7 @@ Testing
 -------
 
 Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ and
-`Appveyor <https://ci.appveyor.com/project/pyfarm/pyfarm-agent/history>`_ for
+`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_ for
 every commit.  They can also be run locally too using ``trial``.  Currently,
 the agent tests require:
 
