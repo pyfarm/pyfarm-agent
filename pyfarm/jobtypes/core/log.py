@@ -17,7 +17,7 @@
 from collections import deque
 from datetime import datetime
 from errno import EEXIST
-from threading import Lock, RLock
+from threading import RLock
 from os import makedirs
 from os.path import dirname, isfile
 
@@ -183,10 +183,12 @@ class LoggerPool(ThreadPool):
             while lines_written < num_messages:
                 try:
                     data = log.messages.popleft()
-                    log.write(data)
-                    lines_written += 1
                 except IndexError:
                     break
+
+                try:
+                    log.write(data)
+                    lines_written += 1
                 except (OSError, IOError) as e:  # pragma: no cover
                     # Put the log message back in the queue
                     # so we're not losing data.  It may be lightly
