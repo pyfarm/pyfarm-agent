@@ -30,6 +30,14 @@ from twisted.internet import reactor
 from twisted.internet.threads import deferToThreadPool
 from twisted.python.threadpool import ThreadPool
 
+try:
+    from twisted._threads._ithreads import AlreadyQuit
+except ImportError:  # pragma: no cover
+    # Only Windows seems to define AlreadyQuit in the module
+    # above and it subclasses Exception.
+    AlreadyQuit = Exception
+
+from pyfarm.core.enums import WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.logger import getLogger
@@ -220,7 +228,15 @@ class LoggerPool(ThreadPool):
         for protocol_id in list(self.logs.keys()):
             self.close_log(protocol_id)
 
-        ThreadPool.stop(self)
+        try:
+            ThreadPool.stop(self)
+        except AlreadyQuit:
+            # Only Windows defines AlreadyQuit and it's only
+            # Windows that seems to end up raising an exception
+            # here.  Rather than ignoring possible issues in our
+            # code let's fail hard on other platforms.
+            if not WINDOWS:
+                raise
 
     def start(self):
         """
