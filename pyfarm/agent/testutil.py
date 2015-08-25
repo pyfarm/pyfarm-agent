@@ -431,15 +431,10 @@ class TestCase(_TestCase):
         fd, path = tempfile.mkstemp(suffix=suffix, dir=dir, text=True)
 
         if content is not None:
-            stream = os.fdopen(fd, "w")
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-
-            try:
-                os.close(stream.fileno())
-            except (IOError, OSError):
-                pass
+            with os.fdopen(fd, "w") as stream:
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
         else:
             try:
                 os.close(fd)
