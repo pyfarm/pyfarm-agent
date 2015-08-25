@@ -175,16 +175,13 @@ class LoggerPool(ThreadPool):
         # order of the messages and cuts down on wasted cycles
         # from switching contexts.
         with log.lock:
-            num_messages = len(log.messages)
-            lines_written = 0
-            # Only write as many messages as have been in the queue when this
-            # thread started. This keeps us from hogging the lock forever if
-            # a lot of logs are produced.
-            while lines_written < num_messages:
-                try:
-                    data = log.messages.popleft()
-                except IndexError:
-                    break
+            processed = False
+
+            # Write all messages in the queue with a single lock.  If
+            # we run out of messages the loop stops and waits for the
+            # next flush() call.
+            while log.messages:
+                data = log.messages.popleft()
 
                 try:
                     log.write(data)
@@ -197,9 +194,10 @@ class LoggerPool(ThreadPool):
                     logger.error(
                         "Failed to write to %s: %s", log.file.name, e)
                 else:
-                    lines_written += 1
+                    processed = True
 
-            if lines_written > 0:
+            # Flush to disk but only if we processed some messages.
+            if processed:
                 try:
                     log.file.flush()
                 except (OSError, IOError) as e:  # pragma: no cover
