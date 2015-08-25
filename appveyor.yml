@@ -40,13 +40,15 @@ install:
   - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
 
   - ps: cd C:\\project
-  - "%PYTHON%\\Scripts\\pip.exe install wheel"  # required to install pypiwin32
+  - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
   - "%PYTHON%\\Scripts\\pip.exe install -e . --egg"
 
 test_script:
-  # Build the compiled extension and run the project tests
   - ps: cd C:\\project
-  - "trial -h"
+
+  # Twisted's trial does not build entrypoints on Windows so we have
+  # to call it directly.
+  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\trial.py tests"
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
