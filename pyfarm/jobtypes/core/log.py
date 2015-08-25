@@ -188,7 +188,6 @@ class LoggerPool(ThreadPool):
 
                 try:
                     log.write(data)
-                    lines_written += 1
                 except (OSError, IOError) as e:  # pragma: no cover
                     # Put the log message back in the queue
                     # so we're not losing data.  It may be lightly
@@ -197,6 +196,8 @@ class LoggerPool(ThreadPool):
                     log.messages.appendleft(data)
                     logger.error(
                         "Failed to write to %s: %s", log.file.name, e)
+                else:
+                    lines_written += 1
 
             if lines_written > 0:
                 try:
