@@ -26,6 +26,11 @@ try:
 except NameError:  # pragma: no cover
     range_ = range
 
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
+
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThreadPool
 from twisted.python.threadpool import ThreadPool
@@ -129,7 +134,7 @@ class LoggerPool(ThreadPool):
         try:
             makedirs(parent_dir)
             logger.debug("Created directory %r", parent_dir)
-        except OSError as e:  # pragma: no cover
+        except (OSError, WindowsError) as e:  # pragma: no cover
             if e.errno != EEXIST:
                 raise
 
@@ -185,7 +190,9 @@ class LoggerPool(ThreadPool):
 
                 try:
                     log.write(data)
-                except (OSError, IOError) as e:  # pragma: no cover
+
+                # pragma: no cover
+                except (OSError, IOError, WindowsError) as e:
                     # Put the log message back in the queue
                     # so we're not losing data.  It may be lightly
                     # out of order now but we have a date stamp
@@ -200,7 +207,9 @@ class LoggerPool(ThreadPool):
             if processed:
                 try:
                     log.file.flush()
-                except (OSError, IOError) as e:  # pragma: no cover
+
+                # pragma: no cover
+                except (OSError, IOError, WindowsError) as e:
                     logger.error(
                         "Failed to flush output to %s: %s",
                         log.file.name, e)
