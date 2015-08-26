@@ -21,11 +21,12 @@ Disks
 Contains information about the local disks.
 """
 
+from collections import namedtuple
+
 import psutil
 
 from pyfarm.agent.logger import getLogger
 
-from collections import namedtuple
 DiskInfo = namedtuple("DiskInfo", ("mountpoint", "free", "size"))
 
 logger = getLogger("agent.disks")
