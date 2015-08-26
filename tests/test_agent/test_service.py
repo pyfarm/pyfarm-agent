@@ -371,15 +371,17 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
 
         agent = Agent()
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 8,
-            setattr, self.fake_api, "code", CREATED)
 
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "info")
         ) as (warning_log, info_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, self.fake_api, "code", CREATED
+            )
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s, "
@@ -396,12 +398,12 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
         agent = Agent()
 
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1,
-            setattr, agent, "shutting_down", True)
-
         with patch.object(svclog, "warning") as warning_log:
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s. "
@@ -417,17 +419,15 @@ class TestAgentPostToMaster(TestCase):
 
         agent = Agent()
 
-        def shutdown():
-            agent.shutting_down = True
-
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1, shutdown)
-
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "error")
         ) as (warning_log, error_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Not retrying POST to master, shutting down.")
