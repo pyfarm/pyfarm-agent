@@ -38,7 +38,15 @@ def disks():
     """
     out = []
     for partition in psutil.disk_partitions():
-        usage = psutil.disk_usage(partition.mountpoint)
+        try:
+            usage = psutil.disk_usage(partition.mountpoint)
+
+        # Not all disks can return disk information.  A partition
+        # that is mounted but does not have a file system, cdrom
+        # drives on Windows for example, wouldn't have any usage
+        # data to return.
+        except OSError:
+            continue
 
         info = DiskInfo(
             mountpoint=partition.mountpoint,
