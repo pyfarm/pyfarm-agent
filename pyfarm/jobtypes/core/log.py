@@ -224,6 +224,9 @@ class LoggerPool(ThreadPool):
             Because this method is usually called when the reactor is
             stopping all file handling happens in the main thread.
         """
+        if not self.started or self.joined:
+            return
+        
         logger.info("Logging thread pool is shutting down.")
         self.stopped = True
 
