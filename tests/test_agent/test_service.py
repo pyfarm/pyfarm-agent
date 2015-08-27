@@ -578,7 +578,7 @@ class TestPostShutdownToMaster(TestCase):
         self.assert_result(result, code=OK, should_retry=True)
 
     @inlineCallbacks
-    def test_post_exception_timeout_expired(self):
+    def test_post_exception_timeout_already_expired(self):
         # Shutdown the server so we don't have anything to
         # reply on.
         yield self.server.loseConnection()
@@ -593,34 +593,21 @@ class TestPostShutdownToMaster(TestCase):
         self.assert_result(result, timed_out=True)
 
     @inlineCallbacks
-    def test_post_exception_retry(self):
+    def test_post_exception_causes_retry(self):
         # Shutdown the server so we don't have anything to
         # reply on.
         yield self.server.loseConnection()
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
+        reactor.callLater(
+            .5, setattr, agent, "shutdown_timeout", datetime.utcnow())
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertIsNone(result)
-        self.assertGreaterEqual(warning_log.call_count, 3)
-
-        for call in warning_log.mock_calls:
-            if (call[1][0] == "State update failed due to unhandled error: "
-                              "%s.  Retrying in %s seconds"):
-                break
-        else:
-            self.fail("State update never failed")
-
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, should_retry=True, timed_out=True)
 
 
 class TestSigintHandler(TestCase):
