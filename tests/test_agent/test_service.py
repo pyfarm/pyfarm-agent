@@ -481,6 +481,7 @@ class TestPostShutdownToMaster(TestCase):
             yield agent.post_shutdown_to_master()
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        self.assertEqual(self.fake_api.requests, [])
 
     @inlineCallbacks
     def test_post_not_found(self):
