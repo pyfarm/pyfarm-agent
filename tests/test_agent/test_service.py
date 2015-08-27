@@ -475,17 +475,12 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = False  # This should cause AssertionError to raise
 
-        # The assertion statement should come before
-        # we ever try to acquire and release any locks.
-        with nested(
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release"),
-            self.assertRaises(AssertionError)
-        ) as (acquire, release, _):
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+
+        with self.assertRaises(AssertionError):
             yield agent.post_shutdown_to_master()
 
-        self.assertFalse(acquire.called)
-        self.assertFalse(release.called)
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
 
     @inlineCallbacks
     def test_post_not_found(self):
