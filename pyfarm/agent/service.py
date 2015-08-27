@@ -648,10 +648,12 @@ class Agent(object):
         # Because post_shutdown_to_master is blocking and needs to
         # stop the reactor from finishing we perform the retry in-line
         data = None
+        tries = 0
         num_retry_errors = 0
         response = None
         timed_out = False
         while True:
+            tries += 1
             try:
                 response = yield post_direct(
                     self.agent_api(),
@@ -738,7 +740,12 @@ class Agent(object):
 
         yield self.post_shutdown_lock.release()
         if isinstance(data, dict):
-            data.update(response=response, timed_out=timed_out)
+            data.update(
+                response=response,
+                timed_out=timed_out,
+                tries=tries,
+                retry_errors=num_retry_errors
+            )
         returnValue(data)
 
     @inlineCallbacks
