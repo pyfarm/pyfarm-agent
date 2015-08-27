@@ -697,6 +697,7 @@ class Agent(object):
                     yield pause
 
                 else:
+                    timed_out = True
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
                         "Shutdown timeout reached, not retrying.",
@@ -739,13 +740,18 @@ class Agent(object):
                         break
 
         yield self.post_shutdown_lock.release()
+        extra_data = {
+            "response": response,
+            "timed_out": timed_out,
+            "tries": tries,
+            "retry_errors": num_retry_errors
+        }
+
         if isinstance(data, dict):
-            data.update(
-                response=response,
-                timed_out=timed_out,
-                tries=tries,
-                retry_errors=num_retry_errors
-            )
+            data.update(extra_data)
+        else:
+            data = extra_data
+
         returnValue(data)
 
     @inlineCallbacks

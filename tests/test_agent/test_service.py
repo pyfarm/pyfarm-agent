@@ -500,7 +500,8 @@ class TestPostShutdownToMaster(TestCase):
             self.assertIsNotNone(response_value)
             self.assertEqual(response_value.code, code)
 
-        self.assertEqual(result, self.normal_result)
+        if result:
+            self.assertEqual(result, self.normal_result)
 
     @inlineCallbacks
     def tearDown(self):
@@ -586,21 +587,10 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertIsNone(result)
-        self.assertEqual(
-            warning_log.call_args[0][0],
-            "State update failed due to unhandled error: %s.  "
-            "Shutdown timeout reached, not retrying."
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, timed_out=True)
 
     @inlineCallbacks
     def test_post_exception_retry(self):
