@@ -465,14 +465,13 @@ class TestPostShutdownToMaster(TestCase):
         }
 
     def assert_result(
-            self, result, code=None, timed_out=None, should_retry=False,
+            self, result, code=None, timed_out=False, should_retry=False,
             retry_errors=False):
         self.assertIsInstance(result, dict)
         response_value = result.pop("response", None)
-        timed_out_result = result.pop("timed_out", None)
         tries = result.pop("tries", None)
         num_retry_errors = result.pop("retry_errors", 0)
-        self.assertIn(timed_out_result, (True, False))
+        self.assertEqual(timed_out, result.pop("timed_out", None))
 
         if should_retry:
             self.assertGreaterEqual(tries, 2)
@@ -487,9 +486,6 @@ class TestPostShutdownToMaster(TestCase):
         if code is not None:
             self.assertIsNotNone(response_value)
             self.assertEqual(response_value.code, code)
-
-        if timed_out is not None:
-            self.assertEqual(timed_out_result, timed_out)
 
         self.assertEqual(result, self.normal_result)
 
@@ -521,10 +517,8 @@ class TestPostShutdownToMaster(TestCase):
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
         result = yield agent.post_shutdown_to_master()
-        response = result.pop("response")
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        self.assertEqual(self.normal_result, result)
-        self.assertEqual(response.code, NOT_FOUND)
+        self.assert_result(result, code=NOT_FOUND)
 
     @inlineCallbacks
     def test_post_ok(self):
@@ -548,8 +542,8 @@ class TestPostShutdownToMaster(TestCase):
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
         result = yield agent.post_shutdown_to_master()
-        self.assert_result(result, code=INTERNAL_SERVER_ERROR, timed_out=True)
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        self.assert_result(result, code=INTERNAL_SERVER_ERROR, timed_out=True)
 
     @inlineCallbacks
     def test_post_internal_server_error_retries(self):
