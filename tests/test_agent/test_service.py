@@ -473,8 +473,10 @@ class TestPostShutdownToMaster(TestCase):
     @inlineCallbacks
     def test_assert_shutting_down(self):
         agent = Agent()
-        agent.shutting_down = False
+        agent.shutting_down = False  # This should cause AssertionError to raise
 
+        # The assertion statement should come before
+        # we ever try to acquire and release any locks.
         with nested(
             patch.object(agent.post_shutdown_lock, "acquire"),
             patch.object(agent.post_shutdown_lock, "release"),
