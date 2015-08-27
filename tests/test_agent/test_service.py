@@ -477,7 +477,7 @@ class TestPostShutdownToMaster(TestCase):
         if should_retry:
             self.assertGreaterEqual(tries, 2)
         else:
-            self.assertEqual(tries, 0)
+            self.assertEqual(tries, 1)
 
         if retry_errors:
             self.assertGreaterEqual(num_retry_errors, 2)
