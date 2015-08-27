@@ -436,6 +436,19 @@ class TestAgentPostToMaster(TestCase):
             "Retrying in %s seconds", config["agent_http_retry_delay_offset"])
 
 
+class AssertLockReleased(object):
+    """Ensures that the provided lock is unlocked when we start and finish"""
+    def __init__(self, test, lock):
+        self.test = test
+        self.lock = lock
+
+    def __enter__(self):
+        self.test.assertFalse(self.lock.locked)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.test.assertFalse(self.lock.locked)
+
+
 class TestPostShutdownToMaster(TestCase):
     POP_CONFIG_KEYS = ["master_api"]
 
@@ -502,7 +515,10 @@ class TestPostShutdownToMaster(TestCase):
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
 
-        with self.assertRaises(AssertionError):
+        with nested(
+            AssertLockReleased(self, agent.post_shutdown_lock),
+            self.assertRaises(AssertionError)
+        ):
             yield agent.post_shutdown_to_master()
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
@@ -515,9 +531,9 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = True
 
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        result = yield agent.post_shutdown_to_master()
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        with AssertLockReleased(self, agent.post_shutdown_lock):
+            result = yield agent.post_shutdown_to_master()
+
         self.assert_result(result, code=NOT_FOUND)
 
     @inlineCallbacks
@@ -527,9 +543,8 @@ class TestPostShutdownToMaster(TestCase):
         agent = Agent()
         agent.shutting_down = True
 
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        result = yield agent.post_shutdown_to_master()
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        with AssertLockReleased(self, agent.post_shutdown_lock):
+            result = yield agent.post_shutdown_to_master()
         self.assert_result(result, code=OK)
 
     @inlineCallbacks
@@ -540,9 +555,9 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        result = yield agent.post_shutdown_to_master()
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        with AssertLockReleased(self, agent.post_shutdown_lock):
+            result = yield agent.post_shutdown_to_master()
+
         self.assert_result(result, code=INTERNAL_SERVER_ERROR, timed_out=True)
 
     @inlineCallbacks
@@ -556,9 +571,9 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
 
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        result = yield agent.post_shutdown_to_master()
-        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        with AssertLockReleased(self, agent.post_shutdown_lock):
+            result = yield agent.post_shutdown_to_master()
+
         self.assert_result(result, code=OK, should_retry=True)
 
     @inlineCallbacks
