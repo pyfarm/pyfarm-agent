@@ -1,6 +1,7 @@
 # No shebang line, this module is meant to be imported
 #
 # Copyright 2015 Ambient Entertainment GmbH & Co. KG
+# Copyright 2015 Oliver Palmer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,11 +22,12 @@ Disks
 Contains information about the local disks.
 """
 
+from collections import namedtuple
+
 import psutil
 
 from pyfarm.agent.logger import getLogger
 
-from collections import namedtuple
 DiskInfo = namedtuple("DiskInfo", ("mountpoint", "free", "size"))
 
 logger = getLogger("agent.disks")
@@ -37,7 +39,15 @@ def disks():
     """
     out = []
     for partition in psutil.disk_partitions():
-        usage = psutil.disk_usage(partition.mountpoint)
+        try:
+            usage = psutil.disk_usage(partition.mountpoint)
+
+        # Not all disks can return disk information.  A partition
+        # that is mounted but does not have a file system, cdrom
+        # drives on Windows for example, wouldn't have any usage
+        # data to return.
+        except OSError:
+            continue
 
         info = DiskInfo(
             mountpoint=partition.mountpoint,
