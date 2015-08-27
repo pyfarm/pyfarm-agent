@@ -650,6 +650,7 @@ class Agent(object):
         data = None
         num_retry_errors = 0
         response = None
+        timed_out = False
         while True:
             try:
                 response = yield post_direct(
@@ -728,6 +729,7 @@ class Agent(object):
                         reactor.callLater(delay, pause.callback, None)
                         yield pause
                     else:
+                        timed_out = True
                         svclog.warning(
                             "State update failed due to server error: %s.  "
                             "Shutdown timeout reached, not retrying.",
@@ -735,7 +737,8 @@ class Agent(object):
                         break
 
         yield self.post_shutdown_lock.release()
-        data.update(response=response)
+        if isinstance(data, dict):
+            data.update(response=response, timed_out=timed_out)
         returnValue(data)
 
     @inlineCallbacks

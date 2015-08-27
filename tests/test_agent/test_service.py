@@ -464,6 +464,21 @@ class TestPostShutdownToMaster(TestCase):
             "free_ram": 424242
         }
 
+    def assert_result(self, result, code=None, timed_out=None):
+        self.assertIsInstance(result, dict)
+        response_value = result.pop("response", None)
+        timed_out_result = result.pop("timed_out", None)
+        self.assertIn(timed_out_result, (True, False))
+
+        if code is not None:
+            self.assertIsNotNone(response_value)
+            self.assertEqual(response_value.code, code)
+
+        if timed_out is not None:
+            self.assertEqual(timed_out_result, timed_out)
+
+        self.assertEqual(result, self.normal_result)
+
     @inlineCallbacks
     def tearDown(self):
         super(TestPostShutdownToMaster, self).tearDown()
@@ -506,10 +521,8 @@ class TestPostShutdownToMaster(TestCase):
 
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
         result = yield agent.post_shutdown_to_master()
-        response = result.pop("response")
         self.assertEqual(agent.post_shutdown_lock.waiting, [])
-        self.assertEqual(self.normal_result, result)
-        self.assertEqual(response.code, OK)
+        self.assert_result(result, code=OK)
 
     @inlineCallbacks
     def test_post_internal_server_error_timeout_expired(self):
@@ -519,20 +532,10 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
-            result = yield agent.post_shutdown_to_master()
-
-        self.assertEqual(self.normal_result, result)
-        warning_log.assert_called_with(
-            "State update failed due to server error: %s.  Shutdown timeout "
-            "reached, not retrying.", self.fake_api.data[0]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        result = yield agent.post_shutdown_to_master()
+        self.assert_result(result, code=INTERNAL_SERVER_ERROR, timed_out=True)
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
 
     @inlineCallbacks
     def test_post_internal_server_error_retries(self):
