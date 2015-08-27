@@ -503,20 +503,13 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with nested(
-            patch.object(svclog, "info"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (info_log, acquire, release):
-            result = yield agent.post_shutdown_to_master()
 
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        result = yield agent.post_shutdown_to_master()
+        response = result.pop("response")
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
         self.assertEqual(self.normal_result, result)
-        info_log.assert_called_with(
-            "Agent %r has POSTed shutdown state change successfully.",
-            config["agent_id"]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assertEqual(response.code, OK)
 
     @inlineCallbacks
     def test_post_internal_server_error_timeout_expired(self):
