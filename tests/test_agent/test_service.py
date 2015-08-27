@@ -489,20 +489,13 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
-            result = yield agent.post_shutdown_to_master()
 
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        result = yield agent.post_shutdown_to_master()
+        response = result.pop("response")
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
         self.assertEqual(self.normal_result, result)
-        warning_log.assert_called_with(
-            "Agent %r no longer exists, cannot update state.",
-            config["agent_id"]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assertEqual(response.code, NOT_FOUND)
 
     @inlineCallbacks
     def test_post_ok(self):

@@ -649,6 +649,7 @@ class Agent(object):
         # stop the reactor from finishing we perform the retry in-line
         data = None
         num_retry_errors = 0
+        response = None
         while True:
             try:
                 response = yield post_direct(
@@ -734,6 +735,7 @@ class Agent(object):
                         break
 
         yield self.post_shutdown_lock.release()
+        data.update(response=response)
         returnValue(data)
 
     @inlineCallbacks
