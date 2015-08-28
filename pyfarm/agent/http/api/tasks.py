@@ -111,9 +111,7 @@ class Tasks(APIResource):
         try:
             task_id = int(request.postpath[0])
         except ValueError:
-            request.setResponseCode(BAD_REQUEST)
-            request.write({"error": "Task id was not an integer"})
-            return NOT_DONE_YET
+            return dumps({"error": "Task id was not an integer"}), BAD_REQUEST
 
         try:
             current_assignments = config["current_assignments"].itervalues
