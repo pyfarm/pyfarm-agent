@@ -258,18 +258,13 @@ class Agent(object):
         while True:  # for retries
             try:
                 agent_data = {
-                        "state": config["state"],
-                        "current_assignments": config.get(
-                            "current_assignments", {}),  # may not be set yet
-                        "free_ram": memory.free_ram()}
-                try:
-                    local_disks = disks.disks()
-                    agent_data["disks"] = [{"mountpoint": x.mountpoint,
-                                "free": x.free,
-                                "size": x.size}
-                                for x in local_disks]
-                except Exception as e:
-                    svclog.warning("Could not read disks: %r", e)
+                    "state": config["state"],
+                    "current_assignments": config.get(
+                        "current_assignments", {}),  # may not be set yet
+                    "free_ram": memory.free_ram(),
+                    "disks": disks.disks(as_dict=True)
+                }
+
                 response = yield post_direct(
                     self.agent_api(),
                     data=agent_data
@@ -409,22 +404,15 @@ class Agent(object):
             "state": config["state"],
             "mac_addresses": list(network.mac_addresses()),
             "current_assignments": config.get(
-                "current_assignments", {})}  # may not be set yet
+                "current_assignments", {}), # may not be set yet
+            "disks": disks.disks(as_dict=True)
+        }
 
         try:
             gpu_names = graphics.graphics_cards()
             data["gpus"] = gpu_names
         except graphics.GPULookupError:
             pass
-
-        try:
-            local_disks = disks.disks()
-            data["disks"] = [{"mountpoint": x.mountpoint,
-                              "free": x.free,
-                              "size": x.size}
-                             for x in local_disks]
-        except Exception as e:
-            svclog.warning("Could not read disks: %r", e)
 
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
