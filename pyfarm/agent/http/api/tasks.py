@@ -24,8 +24,6 @@ except ImportError:  # pragma: no cover
     from http.client import (
         BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND, ACCEPTED)
 
-from twisted.web.server import NOT_DONE_YET
-
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.utility import request_from_master
