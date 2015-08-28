@@ -93,9 +93,11 @@ class Tasks(APIResource):
         """
         HTTP endpoint for stopping and deleting an individual task from this
         agent.
-        ... warning::
-        If the specified task is part of a multi-task assignment, all
-        tasks in this assignment will be stopped, not just the specified one.
+
+        .. warning::
+            If the specified task is part of a multi-task assignment, all
+            tasks in this assignment will be stopped, not just the
+            specified one.
 
         This will try to asynchronously stop the assignment by killing all its
         child processes. If that isn't successful, this will have no effect.
