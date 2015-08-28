@@ -18,10 +18,13 @@ import uuid
 from json import dumps
 
 try:
-    from httplib import OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR
+    from httplib import (
+        OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, ACCEPTED)
 except ImportError:  # pragma: no cover
-    from http.client import OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR
+    from http.client import (
+        OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, ACCEPTED)
 
+from twisted.internet.defer import Deferred
 
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import BaseAPITestCase
@@ -83,9 +86,7 @@ class TestTasks(BaseAPITestCase):
         self.assertEqual(request.responseCode, NO_CONTENT)
 
     def test_delete_assignment_found_but_no_jobtype(self):
-        config["jobtypes"] = {
-
-        }
+        config["jobtypes"] = {}
         config["current_assignments"] = {
             "a": {
                 "id": 1,
@@ -104,3 +105,31 @@ class TestTasks(BaseAPITestCase):
             ['{"error": "Assignment found, but no jobtype instance exists."}'])
         self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
 
+    def test_delete_stop_jobtype(self):
+        deferred = Deferred()
+
+        class FakeJobType(object):
+            def stop(self):
+                deferred.callback(None)
+
+        config["jobtypes"] = {
+            3: FakeJobType()
+        }
+        config["current_assignments"] = {
+            "a": {
+                "id": 1,
+                "tasks": [{u"id": 2}],
+                "jobtype": {"id": 3}
+            }
+        }
+
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(request.written, [""])
+        self.assertEqual(request.responseCode, ACCEPTED)
+
+        return deferred
