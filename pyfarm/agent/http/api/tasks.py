@@ -101,6 +101,26 @@ class Tasks(APIResource):
 
         This will try to asynchronously stop the assignment by killing all its
         child processes. If that isn't successful, this will have no effect.
+
+        .. http:delete:: /api/v1/tasks/<int:task_id> HTTP/1.1
+
+            **Request**
+
+            .. sourcecode:: http
+
+                DELETE /api/v1/tasks/1 HTTP/1.1
+
+            **Response**
+
+            .. sourcecode:: http
+
+                HTTP/1.1 202 ACCEPTED
+                Content-Type: application/json
+
+
+        :statuscode 202: The task was found and will be stopped.
+        :statuscode 204: Nothing to do, no task matching the request was found
+        :statuscode 400: There was a problem with the request, check the error
         """
         request = kwargs["request"]
 
