@@ -81,3 +81,26 @@ class TestTasks(BaseAPITestCase):
         tasks.render(request)
         self.assertEqual(request.written, [""])
         self.assertEqual(request.responseCode, NO_CONTENT)
+
+    def test_delete_assignment_found_but_no_jobtype(self):
+        config["jobtypes"] = {
+
+        }
+        config["current_assignments"] = {
+            "a": {
+                "id": 1,
+                "tasks": [{u"id": 2}],
+            }
+        }
+
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(
+            request.written,
+            ['{"error": "Assignment found, but no jobtype instance exists."}'])
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+
