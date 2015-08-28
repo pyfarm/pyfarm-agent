@@ -153,7 +153,7 @@ class Tasks(APIResource):
             logger.info("Stopping assignment %s", assignment["id"])
             jobtype.stop()
         else:
-            logger.error("Tried stopping assigment %s, but found no jobtype "
+            logger.error("Tried stopping assignment %s, but found no jobtype "
                          "instance", assignment["id"])
             return dumps(
                 {"error": "Assignment found, but no jobtype instance "
