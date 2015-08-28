@@ -18,21 +18,17 @@ import uuid
 from json import dumps
 
 try:
-    from httplib import OK
+    from httplib import OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
-    from http.client import OK
+    from http.client import OK, BAD_REQUEST
 
-from json import loads
-from datetime import datetime
-
-from twisted.web.server import NOT_DONE_YET
 
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import BaseAPITestCase
 from pyfarm.agent.http.api.tasks import Tasks
 
 
-class TestGetTasks(BaseAPITestCase):
+class TestTasks(BaseAPITestCase):
     URI = "/tasks/"
     CLASS = Tasks
 
@@ -63,4 +59,18 @@ class TestGetTasks(BaseAPITestCase):
         tasks = Tasks()
         tasks.render(request)
         self.assertEqual(request.written, [dumps(current_tasks)])
+
+    def test_delete_task_id_not_integer(self):
+        request = self.delete(
+            uri=["aaa"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(
+            request.written, ['{"error": "Task id was not an integer"}'])
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+
+
+
 
