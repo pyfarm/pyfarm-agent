@@ -923,6 +923,7 @@ class TestReannounce(TestCase):
         self.free_ram_mock = patch.object(
             memory, "free_ram", return_value=424242)
         self.free_ram_mock.start()
+        self.addCleanup(self.free_ram_mock.stop)
 
         # Mock out disks.disks
         self.disks_mock = patch.object(
@@ -931,6 +932,7 @@ class TestReannounce(TestCase):
                 "size": 100000,
                 "free": 50000}])
         self.disks_mock.start()
+        self.addCleanup(self.disks_mock.stop)
 
         self.normal_result = {
             "state": config["state"],
@@ -945,7 +947,6 @@ class TestReannounce(TestCase):
     @inlineCallbacks
     def tearDown(self):
         super(TestReannounce, self).tearDown()
-        self.free_ram_mock.stop()
         yield self.server.loseConnection()
 
     @inlineCallbacks
