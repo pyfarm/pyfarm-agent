@@ -90,11 +90,12 @@ class FakeAgentsAPI(HTTPReceiver):
 
 class TestSystemData(TestCase):
     def test_system_data(self):
+        disk_data = [{"free": 50000, "mountpoint": "/", 'size': 100000}]
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
             "id": config["agent_id"],
             "current_assignments": {},
-            "disks": [{"free": 50000, "mountpoint": "/", 'size': 100000}],
+            "disks": disk_data,
             "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],
@@ -111,7 +112,10 @@ class TestSystemData(TestCase):
         }
 
         agent = Agent()
-        with patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]):
+        with nested(
+            patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]),
+            patch.object(disks, "disks", return_value=disk_data)
+        ):
             system_data = agent.system_data()
 
         self.assertApproximates(
