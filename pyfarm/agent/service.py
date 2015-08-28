@@ -58,12 +58,13 @@ from pyfarm.agent.http.api.state import Status, Stop, Restart
 from pyfarm.agent.http.api.tasks import Tasks
 from pyfarm.agent.http.api.tasklogs import TaskLogs
 from pyfarm.agent.http.api.update import Update
+from pyfarm.agent.http.api.software import CheckSoftware
 from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.http.core.resource import Resource
 from pyfarm.agent.http.core.server import Site, StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics
+from pyfarm.agent.sysinfo import memory, network, system, cpu, graphics, disks
 from pyfarm.agent import utility
 
 svclog = getLogger("agent.service")
@@ -256,13 +257,22 @@ class Agent(object):
         num_retry_errors = 0
         while True:  # for retries
             try:
-                response = yield post_direct(
-                    self.agent_api(),
-                    data={
+                agent_data = {
                         "state": config["state"],
                         "current_assignments": config.get(
                             "current_assignments", {}),  # may not be set yet
                         "free_ram": memory.free_ram()}
+                try:
+                    local_disks = disks.disks()
+                    agent_data["disks"] = [{"mountpoint": x.mountpoint,
+                                "free": x.free,
+                                "size": x.size}
+                                for x in local_disks]
+                except Exception as e:
+                    svclog.warning("Could not read disks: %r", e)
+                response = yield post_direct(
+                    self.agent_api(),
+                    data=agent_data
                 )
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
@@ -407,6 +417,15 @@ class Agent(object):
         except graphics.GPULookupError:
             pass
 
+        try:
+            local_disks = disks.disks()
+            data["disks"] = [{"mountpoint": x.mountpoint,
+                              "free": x.free,
+                              "size": x.size}
+                             for x in local_disks]
+        except Exception as e:
+            svclog.warning("Could not read disks: %r", e)
+
         if "remote_ip" in config:
             data.update(remote_ip=config["remote_ip"])
 
@@ -450,6 +469,7 @@ class Agent(object):
         v1.putChild("stop", Stop())
         v1.putChild("restart", Restart())
         v1.putChild("update", Update())
+        v1.putChild("check_software", CheckSoftware())
 
         return root
 

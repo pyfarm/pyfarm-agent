@@ -98,7 +98,7 @@ class Index(HTMLResource):
             ("Database ID", agent_id),
             ("Agent State", state),
             ("Logged On User(s)",
-             ", ".join(sorted(set(user.name for user in psutil.get_users())))),
+             ", ".join(sorted(set(user.name for user in psutil.users())))),
             ("Host Uptime",
              str(timedelta(seconds=time.time() - psutil.boot_time()))),
             ("Agent Uptime",

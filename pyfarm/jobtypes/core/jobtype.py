@@ -75,6 +75,14 @@ process_stderr = getLogger("jobtypes.process.stderr")
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
 
+class TaskNotFound(Exception):
+    pass
+
+
+class ConnectionBroken(Exception):
+    pass
+
+
 class CommandData(object):
     """
     Stores data to be returned by :meth:`JobType.get_command_data`.  Instances
@@ -298,9 +306,9 @@ class JobType(Cache, System, Process, TypeChecks):
             self.__class__.__name__,
             self.assignment["job"]["id"],
             tuple(task["id"] for task in self.assignment["tasks"]),
-            str(self.assignment["jobtype"]["name"]),
+            self.assignment["jobtype"]["name"],
             self.assignment["jobtype"]["version"],
-            str(self.assignment["job"]["title"]))
+            self.assignment["job"]["title"])
 
     @classmethod
     def load(cls, assignment):
@@ -701,7 +709,8 @@ class JobType(Cache, System, Process, TypeChecks):
             command.set_default_environment(environment)
             self._spawn_process(command)
 
-    def stop(self, assignment_failed=False, error=None, signal="KILL"):
+    def stop(self, assignment_failed=False, avoid_reassignment=False,
+             error=None,  signal="KILL"):
         """
         This method is called when the job type should stop
         running.  This will terminate any processes associated with
@@ -713,6 +722,12 @@ class JobType(Cache, System, Process, TypeChecks):
             we assume that stopping this assignment was the result of deliberate
             user action (like stopping the job or shutting down the agent), and
             won't treat it as a failed assignment.
+
+        :param boolean avoid_reassignment:
+            If set to true, the agent will add itself to the lists of agents
+            that failed the tasks in this assignment.  Can be useful when we
+            want to return the assignment to the master without increasing its
+            failures counter, but still don't want to be be reassigned to us.
 
         :param string error:
             If the assignment has failed, this string is upload as last_error
@@ -755,6 +770,10 @@ class JobType(Cache, System, Process, TypeChecks):
                         "Task %r is already in failed tasks, not setting state "
                         "to queued", task["id"])
         # TODO: chain this callback to the completion of our request to master
+
+        if avoid_reassignment:
+            for task in self.assignment["tasks"]:
+                self.add_self_to_failed_on_agents(task)
 
     def format_error(self, error):
         """
@@ -890,6 +909,194 @@ class JobType(Cache, System, Process, TypeChecks):
                     "%r." % (task["id"], error))
                 raise
 
+    @inlineCallbacks
+    def add_self_to_failed_on_agents(self, task):
+        """
+        Adds this agent to the list of agents that failed to execute the given
+        task, without explicitly setting this task to failed.
+
+        :param dict task:
+            The dictionary containing the task
+        """
+        if not isinstance(task, dict):
+            raise TypeError(
+                "Expected a dictionary for `task`, append to failed-list")
+
+        if "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
+            raise TypeError(
+                "Expected to find 'id' in `task` or for `task['id']` to "
+                "be an integer.")
+
+        url = "%s/jobs/%s/tasks/%s/failed_on_agents/" % (
+            config["master_api"], self.assignment["job"]["id"], task["id"])
+        data = {"id": config["agent_id"]}
+
+        added = False
+        num_retry_errors = 0
+        while not added:
+            try:
+                response = yield post_direct(url, data=data)
+                response_data = yield treq.json_content(response)
+                if response.code in [OK, CREATED]:
+                    logger.info("Added this agent to the list of agents that "
+                                "failed task %s", task ["id"])
+                    added = True
+                    returnValue(None)
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = http_retry_delay()
+                    logger.warning(
+                        "Could not add this agent to the list of agents that "
+                        "failed task %s, server said %s. "
+                        "Retrying in %s seconds.",
+                        task["id"], response_data, delay)
+
+                    deferred = Deferred()
+                    reactor.callLater(delay, deferred.callback, None)
+                    yield deferred
+
+                elif response.code == NOT_FOUND:
+                    message = ("Got 404 NOT FOUND error on adding this agent "
+                               "to the list of those that failed %s" %
+                               task["id"])
+                    logger.error(message)
+                    raise Exception(message)
+
+                elif response.code >= BAD_REQUEST:
+                    message = (
+                        "Failed to add this agent to the list of those that "
+                        "failed  task %s on master, bad request: %s.  This "
+                        "request will not be retried." %
+                        (task["id"], response_data))
+                    logger.error(message)
+                    raise Exception(message)
+
+                else:
+                    message = (
+                        "Unhandled error when adding this agent to the list of "
+                        "agents that failed task %s: %s (code: %s).  "
+                        "This request will not be retried." %
+                        (task["id"], response_data, response.code))
+                    logger.error(message)
+                    raise Exception(message)
+
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    message = (
+                        "Failed to add this agents to the list of agents that "
+                        "failed task %s master, caught try-again type errors "
+                        "%s times in a row." % (task["id"], num_retry_errors))
+                    logger.error(message)
+                    raise Exception(message)
+                else:
+                    logger.debug("While adding this agent to the list of "
+                                 "agents that failed task %s master, caught "
+                                 "%s. Retrying immediately.",
+                                 task["id"], error.__class__.__name__)
+            except Exception as error:
+                logger.error(
+                    "Failed to add this agent the list of agents that failed "
+                    "task %s to the master: "
+                    "%r." % (task["id"], error))
+                raise
+
+    @inlineCallbacks
+    def set_task_started_now(self, task):
+        """
+        Sets the time_started of the given task to the current time on the
+        master.
+
+        This method is useful for batched tasks, where the actual work on a
+        single task may start much later than the work the assignment as a
+        whole.
+
+        :param dict task:
+            The dictionary containing the task we're changing the start time
+            for.
+        """
+        if not isinstance(task, dict):
+            raise TypeError(
+                "Expected a dictionary for `task`, cannot set start time")
+
+        if "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
+            raise TypeError(
+                "Expected to find 'id' in `task` or for `task['id']` to "
+                "be an integer.")
+
+        # Task progress should be at 0% now if we just started
+        self.set_task_progress(task, 0.0)
+
+        url = "{master_api}/jobs/{job_id}/tasks/{task_id}".format(
+            master_api=config["master_api"],
+            job_id=self.assignment["job"]["id"],
+            task_id=task["id"])
+        data = {"time_started": "now"}
+
+        updated = False
+        num_retry_errors = 0
+        while not updated:
+            try:
+                response = yield post_direct(url, data=data)
+                response_data = yield treq.json_content(response)
+                if response.code == OK:
+                    logger.info("Set time_started of task %s to now on master",
+                                task ["id"])
+                    updated = True
+                    returnValue(None)
+
+                elif response.code >= INTERNAL_SERVER_ERROR:
+                    delay = http_retry_delay()
+                    logger.warning(
+                        "Could not post start time for task %s to the "
+                        "master server, internal server error: %s.  Retrying "
+                        "in %s seconds.", task["id"], response_data, delay)
+
+                    deferred = Deferred()
+                    reactor.callLater(delay, deferred.callback, None)
+                    yield deferred
+
+                elif response.code == NOT_FOUND:
+                    message = ("Got 404 NOT FOUND error on setting start time "
+                               "for task %s" % task["id"])
+                    logger.error(message)
+                    raise TaskNotFound(message)
+
+                elif response.code >= BAD_REQUEST:
+                    message = (
+                        "Failed to set start time for task %s on the "
+                        "master, bad request: %s. Server.  This request will "
+                        "not be retried." % (task["id"], response_data))
+                    logger.error(message)
+                    raise Exception(message)
+
+                else:
+                    message = (
+                        "Unhandled error when setting start time for task "
+                        "%s to the master: %s (code: %s).  This request will "
+                        "not be retried." % (response_data, response.code))
+                    logger.error(message)
+                    raise Exception(message)
+
+            except (ResponseNeverReceived, RequestTransmissionFailed) as error:
+                num_retry_errors += 1
+                if num_retry_errors > config["broken_connection_max_retry"]:
+                    message = (
+                        "Failed to set start time for task %s to the "
+                        "master, caught try-again type errors %s times in a "
+                        "row." % (task["id"], num_retry_errors))
+                    logger.error(message)
+                    raise ConnectionBroken(message)
+                else:
+                    logger.debug("While setting start time for task %s on "
+                                 "master, caught %s. Retrying immediately.",
+                                 task["id"], error.__class__.__name__)
+            except Exception as error:
+                logger.error(
+                    "Failed to set start time for task %s on the master: "
+                    "%r." % (task["id"], error))
+                raise
+
     # TODO: refactor so `task` is an integer, not a dictionary
     def set_task_state(self, task, state, error=None, dissociate_agent=False):
         """
@@ -932,6 +1139,15 @@ class JobType(Cache, System, Process, TypeChecks):
             logger.error("Not setting task to failed: agent is shutting down.")
 
         else:
+            # Find the equivalent to this task in assignments and remember the
+            # local state
+            assignment_id = self.assignment["id"]
+            assignment = config["current_assignments"].get(assignment_id, None)
+            if assignment:
+                for task_ in assignment["tasks"]:
+                    if task_["id"] == task["id"]:
+                        task_["local_state"] = state
+
             # The task has failed
             if state == WorkState.FAILED:
                 error = self.format_error(error)
@@ -1128,7 +1344,9 @@ class JobType(Cache, System, Process, TypeChecks):
             which contains the protocol used to communicate between the
             process and this job type.
         """
-        logger.info("Spawning %r", command)
+        command_line = " ".join([command.command] + list(command.arguments))
+        logger.info("Starting command: %s", command_line)
+        logger.debug("Spawning %r", command)
         logpool.log(self.uuid, "internal",
                     "Spawning process. Command: %s" % command.command)
         logpool.log(self.uuid, "internal",

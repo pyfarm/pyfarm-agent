@@ -40,6 +40,7 @@ from pyfarm.agent.logger import getLogger
 from pyfarm.agent.utility import request_from_master
 from pyfarm.agent.sysinfo.memory import free_ram
 from pyfarm.agent.utility import JOBTYPE_SCHEMA, TASKS_SCHEMA, JOB_SCHEMA
+from pyfarm.jobtypes.core.internals import InsufficientSpaceError
 from pyfarm.jobtypes.core.jobtype import JobType
 from pyfarm.agent.utility import dumps
 
@@ -68,6 +69,28 @@ class Assign(APIResource):
 
         if request_from_master(request):
             config.master_contacted()
+
+        if ("agent_id" in request_data and
+            request_data["agent_id"] != config["agent_id"]):
+            logger.error("Wrong agent_id in assignment: %s. Our id is %s",
+                         request_data["agent_id"], config["agent_id"])
+            request.setResponseCode(BAD_REQUEST)
+            request.write(dumps(
+                {"error": "You have the wrong agent. I am %s." %
+                    config["agent_id"],
+                 "agent_id": config["agent_id"]}))
+            request.finish()
+            return NOT_DONE_YET
+
+        if self.agent.reannounce_lock.locked:
+            logger.warning("Temporarily rejecting assignment because we "
+                           "are in the middle of a reannounce.")
+            request.setResponseCode(SERVICE_UNAVAILABLE)
+            request.write(
+                dumps({"error": "Agent cannot accept assignments because of a "
+                                "reannounce in progress. Try again shortly."}))
+            request.finish()
+            return NOT_DONE_YET
 
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
@@ -198,23 +221,30 @@ class Assign(APIResource):
         request.setResponseCode(ACCEPTED)
         request.write(dumps({"id": assignment_uuid}))
         request.finish()
-        logger.info("Accepted assignment %s: %r", assignment_uuid, request_data)
+        logger.debug("Accepted assignment %s: %r",
+                     assignment_uuid, request_data)
+        logger.info("Accept assignment from job %s with %s tasks",
+                    request_data["job"]["title"], len(request_data["tasks"]))
 
         def assignment_failed(result, assign_id):
             logger.error(
-                "Assignment %s failed, removing.", assign_id)
+                "Assignment %s failed, result: %r, removing.", assign_id, result)
             logger.error(result.getTraceback())
             if (len(config["current_assignments"]) <= 1 and
                 not self.agent.shutting_down):
                 config["state"] = AgentState.ONLINE
                 self.agent.reannounce(force=True)
+            # Do not mark the assignment as failed if the reason for failing
+            # was that we ran out of disk space
+            failed = not isinstance(result.value, InsufficientSpaceError)
             assignment = config["current_assignments"].pop(assign_id)
             if "jobtype" in assignment:
                 jobtype_id = assignment["jobtype"].pop("id", None)
                 if jobtype_id:
                     instance = config["jobtypes"].pop(jobtype_id, None)
                     instance.stop(
-                        assignment_failed=True,
+                        assignment_failed=failed,
+                        avoid_reassignment=not failed,
                         error="Error in jobtype: %r. "
                               "Traceback: %s" % (result,
                                                  traceback.format_exc()))

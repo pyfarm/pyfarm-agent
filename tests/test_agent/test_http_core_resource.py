@@ -257,20 +257,6 @@ class TestRenderTuple(TestCase):
             with self.assertRaises(AssertionError):
                 resource.render_tuple(request, value)
 
-    def test_body_code_headers(self):
-        resource = FakeErrorResource()
-        request = DummyRequest()
-        resource.render_tuple(
-            request, ("body", OK, {"Foo": "a", "Bar": ["c", "d"]})
-        )
-        self.assertTrue(request.finished)
-        self.assertEqual(request.responseCode, OK)
-        self.assertEqual(request.written, ["body"])
-        self.assertEqual(
-            request.responseHeaders.getRawHeaders("Foo"), ["a"])
-        self.assertEqual(
-            request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
-
     def test_body_code(self):
         resource = FakeErrorResource()
         request = DummyRequest()
@@ -291,6 +277,83 @@ class TestRenderTuple(TestCase):
         self.assertEqual(
             request.written, [json.dumps(
                 {"error": "Expected two or three length tuple for response"})])
+
+    def test_default_content_type(self):
+        """
+        If the Content-Type response header is not already set, set it based
+        on the defaults
+        """
+        request = DummyRequest()
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/pyfarm"])
+        resource.render_tuple(request, ("body", OK))
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+    def test_content_type_already_set(self):
+        """
+        If the Content-Type response header is already set, do not set
+        it again.
+        """
+        request = DummyRequest()
+        request.responseHeaders.setRawHeaders(
+            "Content-Type", ["application/pyfarm"])
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/foobar"])
+        resource.render_tuple(request, ("body", OK))
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+
+class TestRenderThreeTuple(TestCase):
+    def test_body_code_headers(self):
+        resource = FakeErrorResource()
+        request = DummyRequest()
+        resource.render_tuple(
+            request, ("body", OK, {"Foo": "a", "Bar": ["c", "d"]})
+        )
+        self.assertTrue(request.finished)
+        self.assertEqual(request.responseCode, OK)
+        self.assertEqual(request.written, ["body"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Foo"), ["a"])
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
+
+    def test_default_content_type(self):
+        """
+        If the Content-Type response header is not already set, set it based
+        on the defaults
+        """
+        request = DummyRequest()
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/pyfarm"])
+        resource.render_tuple(request, ("body", OK, {}))
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+    def test_content_type_already_set(self):
+        """
+        If the Content-Type response header is already set, do not set
+        it again.
+        """
+        request = DummyRequest()
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/foobar"])
+        resource.render_tuple(
+            request, ("body", OK, {"Content-Type": ["application/pyfarm"]})
+        )
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
 
 
 class TestRenderDeferred(TestCase):
@@ -334,6 +397,92 @@ class TestRenderDeferred(TestCase):
             request.responseHeaders.getRawHeaders("Foo"), ["a"])
         self.assertEqual(
             request.responseHeaders.getRawHeaders("Bar"), ["c", "d"])
+
+    @inlineCallbacks
+    def test_default_content_type(self):
+        """
+        If the Content-Type response header is not already set, set it based
+        on the defaults
+        """
+        request = DummyRequest()
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/pyfarm"])
+
+        @inlineCallbacks
+        def render():
+            yield succeed(None)
+            returnValue(("body", OK))
+
+        yield resource.render_deferred(request, render())
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+    @inlineCallbacks
+    def test_content_type_already_set(self):
+        """
+        If the Content-Type response header is already set, do not set
+        it again.
+        """
+        request = DummyRequest()
+        resource = Resource()
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/foobar"])
+
+        @inlineCallbacks
+        def render():
+            yield succeed(None)
+            request.responseHeaders.setRawHeaders(
+                "Content-Type", ["application/pyfarm"]
+            )
+            returnValue(("body", OK))
+
+        yield resource.render_deferred(request, render())
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+class TestRenderString(TestCase):
+    def test_default_content_type(self):
+        """
+        If the Content-Type response header is not already set, set it based
+        on the defaults
+        """
+        request = DummyRequest()
+        resource = Resource()
+        request.requestHeaders.setRawHeaders("Accept", ["application/json"])
+        resource.ALLOWED_ACCEPT = frozenset(["application/json"])
+        resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/pyfarm"])
+        resource.get = lambda *_, **__: ""
+        resource.render(request)
+
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
+    def test_content_type_already_set(self):
+        """
+        If the Content-Type response header is already set, do not set
+        it again.
+        """
+        request = DummyRequest()
+        resource = Resource()
+        request.responseHeaders.setRawHeaders(
+            "Content-Type", ["application/pyfarm"])
+        request.requestHeaders.setRawHeaders("Accept", ["application/json"])
+        resource.ALLOWED_ACCEPT = frozenset(["application/json"])
+        resource.ALLOWED_CONTENT_TYPE = frozenset(["application/json"])
+        resource.DEFAULT_CONTENT_TYPE = frozenset(["application/foobar"])
+        resource.get = lambda *_, **__: ""
+        resource.render(request)
+        self.assertEqual(
+            request.responseHeaders.getRawHeaders("Content-Type"),
+            ["application/pyfarm"]
+        )
+
 
 
 class TestRender(TestCase):

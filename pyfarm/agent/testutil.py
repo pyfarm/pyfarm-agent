@@ -211,6 +211,8 @@ class ErrorCapturingParser(AgentArgumentParser):
 
 
 class DummyRequest(_DummyRequest):
+    code = OK
+
     def __init__(self, postpath="/", session=None):
         super(DummyRequest, self).__init__(postpath, session=session)
         self.content = StringIO()
@@ -219,6 +221,17 @@ class DummyRequest(_DummyRequest):
         """Sets the content of the request"""
         self.content.write(content)
         self.content.seek(0)
+
+    def setHeader(self, name, value):
+        """
+        Default override, _DummyRequest.setHeader does not actually
+        set the response headers.  Instead it sets the value in
+        a different location that's never used in an actual request.
+        """
+        if isinstance(value, STRING_TYPES):
+            value = [value]
+
+        self.responseHeaders.setRawHeaders(name, value)
 
     def getHeader(self, key):
         """

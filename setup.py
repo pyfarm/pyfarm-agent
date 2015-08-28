@@ -25,7 +25,7 @@ from os.path import isfile, join
 from setuptools import setup
 
 install_requires = [
-    "pyfarm.core>=0.9.1",
+    "pyfarm.core>=0.9.3",
     # "PyOpenSSL", "service_identity",  # required for full SSL support
     "netaddr", "twisted", "ntplib", "requests!=2.4.0", "treq",
     "voluptuous", "jinja2", "psutil>=2.1.0",
@@ -95,7 +95,7 @@ jobtype_root_package_data_roots = (
 
 setup(
     name="pyfarm.agent",
-    version="0.8.4",
+    version="0.8.7",
     packages=[
         "pyfarm",
         "pyfarm.agent",

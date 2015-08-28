@@ -93,11 +93,27 @@ def hostname(trust_name_from_ips=True):
     """
     logger.debug("Attempting to discover the hostname")
 
-    # For every address retrieve the hostname we can resolve it
-    # to.  We'll use this set later to compare again what the system
-    # is telling is the hostname should be.
-    reverse_hostnames = set()
     ip_addresses = addresses()
+
+    local_fqdn_query = socket.getfqdn().lower()
+    try:
+        _h, _a, ips_from_fqdn = socket.gethostbyname_ex(local_fqdn_query)
+        if set(ip_addresses) & set(ips_from_fqdn):
+            return local_fqdn_query
+    except socket.gaierror as error:
+        logger.warning("Could not resolve hostname %s.", local_fqdn_query)
+    local_hostname = socket.gethostname().lower()
+    try:
+        _h, _a, ips_from_hostname = socket.gethostbyname_ex(local_hostname)
+        if set(ip_addresses) & set(ips_from_hostname):
+            return local_hostname
+    except socket.gaierror as error:
+        logger.warning("Could not resolve hostname %s.", local_hostname)
+
+    # For every address retrieve the hostname we can resolve it
+    # to.  We'll use this set later to compare against what the system
+    # is telling us the hostname should be.
+    reverse_hostnames = set()
     for address in ip_addresses:
         try:
             dns_name, aliases, dns_addresses = socket.gethostbyaddr(address)
@@ -107,7 +123,7 @@ def hostname(trust_name_from_ips=True):
                 "Could not resolve %s to a hostname using DNS.", address)
         else:
             if address in dns_addresses:
-                reverse_hostnames.add(dns_name)
+                reverse_hostnames.add(dns_name.lower())
                 logger.debug(
                     "Lookup of %s resolved to %s", address, dns_name)
 
@@ -125,9 +141,6 @@ def hostname(trust_name_from_ips=True):
     if not reverse_hostnames:
         logger.warning(
             "DNS failed to resolve %s to hostnames", ip_addresses)
-
-    local_hostname = socket.gethostname()
-    local_fqdn_query = socket.getfqdn()
 
     if local_fqdn_query in reverse_hostnames:  # pragma: no cover
         name = local_fqdn_query
