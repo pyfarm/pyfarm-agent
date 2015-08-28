@@ -35,7 +35,13 @@ logger = getLogger("agent.disks")
 
 def disks(as_dict=False):
     """
-    Returns a list of disks in the system, in the form of DiskInfo objects
+    Returns a list of disks in the system, in the form of :class:`DiskInfo`
+    objects.
+
+    :param bool as_dict:
+        If True then return a dictionary value instead of :class:`DiskInfo`
+        instances.  This is mainly used by the agent to eliminate an extra
+        loop for translation.
     """
     out = []
     for partition in psutil.disk_partitions():
