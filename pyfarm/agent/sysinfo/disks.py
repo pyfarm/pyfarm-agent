@@ -33,7 +33,7 @@ DiskInfo = namedtuple("DiskInfo", ("mountpoint", "free", "size"))
 logger = getLogger("agent.disks")
 
 
-def disks():
+def disks(as_dict=False):
     """
     Returns a list of disks in the system, in the form of DiskInfo objects
     """
@@ -49,10 +49,19 @@ def disks():
         except OSError:
             continue
 
-        info = DiskInfo(
-            mountpoint=partition.mountpoint,
-            free=usage.free,
-            size=usage.total)
+        if not as_dict:
+            info = DiskInfo(
+                mountpoint=partition.mountpoint,
+                free=usage.free,
+                size=usage.total
+            )
+        else:
+            info = {
+                "mountpoint": partition.mountpoint,
+                "free": usage.free,
+                "size": usage.total
+            }
+
         out.append(info)
 
     return out
