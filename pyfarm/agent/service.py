@@ -257,17 +257,16 @@ class Agent(object):
         num_retry_errors = 0
         while True:  # for retries
             try:
-                agent_data = {
-                    "state": config["state"],
-                    "current_assignments": config.get(
-                        "current_assignments", {}),  # may not be set yet
-                    "free_ram": memory.free_ram(),
-                    "disks": disks.disks(as_dict=True)
-                }
-
                 response = yield post_direct(
                     self.agent_api(),
-                    data=agent_data
+                    data={
+                        "state": config["state"],
+                        "current_assignments": config.get(
+                            "current_assignments", {} # may not be set yet
+                        ),
+                        "free_ram": memory.free_ram(),
+                        "disks": disks.disks(as_dict=True)
+                    }
                 )
 
             except (ResponseNeverReceived, RequestTransmissionFailed) as error:
