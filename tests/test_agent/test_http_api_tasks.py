@@ -18,9 +18,9 @@ import uuid
 from json import dumps
 
 try:
-    from httplib import OK, BAD_REQUEST
+    from httplib import OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
-    from http.client import OK, BAD_REQUEST
+    from http.client import OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR
 
 
 from pyfarm.agent.config import config
@@ -31,6 +31,7 @@ from pyfarm.agent.http.api.tasks import Tasks
 class TestTasks(BaseAPITestCase):
     URI = "/tasks/"
     CLASS = Tasks
+    POP_CONFIG_KEYS = ["current_assignments", "jobtypes"]
 
     def test_master_contacted(self):
         try:
@@ -71,6 +72,12 @@ class TestTasks(BaseAPITestCase):
             request.written, ['{"error": "Task id was not an integer"}'])
         self.assertEqual(request.responseCode, BAD_REQUEST)
 
+    def test_delete_assignment_does_not_exist(self):
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
 
-
-
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(request.written, [""])
+        self.assertEqual(request.responseCode, NO_CONTENT)
