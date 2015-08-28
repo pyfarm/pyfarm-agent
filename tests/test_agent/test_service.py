@@ -926,7 +926,10 @@ class TestReannounce(TestCase):
 
         # Mock out disks.disks
         self.disks_mock = patch.object(
-            disks, "disks", return_value=[disks.DiskInfo("/", 50000, 100000)])
+            disks, "disks", return_value=[{
+                "mountpoint": "/",
+                "size": 100000,
+                "free": 50000}])
         self.disks_mock.start()
 
         self.normal_result = {
