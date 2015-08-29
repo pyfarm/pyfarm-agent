@@ -22,6 +22,7 @@ import psutil
 import subprocess
 import sys
 import uuid
+from contextlib import nested
 from os.path import isfile
 
 try:
@@ -46,11 +47,12 @@ except ImportError:  # pragma: no cover
     getuid = NotImplemented
 
 import netifaces
+from mock import Mock, patch
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system, network, cpu, memory, user
+from pyfarm.agent.sysinfo import system, network, cpu, memory, user, disks
 
 
 class TestSystem(TestCase):
@@ -270,3 +272,72 @@ class TestUser(TestCase):
     def test_administrator_no_win32api_and_windows(self):
         self.assertEqual(ctypes.windll.shell32.IsUserAnAdmin() != 0,
                          user.is_administrator())
+
+
+class TestDisks(TestCase):
+    def setUp(self):
+        super(TestDisks, self).setUp()
+        self.disks = [
+            Mock(mountpoint="/mnt/1"),
+            Mock(mountpoint="/mnt/2")
+        ]
+        self.disk_usage_data = {
+            "/mnt/1": Mock(free=1, size=2),
+            "/mnt/2": Mock(free=1, size=2)
+        }
+
+        self.namedtuple_type = []
+        for disk in self.disks:
+            info = self.disk_usage(disk.mountpoint)
+            self.namedtuple_type.append(
+                disks.DiskInfo(
+                    mountpoint=disk.mountpoint,
+                    free=info.free,
+                    size=info.total
+                )
+            )
+
+    def disk_usage(self, mountpoint):
+        return self.disk_usage_data[mountpoint]
+
+    def test_return_type(self):
+        self.assertIsInstance(disks.disks(), list)
+
+    def test_return_type_namedtuple(self):
+        result = []
+        for disk in self.disks:
+            info = self.disk_usage(disk.mountpoint)
+            result.append(
+                disks.DiskInfo(
+                    mountpoint=disk.mountpoint,
+                    free=info.free,
+                    size=info.total
+                )
+            )
+
+        with nested(
+            patch.object(psutil, "disk_partitions", return_value=self.disks),
+            patch.object(psutil, "disk_usage", self.disk_usage)
+        ):
+            self.assertEqual(disks.disks(), result)
+
+    def test_return_type_dict(self):
+        result = []
+        for disk in self.disks:
+            usage = self.disk_usage(disk.mountpoint)
+            result.append(
+                {
+                    "mountpoint": disk.mountpoint,
+                    "free": usage.free,
+                    "size": usage.total
+                }
+            )
+
+        with nested(
+            patch.object(psutil, "disk_partitions", return_value=self.disks),
+            patch.object(psutil, "disk_usage", self.disk_usage)
+        ):
+            self.assertEqual(disks.disks(as_dict=True), result)
+
+
+
