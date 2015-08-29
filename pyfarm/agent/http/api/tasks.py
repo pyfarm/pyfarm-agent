@@ -64,11 +64,6 @@ class Tasks(APIResource):
                     "attempt": 1
                 }]
 
-        .. note::
-
-            The above output is an example only and may not exactly
-            replicate the fields present in the response.
-
         :statuscode 200: The request was processed successfully
         """
         request = kwargs["request"]
