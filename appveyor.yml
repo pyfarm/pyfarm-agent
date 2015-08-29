@@ -48,7 +48,7 @@ test_script:
 
   # Twisted's trial does not build entrypoints on Windows so we have
   # to call it directly.
-  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests"
+  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests.test_agent.test_http_api_assign"
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
