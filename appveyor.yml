@@ -29,9 +29,6 @@ environment:
 build: false  # Not a C# project, build stuff at the test step instead.
 clone_folder: c:\\project
 
-init:
-  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-
 install:
   # First, download and install some files which help with the
   # build/compile process
@@ -44,7 +41,7 @@ install:
 
   - ps: cd C:\\project
   - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
-  - "%PYTHON%\\Scripts\\pip.exe install -e ."
+  - "%PYTHON%\\python.exe setup.py install"
 
 test_script:
   - ps: cd C:\\project
@@ -58,6 +55,3 @@ after_test:
 
 artifacts:
   - path: dist\*
-
-on_finish:
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
