@@ -40,8 +40,8 @@ install:
   - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
 
   - ps: cd C:\\project
-  - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
-  - "%PYTHON%\\python.exe install . --egg"
+  - "%PYTHON%\\Scripts\\pip.exe install wheel mock pypiwin32"
+  - "%PYTHON%\\python.exe setup.py install"
 
 test_script:
   - ps: cd C:\\project
