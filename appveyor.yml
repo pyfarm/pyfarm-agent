@@ -41,7 +41,7 @@ install:
 
   - ps: cd C:\\project
   - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
-  - "%PYTHON%\\python.exe setup.py install"
+  - "%PYTHON%\\python.exe install . --egg"
 
 test_script:
   - ps: cd C:\\project
