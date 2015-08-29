@@ -90,11 +90,12 @@ class FakeAgentsAPI(HTTPReceiver):
 
 class TestSystemData(TestCase):
     def test_system_data(self):
+        disk_data = [{"free": 50000, "mountpoint": "/", 'size': 100000}]
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
             "id": config["agent_id"],
             "current_assignments": {},
-            "disks": [{"free": 50000, "mountpoint": "/", 'size': 100000}],
+            "disks": disk_data,
             "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],
@@ -111,7 +112,10 @@ class TestSystemData(TestCase):
         }
 
         agent = Agent()
-        with patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]):
+        with nested(
+            patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]),
+            patch.object(disks, "disks", return_value=disk_data)
+        ):
             system_data = agent.system_data()
 
         self.assertApproximates(
@@ -923,11 +927,16 @@ class TestReannounce(TestCase):
         self.free_ram_mock = patch.object(
             memory, "free_ram", return_value=424242)
         self.free_ram_mock.start()
+        self.addCleanup(self.free_ram_mock.stop)
 
         # Mock out disks.disks
         self.disks_mock = patch.object(
-            disks, "disks", return_value=[disks.DiskInfo("/", 50000, 100000)])
+            disks, "disks", return_value=[{
+                "mountpoint": "/",
+                "size": 100000,
+                "free": 50000}])
         self.disks_mock.start()
+        self.addCleanup(self.disks_mock.stop)
 
         self.normal_result = {
             "state": config["state"],
@@ -942,7 +951,6 @@ class TestReannounce(TestCase):
     @inlineCallbacks
     def tearDown(self):
         super(TestReannounce, self).tearDown()
-        self.free_ram_mock.stop()
         yield self.server.loseConnection()
 
     @inlineCallbacks
