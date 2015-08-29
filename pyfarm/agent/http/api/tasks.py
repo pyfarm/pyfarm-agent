@@ -24,8 +24,6 @@ except ImportError:  # pragma: no cover
     from http.client import (
         BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, NOT_FOUND, ACCEPTED)
 
-from twisted.web.server import NOT_DONE_YET
-
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.base import APIResource
 from pyfarm.agent.utility import request_from_master
@@ -36,6 +34,38 @@ logger = getLogger("agent.http.api.tasks")
 
 class Tasks(APIResource):
     def get(self, **kwargs):
+        """
+        Returns all tasks which are currently being
+        processed locally by the agent.
+
+        .. http:get:: /api/v1/tasks/ HTTP/1.1
+
+            **Request**
+
+            .. sourcecode:: http
+
+                GET /api/v1/tasks/ HTTP/1.1
+
+            **Response**
+
+            .. sourcecode:: http
+
+                HTTP/1.1 200 OK
+                Content-Type: application/json
+
+                [{
+                    "id": "732c1ef0-9488-4914-adef-c29f481f3f5b",
+                    "frame": 1,
+                    "attempt": 1
+                },
+                {
+                    "id": "34ce3964-b654-4ad4-8416-f5ddba67806e",
+                    "frame": 2,
+                    "attempt": 1
+                }]
+
+        :statuscode 200: The request was processed successfully
+        """
         request = kwargs["request"]
 
         if request_from_master(request):
@@ -56,27 +86,45 @@ class Tasks(APIResource):
         """
         HTTP endpoint for stopping and deleting an individual task from this
         agent.
-        ... warning::
-        If the specified task is part of a multi-task assignment, all
-        tasks in this assignment will be stopped, not just the specified one.
+
+        .. warning::
+            If the specified task is part of a multi-task assignment, all
+            tasks in this assignment will be stopped, not just the
+            specified one.
 
         This will try to asynchronously stop the assignment by killing all its
         child processes. If that isn't successful, this will have no effect.
+
+        .. http:delete:: /api/v1/tasks/<int:task_id> HTTP/1.1
+
+            **Request**
+
+            .. sourcecode:: http
+
+                DELETE /api/v1/tasks/1 HTTP/1.1
+
+            **Response**
+
+            .. sourcecode:: http
+
+                HTTP/1.1 202 ACCEPTED
+                Content-Type: application/json
+
+
+        :statuscode 202: The task was found and will be stopped.
+        :statuscode 204: Nothing to do, no task matching the request was found
+        :statuscode 400: There was a problem with the request, check the error
         """
         request = kwargs["request"]
 
         # Postpath must be exactly one element, and that needs to be an integer
         if len(request.postpath) != 1:
-            request.setResponseCode(BAD_REQUEST)
-            request.write({"error": "Did not specify a task id"})
-            return NOT_DONE_YET
+            return dumps({"error": "Did not specify a task id"}), BAD_REQUEST
 
         try:
             task_id = int(request.postpath[0])
         except ValueError:
-            request.setResponseCode(BAD_REQUEST)
-            request.write({"error": "Task id was not an integer"})
-            return NOT_DONE_YET
+            return dumps({"error": "Task id was not an integer"}), BAD_REQUEST
 
         try:
             current_assignments = config["current_assignments"].itervalues
@@ -91,24 +139,17 @@ class Tasks(APIResource):
 
         if not assignment:
             logger.info("Cannot cancel task %s: not found", task_id)
-            request.setResponseCode(NO_CONTENT)
-            request.finish()
-            return NOT_DONE_YET
+            return "", NO_CONTENT
 
         if "jobtype" in assignment and "id" in assignment["jobtype"]:
             jobtype = config["jobtypes"][assignment["jobtype"]["id"]]
             logger.info("Stopping assignment %s", assignment["id"])
             jobtype.stop()
         else:
-            logger.error("Tried stopping assigment %s, but found no jobtype "
+            logger.error("Tried stopping assignment %s, but found no jobtype "
                          "instance", assignment["id"])
-            request.setResponseCode(INTERNAL_SERVER_ERROR)
-            request.write({"error": "Assignment found, but no jobtype instance "
-                                    "exists."})
-            request.finish()
-            return NOT_DONE_YET
+            return dumps(
+                {"error": "Assignment found, but no jobtype instance "
+                          "exists."}), INTERNAL_SERVER_ERROR
 
-        request.setResponseCode(ACCEPTED)
-        request.finish()
-
-        return NOT_DONE_YET
+        return "", ACCEPTED

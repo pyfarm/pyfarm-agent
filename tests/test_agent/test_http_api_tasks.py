@@ -14,15 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+from json import dumps
+
 try:
-    from httplib import OK
+    from httplib import (
+        OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, ACCEPTED)
 except ImportError:  # pragma: no cover
-    from http.client import OK
+    from http.client import (
+        OK, BAD_REQUEST, NO_CONTENT, INTERNAL_SERVER_ERROR, ACCEPTED)
 
-from json import loads
-from datetime import datetime
-
-from twisted.web.server import NOT_DONE_YET
+from twisted.internet.defer import Deferred
 
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import BaseAPITestCase
@@ -32,27 +34,102 @@ from pyfarm.agent.http.api.tasks import Tasks
 class TestTasks(BaseAPITestCase):
     URI = "/tasks/"
     CLASS = Tasks
-    DEFAULT_HEADERS = {"User-Agent": config["master_user_agent"]}
+    POP_CONFIG_KEYS = ["current_assignments", "jobtypes"]
 
-    def setUp(self):
-        super(TestTasks, self).setUp()
-        config["current_assignments"] = {}
-        self.assignments = []
-        for i in range(5):
-            self.assignments.append(i)
-            config["current_assignments"][i] = {"tasks": [i]}
+    def test_master_contacted(self):
+        try:
+            last_master_contact = config["last_master_contact"]
+        except KeyError:
+            last_master_contact = None
 
-    def test_get_tasks(self):
+        request = self.get(headers={"User-Agent": config["master_user_agent"]})
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertNotEqual(last_master_contact, config["last_master_contact"])
+
+    def test_returns_current_assignments(self):
+        # NOTE: current_assignments is improperly constructed here but we
+        # only care about the values.
+        config["current_assignments"] = {
+            "a": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 1}]},
+            "b": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 2}]},
+            "c": {u"tasks": [{u"id": unicode(uuid.uuid4()), u"frame": 3}]}
+        }
+        current_tasks = []
+        for item in config["current_assignments"].values():
+            current_tasks += item["tasks"]
+
         request = self.get()
         tasks = Tasks()
-        response = tasks.render(request)
-        self.assertEqual(response, NOT_DONE_YET)
-        self.assertTrue(request.finished)
-        self.assertEqual(request.responseCode, OK)
-        self.assertEqual(len(request.written), 1)
-        self.assertEqual(loads(request.written[0]), self.assignments)
-        self.assertDateAlmostEqual(
-            config.master_contacted(update=False), datetime.utcnow())
+        tasks.render(request)
+        self.assertEqual(request.written, [dumps(current_tasks)])
 
-    def test_delete_tasks(self):
-        self.skipTest("TODO: test_delete_tasks()")
+    def test_delete_task_id_not_integer(self):
+        request = self.delete(
+            uri=["aaa"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(
+            request.written, ['{"error": "Task id was not an integer"}'])
+        self.assertEqual(request.responseCode, BAD_REQUEST)
+
+    def test_delete_assignment_does_not_exist(self):
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(request.written, [""])
+        self.assertEqual(request.responseCode, NO_CONTENT)
+
+    def test_delete_assignment_found_but_no_jobtype(self):
+        config["jobtypes"] = {}
+        config["current_assignments"] = {
+            "a": {
+                "id": 1,
+                "tasks": [{u"id": 2}],
+            }
+        }
+
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(
+            request.written,
+            ['{"error": "Assignment found, but no jobtype instance exists."}'])
+        self.assertEqual(request.responseCode, INTERNAL_SERVER_ERROR)
+
+    def test_delete_stop_jobtype(self):
+        deferred = Deferred()
+
+        class FakeJobType(object):
+            def stop(self):
+                deferred.callback(None)
+
+        config["jobtypes"] = {
+            3: FakeJobType()
+        }
+        config["current_assignments"] = {
+            "a": {
+                "id": 1,
+                "tasks": [{u"id": 2}],
+                "jobtype": {"id": 3}
+            }
+        }
+
+        request = self.delete(
+            uri=["2"],
+            headers={"User-Agent": config["master_user_agent"]})
+
+        tasks = Tasks()
+        tasks.render(request)
+        self.assertEqual(request.written, [""])
+        self.assertEqual(request.responseCode, ACCEPTED)
+
+        return deferred
