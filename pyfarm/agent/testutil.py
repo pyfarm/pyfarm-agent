@@ -23,6 +23,7 @@ import time
 import uuid
 from datetime import datetime
 from functools import wraps, partial
+from logging import FATAL, getLogger
 from os import urandom
 from os.path import basename, isfile
 from random import randint, choice
@@ -36,7 +37,6 @@ except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
 from jinja2 import Template
-from mock import patch
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
@@ -45,8 +45,10 @@ from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
 from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.logger.twistd import CONFIGURATION, Observer
 from pyfarm.agent.sysinfo import memory, cpu
 from pyfarm.agent.utility import dumps, remove_directory
+
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -371,11 +373,13 @@ class TestCase(_TestCase):
     def setUp(self):
         super(TestCase, self).setUp()
 
-        # Disable config logging
-        self._config_logger_disabled = config_logger.disabled
-        config_logger.disabled = True
+        # Redirect output of the main logging object
+        observer = Observer.INSTANCE
+        self.failUnlessIsInstance(Observer.INSTANCE, Observer)
         self.addCleanup(
-            setattr, config_logger, "disabled", self._config_logger_disabled)
+            setattr, Observer.INSTANCE, "output", Observer.INSTANCE.output)
+        self.log_observer_output = StringIO()
+        observer.INSTANCE.output = self.log_observer_output
 
         try:
             self._pop_config_keys
