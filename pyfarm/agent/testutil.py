@@ -31,13 +31,16 @@ from textwrap import dedent
 from urllib import urlopen
 
 try:
-    from httplib import OK, CREATED
+    from httplib import OK, CREATED, INTERNAL_SERVER_ERROR
 except ImportError:  # pragma: no cover
-    from http.client import OK, CREATED
+    from http.client import OK, CREATED, INTERNAL_SERVER_ERROR
 
 from jinja2 import Template
+from twisted.internet import reactor
 from twisted.internet.base import DelayedCall
-from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
+from twisted.trial.unittest import TestCase as _TestCase, SkipTest
+from twisted.web.resource import Resource
+from twisted.web.server import Site
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
 from pyfarm.core.config import read_env
@@ -95,13 +98,6 @@ if ":" not in PYFARM_AGENT_MASTER:
     raise ValueError("$PYFARM_AGENT_TEST_MASTER's format should be `ip:port`")
 
 os.environ["PYFARM_AGENT_TEST_RUNNING"] = str(os.getpid())
-
-
-try:
-    response = urlopen("http://" + PYFARM_AGENT_MASTER)
-    PYFARM_MASTER_API_ONLINE = response.code == OK
-except Exception as e:
-    PYFARM_MASTER_API_ONLINE = False
 
 
 class skipIf(object):
@@ -195,6 +191,91 @@ class ErrorCapturingParser(AgentArgumentParser):
 
     def error(self, message):
         self.errors.append(message)
+
+
+class APITestServerResource(Resource):
+    isLeaf = False
+
+    def __init__(self):
+        Resource.__init__(self)
+        self.requests = []
+        self.response = None
+        self.code = None
+        self.headers = None
+
+    def putChild(self, path, child):
+        Resource.putChild(self, path, child)
+        return child
+
+    def handle(self, request):
+        self.requests.append(request)
+        if self.headers is not None:
+            for key, value in self.headers.items():
+                request.setHeader(key, value)
+
+        request.setResponseCode(self.code or INTERNAL_SERVER_ERROR)
+        return self.response or "NO RESPONSE SET"
+
+    # All requests should pass through handle() when
+    # testing.
+    render_POST = handle
+    render_PUT = handle
+    render_GET = handle
+    render_DELETE = handle
+
+
+class APITestServer(object):
+    """
+    A object used for setting up a fake HTTP server which can respond
+    to requests during a test.
+    """
+    def __init__(self, url, code=None, response=None, headers=None):
+        assert isinstance(url, basestring) and url.startswith("/")
+        self.url = url
+        self.resource = None
+        self._response = response
+        self._code = code
+        self._headers = headers
+        self._master_api = config["master_api"]
+
+    def __enter__(self):
+        self._master_api = config["master_api"]
+
+        # Walk down the url to create the resources.  The last
+        # resource will become the one we use to listen for
+        # requests and craft responses
+        root = APITestServerResource()
+        resource = None
+        for urlpart in self.url[1:].split("/"):
+            if resource is None:
+                resource = root.putChild(urlpart, root)
+            else:
+                resource = resource.putChild(urlpart, resource)
+
+        if resource is None:
+            raise ValueError("`resource` never set")
+
+        if self._code is not None:
+            resource.code = self._code
+
+        if self._response is not None:
+            resource.response = self._response
+
+        if self._headers is not None:
+            resource.headers = self._headers
+
+        self.resource = resource
+        self.site = Site(root)
+        self.server = reactor.listenTCP(0, self.site)
+        host = self.server.getHost()
+        config["master_api"] = "http://127.0.0.1:%s" % host.port
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        config["master_api"] = self._master_api
+        self.server.loseConnection()
+        self.server = None
+        self.site = None
 
 
 class DummyRequest(_DummyRequest):
