@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover
     from http.client import OK, CREATED
 
 from jinja2 import Template
+from mock import patch
 from twisted.internet.base import DelayedCall
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
@@ -367,13 +368,14 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
-    # If the config logger really needs to be turned on someone
-    # can do so in setUp.  This is pretty verbose and will make
-    # it difficult to debug tests.
-    config_logger.disabled = True
-
     def setUp(self):
         super(TestCase, self).setUp()
+
+        # Disable config logging
+        self._config_logger_disabled = config_logger.disabled
+        config_logger.disabled = True
+        self.addCleanup(
+            setattr, config_logger, "disabled", self._config_logger_disabled)
 
         try:
             self._pop_config_keys
