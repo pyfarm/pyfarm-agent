@@ -3,8 +3,6 @@ environment:
     # /E:ON and /V:ON options are not enabled in the batch script intepreter
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C C:\\project\\run_with_cmd.cmd"
-    COVERALLS_REPO_TOKEN:
-      secure: ph9Ol8BfPJJmFz5MnHN/U3ysHH4jw38BpRJZ5iInnSCWVBSzvmyWfr/Owc5BtgQi
 
   matrix:
     # Preinstalled Python versions
@@ -42,7 +40,7 @@ install:
   - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
 
   - ps: cd C:\\project
-  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install wheel mock coverage coveralls"
+  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install wheel mock coverage"
   - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install ."
 
 test_script:
@@ -54,7 +52,7 @@ test_script:
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
-  - "%PYTHON%\\Scripts\\coveralls.exe"
+  - "%PYTHON%\\Scripts\\coverage.exe report"
 
 artifacts:
   - path: dist\*
