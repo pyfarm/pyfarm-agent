@@ -256,7 +256,7 @@ class DummyRequest(_DummyRequest):
 
 class TestCaseLogHandler(logging.Handler):
     def __init__(self, level=logging.DEBUG):
-        super(TestCaseLogHandler, self).__init__(level=level)
+        logging.Handler.__init__(self, level=level)
         self.records = []
 
     def handle(self, record):
