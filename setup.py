@@ -16,13 +16,12 @@
 
 from __future__ import with_statement
 
-import sys
-assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
-
 import os
+import sys
 from os import walk
 from os.path import isfile, join
 from setuptools import setup
+assert sys.version_info[0:2] >= (2, 6), "Python 2.6 or higher is required"
 
 install_requires = [
     "pyfarm.core>=0.9.3",
