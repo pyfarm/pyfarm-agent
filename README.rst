@@ -58,29 +58,29 @@ Testing
 -------
 
 Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ for
-every commit.  They can also be run locally too using ``trial``.  Currently,
-the agent tests require:
+every commit.  They can also be run locally too using ``trial``.  They will
+require access to https://httpbin.pyfarm.net unless you plan on skipping or
+ignoring some of the http client failures.
 
-    * Access to https://httpbin.pyfarm.net for HTTP client testing.  This is
-      configurable however and could be pointed to an internal domain
-      using the ``agent_unittest`` configuration variable.
-    * The ``pyfarm.master`` module to run the API.  So all the setup steps
-      that apply to the master will apply here as well.  This includes the
-      requirement to run Redis, RabbitMQ or another backend that supports
-      ``celery``.
-    * Linux or OS X since the master is designed to operate on these
-      platforms.  The below setup may work on Windows with a few configuration
-      tweaks too.
-
-Newer tests are being designed to be lighter weight so eventually most of the
-above may no longer be required for testing.  For now however these are the
-basic steps to run the tests and are based on the steps in ``.travis.yml``::
+To execute the tests in Linux or OS X, try this::
 
     virtualenv env
     . env/bin/activate
-    pip install pyfarm.master uwsgi mock
-    pyfarm-tables
-    uwsgi resources/uwsgi.ini
     pip install -e . --egg
-    trial tests  # in a new shell with the same virtualenv
+    trial tests
+
+On Windows the process is similar but requires a few changes to the command
+line calls::
+
+    virtualenv env
+    env\Scripts\activate
+    %VIRTUALE_ENV%\Scripts\pip.exe install wheel
+    %VIRTUALE_ENV%\Scripts\pip.exe install -e . --egg
+    %VIRTUALE_ENV%\Scripts\python.exe %VIRTUALE_ENV%\Scripts\trial.py tests
+
+.. note::
+
+    On Windows, if the tests fail to locate one of the agent's modules be sure
+    you don't have another package for PyFarm installed in your system
+    site-packages directory.
 
