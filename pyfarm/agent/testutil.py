@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
 import socket
@@ -37,6 +38,7 @@ except ImportError:  # pragma: no cover
 
 from jinja2 import Template
 from twisted.internet.base import DelayedCall
+from twisted.python.log import theLogPublisher
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
@@ -253,6 +255,15 @@ class DummyRequest(_DummyRequest):
         self.written.append(data)
 
 
+class TestCaseLogHandler(logging.Handler):
+    def __init__(self, level=logging.DEBUG):
+        super(TestCaseLogHandler, self).__init__(level=level)
+        self.records = []
+
+    def handle(self, record):
+        self.records.append(record)
+
+
 class TestCase(_TestCase):
     longMessage = True
     POP_CONFIG_KEYS = []
@@ -369,16 +380,34 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
+    def replace_list(self, list_object, contents):
+        list_object[:] = contents
+
     def setUp(self):
         super(TestCase, self).setUp()
 
         # Redirect output of the main logging object
-        observer = Observer.INSTANCE
         self.failUnlessIsInstance(Observer.INSTANCE, Observer)
         self.addCleanup(
             setattr, Observer.INSTANCE, "output", Observer.INSTANCE.output)
         self.log_observer_output = StringIO()
-        observer.INSTANCE.output = self.log_observer_output
+        Observer.INSTANCE.output = self.log_observer_output
+
+        # Redirect logging sent to Python's logging
+        # handler to our own while tests are running.
+        root_logger = logging.getLogger("")
+        self.addCleanup(root_logger.setLevel, root_logger.level)
+        self.addCleanup(
+            self.replace_list, root_logger.handlers, root_logger.handlers[:])
+        self.addCleanup(
+            self.replace_list, root_logger.filters, root_logger.filters[:]
+        )
+        del root_logger.handlers[:]
+        del root_logger.filters[:]
+        root_logger.setLevel(logging.DEBUG)
+        self.python_logging_handler = TestCaseLogHandler()
+        self.python_logging_handler.setLevel(logging.DEBUG)
+        root_logger.addHandler(self.python_logging_handler)
 
         try:
             self._pop_config_keys
