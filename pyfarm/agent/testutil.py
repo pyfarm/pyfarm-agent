@@ -23,7 +23,6 @@ import time
 import uuid
 from datetime import datetime
 from functools import wraps, partial
-from logging import FATAL, getLogger
 from os import urandom
 from os.path import basename, isfile
 from random import randint, choice
@@ -44,8 +43,8 @@ from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
-from pyfarm.agent.config import config, logger as config_logger
-from pyfarm.agent.logger.twistd import CONFIGURATION, Observer
+from pyfarm.agent.config import config
+from pyfarm.agent.logger.twistd import Observer
 from pyfarm.agent.sysinfo import memory, cpu
 from pyfarm.agent.utility import dumps, remove_directory
 
