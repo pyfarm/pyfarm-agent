@@ -3,6 +3,8 @@ environment:
     # /E:ON and /V:ON options are not enabled in the batch script intepreter
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C C:\\project\\run_with_cmd.cmd"
+    COVERALLS_REPO_TOKEN:
+      secure: ph9Ol8BfPJJmFz5MnHN/U3ysHH4jw38BpRJZ5iInnSCWVBSzvmyWfr/Owc5BtgQi
 
   matrix:
     # Preinstalled Python versions
@@ -48,10 +50,11 @@ test_script:
 
   # Twisted's trial does not build entrypoints on Windows so we have
   # to call it directly.
-  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests"
+  - "%PYTHON%\\Scripts\\coverage.exe run %PYTHON%\\Scripts\\trial.py tests.test_agent.test_config"
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
+  - "%PYTHON%\\Scripts\\coveralls.exe"
 
 artifacts:
   - path: dist\*
