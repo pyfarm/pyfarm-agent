@@ -40,16 +40,15 @@ install:
   - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
 
   - ps: cd C:\\project
-
-  - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
-  - "%PYTHON%\\Scripts\\pip.exe install . --egg"
+  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install wheel mock coverage coveralls"
+  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install ."
 
 test_script:
   - ps: cd C:\\project
 
   # Twisted's trial does not build entrypoints on Windows so we have
   # to call it directly.
-  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests.test_agent.test_http_api_assign"
+  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests"
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
