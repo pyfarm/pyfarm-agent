@@ -142,7 +142,3 @@ setup(
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Topic :: System :: Distributed Computing"])
-
-if sys.platform.startswith("win"):
-    print("WARNING:  Please be sure you've installed the OpenSSL Library as "
-          "some modules may break on Windows without it.")
