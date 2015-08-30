@@ -29,29 +29,35 @@ environment:
 build: false  # Not a C# project, build stuff at the test step instead.
 clone_folder: c:\\project
 
-install:
-  # First, download and install some files which help with the
-  # build/compile process
-  - ps: Invoke-WebRequest https://raw.githubusercontent.com/pypa/python-packaging-user-guide/master/source/code/run_with_compiler.cmd -OutFile C:\\project\\run_with_cmd.cmd
-  - ps: Invoke-WebRequest https://raw.githubusercontent.com/pypa/python-packaging-user-guide/master/source/code/install.ps1 -OutFile C:\\project\\install.ps1
+nit:
+- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 
-  # Install Python (from the official .msi of http://python.org) and pip when
-  # not already installed.
-  - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
+#install:
+#  # First, download and install some files which help with the
+#  # build/compile process
+#  - ps: Invoke-WebRequest https://raw.githubusercontent.com/pypa/python-packaging-user-guide/master/source/code/run_with_compiler.cmd -OutFile C:\\project\\run_with_cmd.cmd
+#  - ps: Invoke-WebRequest https://raw.githubusercontent.com/pypa/python-packaging-user-guide/master/source/code/install.ps1 -OutFile C:\\project\\install.ps1
+#
+#  # Install Python (from the official .msi of http://python.org) and pip when
+#  # not already installed.
+#  - ps: if (-not(Test-Path($env:PYTHON))) { & C:\\project\\install.ps1 }
+#
+#  - ps: cd C:\\project
+#  - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
+#  - "%PYTHON%\\Scripts\\pip.exe install . --egg"
 
-  - ps: cd C:\\project
-  - "%PYTHON%\\Scripts\\pip.exe install wheel mock"
-  - "%PYTHON%\\Scripts\\pip.exe install . --egg"
+#test_script:
+#  - ps: cd C:\\project
+#
+#  # Twisted's trial does not build entrypoints on Windows so we have
+#  # to call it directly.
+#  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests.test_agent.test_http_api_assign"
+#
+#after_test:
+#  - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
+#
+#artifacts:
+#  - path: dist\*
 
-test_script:
-  - ps: cd C:\\project
-
-  # Twisted's trial does not build entrypoints on Windows so we have
-  # to call it directly.
-  - "%PYTHON%\\python.exe %PYTHON%\\Scripts\\trial.py tests.test_agent.test_http_api_assign"
-
-after_test:
-  - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
-
-artifacts:
-  - path: dist\*
+on_finish:
+- ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
