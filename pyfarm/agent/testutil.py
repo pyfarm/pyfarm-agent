@@ -134,19 +134,6 @@ def random_port(bind="127.0.0.1"):
         sock.close()
 
 
-def requires_master(function):
-    """
-    Any test decorated with this function will fail if the master could
-    not be contacted or returned a response other than 200 OK for "/"
-    """
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        if not PYFARM_MASTER_API_ONLINE:
-            raise FailTest("Could not connect to master")
-        return function(*args, **kwargs)
-    return wrapper
-
-
 def create_jobtype(classname=None, sourcecode=None):
     """Creates a job type on the master and fires a deferred when finished"""
     if classname is None:
