@@ -38,7 +38,6 @@ except ImportError:  # pragma: no cover
 
 from jinja2 import Template
 from twisted.internet.base import DelayedCall
-from twisted.python.log import theLogPublisher
 from twisted.trial.unittest import TestCase as _TestCase, SkipTest, FailTest
 from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 
