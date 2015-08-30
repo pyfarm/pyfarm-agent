@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import atexit
+import json
 import re
 import os
 import shutil
@@ -43,10 +44,11 @@ except ImportError:
 import psutil
 from mock import patch
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
-from pyfarm.agent.testutil import TestCase, skipIf, create_jobtype
+from pyfarm.agent.testutil import (
+    TestCase, skipIf, create_jobtype, random_port, APITestServer)
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import user
 from pyfarm.jobtypes.core.internals import (
@@ -115,30 +117,20 @@ class TestCache(TestCase):
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
+    @inlineCallbacks
     def test_download(self):
         classname = "AgentUnittest" + os.urandom(8).encode("hex")
-        created = create_jobtype(classname=classname)
         cache = Cache()
-        finished = Deferred()
 
-        def post_success(data):
-            download = cache._download_jobtype(
-                data["name"], data["version"])
-
-            def downloaded(response):
-                self.assertEqual(response.code, OK)
-                data = response.json()
-                self.assertEqual(data["name"], classname)
-                self.assertEqual(data["classname"], classname)
-                self.assertEqual(data["version"], 1)
-                finished.callback(None)
-
-            download.addCallback(downloaded)
-            download.addErrback(finished.errback)
-
-        created.addCallbacks(post_success, finished.errback)
-
-        return finished
+        with APITestServer(
+            "/jobtypes/%s/versions/1" % classname,
+            headers={"Content-Type": "application/json"},
+            code=OK, response=json.dumps({"data": "This is a job type"})
+        ):
+            response = yield cache._download_jobtype(classname, 1)
+            self.assertEqual(response.code, OK)
+            data = response.json()
+            self.assertEqual(data.get("data"), "This is a job type")
 
     def test_filename(self):
         cache = Cache()
