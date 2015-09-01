@@ -54,7 +54,7 @@ on platform)::
 
     virtualenv env
     . env/bin/activate
-    pip install sphinx nosegi
+    pip install sphinx nose
     pip install -e . --egg
     make -C docs html
 
