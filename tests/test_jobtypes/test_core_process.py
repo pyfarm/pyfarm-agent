@@ -25,7 +25,7 @@ except ImportError:
 
 import psutil
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.error import ProcessTerminated
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
@@ -82,15 +82,12 @@ class TestProtocol(TestProcessBase):
         self.assertIs(protocol.process, protocol.transport)
         return fake_jobtype.stopped
 
+    @inlineCallbacks
     def test_psutil_process_after_exit(self):
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(fake_jobtype)
-
-        def exited(*_):
-            self.assertIsNone(protocol.psutil_process)
-
-        fake_jobtype.stopped.addCallback(exited)
-        return fake_jobtype.stopped
+        yield fake_jobtype.stopped
+        self.assertIsNone(protocol.psutil_process)
 
     def test_psutil_process_running(self):
         fake_jobtype = FakeJobType()
@@ -106,29 +103,21 @@ class TestProtocol(TestProcessBase):
         self.assertTrue(protocol.running())
         return fake_jobtype.stopped
 
+    @inlineCallbacks
     def test_connectionMade(self):
         fake_jobtype = FakeJobType()
-
-        def stopped(*_):
-            self.assertTrue(fake_jobtype.started.called)
-
-        fake_jobtype.started.addCallback(
-            lambda value: self.assertIsInstance(value, ProcessProtocol))
-        fake_jobtype.stopped.addCallback(stopped)
         self._launch_python(fake_jobtype)
-        return fake_jobtype.stopped
+        started = yield fake_jobtype.started
+        self.assertIsInstance(started, ProcessProtocol)
+        yield fake_jobtype.stopped
 
+    @inlineCallbacks
     def test_processEnded(self):
         fake_jobtype = FakeJobType()
-
-        def stopped(*_):
-            self.assertTrue(fake_jobtype.stopped.called)
-
-        fake_jobtype.stopped.addCallback(
-            lambda data: self.assertIsInstance(data[0], ProcessProtocol))
-        fake_jobtype.stopped.addCallback(stopped)
         self._launch_python(fake_jobtype)
-        return fake_jobtype.stopped
+        yield fake_jobtype.started
+        stopped = yield fake_jobtype.stopped
+        self.assertIsInstance(stopped[0], ProcessProtocol)
 
     def test_processEnded_error(self):
         jobtype = ProcessProtocol(None)
@@ -140,20 +129,20 @@ class TestProtocol(TestProcessBase):
                 "Exception caught while running jobtype._process_stopped",
                 logger.error.call_args[0][0])
 
+    @inlineCallbacks
     def test_outReceived(self):
-        finished = Deferred()
         rand_str = os.urandom(24).encode("hex")
 
         def check_stdout(protocol, data):
             self.assertIsInstance(protocol, ProcessProtocol)
             self.assertEqual(data.strip(), rand_str)
-            finished.callback(None)
 
         fake_jobtype = FakeJobType(stdout=check_stdout)
         self._launch_python(
             fake_jobtype,
             "import sys; print >> sys.stdout, %r" % rand_str)
-        return DeferredList([finished, fake_jobtype.stopped])
+
+        yield fake_jobtype.stopped
 
     def test_outReceived_error(self):
         jobtype = ProcessProtocol(None)
@@ -166,8 +155,8 @@ class TestProtocol(TestProcessBase):
                 "jobtype._process_output",
                 logger.error.call_args[0][0])
 
+    @inlineCallbacks
     def test_errReceived(self):
-        finished = Deferred()
         rand_str = os.urandom(24).encode("hex")
 
         def check_stdout(protocol, data):
@@ -175,13 +164,12 @@ class TestProtocol(TestProcessBase):
             data = data.strip()
             if data:  # we may not get it in the first line of output
                 self.assertEqual(data.strip(), rand_str)
-                finished.callback(None)
 
         fake_jobtype = FakeJobType(stderr=check_stdout)
         self._launch_python(
             fake_jobtype,
             "import sys; print >> sys.stderr, %r" % rand_str)
-        return DeferredList([finished, fake_jobtype.stopped])
+        yield fake_jobtype.stopped
 
     def test_errReceived_error(self):
         jobtype = ProcessProtocol(None)
@@ -196,62 +184,63 @@ class TestProtocol(TestProcessBase):
 
 
 class TestStopProcess(TestProcessBase):
-    # How long to wait before trying to stop/terminate/etc
-    # the underlying process.  If this value is too low then
-    # the test will fail.
-    STOP_DELAY = 2
-
+    @inlineCallbacks
     def test_kill(self):
-        finished = Deferred()
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
+        yield fake_jobtype.started
 
-        def check_stopped(data):
-            protocol, reason = data
-            self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertIs(reason.type, ProcessTerminated)
-            self.assertIn("signal 9", str(reason))
+        while os.path.isfile(path):
+            continue
 
-        fake_jobtype.started.addCallback(
-            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.kill))
-        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
-        return finished
+        protocol.kill()
 
+        protocol, reason = yield fake_jobtype.stopped
+        self.assertIsInstance(protocol, ProcessProtocol)
+        self.assertIs(reason.type, ProcessTerminated)
+        self.assertIn("signal 9", str(reason))
+
+    @inlineCallbacks
     def test_interrupt(self):
-        finished = Deferred()
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
+        yield fake_jobtype.started
 
-        def check_stopped(data):
-            protocol, reason = data
-            self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertIs(reason.type, ProcessTerminated)
-            self.assertEqual(reason.value.exitCode, 1)
+        while os.path.isfile(path):
+            continue
 
-        fake_jobtype.started.addCallback(
-            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.interrupt))
-        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
-        return finished
+        protocol.interrupt()
 
+        protocol, reason = yield fake_jobtype.stopped
+        self.assertIsInstance(protocol, ProcessProtocol)
+        self.assertIs(reason.type, ProcessTerminated)
+        self.assertEqual(reason.value.exitCode, 1)
+
+    @inlineCallbacks
     def test_terminate(self):
-        finished = Deferred()
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
+        yield fake_jobtype.started
 
-        def check_stopped(data):
-            protocol, reason = data
-            self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertIs(reason.type, ProcessTerminated)
-            self.assertIsNone(reason.value.exitCode)
-            self.assertIn("signal 15", str(reason))
+        while os.path.isfile(path):
+            continue
 
-        fake_jobtype.started.addCallback(
-            lambda *_: reactor.callLater(self.STOP_DELAY, protocol.terminate))
-        fake_jobtype.stopped.addCallback(check_stopped).chainDeferred(finished)
-        return finished
+        protocol.terminate()
+
+        protocol, reason = yield fake_jobtype.stopped
+        self.assertIsInstance(protocol, ProcessProtocol)
+        self.assertIs(reason.type, ProcessTerminated)
+        self.assertIsNone(reason.value.exitCode)
+        self.assertIn("signal 15", str(reason))
 
 
 class TestReplaceEnvironment(TestCase):
