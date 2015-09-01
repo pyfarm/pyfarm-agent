@@ -256,11 +256,13 @@ class TestStopProcess(TestProcessBase):
             self.assertIsInstance(protocol, ProcessProtocol)
 
             reason_type = ProcessTerminated
+            exit_code = None
             if WINDOWS:
                 reason_type = ProcessDone
+                exit_code = 1
 
             self.assertIs(reason.type, reason_type)
-            self.assertIsNone(reason.value.exitCode)
+            self.assertEqual(reason.value.exitCode, exit_code)
 
         fake_jobtype.started.addCallback(
             lambda *_: reactor.callLater(self.STOP_DELAY, protocol.terminate))
