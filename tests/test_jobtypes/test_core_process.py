@@ -26,7 +26,7 @@ except ImportError:
 import psutil
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
-from twisted.internet.error import ProcessTerminated
+from twisted.internet.error import ProcessTerminated, ProcessDone
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.core.enums import WINDOWS
@@ -211,7 +211,12 @@ class TestStopProcess(TestProcessBase):
         def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertIs(reason.type, ProcessTerminated)
+
+            reason_type = ProcessTerminated
+            if WINDOWS:
+                reason_type = ProcessDone
+
+            self.assertIs(reason.type, reason_type)
             self.assertIn("signal 9", str(reason))
 
         fake_jobtype.started.addCallback(
@@ -228,6 +233,11 @@ class TestStopProcess(TestProcessBase):
         def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
+
+            reason_type = ProcessTerminated
+            if WINDOWS:
+                reason_type = ProcessDone
+
             self.assertIs(reason.type, ProcessTerminated)
             self.assertEqual(reason.value.exitCode, 1)
 
