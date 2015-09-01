@@ -581,7 +581,7 @@ class AgentEntryPoint(object):
             logger.debug("Creating %s", config["jobtype_task_logs"])
             try:
                 os.makedirs(config["jobtype_task_logs"])
-            except OSError:
+            except (OSError, WindowsError):
                 logger.error("Failed to create %s", config["jobtype_task_logs"])
                 return 1
 
@@ -589,7 +589,7 @@ class AgentEntryPoint(object):
         if not self.args.no_daemon and not isfile(config["agent_log"]):
             try:
                 os.makedirs(dirname(config["agent_log"]))
-            except OSError:
+            except (OSError, WindowsError):
                 # Not an error because it could be created later on
                 logger.warning(
                     "failed to create %s" % dirname(config["agent_log"]))
