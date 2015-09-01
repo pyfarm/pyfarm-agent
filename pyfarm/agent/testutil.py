@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
 import socket
@@ -43,9 +44,11 @@ from twisted.web.test.requesthelper import DummyRequest as _DummyRequest
 from pyfarm.core.config import read_env
 from pyfarm.core.enums import AgentState, PY26, STRING_TYPES
 from pyfarm.agent.http.core.client import post
-from pyfarm.agent.config import config, logger as config_logger
+from pyfarm.agent.config import config
+from pyfarm.agent.logger.twistd import Observer
 from pyfarm.agent.sysinfo import memory, cpu
 from pyfarm.agent.utility import dumps, remove_directory
+
 
 try:
     from unittest.case import _AssertRaisesContext
@@ -251,6 +254,15 @@ class DummyRequest(_DummyRequest):
         self.written.append(data)
 
 
+class TestCaseLogHandler(logging.Handler):
+    def __init__(self, level=logging.DEBUG):
+        logging.Handler.__init__(self, level=level)
+        self.records = []
+
+    def handle(self, record):
+        self.records.append(record)
+
+
 class TestCase(_TestCase):
     longMessage = True
     POP_CONFIG_KEYS = []
@@ -367,13 +379,34 @@ class TestCase(_TestCase):
         def skipTest(self, reason):
             raise SkipTest(reason)
 
-    # If the config logger really needs to be turned on someone
-    # can do so in setUp.  This is pretty verbose and will make
-    # it difficult to debug tests.
-    config_logger.disabled = True
+    def replace_list(self, list_object, contents):
+        list_object[:] = contents
 
     def setUp(self):
         super(TestCase, self).setUp()
+
+        # Redirect output of the main logging object
+        self.failUnlessIsInstance(Observer.INSTANCE, Observer)
+        self.addCleanup(
+            setattr, Observer.INSTANCE, "output", Observer.INSTANCE.output)
+        self.log_observer_output = StringIO()
+        Observer.INSTANCE.output = self.log_observer_output
+
+        # Redirect logging sent to Python's logging
+        # handler to our own while tests are running.
+        root_logger = logging.getLogger("")
+        self.addCleanup(root_logger.setLevel, root_logger.level)
+        self.addCleanup(
+            self.replace_list, root_logger.handlers, root_logger.handlers[:])
+        self.addCleanup(
+            self.replace_list, root_logger.filters, root_logger.filters[:]
+        )
+        del root_logger.handlers[:]
+        del root_logger.filters[:]
+        root_logger.setLevel(logging.DEBUG)
+        self.python_logging_handler = TestCaseLogHandler()
+        self.python_logging_handler.setLevel(logging.DEBUG)
+        root_logger.addHandler(self.python_logging_handler)
 
         try:
             self._pop_config_keys
