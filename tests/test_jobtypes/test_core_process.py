@@ -254,7 +254,7 @@ class TestStopProcess(TestProcessBase):
             exit_code = None
             if WINDOWS:
                 reason_type = ProcessDone
-                exit_code = 1
+                exit_code = 0
 
             self.assertIs(reason.type, reason_type)
             self.assertEqual(reason.value.exitCode, exit_code)
