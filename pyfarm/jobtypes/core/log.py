@@ -35,7 +35,6 @@ from twisted.internet import reactor
 from twisted.internet.threads import deferToThreadPool
 from twisted.python.threadpool import ThreadPool
 
-from pyfarm.core.enums import WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import cpu
 from pyfarm.agent.logger import getLogger
@@ -150,7 +149,7 @@ class LoggerPool(ThreadPool):
         if log is not None:
             self.flush(log)
             log.file.close()
-            logger.info("Closed %s", log.file.name)
+            logger.debug("Closed %s", log.file.name)
 
     def log(self, uuid, stream, message, pid=None):
         """
@@ -228,7 +227,7 @@ class LoggerPool(ThreadPool):
         if not self.started or self.joined:
             return
 
-        logger.info("Logging thread pool is shutting down.")
+        logger.debug("Logging thread pool is shutting down.")
         self.stopped = True
 
         for protocol_id in list(self.logs.keys()):
@@ -243,7 +242,7 @@ class LoggerPool(ThreadPool):
         """
         reactor.addSystemEventTrigger("before", "shutdown", self.stop)
         ThreadPool.start(self)
-        logger.info(
+        logger.debug(
             "Started logger thread pool (min=%s, max=%s)", self.min, self.max)
 
 try:
