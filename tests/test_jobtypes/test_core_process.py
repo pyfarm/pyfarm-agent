@@ -184,18 +184,20 @@ class TestProtocol(TestProcessBase):
 
 
 class TestStopProcess(TestProcessBase):
-    # How long to wait before trying to stop/terminate/etc
-    # the underlying process.  If this value is too low then
-    # the test will fail.
-    STOP_DELAY = 5
-
     @inlineCallbacks
     def test_kill(self):
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
         yield fake_jobtype.started
-        reactor.callLater(self.STOP_DELAY, protocol.kill)
+
+        while os.path.isfile(path):
+            continue
+
+        protocol.kill()
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
         self.assertIs(reason.type, ProcessTerminated)
@@ -203,11 +205,18 @@ class TestStopProcess(TestProcessBase):
 
     @inlineCallbacks
     def test_interrupt(self):
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
         yield fake_jobtype.started
-        reactor.callLater(self.STOP_DELAY, protocol.interrupt)
+
+        while os.path.isfile(path):
+            continue
+
+        protocol.interrupt()
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
         self.assertIs(reason.type, ProcessTerminated)
@@ -215,11 +224,18 @@ class TestStopProcess(TestProcessBase):
 
     @inlineCallbacks
     def test_terminate(self):
+        path = self.create_file()
         fake_jobtype = FakeJobType()
         protocol = self._launch_python(
-            fake_jobtype, "import time; time.sleep(3600)")
+            fake_jobtype,
+            "import time, os; os.remove(%r); time.sleep(3600)" % path)
         yield fake_jobtype.started
-        reactor.callLater(self.STOP_DELAY, protocol.terminate)
+
+        while os.path.isfile(path):
+            continue
+
+        protocol.terminate()
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
         self.assertIs(reason.type, ProcessTerminated)
