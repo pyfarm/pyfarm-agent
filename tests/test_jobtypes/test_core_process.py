@@ -217,7 +217,6 @@ class TestStopProcess(TestProcessBase):
                 reason_type = ProcessDone
 
             self.assertIs(reason.type, reason_type)
-            self.assertIn("signal 9", str(reason))
 
         fake_jobtype.started.addCallback(
             lambda *_: reactor.callLater(self.STOP_DELAY, protocol.kill))
@@ -255,9 +254,13 @@ class TestStopProcess(TestProcessBase):
         def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
-            self.assertIs(reason.type, ProcessTerminated)
+
+            reason_type = ProcessTerminated
+            if WINDOWS:
+                reason_type = ProcessDone
+
+            self.assertIs(reason.type, reason_type)
             self.assertIsNone(reason.value.exitCode)
-            self.assertIn("signal 15", str(reason))
 
         fake_jobtype.started.addCallback(
             lambda *_: reactor.callLater(self.STOP_DELAY, protocol.terminate))
