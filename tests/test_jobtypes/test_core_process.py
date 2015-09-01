@@ -232,12 +232,7 @@ class TestStopProcess(TestProcessBase):
         def check_stopped(data):
             protocol, reason = data
             self.assertIsInstance(protocol, ProcessProtocol)
-
-            reason_type = ProcessTerminated
-            if WINDOWS:
-                reason_type = ProcessDone
-
-            self.assertIs(reason.type, reason_type)
+            self.assertIs(reason.type, ProcessTerminated)
             self.assertEqual(reason.value.exitCode, 1)
 
         fake_jobtype.started.addCallback(
