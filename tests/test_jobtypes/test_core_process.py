@@ -238,7 +238,7 @@ class TestStopProcess(TestProcessBase):
             if WINDOWS:
                 reason_type = ProcessDone
 
-            self.assertIs(reason.type, ProcessTerminated)
+            self.assertIs(reason.type, reason_type)
             self.assertEqual(reason.value.exitCode, 1)
 
         fake_jobtype.started.addCallback(
