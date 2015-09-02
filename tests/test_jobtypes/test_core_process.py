@@ -25,13 +25,9 @@ except ImportError:
 
 import psutil
 from twisted.internet import reactor
-<<<<<<< HEAD
-from twisted.internet.defer import Deferred, DeferredList
-from twisted.internet.error import ProcessTerminated, ProcessDone
-=======
+
 from twisted.internet.defer import Deferred, inlineCallbacks
-from twisted.internet.error import ProcessTerminated
->>>>>>> a994febc067badfee2253131bf8fb77453f05ec8
+from twisted.internet.error import ProcessTerminated, ProcessDone
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
 from pyfarm.core.enums import WINDOWS
@@ -204,10 +200,14 @@ class TestStopProcess(TestProcessBase):
 
         protocol.kill()
 
+        reason_type = ProcessTerminated
+        if WINDOWS:
+            reason_type = ProcessDone
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
-        self.assertIs(reason.type, ProcessTerminated)
-        self.assertIn("signal 9", str(reason))
+        self.assertIs(reason.type, reason_type)
+
 
     @inlineCallbacks
     def test_interrupt(self):
@@ -242,10 +242,17 @@ class TestStopProcess(TestProcessBase):
 
         protocol.terminate()
 
+        reason_type = ProcessTerminated
+        exit_code = None
+        if WINDOWS:
+            reason_type = ProcessDone
+            exit_code = 0
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
-        self.assertIs(reason.type, ProcessTerminated)
-        self.assertIsNone(reason.value.exitCode)
+        self.assertIs(reason.type, reason_type)
+        self.assertEqual(reason.value.exitCode, exit_code)
+
 
 class TestReplaceEnvironment(TestCase):
     original_environment = os.environ.copy()
