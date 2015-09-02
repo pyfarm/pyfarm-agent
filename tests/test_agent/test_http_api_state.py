@@ -84,7 +84,6 @@ class TestStop(BaseAPITestCase):
 class TestStatus(BaseAPITestCase):
     URI = "/status"
     CLASS = Status
-    maxDiff = None
 
     def setUp(self):
         super(TestStatus, self).setUp()
