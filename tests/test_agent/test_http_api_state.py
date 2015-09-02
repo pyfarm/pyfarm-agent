@@ -85,8 +85,6 @@ class TestStatus(BaseAPITestCase):
     URI = "/status"
     CLASS = Status
 
-    maxDiff = None
-
     def setUp(self):
         super(TestStatus, self).setUp()
         self._config = config.copy()
@@ -158,7 +156,4 @@ class TestStatus(BaseAPITestCase):
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-        self.assertEqual(
-            loads(request.written[0]),
-            loads(dumps(expected_data))
-        )
+        self.assertEqual(request.written[0], expected_data)
