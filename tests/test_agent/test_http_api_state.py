@@ -15,17 +15,17 @@
 # limitations under the License.
 
 import time
-from json import loads
 from contextlib import nested
 from datetime import datetime, timedelta
+from json import loads
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
 except ImportError:  # pragma: no cover
     from http.client import ACCEPTED, OK, BAD_REQUEST
 
-import psutil
 import mock
+import psutil
 from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 
@@ -156,5 +156,4 @@ class TestStatus(BaseAPITestCase):
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-
-        self.assertDictEqual(loads(request.written[0]), expected_data)
+        self.assertEqual(loads(request.written[0]), expected_data)
