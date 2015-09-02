@@ -605,7 +605,7 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
         reactor.callLater(
-            .5, setattr, agent, "shutdown_timeout", datetime.utcnow())
+            3, setattr, agent, "shutdown_timeout", datetime.utcnow())
 
         with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
