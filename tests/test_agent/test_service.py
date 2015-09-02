@@ -35,12 +35,11 @@ except ImportError:  # pragma: no cover
 from mock import patch, Mock
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
-from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
-from pyfarm.core.enums import AgentState
+from pyfarm.core.enums import WINDOWS, AgentState
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
@@ -52,7 +51,7 @@ from pyfarm.agent.http.core.server import StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
-from pyfarm.agent.testutil import TestCase, random_port
+from pyfarm.agent.testutil import TestCase, random_port, skipIf
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog, ntplog
 from pyfarm.agent.sysinfo import network, graphics, memory, disks
@@ -603,7 +602,7 @@ class TestPostShutdownToMaster(TestCase):
         self.assertEqual(acquire.call_count, 1)
         self.assertEqual(release.call_count, 1)
 
-    @inlineCallbacks
+    @skipIf(WINDOWS, "Skipped on Windows")
     def test_post_exception_retry(self):
         # Shutdown the server so we don't have anything to
         # reply on.
@@ -611,15 +610,27 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
-        reactor.callLater(
-            .5, setattr, agent, "shutdown_timeout", datetime.utcnow())
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
 
-        self.assertFalse(agent.post_shutdown_lock.locked)
-        result = yield agent.post_shutdown_to_master()
-        self.assertFalse(agent.post_shutdown_lock.locked)
+        with nested(
+            patch.object(svclog, "warning"),
+            patch.object(agent.post_shutdown_lock, "acquire"),
+            patch.object(agent.post_shutdown_lock, "release")
+        ) as (warning_log, acquire, release):
+            result = yield agent.post_shutdown_to_master()
 
-        self.assert_result(result, should_retry=True, timed_out=True)
+        self.assertIsNone(result)
+        self.assertGreaterEqual(warning_log.call_count, 3)
+
+        for call in warning_log.mock_calls:
+            if (call[1][0] == "State update failed due to unhandled error: "
+                              "%s.  Retrying in %s seconds"):
+                break
+        else:
+            self.fail("State update never failed")
+
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(release.call_count, 1)
 
 
 class TestSigintHandler(TestCase):
