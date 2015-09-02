@@ -149,7 +149,7 @@ class LoggerPool(ThreadPool):
         if log is not None:
             self.flush(log)
             log.file.close()
-            logger.info("Closed %s", log.file.name)
+            logger.debug("Closed %s", log.file.name)
 
     def log(self, uuid, stream, message, pid=None):
         """
@@ -226,8 +226,8 @@ class LoggerPool(ThreadPool):
         """
         if not self.started or self.joined:
             return
-        
-        logger.info("Logging thread pool is shutting down.")
+
+        logger.debug("Logging thread pool is shutting down.")
         self.stopped = True
 
         for protocol_id in list(self.logs.keys()):
@@ -242,7 +242,7 @@ class LoggerPool(ThreadPool):
         """
         reactor.addSystemEventTrigger("before", "shutdown", self.stop)
         ThreadPool.start(self)
-        logger.info(
+        logger.debug(
             "Started logger thread pool (min=%s, max=%s)", self.min, self.max)
 
 try:

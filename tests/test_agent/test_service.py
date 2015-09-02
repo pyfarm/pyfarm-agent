@@ -35,12 +35,11 @@ except ImportError:  # pragma: no cover
 from mock import patch, Mock
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, inlineCallbacks
-from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
-from pyfarm.core.enums import AgentState
+from pyfarm.core.enums import WINDOWS, AgentState
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
@@ -52,7 +51,7 @@ from pyfarm.agent.http.core.server import StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
-from pyfarm.agent.testutil import TestCase, random_port
+from pyfarm.agent.testutil import TestCase, random_port, skipIf
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog, ntplog
 from pyfarm.agent.sysinfo import network, graphics, memory, disks
@@ -375,15 +374,17 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
 
         agent = Agent()
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 8,
-            setattr, self.fake_api, "code", CREATED)
 
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "info")
         ) as (warning_log, info_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, self.fake_api, "code", CREATED
+            )
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s, "
@@ -400,12 +401,12 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
         agent = Agent()
 
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1,
-            setattr, agent, "shutting_down", True)
-
         with patch.object(svclog, "warning") as warning_log:
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s. "
@@ -421,17 +422,15 @@ class TestAgentPostToMaster(TestCase):
 
         agent = Agent()
 
-        def shutdown():
-            agent.shutting_down = True
-
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1, shutdown)
-
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "error")
         ) as (warning_log, error_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Not retrying POST to master, shutting down.")
@@ -603,7 +602,7 @@ class TestPostShutdownToMaster(TestCase):
         self.assertEqual(acquire.call_count, 1)
         self.assertEqual(release.call_count, 1)
 
-    @inlineCallbacks
+    @skipIf(WINDOWS, "Skipped on Windows")
     def test_post_exception_retry(self):
         # Shutdown the server so we don't have anything to
         # reply on.

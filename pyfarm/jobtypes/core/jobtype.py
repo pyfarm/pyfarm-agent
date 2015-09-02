@@ -877,7 +877,7 @@ class JobType(Cache, System, Process, TypeChecks):
                 elif response.code >= BAD_REQUEST:
                     message = (
                         "Failed to post progress update for task %s to the "
-                        "master, bad request: %s. Server.  This request will "
+                        "master, bad request: %s.  This request will "
                         "not be retried." % (task["id"], response_data))
                     logger.error(message)
                     raise Exception(message)

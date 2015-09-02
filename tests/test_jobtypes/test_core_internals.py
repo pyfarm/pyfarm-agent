@@ -47,8 +47,8 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
-from pyfarm.agent.testutil import (
-    TestCase, skipIf, create_jobtype, random_port, APITestServer)
+from pyfarm.agent.testutil import APITestServer
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import user
 from pyfarm.jobtypes.core.internals import (

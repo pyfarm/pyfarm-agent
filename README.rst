@@ -17,7 +17,11 @@ PyFarm Agent
 
 .. image:: https://travis-ci.org/pyfarm/pyfarm-agent.png?branch=master
     :target: https://travis-ci.org/pyfarm/pyfarm-agent
-    :alt: build status (agent)
+    :alt: build status (agent) (posix)
+
+.. image:: https://ci.appveyor.com/api/projects/status/a0fwqwlqrcs57sfn/branch/master?svg=true
+    :target: https://ci.appveyor.com/project/opalmer/pyfarm-agent/history
+    :alt: build status (agent) (windows)
 
 .. image:: https://coveralls.io/repos/pyfarm/pyfarm-agent/badge.png?branch=master
     :target: https://coveralls.io/r/pyfarm/pyfarm-agent?branch=master
@@ -84,3 +88,5 @@ line calls::
     you don't have another package for PyFarm installed in your system
     site-packages directory.
 
+    You may alsohave to run trial a little differently.  See
+    ``appveyor.yml`` for an example.
