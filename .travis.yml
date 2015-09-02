@@ -4,10 +4,6 @@ python:
   - 2.6
   - 2.7
 
-os:
-  - linux
-  - osx
-
 services:
   - redis-server
 
@@ -28,11 +24,23 @@ env:
   # TODO: test the agent against multiple configurations, independent of DB configuration.
   # NOTE: Do not use sqlite here as it breaks because of concurrency issues
   matrix:
-    - PYFARM_AGENT_TEST_HTTP_SCHEME="http"
-    - PYFARM_AGENT_TEST_HTTP_SCHEME="https"
     include:
       - python: 2.6
+        os: linux
+        env:
+          PYFARM_AGENT_TEST_HTTP_SCHEME=http
+      - python: 2.6
+        os: linux
+        env:
+          PYFARM_AGENT_TEST_HTTP_SCHEME=https
       - python: 2.7
+        os: linux
+        env:
+          PYFARM_AGENT_TEST_HTTP_SCHEME=http
+      - python: 2.7
+        os: linux
+        env:
+          PYFARM_AGENT_TEST_HTTP_SCHEME=https
       - language: generic
         os: osx
         env: PYVER=py26
