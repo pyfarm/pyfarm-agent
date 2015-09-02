@@ -2,14 +2,14 @@ sudo: false
 language: python
 matrix:
   include:
-  - python: 2.6
-  - python: 2.7
-  - language: generic
-    os: osx
-    env: PYVER=py26
+    - python: 2.6
+    - python: 2.7
     - language: generic
-    os: osx
-    env: PYVER=py27
+      os: osx
+      env: PYVER=py26
+    - language: generic
+      os: osx
+      env: PYVER=py27
 
 install:
     - ./.travis/install.sh
