@@ -17,7 +17,7 @@
 import time
 from contextlib import nested
 from datetime import datetime, timedelta
-from json import loads
+from json import loads, dumps
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
@@ -158,4 +158,7 @@ class TestStatus(BaseAPITestCase):
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-        self.assertEqual(loads(request.written[0]), expected_data)
+        self.assertEqual(
+            loads(request.written[0]),
+            loads(dumps(expected_data))
+        )
