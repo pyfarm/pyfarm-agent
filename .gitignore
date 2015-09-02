@@ -15,6 +15,6 @@
 build
 dist
 MANIFEST
-_trial_temp
+_trial_temp*
 *.orig
 htmlcov

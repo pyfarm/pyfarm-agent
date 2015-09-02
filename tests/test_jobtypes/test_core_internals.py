@@ -46,8 +46,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
-from pyfarm.agent.testutil import (
-    TestCase, skipIf, requires_master, create_jobtype)
+from pyfarm.agent.testutil import TestCase, skipIf, create_jobtype
 from pyfarm.agent.config import config
 from pyfarm.agent.sysinfo import user
 from pyfarm.jobtypes.core.internals import (
@@ -116,7 +115,7 @@ class TestCache(TestCase):
     def test_cache_directory(self):
         self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
 
-    @requires_master
+    @skipIf(WINDOWS, "Can't run master on Windows")
     def test_download(self):
         classname = "AgentUnittest" + os.urandom(8).encode("hex")
         created = create_jobtype(classname=classname)

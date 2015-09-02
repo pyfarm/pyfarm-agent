@@ -25,10 +25,12 @@ except ImportError:
 
 import psutil
 from twisted.internet import reactor
+
 from twisted.internet.defer import Deferred, inlineCallbacks
-from twisted.internet.error import ProcessTerminated
+from twisted.internet.error import ProcessTerminated, ProcessDone
 from twisted.internet.protocol import ProcessProtocol as _ProcessProtocol
 
+from pyfarm.core.enums import WINDOWS
 from pyfarm.jobtypes.core.log import STDOUT, STDERR
 from pyfarm.agent.testutil import TestCase
 from pyfarm.jobtypes.core.process import (
@@ -198,10 +200,14 @@ class TestStopProcess(TestProcessBase):
 
         protocol.kill()
 
+        reason_type = ProcessTerminated
+        if WINDOWS:
+            reason_type = ProcessDone
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
-        self.assertIs(reason.type, ProcessTerminated)
-        self.assertIn("signal 9", str(reason))
+        self.assertIs(reason.type, reason_type)
+
 
     @inlineCallbacks
     def test_interrupt(self):
@@ -236,11 +242,16 @@ class TestStopProcess(TestProcessBase):
 
         protocol.terminate()
 
+        reason_type = ProcessTerminated
+        exit_code = None
+        if WINDOWS:
+            reason_type = ProcessDone
+            exit_code = 0
+
         protocol, reason = yield fake_jobtype.stopped
         self.assertIsInstance(protocol, ProcessProtocol)
-        self.assertIs(reason.type, ProcessTerminated)
-        self.assertIsNone(reason.value.exitCode)
-        self.assertIn("signal 15", str(reason))
+        self.assertIs(reason.type, reason_type)
+        self.assertEqual(reason.value.exitCode, exit_code)
 
 
 class TestReplaceEnvironment(TestCase):
@@ -262,6 +273,16 @@ class TestReplaceEnvironment(TestCase):
     def test_enter(self):
         original = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
         frozen = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+
+        # On Windows, environment keys are always upper case even if lower
+        # case values are provided.  To avoid problems in tests we'll just
+        # convert them to upper case ahead of time.
+        if WINDOWS:
+            original = dict(
+                (key.upper(), value) for key, value in original.items())
+            frozen = dict(
+                (key.upper(), value) for key, value in frozen.items())
+
         os.environ.clear()
         os.environ.update(original)
 
@@ -271,12 +292,19 @@ class TestReplaceEnvironment(TestCase):
 
     def test_exit(self):
         original = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
+        # On Windows, environment keys are always upper case even if lower
+        # case values are provided.  To avoid problems in tests we'll just
+        # convert them to upper case ahead of time.
+        if WINDOWS:
+            original = dict(
+                (key.upper(), value) for key, value in original.items())
+
         original_copy = original.copy()
         frozen = {os.urandom(16).encode("hex"): os.urandom(16).encode("hex")}
         os.environ.clear()
         os.environ.update(original)
 
-        with ReplaceEnvironment(frozen, os.environ) as env:
+        with ReplaceEnvironment(frozen, os.environ):
             pass
 
         self.assertEqual(os.environ, original_copy)

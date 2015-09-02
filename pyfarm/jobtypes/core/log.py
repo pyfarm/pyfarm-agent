@@ -226,7 +226,7 @@ class LoggerPool(ThreadPool):
         """
         if not self.started or self.joined:
             return
-        
+
         logger.debug("Logging thread pool is shutting down.")
         self.stopped = True
 
