@@ -89,11 +89,12 @@ class FakeAgentsAPI(HTTPReceiver):
 
 class TestSystemData(TestCase):
     def test_system_data(self):
+        disk_data = [{"free": 50000, "mountpoint": "/", 'size': 100000}]
         config["remote_ip"] = os.urandom(16).encode("hex")
         expected = {
             "id": config["agent_id"],
             "current_assignments": {},
-            "disks": [{"free": 50000, "mountpoint": "/", 'size': 100000}],
+            "disks": disk_data,
             "hostname": config["agent_hostname"],
             "version": config.version,
             "ram": config["agent_ram"],
@@ -110,7 +111,10 @@ class TestSystemData(TestCase):
         }
 
         agent = Agent()
-        with patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]):
+        with nested(
+            patch.object(graphics, "graphics_cards", return_value=[1, 3, 5]),
+            patch.object(disks, "disks", return_value=disk_data)
+        ):
             system_data = agent.system_data()
 
         self.assertApproximates(
@@ -370,15 +374,17 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
 
         agent = Agent()
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 8,
-            setattr, self.fake_api, "code", CREATED)
 
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "info")
         ) as (warning_log, info_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, self.fake_api, "code", CREATED
+            )
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s, "
@@ -395,12 +401,12 @@ class TestAgentPostToMaster(TestCase):
         self.fake_api.code = INTERNAL_SERVER_ERROR
         agent = Agent()
 
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1,
-            setattr, agent, "shutting_down", True)
-
         with patch.object(svclog, "warning") as warning_log:
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Failed to post to master due to a server side error error %s. "
@@ -416,17 +422,15 @@ class TestAgentPostToMaster(TestCase):
 
         agent = Agent()
 
-        def shutdown():
-            agent.shutting_down = True
-
-        reactor.callLater(
-            config["agent_http_retry_delay_offset"] * 1.1, shutdown)
-
         with nested(
             patch.object(svclog, "warning"),
             patch.object(svclog, "error")
         ) as (warning_log, error_log):
-            yield agent.post_agent_to_master()
+            post = agent.post_agent_to_master()
+            reactor.callLater(
+                config["agent_http_retry_delay_offset"] * 1.1,
+                setattr, agent, "shutting_down", True)
+            yield post
 
         warning_log.assert_called_with(
             "Not retrying POST to master, shutting down.")
@@ -902,11 +906,16 @@ class TestReannounce(TestCase):
         self.free_ram_mock = patch.object(
             memory, "free_ram", return_value=424242)
         self.free_ram_mock.start()
+        self.addCleanup(self.free_ram_mock.stop)
 
         # Mock out disks.disks
         self.disks_mock = patch.object(
-            disks, "disks", return_value=[disks.DiskInfo("/", 50000, 100000)])
+            disks, "disks", return_value=[{
+                "mountpoint": "/",
+                "size": 100000,
+                "free": 50000}])
         self.disks_mock.start()
+        self.addCleanup(self.disks_mock.stop)
 
         self.normal_result = {
             "state": config["state"],
@@ -921,7 +930,6 @@ class TestReannounce(TestCase):
     @inlineCallbacks
     def tearDown(self):
         super(TestReannounce, self).tearDown()
-        self.free_ram_mock.stop()
         yield self.server.loseConnection()
 
     @inlineCallbacks

@@ -17,7 +17,7 @@
 from collections import deque
 from datetime import datetime
 from errno import EEXIST
-from threading import Lock, RLock
+from threading import RLock
 from os import makedirs
 from os.path import dirname, isfile
 
@@ -25,6 +25,11 @@ try:
     range_ = xrange
 except NameError:  # pragma: no cover
     range_ = range
+
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThreadPool
@@ -129,7 +134,7 @@ class LoggerPool(ThreadPool):
         try:
             makedirs(parent_dir)
             logger.debug("Created directory %r", parent_dir)
-        except OSError as e:  # pragma: no cover
+        except (OSError, WindowsError) as e:  # pragma: no cover
             if e.errno != EEXIST:
                 raise
 
@@ -144,7 +149,7 @@ class LoggerPool(ThreadPool):
         if log is not None:
             self.flush(log)
             log.file.close()
-            logger.info("Closed %s", log.file.name)
+            logger.debug("Closed %s", log.file.name)
 
     def log(self, uuid, stream, message, pid=None):
         """
@@ -175,19 +180,19 @@ class LoggerPool(ThreadPool):
         # order of the messages and cuts down on wasted cycles
         # from switching contexts.
         with log.lock:
-            num_messages = len(log.messages)
-            lines_written = 0
-            # Only write as many messages as have been in the queue when this
-            # thread started. This keeps us from hogging the lock forever if
-            # a lot of logs are produced.
-            while lines_written < num_messages:
+            processed = False
+
+            # Write all messages in the queue with a single lock.  If
+            # we run out of messages the loop stops and waits for the
+            # next flush() call.
+            while log.messages:
+                data = log.messages.popleft()
+
                 try:
-                    data = log.messages.popleft()
                     log.write(data)
-                    lines_written += 1
-                except IndexError:
-                    break
-                except (OSError, IOError) as e:  # pragma: no cover
+
+                # pragma: no cover
+                except (OSError, IOError, WindowsError) as e:
                     # Put the log message back in the queue
                     # so we're not losing data.  It may be lightly
                     # out of order now but we have a date stamp
@@ -195,11 +200,16 @@ class LoggerPool(ThreadPool):
                     log.messages.appendleft(data)
                     logger.error(
                         "Failed to write to %s: %s", log.file.name, e)
+                else:
+                    processed = True
 
-            if lines_written > 0:
+            # Flush to disk but only if we processed some messages.
+            if processed:
                 try:
                     log.file.flush()
-                except (OSError, IOError) as e:  # pragma: no cover
+
+                # pragma: no cover
+                except (OSError, IOError, WindowsError) as e:
                     logger.error(
                         "Failed to flush output to %s: %s",
                         log.file.name, e)
@@ -216,8 +226,8 @@ class LoggerPool(ThreadPool):
         """
         if not self.started or self.joined:
             return
-        
-        logger.info("Logging thread pool is shutting down.")
+
+        logger.debug("Logging thread pool is shutting down.")
         self.stopped = True
 
         for protocol_id in list(self.logs.keys()):
@@ -232,7 +242,7 @@ class LoggerPool(ThreadPool):
         """
         reactor.addSystemEventTrigger("before", "shutdown", self.stop)
         ThreadPool.start(self)
-        logger.info(
+        logger.debug(
             "Started logger thread pool (min=%s, max=%s)", self.min, self.max)
 
 try:
