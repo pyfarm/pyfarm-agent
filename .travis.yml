@@ -26,6 +26,15 @@ env:
   matrix:
     - PYFARM_AGENT_TEST_HTTP_SCHEME="http"
     - PYFARM_AGENT_TEST_HTTP_SCHEME="https"
+    include:
+      - python: 2.6
+      - python: 2.7
+      - language: generic
+        os: osx
+        env: PYVER=py26
+      - language: generic
+        os: osx
+        env: PYVER=py27
 
 matrix:
   fast_finish: true
