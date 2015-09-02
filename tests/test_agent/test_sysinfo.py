@@ -152,8 +152,10 @@ class TestNetwork(TestCase):
                 "This host's addresses resolve to more than one hostname")
 
     def test_addresses(self):
-        self.assertEqual(len(list(network.addresses())) >= 1, True)
-        self.assertEqual(isinstance(list(network.addresses()), list), True)
+        self.assertGreaterEqual(len(network.addresses(private_only=False)), 1)
+
+    def test_addresses_type(self):
+        self.assertIsInstance(network.addresses(), tuple)
 
     def test_interfaces(self):
         names = list(network.interfaces())
