@@ -17,7 +17,7 @@
 import time
 from contextlib import nested
 from datetime import datetime, timedelta
-from json import loads, dumps
+from json import loads
 
 try:
     from httplib import ACCEPTED, OK, BAD_REQUEST
@@ -126,11 +126,13 @@ class TestStatus(BaseAPITestCase):
             last_announce = datetime.utcnow() - last_announce
 
         future_time = config["start"] + 30
+        process_memory = memory.process_memory()
+        total_consumption = memory.total_consumption()
         expected_data = {
             "state": config["state"],
             "agent_hostname": config["agent_hostname"],
-            "agent_process_ram": memory.process_memory(),
-            "consumed_ram": memory.total_consumption(),
+            "agent_process_ram": process_memory,
+            "consumed_ram": total_consumption,
             "child_processes": direct_child_processes,
             "grandchild_processes": grandchild_processes,
             "pids": config["pids"],
@@ -148,7 +150,11 @@ class TestStatus(BaseAPITestCase):
 
         with nested(
             mock.patch.object(memory, "free_ram", return_value=4242),
-            mock.patch.object(time, "time", return_value=future_time)
+            mock.patch.object(time, "time", return_value=future_time),
+            mock.patch.object(
+                memory, "process_memory", return_value=process_memory),
+            mock.patch.object(
+                memory, "total_consumption", return_value=total_consumption)
         ):
             response = status.render(request)
 
@@ -156,6 +162,4 @@ class TestStatus(BaseAPITestCase):
         self.assertTrue(request.finished)
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
-        self.assertEqual(
-            dumps(loads(request.written[0]), sort_keys=True),
-            dumps(expected_data, sort_keys=True))
+        self.assertEqual(loads(request.written[0]), expected_data)
