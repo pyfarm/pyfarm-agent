@@ -60,14 +60,16 @@ on platform)::
 
 Testing
 -------
+All comments and pull requests are tested on Linux, Mac OS X and Windows. Tests
+for Linux and Mac OS X are run using `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_
+while Windows testing is performed on
+`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_.
 
-Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ and
-`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_ for
-every commit.  They can also be run locally too using ``trial``.   They will
-require access to https://httpbin.pyfarm.net unless you plan on skipping or
-ignoring some of the http client failures.
+The tests can can also run locally using Twisted's ``trial``.  Some tests
+will require access to external services to httpbin.pyfarm.net, NTP, DNS and
+other network features.
 
-To execute the tests in Linux or OS X, try this::
+To execute the tests on Linux or OS X, try this::
 
     virtualenv env
     . env/bin/activate
@@ -82,6 +84,9 @@ line calls::
     %VIRTUALE_ENV%\Scripts\pip.exe install wheel
     %VIRTUALE_ENV%\Scripts\pip.exe install -e . --egg
     %VIRTUALE_ENV%\Scripts\python.exe %VIRTUALE_ENV%\Scripts\trial.py tests
+
+More examples on the setup and execution of the tests can be found in
+``appveyor.yml`` and ``.travis.yml``.
 
 .. note::
 
