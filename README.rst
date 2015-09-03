@@ -64,7 +64,7 @@ All commits and pull requests are tested on Linux, Mac OS X and Windows. Tests
 for Linux and Mac OS X are run using `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_
 while Windows testing is performed on
 `Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_.
-Code coverage analysis is provided by
+Code coverage analysis is also provided by
 `Coveralls <https://coveralls.io/github/pyfarm/pyfarm-agent>`_ for Linux and
 Mac OS X.
 
