@@ -12,10 +12,18 @@ matrix:
       env: TRAVIS_PYTHON_VERSION=2.7
 
 install:
-    - ./.travis/install.sh
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then ./.travis/osx-install-python.sh; fi
+    - pip install coverage python-coveralls mock --quiet
+    - pip install . --quiet
+    - pip freeze
 
 script:
-    - ./.travis/run.sh
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then ./.travis/osx-virtualenv.sh; fi
+    - coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
+    - mv -v .coverage .coverage.1
+    - coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
+    - mv -v .coverage .coverage.2
+    - coverage combine
 
 after_success:
   - coveralls
