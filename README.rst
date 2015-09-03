@@ -60,10 +60,13 @@ on platform)::
 
 Testing
 -------
-All comments and pull requests are tested on Linux, Mac OS X and Windows. Tests
+All commits and pull requests are tested on Linux, Mac OS X and Windows. Tests
 for Linux and Mac OS X are run using `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_
 while Windows testing is performed on
 `Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_.
+Code coverage analysis is provided by
+`Coveralls <https://coveralls.io/github/pyfarm/pyfarm-agent>`_ for Linux and
+Mac OS X.
 
 The tests can can also run locally using Twisted's ``trial``.  Some tests
 will require access to external services to httpbin.pyfarm.net, NTP, DNS and
