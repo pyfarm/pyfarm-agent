@@ -61,8 +61,9 @@ on platform)::
 Testing
 -------
 
-Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ for
-every commit.  They can also be run locally too using ``trial``.  They will
+Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ and
+`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_ for
+every commit.  They can also be run locally too using ``trial``.   They will
 require access to https://httpbin.pyfarm.net unless you plan on skipping or
 ignoring some of the http client failures.
 
@@ -88,5 +89,5 @@ line calls::
     you don't have another package for PyFarm installed in your system
     site-packages directory.
 
-    You may alsohave to run trial a little differently.  See
+    You may also have to run trial a little differently.  See
     ``appveyor.yml`` for an example.
