@@ -13,8 +13,8 @@ matrix:
 
 install:
     - if [[ "$(uname -s)" == 'Darwin' ]]; then ./.travis/osx-install-python.sh; fi
-    - pip install coverage python-coveralls mock --quiet
-    - pip install . --quiet
+    - pip install coverage python-coveralls mock
+    - pip install .
     - pip freeze
 
 script:
