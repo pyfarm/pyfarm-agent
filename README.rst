@@ -69,27 +69,27 @@ Code coverage analysis is also provided by
 Mac OS X.
 
 The tests can can also run locally using Twisted's ``trial``.  Some tests
-will require access to external services to httpbin.pyfarm.net, NTP, DNS and
-other network features.
+will require access to external services such as httpbin.pyfarm.net, NTP,
+DNS and other network services.
 
-To execute the tests on Linux or OS X, try this::
+Here are some examples for executing the tests.  These are fairly minimal
+however and may not work in all cases.  More examples on the setup and
+execution of the tests can be found in ``appveyor.yml`` or ``.travis.yml``.
+
+**Linux and Mac OS X**
 
     virtualenv env
     . env/bin/activate
     pip install -e . --egg
     trial tests
 
-On Windows the process is similar but requires a few changes to the command
-line calls::
+**Windows**
 
     virtualenv env
     env\Scripts\activate
     %VIRTUALE_ENV%\Scripts\pip.exe install wheel
     %VIRTUALE_ENV%\Scripts\pip.exe install -e . --egg
     %VIRTUALE_ENV%\Scripts\python.exe %VIRTUALE_ENV%\Scripts\trial.py tests
-
-More examples on the setup and execution of the tests can be found in
-``appveyor.yml`` and ``.travis.yml``.
 
 .. note::
 
