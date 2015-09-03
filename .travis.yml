@@ -6,19 +6,28 @@ matrix:
     - python: 2.7
     - language: generic
       os: osx
-      env: TRAVIS_PYTHON_VERSION=2.6
+      env: PYTHON_VERSION=2.6.9
     - language: generic
       os: osx
-      env: TRAVIS_PYTHON_VERSION=2.7
+      env: PYTHON_VERSION=2.7.10
 
 install:
-    - if [[ "$(uname -s)" == 'Darwin' ]]; then ./.travis/osx-install-python.sh; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then brew update || brew update; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then brew outdated pyenv || brew upgrade pyenv; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then brew install pyenv-virtualenv; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then eval "$(pyenv init -)"; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv install $PYTHON_VERSION; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv virtualenv $PYTHON_VERSION virtualenv; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv install rehash; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv activate virtualenv; fi
     - pip install coverage python-coveralls mock
     - pip install .
     - pip freeze
 
 script:
-    - if [[ "$(uname -s)" == 'Darwin' ]]; then ./.travis/osx-virtualenv.sh; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then eval "$(pyenv init -)"; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv rehash; fi
+    - if [[ "$(uname -s)" == 'Darwin' ]]; then pyenv activate virtualenv; fi
     - coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
     - mv -v .coverage .coverage.1
     - coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
