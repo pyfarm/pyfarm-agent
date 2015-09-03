@@ -4,7 +4,7 @@ if [[ "$(uname -s)" == 'Darwin' ]]; then
     if which pyenv > /dev/null; then
         eval "$(pyenv init -)"
     fi
-    pyenv activate pyfarm-agent
+    pyenv activate virtualenv
 fi
 
 coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
