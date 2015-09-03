@@ -76,14 +76,14 @@ Here are some examples for executing the tests.  These are fairly minimal
 however and may not work in all cases.  More examples on the setup and
 execution of the tests can be found in ``appveyor.yml`` or ``.travis.yml``.
 
-**Linux and Mac OS X**
+**Linux and Mac OS X**::
 
     virtualenv env
     . env/bin/activate
     pip install -e . --egg
     trial tests
 
-**Windows**
+**Windows**::
 
     virtualenv env
     env\Scripts\activate
