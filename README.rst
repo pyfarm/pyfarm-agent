@@ -72,9 +72,12 @@ The tests can can also run locally using Twisted's ``trial``.  Some tests
 will require access to external services such as httpbin.pyfarm.net, NTP,
 DNS and other network services.
 
-Here are some examples for executing the tests.  These are fairly minimal
-however and may not work in all cases.  More examples on the setup and
-execution of the tests can be found in ``appveyor.yml`` or ``.travis.yml``.
+Below are some examples for executing the tests locally.  These are fairly
+minimal however and may not work in all cases.  For more complete examples,
+checkout the configuration files used to run the tests on Travis and Appveyor:
+
+    * `.travis.yml <https://github.com/pyfarm/pyfarm-agent/blob/master/.travis.yml>`_
+    * `appveyor.yml <https://github.com/pyfarm/pyfarm-agent/blob/master/appveyor.yml>`_
 
 **Linux and Mac OS X**::
 
