@@ -335,6 +335,7 @@ class TestCase(_TestCase):
     longMessage = True
     POP_CONFIG_KEYS = []
     RAND_LENGTH = 8
+    maxDiff = None
 
     # Global timeout for all test cases.  If an individual test takes
     # longer than this amount of time to execute it will be stopped.  This
