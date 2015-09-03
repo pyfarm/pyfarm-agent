@@ -1,14 +1,14 @@
-#!/bin/bash
-
-set -e
-set -x
+#!/bin/bash -ex
 
 if [[ "$(uname -s)" == 'Darwin' ]]; then
     if which pyenv > /dev/null; then
         eval "$(pyenv init -)"
     fi
     pyenv activate pyfarm-agent
+else
+    coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
+    mv -v .coverage .coverage.1
+    coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
+    mv -v .coverage .coverage.2
+    coverage combine
 fi
-
-python setup.py build
-python setup.py install

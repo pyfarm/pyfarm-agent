@@ -163,4 +163,3 @@ class TestStatus(BaseAPITestCase):
         self.assertEqual(request.responseCode, OK)
         self.assertEqual(len(request.written), 1)
         self.assertEqual(loads(request.written[0]), expected_data)
-

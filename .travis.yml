@@ -6,10 +6,10 @@ matrix:
     - python: 2.7
     - language: generic
       os: osx
-      env: PYVER=py26
+      env: TRAVIS_PYTHON_VERSION=2.6
     - language: generic
       os: osx
-      env: PYVER=py27
+      env: TRAVIS_PYTHON_VERSION=2.7
 
 install:
     - ./.travis/install.sh
@@ -18,4 +18,4 @@ script:
     - ./.travis/run.sh
 
 after_success:
-  - coveralls  # upload reports to coveralls.io
+  - coveralls

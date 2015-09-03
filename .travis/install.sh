@@ -1,7 +1,22 @@
-#!/bin/bash
+#!/bin/bash -ex
 
-set -e
-set -x
+function retry {
+    local attempt=1
+    local command="${@}"
+
+    while [ $attempt -ne 10 ]; do
+        echo "(run $attempt/10) running $command"
+        $command
+        if [[ $? -eq 0 ]]; then
+            echo "(success) $command"
+            break
+        else
+            ((attempt++))
+            echo "(FAILED) $command"
+            sleep 3
+        fi
+    done
+}
 
 if [[ "$(uname -s)" == 'Darwin' ]]; then
     brew update || brew update
@@ -12,30 +27,23 @@ if [[ "$(uname -s)" == 'Darwin' ]]; then
         eval "$(pyenv init -)"
     fi
 
-    case "${PYVER}" in
-        py26)
+    case "${TRAVIS_PYTHON_VERSION}" in
+        2.6)
             pyenv install 2.6.9
             pyenv virtualenv 2.6.9 pyfarm-agent
-            ;;
-        py27)
+        ;;
+        2.7)
             pyenv install 2.7.10
             pyenv virtualenv 2.7.10 pyfarm-agent
-            ;;
+        ;;
     esac
     pyenv rehash
     pyenv activate pyfarm-agent
+else
+    retry pip install coverage python-coveralls mock --quiet
+    if [[ $PYFARM_AGENT_TEST_HTTP_SCHEME == "https" ]]; then
+        retry pip install PyOpenSSL service_identity --quiet
+    fi
+    retry pip install -e . --egg --quiet
+    pip freeze
 fi
-
-#curl -o retry.sh https://raw.githubusercontent.com/pyfarm/pyfarm-build/master/travis/retry.sh
-
-#if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]] || [[ $PYVER == 'py26' ]]; then
-#    pip install -U ipaddress unittest2 mock==1.0.1
-#elif [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] || [[ $PYVER == 'py27' ]]; then
-#    pip install -U ipaddress mock
-#elif [[ $TRAVIS_PYTHON_VERSION == '3.2' ]] || [[ $PYVER == 'py32' ]]; then
-#    pip install -U ipaddress mock
-#elif [[ $TRAVIS_PYTHON_VERSION == '3.3' ]] || [[ $PYVER == 'py33' ]]; then
-#    pip install -U ipaddress
-#fi
-
-pip install coverage coveralls
