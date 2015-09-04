@@ -1218,10 +1218,11 @@ class JobType(Cache, System, Process, TypeChecks):
                     task_deferred.callback(None)
 
             def error_callback(cburl, cbdata, failure_reason):
-                logger.error(
-                    "Error while posting state update for task, %s, retrying",
-                    failure_reason)
-                post_update(cburl, cbdata, delay=http_retry_delay())
+                if failure_reason:
+                    logger.error(
+                        "Error while posting state update for task, %s, "
+                        "retrying", failure_reason)
+                    post_update(cburl, cbdata, delay=http_retry_delay())
 
             # Initial attempt to make an update with an explicit zero delay.
             post_update(url, data, delay=0)
@@ -1263,10 +1264,11 @@ class JobType(Cache, System, Process, TypeChecks):
                     log_deferred.callback(None)
 
             def tasklog_error_callback(url, data, failure_reason):
-                logger.error(
-                    "Error while updating tasklog at %s: %s, retrying",
-                    url, failure_reason)
-                post_tasklog_update(url, data, delay=http_retry_delay())
+                if failure_reason:
+                    logger.error(
+                        "Error while updating tasklog at %s: %s, retrying",
+                        url, failure_reason)
+                    post_tasklog_update(url, data, delay=http_retry_delay())
 
             post_tasklog_update(tasklog_url, tasklog_data, delay=0)
             log_deferred.addBoth(lambda _:
