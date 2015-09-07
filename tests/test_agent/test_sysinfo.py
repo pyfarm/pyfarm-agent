@@ -124,8 +124,8 @@ class TestNetwork(TestCase):
             hostname = socket.getfqdn(local_hostname)
 
         self.assertEqual(
-            network.hostname(trust_name_from_ips=False),
-            hostname)
+            network.hostname(trust_name_from_ips=False).lower(),
+            hostname.lower())
 
     def test_hostname_trust_dns_mappings(self):
         reverse_hostnames = set()

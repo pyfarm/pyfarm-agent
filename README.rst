@@ -60,33 +60,45 @@ on platform)::
 
 Testing
 -------
+All commits and pull requests are tested on Linux, Mac OS X and Windows. Tests
+for Linux and Mac OS X are run using `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_
+while Windows testing is performed on
+`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_.
+Code coverage analysis is also provided by
+`Coveralls <https://coveralls.io/github/pyfarm/pyfarm-agent>`_ for Linux and
+Mac OS X.
 
-Tests are run on `Travis <https://travis-ci.org/pyfarm/pyfarm-agent>`_ and
-`Appveyor <https://ci.appveyor.com/project/opalmer/pyfarm-agent/history>`_ for
-every commit.  They can also be run locally too using ``trial``.  Currently,
-the agent tests require:
+The tests can can also run locally using Twisted's ``trial``.  Some tests
+will require access to external services such as httpbin.pyfarm.net, NTP,
+DNS and other network services.
 
-    * Access to https://httpbin.pyfarm.net for HTTP client testing.  This is
-      configurable however and could be pointed to an internal domain
-      using the ``agent_unittest`` configuration variable.
-    * The ``pyfarm.master`` module to run the API.  So all the setup steps
-      that apply to the master will apply here as well.  This includes the
-      requirement to run Redis, RabbitMQ or another backend that supports
-      ``celery``.
+Below are some examples for executing the tests locally.  These are fairly
+minimal however and may not work in all cases.  For more complete examples,
+checkout the configuration files used to run the tests on Travis and Appveyor:
 
-Newer tests are being designed to be lighter weight so eventually most of the
-above may no longer be required for testing.  For now however these are the
-basic steps to run the tests and are based on the steps in ``.travis.yml``::
+    * `.travis.yml <https://github.com/pyfarm/pyfarm-agent/blob/master/.travis.yml>`_
+    * `appveyor.yml <https://github.com/pyfarm/pyfarm-agent/blob/master/appveyor.yml>`_
+
+**Linux and Mac OS X**::
 
     virtualenv env
     . env/bin/activate
-    pip install pyfarm.master uwsgi mock
-    pyfarm-tables
-    uwsgi resources/uwsgi.ini
     pip install -e . --egg
-    trial tests  # in a new shell with the same virtualenv
+    trial tests
+
+**Windows**::
+
+    virtualenv env
+    env\Scripts\activate
+    %VIRTUALE_ENV%\Scripts\pip.exe install wheel
+    %VIRTUALE_ENV%\Scripts\pip.exe install -e . --egg
+    %VIRTUALE_ENV%\Scripts\python.exe %VIRTUALE_ENV%\Scripts\trial.py tests
 
 .. note::
 
-    On Windows, you may have to run trial a little differently.  See
+    On Windows, if the tests fail to locate one of the agent's modules be sure
+    you don't have another package for PyFarm installed in your system
+    site-packages directory.
+
+    You may also have to run trial a little differently.  See
     ``appveyor.yml`` for an example.
