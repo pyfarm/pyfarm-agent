@@ -1183,6 +1183,9 @@ class JobType(Cache, System, Process, TypeChecks):
 
             task_deferred = Deferred()
             self.task_update_deferreds.append(task_deferred)
+            task_deferred.addBoth(lambda _:
+                                      self.task_update_deferreds.remove(
+                                          task_deferred))
 
             updated = False
             num_retry_errors = 0
@@ -1234,6 +1237,7 @@ class JobType(Cache, System, Process, TypeChecks):
                             "master, caught try-again type errors %s times in "
                             "a row." % (task["id"], num_retry_errors))
                         logger.error(message)
+                        task_deferred.errback(None)
                         raise Exception(message)
                     else:
                         logger.debug("While posting state update for task %s "
@@ -1244,6 +1248,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.error(
                         "Failed to post state update for task %s to master: "
                         "%r." % (task["id"], error))
+                    task_deferred.errback(None)
                     raise
 
             tasklog_url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s" % (
@@ -1253,7 +1258,9 @@ class JobType(Cache, System, Process, TypeChecks):
 
             log_deferred = Deferred()
             self.task_update_deferreds.append(log_deferred)
-
+            log_deferred.addBoth(lambda _:
+                                      self.task_update_deferreds.remove(
+                                          log_deferred))
             updated = False
             num_retry_errors = 0
             while not updated:
@@ -1264,7 +1271,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     if response.code == OK:
                         logger.info("Updated tasklog at %s", url)
                         updated = True
-                        task_deferred.callback(None)
+                        log_deferred.callback(None)
                         returnValue(None)
 
                     elif response.code >= INTERNAL_SERVER_ERROR:
@@ -1304,6 +1311,7 @@ class JobType(Cache, System, Process, TypeChecks):
                             "try-again type errors %s times in a row." %
                             (url, num_retry_errors))
                         logger.error(message)
+                        log_deferred.errback(None)
                         raise Exception(message)
                     else:
                         logger.debug("While posting update for tasklog at %s "
@@ -1314,6 +1322,7 @@ class JobType(Cache, System, Process, TypeChecks):
                     logger.error(
                         "Failed to post update for tasklog at %s to master: "
                         "%r." % (url, error))
+                    log_deferred.errback(None)
                     raise
 
     def get_local_task_state(self, task_id):
