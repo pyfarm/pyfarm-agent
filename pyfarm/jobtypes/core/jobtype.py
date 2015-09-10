@@ -1196,7 +1196,6 @@ class JobType(Cache, System, Process, TypeChecks):
                                     task["id"], state)
                         updated = True
                         task_deferred.callback(None)
-                        returnValue(None)
 
                     elif response.code >= INTERNAL_SERVER_ERROR:
                         delay = http_retry_delay()
