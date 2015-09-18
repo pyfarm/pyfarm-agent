@@ -727,7 +727,7 @@ class JobType(Cache, System, Process, TypeChecks):
             If set to true, the agent will add itself to the lists of agents
             that failed the tasks in this assignment.  Can be useful when we
             want to return the assignment to the master without increasing its
-            failures counter, but still don't want to be be reassigned to us.
+            failures counter, but still don't want it to be reassigned to us.
 
         :param string error:
             If the assignment has failed, this string is upload as last_error
@@ -763,12 +763,15 @@ class JobType(Cache, System, Process, TypeChecks):
                         "state to failed", task["id"])
         else:
             for task in self.assignment["tasks"]:
-                if task["id"] not in (self.failed_tasks, self.finished_tasks):
+                if task["id"] not in self.failed_tasks | self.finished_tasks:
+                    logger.info(
+                        "Setting task %r to queued because the assignment is "
+                        "being stopped.", task["id"])
                     self.set_task_state(task, None, dissociate_agent=True)
                 else:
                     logger.info(
-                        "Task %r is already in failed tasks, not setting state "
-                        "to queued", task["id"])
+                        "Task %r is already in failed or finished tasks, not "
+                        "setting state to queued", task["id"])
         # TODO: chain this callback to the completion of our request to master
 
         if avoid_reassignment:
