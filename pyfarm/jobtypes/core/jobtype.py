@@ -1265,11 +1265,11 @@ class JobType(Cache, System, Process, TypeChecks):
             num_retry_errors = 0
             while not updated:
                 try:
-                    response = yield post_direct(url, data=data)
+                    response = yield post_direct(tasklog_url, data=tasklog_data)
                     response_data = yield treq.json_content(response)
 
                     if response.code == OK:
-                        logger.info("Updated tasklog at %s", url)
+                        logger.info("Updated tasklog at %s", tasklog_url)
                         updated = True
                         log_deferred.callback(None)
                         returnValue(None)
@@ -1279,7 +1279,7 @@ class JobType(Cache, System, Process, TypeChecks):
                         logger.error(
                             "Error while posting state update for tasklog to "
                             "%s, return code is %s, retrying in %s seconds.",
-                            url, response.code, delay)
+                            tasklog_url, response.code, delay)
                         deferred = Deferred()
                         reactor.callLater(delay, deferred.callback, None)
                         yield deferred
@@ -1289,7 +1289,7 @@ class JobType(Cache, System, Process, TypeChecks):
                             "Failed to update state for tasklog at %s, got "
                             "status code %s. Message from server: %s. This "
                             "request will not be retried." %
-                            (url, response.code, response_data))
+                            (tasklog_url, response.code, response_data))
                         logger.error(message)
                         raise Exception(message)
 
@@ -1298,7 +1298,7 @@ class JobType(Cache, System, Process, TypeChecks):
                             "Unhandled error when posting state update for "
                             "tasklog at %s to the master: %s (code: %s).  "
                             "This request will not be retried." %
-                            (url, response_data, response.code))
+                            (tasklog_url, response_data, response.code))
                         logger.error(message)
                         raise Exception(message)
 
@@ -1309,7 +1309,7 @@ class JobType(Cache, System, Process, TypeChecks):
                         message = (
                             "Failed to update tasklog at %s on master, caught "
                             "try-again type errors %s times in a row." %
-                            (url, num_retry_errors))
+                            (tasklog_url, num_retry_errors))
                         logger.error(message)
                         log_deferred.errback(None)
                         raise Exception(message)
@@ -1317,11 +1317,11 @@ class JobType(Cache, System, Process, TypeChecks):
                         logger.debug("While posting update for tasklog at %s "
                                      "to master, caught %s. Retrying "
                                      "immediately.",
-                                     url, error.__class__.__name__)
+                                     tasklog_url, error.__class__.__name__)
                 except Exception as error:
                     logger.error(
                         "Failed to post update for tasklog at %s to master: "
-                        "%r." % (url, error))
+                        "%r." % (tasklog_url, error))
                     log_deferred.errback(None)
                     raise
 
