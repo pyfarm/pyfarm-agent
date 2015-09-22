@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-if [[ "$(uname -s)" == 'Darwin' ]]; then
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update || brew update
     brew outdated pyenv || brew upgrade pyenv
     brew install pyenv-virtualenv
