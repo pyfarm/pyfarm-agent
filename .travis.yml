@@ -18,4 +18,5 @@ script:
   - ./.travis/test.sh
 
 after_success:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv activate virtualenv; fi
   - coveralls
