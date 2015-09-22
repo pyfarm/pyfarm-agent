@@ -109,7 +109,7 @@ class Restart(APIResource):
                 logger.info("Created run control file %s",
                             config["run_control_file"])
 
-        if not config["current_assignments"] or data.get("immediately", False):
+        if not config["jobtype"] or data.get("immediately", False):
             logger.info("The agent will restart immediately.")
             stopping = agent.stop()
             stopping.addCallbacks(lambda _: reactor.stop(),

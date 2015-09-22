@@ -786,6 +786,36 @@ class System(object):
         reactor.callInThread(self._remove_directories, self._tempdirs.copy())
         self._tempdirs.clear()
 
+    def _cleanup_system_temp_dir(self, minimum_age=604800):
+        """
+        Cleans up old file from the system's temp directory to reclaim space.
+        Files that cannot be deleted, for example because of missing
+        permissions, are silently ignored.
+
+        .. warning::
+
+            This will delete files from the system temp directory.
+
+        """
+        tempdir = tempfile.gettempdir()
+
+        # followlinks=False is the default for os.walk.  I am specifying it
+        # explicitly here to make it more obvious.  Setting this to True
+        # instead might make us delete files outside of tempdir, if there is
+        # a symlink in there somewhere.
+        for root, dirs, files in os.walk(tempdir, topdown=True,
+                                         followlinks=False):
+            # Don't delete our own temp files
+            if "pyfarm" in dirs:
+                dirs.remove("pyfarm")
+            for filename in files:
+                fullpath = join(root, filename)
+                stat_result = os.stat(fullpath).st_atime
+                timestamp = max(stat_result.st_atime, stat_result.st_mtime)
+                if timestamp + minimum_age < time.time():
+                    logger.debug("Deleting tempfile %s", fullpath)
+                    remove_file(fullpath, retry_on_exit=False, raise_=False)
+
     def _ensure_free_space_in_temp_dir(self, tempdir, space, minimum_age=None):
         """
         Ensures that at least space bytes of data can be stored on the volume

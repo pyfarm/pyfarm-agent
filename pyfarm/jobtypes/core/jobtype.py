@@ -727,7 +727,7 @@ class JobType(Cache, System, Process, TypeChecks):
             If set to true, the agent will add itself to the lists of agents
             that failed the tasks in this assignment.  Can be useful when we
             want to return the assignment to the master without increasing its
-            failures counter, but still don't want to be be reassigned to us.
+            failures counter, but still don't want it to be reassigned to us.
 
         :param string error:
             If the assignment has failed, this string is upload as last_error
@@ -763,12 +763,15 @@ class JobType(Cache, System, Process, TypeChecks):
                         "state to failed", task["id"])
         else:
             for task in self.assignment["tasks"]:
-                if task["id"] not in (self.failed_tasks, self.finished_tasks):
+                if task["id"] not in self.failed_tasks | self.finished_tasks:
+                    logger.info(
+                        "Setting task %r to queued because the assignment is "
+                        "being stopped.", task["id"])
                     self.set_task_state(task, None, dissociate_agent=True)
                 else:
                     logger.info(
-                        "Task %r is already in failed tasks, not setting state "
-                        "to queued", task["id"])
+                        "Task %r is already in failed or finished tasks, not "
+                        "setting state to queued", task["id"])
         # TODO: chain this callback to the completion of our request to master
 
         if avoid_reassignment:
@@ -1098,6 +1101,7 @@ class JobType(Cache, System, Process, TypeChecks):
                 raise
 
     # TODO: refactor so `task` is an integer, not a dictionary
+    @inlineCallbacks
     def set_task_state(self, task, state, error=None, dissociate_agent=False):
         """
         Sets the state of the given task
@@ -1117,27 +1121,26 @@ class JobType(Cache, System, Process, TypeChecks):
             :meth:`format_exception` first to format it.
         """
         if state not in WorkState and state is not None:
-            logger.error(
+            raise ValueError(
                 "Cannot set state for task %r to %r, %r is an invalid "
-                "state", task, state, state)
+                "state" % (task, state, state))
 
-        elif not isinstance(task, dict):
-            logger.error(
+        if not isinstance(task, dict):
+            raise TypeError(
                 "Expected a dictionary for `task`, cannot change state")
 
-        elif "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
-            logger.error(
+        if "id" not in task or not isinstance(task["id"], INTEGER_TYPES):
+            raise TypeError(
                 "Expected to find 'id' in `task` or for `task['id']` to "
                 "be an integer.")
 
-        elif task not in self.assignment["tasks"]:
-            logger.error(
+        if task not in self.assignment["tasks"]:
+            raise KeyError(
                 "Cannot set state, expected task %r to be a member of this "
-                "job type's assignments", task)
+                "job type's assignments" % task)
 
-        elif state == WorkState.FAILED and config["agent"].shutting_down:
+        if state == WorkState.FAILED and config["agent"].shutting_down:
             logger.error("Not setting task to failed: agent is shutting down.")
-
         else:
             # Find the equivalent to this task in assignments and remember the
             # local state
@@ -1183,51 +1186,73 @@ class JobType(Cache, System, Process, TypeChecks):
 
             task_deferred = Deferred()
             self.task_update_deferreds.append(task_deferred)
-
-            def post_update(post_url, post_data, delay=0):
-                post_func = partial(
-                    post, post_url,
-                    data=post_data,
-                    callback=lambda x: result_callback(
-                        post_url, post_data, task["id"], state, x),
-                    errback=lambda x: error_callback(post_url, post_data, x))
-                reactor.callLater(delay, post_func)
-
-            def result_callback(cburl, cbdata, task_id, cbstate, response):
-                if 500 <= response.code < 600:
-                    logger.error(
-                        "Error while posting state update for task %s "
-                        "to %s, return code is %s, retrying",
-                        task_id, cbstate, response.code)
-                    post_update(cburl, cbdata, delay=http_retry_delay())
-
-                elif response.code != OK:
-                    # Nothing else we could do about that, this is
-                    # a problem on our end.  We should only encounter
-                    # this error during development
-                    logger.error(
-                        "Could not set state for task %s to %s, server "
-                        "response code was %s",
-                        task_id, cbstate, response.code)
-                    task_deferred.errback(None)
-
-                else:
-                    logger.info(
-                        "Set state of task %s to %s on master",
-                        task_id, cbstate)
-                    task_deferred.callback(None)
-
-            def error_callback(cburl, cbdata, failure_reason):
-                logger.error(
-                    "Error while posting state update for task, %s, retrying",
-                    failure_reason)
-                post_update(cburl, cbdata, delay=http_retry_delay())
-
-            # Initial attempt to make an update with an explicit zero delay.
-            post_update(url, data, delay=0)
             task_deferred.addBoth(lambda _:
                                       self.task_update_deferreds.remove(
                                           task_deferred))
+
+            updated = False
+            num_retry_errors = 0
+            while not updated:
+                try:
+                    response = yield post_direct(url, data=data)
+                    response_data = yield treq.json_content(response)
+
+                    if response.code == OK:
+                        logger.info("Set state of task %s to %s on master",
+                                    task["id"], state)
+                        updated = True
+                        task_deferred.callback(None)
+
+                    elif response.code >= INTERNAL_SERVER_ERROR:
+                        delay = http_retry_delay()
+                        logger.error(
+                            "Error while posting state update for task %s "
+                            "to %s, return code is %s, retrying in %s seconds",
+                            task["id"], state, response.code, delay)
+                        deferred = Deferred()
+                        reactor.callLater(delay, deferred.callback, None)
+                        yield deferred
+
+                    elif response.code >= BAD_REQUEST:
+                        message = (
+                            "Failed to update state for task %s, got status "
+                            "code %s. Message from server: %s. This request "
+                            "will not be retried." %
+                            (task["id"], response.code, response_data))
+                        logger.error(message)
+                        raise Exception(message)
+
+                    else:
+                        message = (
+                            "Unhandled error when posting state update for "
+                            "task %s to the master: %s (code: %s).  "
+                            "This request will not be retried." %
+                            (task["id"], response_data, response.code))
+                        logger.error(message)
+                        raise Exception(message)
+
+                except (ResponseNeverReceived,
+                        RequestTransmissionFailed) as error:
+                    num_retry_errors += 1
+                    if num_retry_errors > config["broken_connection_max_retry"]:
+                        message = (
+                            "Failed to update state of task %s to %s on "
+                            "master, caught try-again type errors %s times in "
+                            "a row." % (task["id"], num_retry_errors))
+                        logger.error(message)
+                        task_deferred.errback(None)
+                        raise Exception(message)
+                    else:
+                        logger.debug("While posting state update for task %s "
+                                     "to master, caught %s. Retrying "
+                                     "immediately.",
+                                     task["id"], error.__class__.__name__)
+                except Exception as error:
+                    logger.error(
+                        "Failed to post state update for task %s to master: "
+                        "%r." % (task["id"], error))
+                    task_deferred.errback(None)
+                    raise
 
             tasklog_url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/%s" % (
                  config["master_api"], self.assignment["job"]["id"],
@@ -1236,42 +1261,72 @@ class JobType(Cache, System, Process, TypeChecks):
 
             log_deferred = Deferred()
             self.task_update_deferreds.append(log_deferred)
-
-            def post_tasklog_update(url, data, delay=0):
-                post_func = partial(
-                    post, url,
-                    data=data,
-                    callback=lambda x: tasklog_result_callback(url, data, x),
-                    errback=lambda x: tasklog_error_callback(url, data, x))
-                reactor.callLater(delay, post_func)
-
-            def tasklog_result_callback(url, data, response):
-                if 500 <= response.code < 600:
-                    logger.error(
-                        "Error while posting state update for tasklog to %s, "
-                        "return code is %s, retrying",
-                        url, response.code)
-                    post_tasklog_update(url, data, delay=http_retry_delay())
-
-                elif response.code != OK:
-                    logger.error("Could not update tasklog at %s, server "
-                                 "response code was %s.", url, response.code)
-                    log_deferred.errback(None)
-
-                else:
-                    logger.info("Updated tasklog at %s", url)
-                    log_deferred.callback(None)
-
-            def tasklog_error_callback(url, data, failure_reason):
-                logger.error(
-                    "Error while updating tasklog at %s: %s, retrying",
-                    url, failure_reason)
-                post_tasklog_update(url, data, delay=http_retry_delay())
-
-            post_tasklog_update(tasklog_url, tasklog_data, delay=0)
             log_deferred.addBoth(lambda _:
                                       self.task_update_deferreds.remove(
                                           log_deferred))
+            updated = False
+            num_retry_errors = 0
+            while not updated:
+                try:
+                    response = yield post_direct(tasklog_url, data=tasklog_data)
+                    response_data = yield treq.json_content(response)
+
+                    if response.code == OK:
+                        logger.info("Updated tasklog at %s", tasklog_url)
+                        updated = True
+                        log_deferred.callback(None)
+                        returnValue(None)
+
+                    elif response.code >= INTERNAL_SERVER_ERROR:
+                        delay = http_retry_delay()
+                        logger.error(
+                            "Error while posting state update for tasklog to "
+                            "%s, return code is %s, retrying in %s seconds.",
+                            tasklog_url, response.code, delay)
+                        deferred = Deferred()
+                        reactor.callLater(delay, deferred.callback, None)
+                        yield deferred
+
+                    elif response.code >= BAD_REQUEST:
+                        message = (
+                            "Failed to update state for tasklog at %s, got "
+                            "status code %s. Message from server: %s. This "
+                            "request will not be retried." %
+                            (tasklog_url, response.code, response_data))
+                        logger.error(message)
+                        raise Exception(message)
+
+                    else:
+                        message = (
+                            "Unhandled error when posting state update for "
+                            "tasklog at %s to the master: %s (code: %s).  "
+                            "This request will not be retried." %
+                            (tasklog_url, response_data, response.code))
+                        logger.error(message)
+                        raise Exception(message)
+
+                except (ResponseNeverReceived,
+                        RequestTransmissionFailed) as error:
+                    num_retry_errors += 1
+                    if num_retry_errors > config["broken_connection_max_retry"]:
+                        message = (
+                            "Failed to update tasklog at %s on master, caught "
+                            "try-again type errors %s times in a row." %
+                            (tasklog_url, num_retry_errors))
+                        logger.error(message)
+                        log_deferred.errback(None)
+                        raise Exception(message)
+                    else:
+                        logger.debug("While posting update for tasklog at %s "
+                                     "to master, caught %s. Retrying "
+                                     "immediately.",
+                                     tasklog_url, error.__class__.__name__)
+                except Exception as error:
+                    logger.error(
+                        "Failed to post update for tasklog at %s to master: "
+                        "%r." % (tasklog_url, error))
+                    log_deferred.errback(None)
+                    raise
 
     def get_local_task_state(self, task_id):
         """
