@@ -17,5 +17,5 @@ fi
 
 pip install --upgrade pip
 pip install wheel coverage==3.7.1 python-coveralls mock
-pip install -e .
+pip install -e . --egg
 pip freeze
