@@ -6,10 +6,10 @@ matrix:
     - python: 2.7
     - language: generic
       os: osx
-      env: PYTHON_VERSION=2.6.9
+      env: PYTHON_VERSION=2.6.9 PYTHON_SHORT_VERSION=2.6
     - language: generic
       os: osx
-      env: PYTHON_VERSION=2.7.10
+      env: PYTHON_VERSION=2.7.10 PYTHON_SHORT_VERSION=2.7
 
 install:
   - ./.travis/install.sh
@@ -18,5 +18,5 @@ script:
   - ./.travis/test.sh
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then $HOME/.pyenv/versions/virtualenv/lib/python$PYTHON_VERSION/bin/coveralls ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then $HOME/.pyenv/versions/virtualenv/lib/python$PYTHON_SHORT_VERSION/bin/coveralls ; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then coveralls; fi
