@@ -18,5 +18,5 @@ script:
   - ./.travis/test.sh
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv activate virtualenv && coveralls; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then $HOME/.pyenv/versions/virtualenv/lib/python$PYTHON_VERSION/bin/coveralls ; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then coveralls; fi
