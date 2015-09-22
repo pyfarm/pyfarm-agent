@@ -28,7 +28,7 @@ install_requires = [
     # "PyOpenSSL", "service_identity",  # required for full SSL support
     "netaddr", "twisted", "ntplib", "requests!=2.4.0", "treq",
     "voluptuous", "jinja2", "psutil>=2.1.0",
-    "netifaces>=0.10.2"]
+    "netifaces>=0.10.2", "pyasn1"]
 
 if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
