@@ -15,6 +15,7 @@ if [[ "$(uname -s)" == 'Darwin' ]]; then
     pyenv activate virtualenv
 fi
 
-pip install coverage python-coveralls mock
+pip install --upgrade pip
+pip install wheel coverage==3.7.1 python-coveralls mock
 pip install .
 pip freeze
