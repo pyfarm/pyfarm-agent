@@ -7,8 +7,9 @@ if [[ "$(uname -s)" == 'Darwin' ]]; then
     pyenv activate virtualenv
 fi
 
-coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
+pwd
+env PYTHONPATH=. coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
 mv -v .coverage .coverage.1
-coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
+env PYTHONPATH=. coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
 mv -v .coverage .coverage.2
 coverage combine
