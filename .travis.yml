@@ -18,5 +18,4 @@ script:
   - ./.travis/test.sh
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip install python-coveralls; fi
   - coveralls
