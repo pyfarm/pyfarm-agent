@@ -18,4 +18,5 @@ script:
   - ./.travis/test.sh
 
 after_success:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip install coverage; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then coveralls; fi
