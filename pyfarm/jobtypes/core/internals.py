@@ -810,7 +810,7 @@ class System(object):
                 dirs.remove("pyfarm")
             for filename in files:
                 fullpath = join(root, filename)
-                stat_result = os.stat(fullpath).st_atime
+                stat_result = os.stat(fullpath)
                 timestamp = max(stat_result.st_atime, stat_result.st_mtime)
                 if timestamp + minimum_age < time.time():
                     logger.debug("Deleting tempfile %s", fullpath)
