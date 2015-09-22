@@ -18,4 +18,4 @@ script:
   - ./.travis/test.sh
 
 after_success:
-  - if [[ "TRAVIS_OS_NAME" == "linux" ]]; then coveralls; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then coveralls; fi
