@@ -609,8 +609,8 @@ class Process(object):
                             log_path, task["id"])
                 deferred.callback(None)
 
-        def error_callback(task, log_path, deferred, failure_reason,
-                           num_retry_errors):
+        def error_callback(task, log_path, deferred, num_retry_errors,
+                           failure_reason):
             if num_retry_errors > config["broken_connection_max_retry"]:
                 logger.error(
                     "Error while registering logfile %s for task %s on master. "
