@@ -39,7 +39,7 @@ from twisted.python.failure import Failure
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 
-from pyfarm.core.enums import WINDOWS, AgentState
+from pyfarm.core.enums import AgentState
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.http.api.base import APIRoot, Versions
 from pyfarm.agent.http.api.config import Config
@@ -51,7 +51,7 @@ from pyfarm.agent.http.core.server import StaticPath
 from pyfarm.agent.http.system import Index, Configuration
 from pyfarm.agent.sysinfo.system import operating_system
 from pyfarm.agent.sysinfo import cpu
-from pyfarm.agent.testutil import TestCase, random_port, skipIf
+from pyfarm.agent.testutil import TestCase, random_port
 from pyfarm.agent.config import config
 from pyfarm.agent.service import Agent, svclog, ntplog
 from pyfarm.agent.sysinfo import network, graphics, memory, disks
@@ -439,6 +439,19 @@ class TestAgentPostToMaster(TestCase):
             "Retrying in %s seconds", config["agent_http_retry_delay_offset"])
 
 
+class AssertLockReleased(object):
+    """Ensures that the provided lock is unlocked when we start and finish"""
+    def __init__(self, test, lock):
+        self.test = test
+        self.lock = lock
+
+    def __enter__(self):
+        self.test.assertFalse(self.lock.locked)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.test.assertFalse(self.lock.locked)
+
+
 class TestPostShutdownToMaster(TestCase):
     POP_CONFIG_KEYS = ["master_api"]
 
@@ -467,6 +480,32 @@ class TestPostShutdownToMaster(TestCase):
             "free_ram": 424242
         }
 
+    def assert_result(
+            self, result, code=None, timed_out=False, should_retry=False,
+            retry_errors=False):
+        self.assertIsInstance(result, dict)
+        response_value = result.pop("response", None)
+        tries = result.pop("tries", None)
+        num_retry_errors = result.pop("retry_errors", 0)
+        self.assertEqual(timed_out, result.pop("timed_out", None))
+
+        if should_retry:
+            self.assertGreaterEqual(tries, 2)
+        else:
+            self.assertEqual(tries, 1)
+
+        if retry_errors:
+            self.assertGreaterEqual(num_retry_errors, 2)
+        else:
+            self.assertEqual(num_retry_errors, 0)
+
+        if code is not None:
+            self.assertIsNotNone(response_value)
+            self.assertEqual(response_value.code, code)
+
+        if result:
+            self.assertEqual(result, self.normal_result)
+
     @inlineCallbacks
     def tearDown(self):
         super(TestPostShutdownToMaster, self).tearDown()
@@ -476,17 +515,18 @@ class TestPostShutdownToMaster(TestCase):
     @inlineCallbacks
     def test_assert_shutting_down(self):
         agent = Agent()
-        agent.shutting_down = False
+        agent.shutting_down = False  # This should cause AssertionError to raise
+
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
 
         with nested(
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release"),
+            AssertLockReleased(self, agent.post_shutdown_lock),
             self.assertRaises(AssertionError)
-        ) as (acquire, release, _):
+        ):
             yield agent.post_shutdown_to_master()
 
-        self.assertFalse(acquire.called)
-        self.assertFalse(release.called)
+        self.assertEqual(agent.post_shutdown_lock.waiting, [])
+        self.assertEqual(self.fake_api.requests, [])
 
     @inlineCallbacks
     def test_post_not_found(self):
@@ -494,20 +534,11 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertEqual(self.normal_result, result)
-        warning_log.assert_called_with(
-            "Agent %r no longer exists, cannot update state.",
-            config["agent_id"]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, code=NOT_FOUND)
 
     @inlineCallbacks
     def test_post_ok(self):
@@ -515,20 +546,10 @@ class TestPostShutdownToMaster(TestCase):
 
         agent = Agent()
         agent.shutting_down = True
-        with nested(
-            patch.object(svclog, "info"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (info_log, acquire, release):
-            result = yield agent.post_shutdown_to_master()
 
-        self.assertEqual(self.normal_result, result)
-        info_log.assert_called_with(
-            "Agent %r has POSTed shutdown state change successfully.",
-            config["agent_id"]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        with AssertLockReleased(self, agent.post_shutdown_lock):
+            result = yield agent.post_shutdown_to_master()
+        self.assert_result(result, code=OK)
 
     @inlineCallbacks
     def test_post_internal_server_error_timeout_expired(self):
@@ -538,46 +559,29 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertEqual(self.normal_result, result)
-        warning_log.assert_called_with(
-            "State update failed due to server error: %s.  Shutdown timeout "
-            "reached, not retrying.", self.fake_api.data[0]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, code=INTERNAL_SERVER_ERROR, timed_out=True)
 
     @inlineCallbacks
     def test_post_internal_server_error_retries(self):
         self.fake_api.code = INTERNAL_SERVER_ERROR
+        reactor.callLater(
+            .25, setattr, self.fake_api, "code", OK
+        )
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertEqual(self.normal_result, result)
-        warning_log.assert_called_with(
-            "State update failed due to server error: %s.  Shutdown timeout "
-            "reached, not retrying.", self.fake_api.data[0]
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, code=OK, should_retry=True)
 
     @inlineCallbacks
-    def test_post_exception_timeout_expired(self):
+    def test_post_exception_timeout_already_expired(self):
         # Shutdown the server so we don't have anything to
         # reply on.
         yield self.server.loseConnection()
@@ -586,51 +590,27 @@ class TestPostShutdownToMaster(TestCase):
         agent.shutting_down = True
         agent.shutdown_timeout = datetime.utcnow() - timedelta(hours=1)
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertIsNone(result)
-        self.assertEqual(
-            warning_log.call_args[0][0],
-            "State update failed due to unhandled error: %s.  "
-            "Shutdown timeout reached, not retrying."
-        )
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, timed_out=True)
 
-    @skipIf(WINDOWS, "Skipped on Windows")
-    def test_post_exception_retry(self):
+    @inlineCallbacks
+    def test_post_exception_causes_retry(self):
         # Shutdown the server so we don't have anything to
         # reply on.
         yield self.server.loseConnection()
 
         agent = Agent()
         agent.shutting_down = True
-        agent.shutdown_timeout = datetime.utcnow() + timedelta(seconds=.25)
+        agent.shutdown_timeout = datetime.utcnow() + timedelta(hours=1)
+        reactor.callLater(
+            3, setattr, agent, "shutdown_timeout", datetime.utcnow())
 
-        with nested(
-            patch.object(svclog, "warning"),
-            patch.object(agent.post_shutdown_lock, "acquire"),
-            patch.object(agent.post_shutdown_lock, "release")
-        ) as (warning_log, acquire, release):
+        with AssertLockReleased(self, agent.post_shutdown_lock):
             result = yield agent.post_shutdown_to_master()
 
-        self.assertIsNone(result)
-        self.assertGreaterEqual(warning_log.call_count, 3)
-
-        for call in warning_log.mock_calls:
-            if (call[1][0] == "State update failed due to unhandled error: "
-                              "%s.  Retrying in %s seconds"):
-                break
-        else:
-            self.fail("State update never failed")
-
-        self.assertEqual(acquire.call_count, 1)
-        self.assertEqual(release.call_count, 1)
+        self.assert_result(result, should_retry=True, timed_out=True)
 
 
 class TestSigintHandler(TestCase):

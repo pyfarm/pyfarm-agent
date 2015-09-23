@@ -635,8 +635,12 @@ class Agent(object):
         # Because post_shutdown_to_master is blocking and needs to
         # stop the reactor from finishing we perform the retry in-line
         data = None
+        tries = 0
         num_retry_errors = 0
+        response = None
+        timed_out = False
         while True:
+            tries += 1
             try:
                 response = yield post_direct(
                     self.agent_api(),
@@ -680,6 +684,7 @@ class Agent(object):
                     yield pause
 
                 else:
+                    timed_out = True
                     svclog.warning(
                         "State update failed due to unhandled error: %s.  "
                         "Shutdown timeout reached, not retrying.",
@@ -714,6 +719,7 @@ class Agent(object):
                         reactor.callLater(delay, pause.callback, None)
                         yield pause
                     else:
+                        timed_out = True
                         svclog.warning(
                             "State update failed due to server error: %s.  "
                             "Shutdown timeout reached, not retrying.",
@@ -721,6 +727,18 @@ class Agent(object):
                         break
 
         yield self.post_shutdown_lock.release()
+        extra_data = {
+            "response": response,
+            "timed_out": timed_out,
+            "tries": tries,
+            "retry_errors": num_retry_errors
+        }
+
+        if isinstance(data, dict):
+            data.update(extra_data)
+        else:
+            data = extra_data
+
         returnValue(data)
 
     @inlineCallbacks
