@@ -561,7 +561,8 @@ class Process(object):
         return False
 
     def _register_logfile_on_master(self, log_path):
-        def post_logfile(task, log_path, post_deferred=None, delay=0):
+        def post_logfile(task, log_path, post_deferred=None, num_retry_errors=0,
+                         delay=0):
             deferred = post_deferred or Deferred()
             url = "%s/jobs/%s/tasks/%s/attempts/%s/logs/" % (
                 config["master_api"], self.assignment["job"]["id"], task["id"],
@@ -571,7 +572,8 @@ class Process(object):
             post_func = partial(
                 post, url, data=data,
                 callback=lambda x: result_callback(task, log_path, deferred, x),
-                errback=lambda x: error_callback(task, log_path, deferred, x))
+                errback=lambda x: error_callback(task, log_path, deferred,
+                                                 num_retry_errors, x))
             reactor.callLater(delay, post_func)
             return deferred
 
@@ -607,13 +609,30 @@ class Process(object):
                             log_path, task["id"])
                 deferred.callback(None)
 
-        def error_callback(task, log_path, deferred, failure_reason):
-            delay = http_retry_delay()
-            logger.error(
-                "Error while registering logfile %s for task %s on master: "
-                "\"%s\", retrying in %s seconds.",
-                log_path, task["id"], failure_reason, delay)
-            post_logfile(task, log_path, post_deferred=deferred, delay=delay)
+        def error_callback(task, log_path, deferred, num_retry_errors,
+                           failure_reason):
+            if num_retry_errors > config["broken_connection_max_retry"]:
+                logger.error(
+                    "Error while registering logfile %s for task %s on master. "
+                    "Maximum number of retries reached. Not retrying the "
+                    "request.", log_path, task["id"])
+                deferred.errback(None)
+            else:
+                if (failure_reason.type in
+                    (ResponseNeverReceived, RequestTransmissionFailed)):
+                    logger.debug(
+                        "Error while registering logfile %s for task %s on "
+                        "master: %s, retrying immediately",
+                        log_path, task["id"], failure_reason.type.__name__)
+                    post_logfile(task, log_path, post_deferred=deferred)
+                else:
+                    delay = http_retry_delay()
+                    logger.error(
+                        "Error while registering logfile %s for task %s on "
+                        "master: %r, retrying in %s seconds.",
+                        log_path, task["id"], failure_reason, delay)
+                    post_logfile(task, log_path, post_deferred=deferred,
+                                 delay=delay)
 
         deferreds = []
         for task in self.assignment["tasks"]:
