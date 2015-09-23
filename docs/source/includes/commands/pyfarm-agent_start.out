@@ -6,6 +6,7 @@ usage: pyfarm-agent [status|start|stop] start [-h] [--state STATE]
                                               [--shutdown-timeout SHUTDOWN_TIMEOUT]
                                               [--updates-drop-dir UPDATES_DROP_DIR]
                                               [--run-control-file RUN_CONTROL_FILE]
+                                              [--farm-name FARM_NAME]
                                               [--cpus CPUS] [--ram RAM]
                                               [--ram-check-interval RAM_CHECK_INTERVAL]
                                               [--ram-max-report-frequency RAM_MAX_REPORT_FREQUENCY]
@@ -62,6 +63,9 @@ General Configuration:
                         that agent is supposed to be restarted if it stops for
                         whatever reason.[default:
                         /tmp/pyfarm/agent/should_be_running]
+  --farm-name FARM_NAME
+                        The name of the farm the agent should join. If unset,
+                        the agent will join any farm.
 
 Physical Hardware:
   Command line flags which describe the hardware of the agent.
