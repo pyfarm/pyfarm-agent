@@ -6,10 +6,10 @@ matrix:
     - python: 2.7
     - language: generic
       os: osx
-      env: PYTHON_VERSION=2.6.9 PYTHON_SHORT_VERSION=2.6
+      env: PYTHON_VERSION=2.6.9
     - language: generic
       os: osx
-      env: PYTHON_VERSION=2.7.10 PYTHON_SHORT_VERSION=2.7
+      env: PYTHON_VERSION=2.7.10
 
 install:
   - ./.travis/install.sh
