@@ -23,7 +23,13 @@ import subprocess
 import sys
 import uuid
 from contextlib import nested
+from itertools import izip
 from os.path import isfile
+
+try:
+    from xml.etree.cElementTree import ElementTree
+except ImportError:  # pragma: no cover
+    from xml.etree.ElementTree import ElementTree
 
 try:
     import pwd
@@ -46,13 +52,21 @@ try:
 except ImportError:  # pragma: no cover
     getuid = NotImplemented
 
+try:
+    from wmi import WMI
+except ImportError:  # pragma: no cover
+    WMI = NotImplemented
+
 import netifaces
 from mock import Mock, patch
+from subprocess import Popen, PIPE
 
 from pyfarm.core.utility import convert
-from pyfarm.core.enums import LINUX, WINDOWS
+from pyfarm.core.enums import LINUX, MAC, WINDOWS
+from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system, network, cpu, memory, user, disks
+from pyfarm.agent.sysinfo import (
+    system, network, cpu, memory, user, disks, graphics)
 
 
 class TestSystem(TestCase):
@@ -342,4 +356,53 @@ class TestDisks(TestCase):
             self.assertEqual(disks.disks(as_dict=True), result)
 
 
+class TestGraphicsCards(TestCase):
+    @skipIf(not WINDOWS, "Not Windows")
+    def testWindows(self):
+        wmi = WMI()
+        gpus = wmi.Win32_VideoController.query()
+        self.assertEqual(graphics.graphics_cards(), [x.name for x in gpus])
 
+    @skipIf(not MAC, "Not Mac")
+    def testMac(self):
+        try:
+            profiler_pipe = Popen(
+                ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
+        except (ValueError, OSError):
+            raise
+
+        gpu_names = []
+        tree = ElementTree()
+        root = tree.parse(profiler_pipe.stdout)
+
+        for element in root.findall("array/dict/array/dict"):
+            iter_element = iter(element)
+            for key, string in izip(iter_element, iter_element):
+                if key.text == "sppci_model":
+                    gpu_names.append(string.text)
+        self.assertEqual(graphics.graphics_cards(), gpu_names)
+
+    @skipIf(not LINUX, "Not Linux")
+    def testLinux(self):
+        gpu_names = []
+        for lspci_command in config["sysinfo_command_lspci"]:
+            try:
+                lspci_pipe = Popen(lspci_command.split(" "), stdout=PIPE)
+                for line in lspci_pipe.stdout:
+                    if "VGA compatible controller:" in line:
+                        gpu_names.append(line.split(":", 2)[2].strip())
+                break
+            except (ValueError, OSError):
+                continue
+        self.assertEqual(graphics.graphics_cards(), gpu_names)
+
+        return gpu_names
+
+    def testUnknownPlatform(self):
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", False)
+        ):
+            with self.assertRaises(graphics.GPULookupError):
+                graphics.graphics_cards()
