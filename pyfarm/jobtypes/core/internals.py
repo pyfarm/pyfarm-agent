@@ -629,7 +629,7 @@ class Process(object):
                     delay = http_retry_delay()
                     logger.error(
                         "Error while registering logfile %s for task %s on "
-                        "master: \"%s\", retrying in %s seconds.",
+                        "master: %r, retrying in %s seconds.",
                         log_path, task["id"], failure_reason, delay)
                     post_logfile(task, log_path, post_deferred=deferred,
                                  delay=delay)
