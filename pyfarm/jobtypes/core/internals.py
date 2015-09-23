@@ -616,7 +616,7 @@ class Process(object):
                     "Error while registering logfile %s for task %s on master. "
                     "Maximum number of retries reached. Not retrying the "
                     "request.", log_path, task["id"])
-                deferred.errback
+                deferred.errback(None)
             else:
                 if (failure_reason.type in
                     (ResponseNeverReceived, RequestTransmissionFailed)):
