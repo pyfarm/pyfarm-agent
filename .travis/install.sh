@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-if [[ "$(uname -s)" == 'Darwin' ]]; then
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update || brew update
     brew outdated pyenv || brew upgrade pyenv
     brew install pyenv-virtualenv
@@ -15,6 +15,7 @@ if [[ "$(uname -s)" == 'Darwin' ]]; then
     pyenv activate virtualenv
 fi
 
-pip install coverage python-coveralls mock
-pip install .
+pip install --upgrade pip
+pip install wheel coverage==3.7.1 python-coveralls mock
+python setup.py develop
 pip freeze

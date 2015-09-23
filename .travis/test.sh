@@ -1,14 +1,10 @@
 #!/bin/bash -e
 
-if [[ "$(uname -s)" == 'Darwin' ]]; then
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     if which pyenv > /dev/null; then
         eval "$(pyenv init -)"
     fi
     pyenv activate virtualenv
 fi
 
-coverage run --branch `which trial` --reporter=bwverbose tests/test_agent
-mv -v .coverage .coverage.1
-coverage run --branch `which trial` --reporter=bwverbose tests/test_jobtypes
-mv -v .coverage .coverage.2
-coverage combine
+coverage run --branch `which trial` tests/
