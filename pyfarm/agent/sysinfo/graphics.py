@@ -53,7 +53,7 @@ def graphics_cards():
     """
     Returns a list of the full names of GPUs installed in this system
     """
-    if WINDOWS:
+    if WINDOWS:  # pragma: no cover
         wmi = WMI()
         gpus = wmi.Win32_VideoController.query()
         gpu_names = [x.name for x in gpus]
@@ -81,7 +81,7 @@ def graphics_cards():
 
         return gpu_names
 
-    elif MAC:
+    elif MAC:  # pragma: no cover
         try:
             profiler_pipe = Popen(
                 ["system_profiler", "-xml", "SPDisplaysDataType"], stdout=PIPE)
