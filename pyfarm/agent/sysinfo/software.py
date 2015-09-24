@@ -189,15 +189,21 @@ def check_software_availability(software, version):
     :param str version:
         The name of the version to check for
     """
+    module_name = \
+        "pyfarm.agent.sysinfo.software.{software}_{version}".format(
+            software=software, version=version)
+
+    module = sys.modules.get(module_name)
+    if module is None:
+        module = imp.new_module(module_name)
+        sys.modules[module_name] = module
+
+    # Retrieve information about the software/version combination,
+    # update the module with the discovery code and then execute
+    # the discovery function.
     version_data = yield get_software_version_data(software, version)
     discovery_code = yield get_discovery_code(software, version)
-
-    module_name = ("pyfarm.agent.sysinfo.software.%s_%s" %
-                   (software, version))
-    module = imp.new_module(module_name)
     exec discovery_code in module.__dict__
-    sys.modules[module_name] = module
-    discovery_function = getattr(module,
-                                 version_data["discovery_function_name"])
-    result = yield threads.deferToThread(discovery_function)
+    result = yield threads.deferToThread(
+        getattr(module, version_data["discovery_function_name"]))
     returnValue(result)
