@@ -53,11 +53,6 @@ try:
 except ImportError:  # pragma: no cover
     getuid = NotImplemented
 
-try:
-    from wmi import WMI
-except ImportError:  # pragma: no cover
-    WMI = NotImplemented
-
 import netifaces
 from mock import Mock, patch
 
