@@ -18,11 +18,13 @@ import ctypes
 import os
 import socket
 import time
+import json
 import psutil
 import subprocess
 import sys
 import uuid
 from contextlib import nested
+from httplib import OK, INTERNAL_SERVER_ERROR
 from os.path import isfile
 
 try:
@@ -48,11 +50,14 @@ except ImportError:  # pragma: no cover
 
 import netifaces
 from mock import Mock, patch
+from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
-from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system, network, cpu, memory, user, disks
+from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
+from pyfarm.agent.sysinfo import (
+    system, network, cpu, memory, user, disks, software)
 
 
 class TestSystem(TestCase):
@@ -342,4 +347,26 @@ class TestDisks(TestCase):
             self.assertEqual(disks.disks(as_dict=True), result)
 
 
+class TestSoftware(TestCase):
+    def test_version_not_found_parent(self):
+        self.assertIsInstance(software.VersionNotFound(), Exception)
+
+    @inlineCallbacks
+    def test_get_version_data_ok(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer("/software/foo/versions/1", code=OK, response=data):
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    @inlineCallbacks
+    def test_get_version_data_internal_server_error_retries(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer(
+                "/software/foo/versions/1",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    
 
