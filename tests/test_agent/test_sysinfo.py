@@ -482,3 +482,15 @@ class TestGraphicsCards(TestCase):
         ):
             with self.assertRaises(graphics.GPULookupError):
                 graphics.graphics_cards()
+
+    def test_gpu_lookup_error_parent_exception(self):
+        error = graphics.GPULookupError("foo")
+        self.assertIsInstance(error, Exception)
+
+    def test_gpu_lookup_error_repr(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(repr(error.value), str(error))
+
+    def test_gpu_lookup_error_value(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(error.value, "foo")
