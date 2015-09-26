@@ -24,7 +24,7 @@ import subprocess
 import sys
 import uuid
 from contextlib import nested
-from httplib import OK, INTERNAL_SERVER_ERROR
+from httplib import OK, INTERNAL_SERVER_ERROR, NOT_FOUND
 from os.path import isfile
 
 try:
@@ -55,6 +55,7 @@ from twisted.internet.defer import inlineCallbacks
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
+from pyfarm.agent.http.core.client import get_direct
 from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
 from pyfarm.agent.sysinfo import (
     system, network, cpu, memory, user, disks, software)
@@ -368,5 +369,50 @@ class TestSoftware(TestCase):
             result = yield software.get_software_version_data("foo", "1")
             self.assertEqual(json.loads(data), result)
 
-    
+    @inlineCallbacks
+    def test_get_software_version_data_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=NOT_FOUND, response=json.dumps({})),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=499, response=json.dumps({})),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer("/software/foo/versions/1", code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_software_version_data("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get data about software", logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
 
