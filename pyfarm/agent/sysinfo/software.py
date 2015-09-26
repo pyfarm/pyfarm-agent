@@ -80,8 +80,8 @@ def get_software_version_data(software, version):
             yield deferred
 
         else:
-            data = yield treq.json_content(response)
             if response.code == OK:
+                data = yield treq.json_content(response)
                 returnValue(data)
 
             elif response.code >= INTERNAL_SERVER_ERROR:
