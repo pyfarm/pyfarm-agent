@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import ctypes
+import imp
 import os
 import socket
 import time
@@ -51,7 +52,7 @@ except ImportError:  # pragma: no cover
 import netifaces
 from mock import Mock, patch
 from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import inlineCallbacks, succeed
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
@@ -454,7 +455,7 @@ class TestSoftware(TestCase):
             yield software.get_discovery_code("foo", "1")
 
     @inlineCallbacks
-    def test__get_discovery_code_unknown_http_code(self):
+    def test_get_discovery_code_unknown_http_code(self):
         with nested(
             APITestServer(
                 "/software/foo/versions/1/discovery_code",
@@ -464,7 +465,7 @@ class TestSoftware(TestCase):
             yield software.get_discovery_code("foo", "1")
 
     @inlineCallbacks
-    def test__get_discovery_code_unhandled_error_calling_get_direct(self):
+    def test_get_discovery_code_unhandled_error_calling_get_direct(self):
         class GetDirect(object):
             def __init__(self):
                 self.hits = 0
@@ -492,3 +493,52 @@ class TestSoftware(TestCase):
             logger.mock_calls[0][1][0])
         self.assertIn(
             "Will retry in %s seconds", logger.mock_calls[0][1][0])
+
+    #
+    # Test software.check_software_availability
+    #
+
+    @inlineCallbacks
+    def test_check_software_availability_creates_module_if_missing(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 1'")),
+
+        ):
+            yield software.check_software_availability("foobar", "1")
+
+        self.assertIn("pyfarm.agent.sysinfo.software.foobar_1", sys.modules)
+
+    @inlineCallbacks
+    def test_check_software_availability_does_not_recreate_module(self):
+        module = imp.new_module("foo")
+        sys.modules["pyfarm.agent.sysinfo.software.foobar_2"] = module
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 2'")),
+
+        ):
+            yield software.check_software_availability("foobar", "2")
+
+        self.assertIs(
+            sys.modules["pyfarm.agent.sysinfo.software.foobar_2"], module)
+
+    @inlineCallbacks
+    def test_check_software_availability_runs_discovery_code(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 3'")),
+
+        ):
+            result = yield software.check_software_availability("foobar", "3")
+
+        self.assertEqual(result, "foo 3")
