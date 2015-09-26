@@ -32,8 +32,7 @@ import imp, sys
 import treq
 
 from twisted.internet import reactor, threads
-from twisted.internet.defer import (
-    inlineCallbacks, returnValue, Deferred, DeferredList)
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred
 
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.config import config
