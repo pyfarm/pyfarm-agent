@@ -352,15 +352,19 @@ class TestSoftware(TestCase):
     def test_version_not_found_parent(self):
         self.assertIsInstance(software.VersionNotFound(), Exception)
 
+    #
+    # Test software.get_software_version_data
+    #
+
     @inlineCallbacks
-    def test_get_version_data_ok(self):
+    def test_get_software_version_data_ok(self):
         data = json.dumps({"version": "1", "software": "foo"})
         with APITestServer("/software/foo/versions/1", code=OK, response=data):
             result = yield software.get_software_version_data("foo", "1")
             self.assertEqual(json.loads(data), result)
 
     @inlineCallbacks
-    def test_get_version_data_internal_server_error_retries(self):
+    def test_get_software_version_data_internal_server_error_retries(self):
         data = json.dumps({"version": "1", "software": "foo"})
         with APITestServer(
                 "/software/foo/versions/1",
@@ -416,3 +420,75 @@ class TestSoftware(TestCase):
         self.assertIn(
             "Will retry in %s seconds", logger.mock_calls[0][1][0])
 
+    #
+    # Test software.get_discovery_code
+    #
+
+    @inlineCallbacks
+    def test_get_discovery_code_ok(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data):
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_internal_server_error_retries(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=NOT_FOUND, response=""),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test__get_discovery_code_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=499, response=""),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test__get_discovery_code_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_discovery_code("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get discovery code for software",
+            logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
