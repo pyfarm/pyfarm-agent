@@ -142,8 +142,8 @@ def get_discovery_code(software, version):
             yield deferred
 
         else:
-            data = yield treq.content(response)
             if response.code == OK:
+                data = yield treq.content(response)
                 returnValue(data)
 
             elif response.code >= INTERNAL_SERVER_ERROR:
