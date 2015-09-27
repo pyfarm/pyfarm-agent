@@ -116,8 +116,9 @@ class JobTypeLoader(object):
             except KeyError:
                 cache_directory = None
 
-            if (isinstance(cache_directory, STRING_TYPES)
-                and not cache_directory.strip()):
+            if not cache_directory or (
+                isinstance(cache_directory, STRING_TYPES)
+                    and not cache_directory.strip()):
                 logger.warning("Cache directory is blank, disabling cache.")
                 cache_directory = None
 
@@ -170,7 +171,6 @@ class JobTypeLoader(object):
             source_code = yield self.download_source(name, version)
             yield self.write_cache(name, version, source_code)
 
-
     @inlineCallbacks
     def download_source(self, name, version):
         """
@@ -201,7 +201,6 @@ class JobTypeLoader(object):
             else:
                 if response.code == OK:
                     data = yield treq.json_content(response)
-                    assert False, "TODO: only return the values we need here"
                     returnValue(data)
 
                 elif response.code == NOT_FOUND:
@@ -300,6 +299,7 @@ class JobTypeLoader(object):
 
             if error:
                 remove_file(output.name, raise_=False)
+
 
 class CacheOld(object):
     """Internal methods for caching job types"""
