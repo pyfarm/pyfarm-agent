@@ -269,13 +269,16 @@ class JobTypeLoader(object):
         job type name and version.
 
         :param str name:
-            The name of the job type we're writing a cache for
+            The name of the job type we're writing a cache for.
 
         :param str version:
-
+            The version of the job type we're writing a cache for.
 
         :param str source_code:
+            The source code of the job type we're writing a cache for.
 
+        :returns:
+            This function does not return anything.
         """
         if not self.cache_directory:
             returnValue(None)
