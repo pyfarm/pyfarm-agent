@@ -21,15 +21,18 @@ import os
 import shutil
 import tempfile
 from collections import namedtuple
+from contextlib import nested
 from datetime import timedelta
 from os.path import isdir, join, isfile
 from errno import EEXIST
 from uuid import uuid4
 
 try:
-    from httplib import CREATED, OK
+    from httplib import (
+        CREATED, OK, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 except ImportError:  # pragma: no cover
-    from http.client import CREATED, OK
+    from http.client import (
+        CREATED, OK, NOT_FOUND, INTERNAL_SERVER_ERROR, BAD_REQUEST)
 
 try:
     import pwd
@@ -47,14 +50,16 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
-from pyfarm.agent.testutil import APITestServer
-from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.config import config
+from pyfarm.agent.http.core.client import get_direct
 from pyfarm.agent.sysinfo import user
-from pyfarm.jobtypes.core.internals import (
-    ITERABLE_CONTAINERS, InsufficientSpaceError, Cache, Process, System,
-    TypeChecks, pwd, grp, logger)
+from pyfarm.agent.testutil import APITestServer, TestCase, skipIf
 from pyfarm.jobtypes.core.log import logpool
+from pyfarm.jobtypes.core import internals  # Used by mocks in some tests
+from pyfarm.jobtypes.core.internals import (
+    ITERABLE_CONTAINERS, InsufficientSpaceError, JobTypeLoader, Process, System,
+    TypeChecks, pwd, grp, logger, JobTypeNotFound, JobTypeDownloadError)
+from pyfarm.agent.utility import remove_directory
 
 FakeExitCode = namedtuple("FakeExitCode", ("exitCode", ))
 FakeProcessResult = namedtuple("FakeProcessResult", ("value", ))
@@ -113,50 +118,163 @@ class TestImports(TestCase):
         self.assertIsNot(grp, NotImplemented)
 
 
-class TestCache(TestCase):
-    def test_cache_directory(self):
-        self.assertTrue(isdir(Cache.CACHE_DIRECTORY))
+class TestJobTypeLoader(TestCase):
+    def setUp(self):
+        super(TestJobTypeLoader, self).setUp()
+        parent_dir = tempfile.mkdtemp()
+        config.update(
+            jobtype_enable_cache=True,
+            jobtype_cache_directory=parent_dir,
+        )
+        self.addCleanup(remove_directory, parent_dir, raise_=False)
+
+    #
+    # Tests for JobTypeLoader.cache_directory
+    #
+    def test_cache_directory_config_caching_disabled(self):
+        config["jobtype_enable_cache"] = False
+        loader = JobTypeLoader()
+        self.assertIsNone(loader.cache_directory)
+
+    def test_cache_directory_config_cache_directory_is_blank_string(self):
+        config["jobtype_cache_directory"] = " "
+        loader = JobTypeLoader()
+        self.assertIsNone(loader.cache_directory)
+
+    def test_cache_directory_config_cache_directory_not_set(self):
+        config.pop("jobtype_cache_directory")
+        loader = JobTypeLoader()
+        self.assertIsNone(loader.cache_directory)
+
+    def test_cache_directory_is_created(self):
+        cache_dir = join(config["jobtype_cache_directory"], "foo_cache")
+        self.assertFalse(isdir(cache_dir))
+        config["jobtype_cache_directory"] = cache_dir
+        loader = JobTypeLoader()
+        self.assertEqual(loader.cache_directory, cache_dir)
+        self.assertTrue(isdir(cache_dir))
+
+    #
+    # Tests for JobTypeLoader.cache_path()
+    #
+    def test_cache_path_caching_disabled(self):
+        loader = JobTypeLoader()
+        loader.cache_directory = None
+        self.assertIsNone(loader.cache_path("a", "b"))
+
+    def test_cache_path_caching_enabled(self):
+        loader = JobTypeLoader()
+        self.assertEqual(
+            loader.cache_path("a", "b"), join(loader.cache_directory, "a_b.py"))
+    #
+    # Tests for JobTypeLoader.load
+    #
+    # TODO
+
+    #
+    # Tests for JobTypeLoader.download_source
+    #
+    @inlineCallbacks
+    def test_download_source_exception_causes_retry(self):
+        data = json.dumps({"data": os.urandom(6).encode("hex")})
+
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        loader = JobTypeLoader()
+        alt_get_direct = GetDirect()
+        with nested(
+            APITestServer(
+                "/jobtypes/foo/versions/1", code=OK, response=data),
+            patch.object(internals, "get_direct", alt_get_direct)
+        ):
+            response = yield loader.download_source("foo", "1")
+
+        # If the request was retried then alt_get_direct.hits should
+        # have been incremented a couple of times.
+        self.assertGreaterEqual(alt_get_direct.hits, 1)
+        self.assertEqual(response, json.loads(data))
 
     @inlineCallbacks
-    def test_download(self):
-        classname = "AgentUnittest" + os.urandom(8).encode("hex")
-        cache = Cache()
-
+    def test_download_source_ok(self):
+        data = json.dumps({"data": os.urandom(6).encode("hex")})
+        loader = JobTypeLoader()
         with APITestServer(
-            "/jobtypes/%s/versions/1" % classname,
-            headers={"Content-Type": "application/json"},
-            code=OK, response=json.dumps({"data": "This is a job type"})
+                "/jobtypes/foo/versions/1", code=OK, response=data):
+            response = yield loader.download_source("foo", "1")
+
+        self.assertEqual(response, json.loads(data))
+
+    @inlineCallbacks
+    def test_download_source_not_found(self):
+        loader = JobTypeLoader()
+        with nested(
+            APITestServer("/jobtypes/foo/versions/1", code=NOT_FOUND),
+            self.assertRaises(JobTypeNotFound)
         ):
-            response = yield cache._download_jobtype(classname, 1)
-            self.assertEqual(response.code, OK)
-            data = response.json()
-            self.assertEqual(data.get("data"), "This is a job type")
+            yield loader.download_source("foo", "1")
 
-    def test_filename(self):
-        cache = Cache()
-        self.assertEqual(
-            cache._cache_filepath("foobar", "someclass", 1),
-            str(join(
-                Cache.CACHE_DIRECTORY, "foobar_someclass_v1.py")))
+    @inlineCallbacks
+    def test_download_source_internal_server_error_retries(self):
+        data = json.dumps({"data": os.urandom(6).encode("hex")})
+        loader = JobTypeLoader()
+        with nested(
+            APITestServer("/jobtypes/foo/versions/1",
+                          code=INTERNAL_SERVER_ERROR, response=data),
+            patch.object(logger, "debug")
+        ) as (server, mock_debug):
+            reactor.callLater(1, setattr, server.resource, "code", OK)
+            response = yield loader.download_source("foo", "1")
 
-    def test_cache(self):
-        cache = Cache()
-        classname = "Test%s" % os.urandom(8).encode("hex")
-        version = 1
-        code = os.urandom(8).encode("hex")
-        cache_key = "Key%s" % classname
-        filepath = cache._cache_filepath(cache_key, classname, version)
-        jobtype = {"classname": classname, "code": code, "version": version}
+        self.assertEqual(response, json.loads(data))
 
-        def written(data):
-            self.assertEqual(data[0]["classname"], classname)
-            if data[1] is not None:
-                self.assertEqual(data[1], filepath)
-            self.assertTrue(isfile(filepath))
+        # The logger will let us know if the request is being retried
+        # in this case.  From outside the download_source call, it's
+        # transparent that a retry is occurring.
+        for mock_call in mock_debug.mock_calls:
+            if "Request will be retried." in mock_call[1][0]:
+                break
+        else:
+            self.fail("'Request will be retried' never logged")
 
-        cached = cache._cache_jobtype(cache_key, jobtype)
-        cached.addCallback(written)
-        return cached
+    @inlineCallbacks
+    def test_download_source_bad_request(self):
+        loader = JobTypeLoader()
+        with nested(
+            APITestServer("/jobtypes/foo/versions/1", code=BAD_REQUEST),
+            self.assertRaises(JobTypeDownloadError)
+        ):
+            yield loader.download_source("foo", "1")
+
+    @inlineCallbacks
+    def test_download_source_other_error_retries(self):
+        data = json.dumps({"data": os.urandom(6).encode("hex")})
+        loader = JobTypeLoader()
+        with nested(
+            APITestServer("/jobtypes/foo/versions/1",
+                          code=799, response=data),
+            patch.object(logger, "debug")
+        ) as (server, mock_debug):
+            reactor.callLater(1, setattr, server.resource, "code", OK)
+            response = yield loader.download_source("foo", "1")
+
+        self.assertEqual(response, json.loads(data))
+
+        # The logger will let us know if the request is being retried
+        # in this case.  From outside the download_source call, it's
+        # transparent that a retry is occurring.
+        for mock_call in mock_debug.mock_calls:
+            if "Request will be retried." in mock_call[1][0]:
+                break
+        else:
+            self.fail("'Request will be retried' never logged")
 
 
 class TestProcess(TestCase):
