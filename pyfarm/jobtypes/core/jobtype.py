@@ -44,7 +44,6 @@ except ImportError:  # pragma: no cover
 
 import treq
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
@@ -55,14 +54,14 @@ from voluptuous import Schema, Required, Optional
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
+from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
 from pyfarm.agent.utility import (
     TASKS_SCHEMA, JOBTYPE_SCHEMA, JOB_SCHEMA, validate_uuid)
 from pyfarm.jobtypes.core.internals import (
-    USER_GROUP_TYPES, Cache, Process, TypeChecks, System, pwd, grp)
+    USER_GROUP_TYPES, JobTypeLoader, Process, TypeChecks, System, pwd, grp)
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import ProcessProtocol
 
@@ -206,7 +205,7 @@ class CommandData(object):
             self.env = value
 
 
-class JobType(Cache, System, Process, TypeChecks):
+class JobType(System, Process, TypeChecks):
     """
     Base class for all other job types.  This class is intended
     to abstract away many of the asynchronous necessary to run
@@ -254,6 +253,7 @@ class JobType(Cache, System, Process, TypeChecks):
         This is analogous to ``finished_tasks`` except it contains failed
         tasks only.
     """
+    LOADER = JobTypeLoader()
     PERSISTENT_JOB_DATA = {}
     COMMAND_DATA = CommandData
     PROCESS_PROTOCOL = ProcessProtocol
@@ -311,6 +311,7 @@ class JobType(Cache, System, Process, TypeChecks):
             self.assignment["job"]["title"])
 
     @classmethod
+    @inlineCallbacks
     def load(cls, assignment):
         """
         Given an assignment this class method will load the job type either
@@ -322,20 +323,11 @@ class JobType(Cache, System, Process, TypeChecks):
             that the internal data is correct.
         """
         cls.ASSIGNMENT_SCHEMA(assignment)
-
-        cache_key = cls._cache_key(assignment)
-        logger.debug("Cache key for assignment is %s", cache_key)
-
-        if config["jobtype_enable_cache"] or cache_key not in cls.cache:
-            logger.debug("Jobtype not in cache or cache disabled")
-            download = cls._download_jobtype(
-                assignment["jobtype"]["name"],
-                assignment["jobtype"]["version"])
-            download.addCallback(cls._jobtype_download_complete, cache_key)
-            return download
-        else:
-            logger.debug("Caching jobtype")
-            return cls._load_jobtype(cls.cache[cache_key], None)
+        jobtype = yield cls.LOADER.load(
+            assignment["jobtype"]["name"],
+            assignment["jobtype"]["version"]
+        )
+        returnValue(jobtype)
 
     @classmethod
     def prepare_for_job(cls, job):
