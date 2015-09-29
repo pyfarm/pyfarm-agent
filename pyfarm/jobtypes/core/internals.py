@@ -55,7 +55,8 @@ except ImportError:  # pragma: no cover
 
 from psutil import disk_usage
 
-from twisted.internet import reactor, threads
+from twisted.internet import reactor
+from twisted.internet.threads import deferToThread
 from twisted.internet.defer import (
     Deferred, DeferredList, succeed, inlineCallbacks, returnValue)
 from twisted.web._newclient import (
@@ -142,6 +143,23 @@ class JobTypeLoader(object):
 
         self.cache_directory = cache_directory
 
+    @staticmethod
+    def _compile(source_code):
+        """
+        Static wrapper method for Python's exec statement and compile
+        function.
+
+        :param str source_code:
+            The source code to compile to a code object
+
+        :returns:
+            Returns a dictionary of objects local to the compiled
+            source code.
+        """
+        module = imp.new_module("jobtype_%s" % os.urandom(8).encode("hex"))
+        exec compile(source_code, "<string>", "exec") in module.__dict__
+        return module
+
     def cache_path(self, name, version):
         """
         Returns the path to create a cache file for the given job type
@@ -159,7 +177,7 @@ class JobTypeLoader(object):
                 "{name}_{version}.py".format(name=name, version=version))
 
     @inlineCallbacks
-    def load(self, name, version):
+    def load(self, name, version, classname):
         """
         Main method used by a job type to load the job type class.  Internally
         this handles retrieval of the job type either from the cache or from
@@ -171,6 +189,9 @@ class JobTypeLoader(object):
 
         :param str version:
             The version of the job type to load and return.
+
+        :param str classname:
+            The name of the class to return
         """
         source_code = yield self.cached_source(name, version)
 
@@ -179,7 +200,14 @@ class JobTypeLoader(object):
             source_code = yield self.download_source(name, version)
             yield self.write_cache(name, version, source_code)
 
+        module = yield self._compile(source_code)
+        if not hasattr(module, classname):
+            raise AttributeError(
+                "No such attribute {classname} in job "
+                "type {name} v{version}".format(
+                    classname=classname, name=name, version=version))
 
+        returnValue(getattr(module, classname))
 
     @inlineCallbacks
     def download_source(self, name, version):
@@ -264,9 +292,9 @@ class JobTypeLoader(object):
         if not self.cache_directory or not isfile(cache_path):
             returnValue(None)
 
-        stream = yield threads.deferToThread(open, cache_path, "rb")
+        stream = yield deferToThread(open, cache_path, "rb")
         try:
-            data = yield threads.deferToThread(stream.read)
+            data = yield deferToThread(stream.read)
         finally:
             stream.close()
         returnValue(data)
@@ -294,11 +322,11 @@ class JobTypeLoader(object):
 
         error = False
         cache_path = self.cache_path(name, version)
-        output = yield threads.deferToThread(open, cache_path, "wb")
+        output = yield deferToThread(open, cache_path, "wb")
 
         # Write the data
         try:
-            yield threads.deferToThread(output.write, source_code)
+            yield deferToThread(output.write, source_code)
         except Exception as error:
             logger.error(
                 "Failed to write %r v%s to %s: %s", name, version, error)
