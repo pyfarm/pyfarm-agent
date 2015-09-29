@@ -117,8 +117,8 @@ class JobTypeLoader(object):
                 # Include the farm name in the config path as well.  This
                 # should prevent the wrong cache from being used if an agent
                 # switches farms.
-                farm_name = config.get("farm_name", "").strip()
-                if farm_name:
+                farm_name = config.get("farm_name")
+                if farm_name is not None and farm_name:
                     cache_directory = join(cache_directory, farm_name)
 
             except KeyError:
@@ -178,6 +178,8 @@ class JobTypeLoader(object):
         if source_code is None:
             source_code = yield self.download_source(name, version)
             yield self.write_cache(name, version, source_code)
+
+
 
     @inlineCallbacks
     def download_source(self, name, version):
