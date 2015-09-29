@@ -24,6 +24,13 @@ import sys
 import uuid
 from contextlib import nested
 from os.path import isfile
+from StringIO import StringIO
+from textwrap import dedent
+
+try:
+    from xml.etree.cElementTree import ElementTree
+except ImportError:  # pragma: no cover
+    from xml.etree.ElementTree import ElementTree
 
 try:
     import pwd
@@ -52,7 +59,8 @@ from mock import Mock, patch
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system, network, cpu, memory, user, disks
+from pyfarm.agent.sysinfo import (
+    system, network, cpu, memory, user, disks, graphics)
 
 
 class TestSystem(TestCase):
@@ -342,4 +350,142 @@ class TestDisks(TestCase):
             self.assertEqual(disks.disks(as_dict=True), result)
 
 
+class TestGraphicsCards(TestCase):
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_windows_wmi_exists(self):
+        self.assertIsNot(graphics.WMI, NotImplemented)
 
+    def test_windows_wmi(self):
+        class FakeGPU(object):
+            def __init__(self, name):
+                self.name = name
+
+        class FakeWMI(object):
+            class Win32_VideoController(object):
+                @staticmethod
+                def query():
+                    return [FakeGPU("foo"), FakeGPU("bar")]
+
+        with nested(
+            patch.object(graphics, "WINDOWS", True),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "WMI", FakeWMI),
+        ):
+            self.assertEqual(graphics.graphics_cards(), ["foo", "bar"])
+
+    def test_mac_system_profiler_parsing(self):
+        sample_data = dedent("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <array>
+            <dict>
+                <array>
+                    <dict>
+                        <key>sppci_model</key>
+                        <string>Intel Iris Pro</string>
+                    </dict>
+                    <dict>
+                        <key>sppci_model</key>
+                        <string>NVIDIA GeForce GT 750M</string>
+                    </dict>
+                </array>
+                <key>_timeStamp</key>
+                <date>2015-09-24T01:26:52Z</date>
+                <key>_versionInfo</key>
+            </dict>
+        </array>
+        </plist>
+        """).strip()
+
+        class FakePopenOutput(object):
+            stdout = StringIO()
+            stdout.write(sample_data)
+            stdout.seek(0)
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", return_value=FakePopenOutput)
+        ):
+            self.assertEqual(
+                graphics.graphics_cards(),
+                ["Intel Iris Pro", "NVIDIA GeForce GT 750M"])
+
+    def test_mac_error_while_calling_sytem_profiler(self):
+        def raise_(*args, **kwargs):
+            raise OSError
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", raise_),
+            self.assertRaises(graphics.GPULookupError)
+        ):
+            graphics.graphics_cards()
+
+    def test_linux_lspci_parsing(self):
+        sample_data = dedent("""
+        00:00.0 Host bridge:
+        00:02.0 VGA compatible controller: BestGPU1
+        00:02.1 VGA compatible controller: BestGPU2
+        00:14.0 USB controller:
+        00:16.0 Communication controller:
+        00:1a.0 USB controller:
+        00:1c.0 PCI bridge:
+        00:1d.0 USB controller:
+        00:1f.0 ISA bridge:
+        00:1f.2 SATA controller:
+        00:1f.3 SMBus:
+        02:00.0 Ethernet controller:
+        """).strip()
+
+        class FakePopenOutput(object):
+            stdout = StringIO()
+            stdout.write(sample_data)
+            stdout.seek(0)
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", True),
+            patch.object(graphics, "Popen", return_value=FakePopenOutput)
+        ):
+            self.assertEqual(
+                graphics.graphics_cards(), ["BestGPU1", "BestGPU2"])
+
+    def test_linux_error_while_calling_popen(self):
+        def raise_(*args, **kwargs):
+            raise OSError
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", raise_),
+            self.assertRaises(graphics.GPULookupError)
+        ):
+            graphics.graphics_cards()
+
+    def testUnknownPlatform(self):
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", False)
+        ):
+            with self.assertRaises(graphics.GPULookupError):
+                graphics.graphics_cards()
+
+    def test_gpu_lookup_error_parent_exception(self):
+        error = graphics.GPULookupError("foo")
+        self.assertIsInstance(error, Exception)
+
+    def test_gpu_lookup_error_repr(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(repr(error.value), str(error))
+
+    def test_gpu_lookup_error_value(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(error.value, "foo")
