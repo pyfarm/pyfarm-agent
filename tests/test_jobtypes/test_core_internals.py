@@ -154,6 +154,16 @@ class TestJobTypeLoader(TestCase):
         self.assertEqual(loader.cache_directory, cache_dir)
         self.assertTrue(isdir(cache_dir))
 
+    def teest_cache_directory_contains_farm_name(self):
+        config["farm_name"] = os.urandom(6).encode("hex")
+        cache_dir = join(
+            config["jobtype_cache_directory"], config["farm_name"])
+        self.assertFalse(isdir(cache_dir))
+        config["jobtype_cache_directory"] = cache_dir
+        loader = JobTypeLoader()
+        self.assertEqual(loader.cache_directory, cache_dir)
+        self.assertTrue(isdir(cache_dir))
+
     #
     # Tests for JobTypeLoader.cache_path()
     #
