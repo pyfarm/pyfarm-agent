@@ -15,14 +15,17 @@
 # limitations under the License.
 
 import ctypes
+import imp
 import os
 import socket
 import time
+import json
 import psutil
 import subprocess
 import sys
 import uuid
 from contextlib import nested
+from httplib import OK, INTERNAL_SERVER_ERROR, NOT_FOUND
 from os.path import isfile
 from StringIO import StringIO
 from textwrap import dedent
@@ -55,12 +58,15 @@ except ImportError:  # pragma: no cover
 
 import netifaces
 from mock import Mock, patch
+from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks, succeed
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
-from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.http.core.client import get_direct
+from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
 from pyfarm.agent.sysinfo import (
-    system, network, cpu, memory, user, disks, graphics)
+    system, network, cpu, memory, user, disks, graphics, software)
 
 
 class TestSystem(TestCase):
@@ -348,6 +354,201 @@ class TestDisks(TestCase):
             patch.object(psutil, "disk_usage", self.disk_usage)
         ):
             self.assertEqual(disks.disks(as_dict=True), result)
+
+
+class TestSoftware(TestCase):
+    def test_version_not_found_parent(self):
+        self.assertIsInstance(software.VersionNotFound(), Exception)
+
+    #
+    # Test software.get_software_version_data
+    #
+
+    @inlineCallbacks
+    def test_get_software_version_data_ok(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer("/software/foo/versions/1", code=OK, response=data):
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    @inlineCallbacks
+    def test_get_software_version_data_internal_server_error_retries(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer(
+                "/software/foo/versions/1",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    @inlineCallbacks
+    def test_get_software_version_data_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=NOT_FOUND, response=json.dumps({})),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=499, response=json.dumps({})),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer("/software/foo/versions/1", code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_software_version_data("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get data about software", logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
+
+    #
+    # Test software.get_discovery_code
+    #
+
+    @inlineCallbacks
+    def test_get_discovery_code_ok(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data):
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_internal_server_error_retries(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=NOT_FOUND, response=""),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test_get_discovery_code_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=499, response=""),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test_get_discovery_code_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_discovery_code("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get discovery code for software",
+            logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
+
+    #
+    # Test software.check_software_availability
+    #
+
+    @inlineCallbacks
+    def test_check_software_availability_creates_module_if_missing(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 1'")),
+
+        ):
+            yield software.check_software_availability("foobar", "1")
+
+        self.assertIn("pyfarm.agent.sysinfo.software.foobar_1", sys.modules)
+
+    @inlineCallbacks
+    def test_check_software_availability_does_not_recreate_module(self):
+        module = imp.new_module("foo")
+        sys.modules["pyfarm.agent.sysinfo.software.foobar_2"] = module
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 2'")),
+
+        ):
+            yield software.check_software_availability("foobar", "2")
+
+        self.assertIs(
+            sys.modules["pyfarm.agent.sysinfo.software.foobar_2"], module)
+
+    @inlineCallbacks
+    def test_check_software_availability_runs_discovery_code(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 3'")),
+
+        ):
+            result = yield software.check_software_availability("foobar", "3")
+
+        self.assertEqual(result, "foo 3")
 
 
 class TestGraphicsCards(TestCase):
