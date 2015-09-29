@@ -15,15 +15,25 @@
 # limitations under the License.
 
 import ctypes
+import imp
 import os
 import socket
 import time
+import json
 import psutil
 import subprocess
 import sys
 import uuid
 from contextlib import nested
+from httplib import OK, INTERNAL_SERVER_ERROR, NOT_FOUND
 from os.path import isfile
+from StringIO import StringIO
+from textwrap import dedent
+
+try:
+    from xml.etree.cElementTree import ElementTree
+except ImportError:  # pragma: no cover
+    from xml.etree.ElementTree import ElementTree
 
 try:
     import pwd
@@ -48,11 +58,15 @@ except ImportError:  # pragma: no cover
 
 import netifaces
 from mock import Mock, patch
+from twisted.internet import reactor
+from twisted.internet.defer import inlineCallbacks, succeed
 
 from pyfarm.core.utility import convert
 from pyfarm.core.enums import LINUX, WINDOWS
-from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system, network, cpu, memory, user, disks
+from pyfarm.agent.http.core.client import get_direct
+from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
+from pyfarm.agent.sysinfo import (
+    system, network, cpu, memory, user, disks, graphics, software)
 
 
 class TestSystem(TestCase):
@@ -342,4 +356,337 @@ class TestDisks(TestCase):
             self.assertEqual(disks.disks(as_dict=True), result)
 
 
+class TestSoftware(TestCase):
+    def test_version_not_found_parent(self):
+        self.assertIsInstance(software.VersionNotFound(), Exception)
 
+    #
+    # Test software.get_software_version_data
+    #
+
+    @inlineCallbacks
+    def test_get_software_version_data_ok(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer("/software/foo/versions/1", code=OK, response=data):
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    @inlineCallbacks
+    def test_get_software_version_data_internal_server_error_retries(self):
+        data = json.dumps({"version": "1", "software": "foo"})
+        with APITestServer(
+                "/software/foo/versions/1",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_software_version_data("foo", "1")
+            self.assertEqual(json.loads(data), result)
+
+    @inlineCallbacks
+    def test_get_software_version_data_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=NOT_FOUND, response=json.dumps({})),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1",
+                code=499, response=json.dumps({})),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_software_version_data("foo", "1")
+
+    @inlineCallbacks
+    def test_get_software_version_data_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer("/software/foo/versions/1", code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_software_version_data("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get data about software", logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
+
+    #
+    # Test software.get_discovery_code
+    #
+
+    @inlineCallbacks
+    def test_get_discovery_code_ok(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data):
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_internal_server_error_retries(self):
+        data = "Hello world"
+        with APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=INTERNAL_SERVER_ERROR, response=data) as server:
+            reactor.callLater(.5, setattr, server.resource, "code", OK)
+            result = yield software.get_discovery_code("foo", "1")
+            self.assertEqual(result, data)
+
+    @inlineCallbacks
+    def test_get_discovery_code_not_found_error(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=NOT_FOUND, response=""),
+            self.assertRaises(software.VersionNotFound)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test_get_discovery_code_unknown_http_code(self):
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=499, response=""),
+            self.assertRaises(Exception)
+        ):
+            yield software.get_discovery_code("foo", "1")
+
+    @inlineCallbacks
+    def test_get_discovery_code_unhandled_error_calling_get_direct(self):
+        class GetDirect(object):
+            def __init__(self):
+                self.hits = 0
+
+            def __call__(self, *args, **kwargs):
+                self.hits += 1
+                if self.hits < 2:
+                    raise Exception("Fail!")
+                return get_direct(*args, **kwargs)
+
+        data = json.dumps({"version": "1", "software": "foo"})
+        with nested(
+            APITestServer(
+                "/software/foo/versions/1/discovery_code",
+                code=OK, response=data),
+            patch.object(software, "get_direct", GetDirect()),
+            patch.object(software, "logger")
+        ) as (_, _, logger):
+            yield software.get_discovery_code("foo", "1")
+
+        # Test the logger output itself since it's the only distinct way of
+        # finding out what part of the code base ran.
+        self.assertIn(
+            "Failed to get discovery code for software",
+            logger.mock_calls[0][1][0])
+        self.assertIn(
+            "Will retry in %s seconds", logger.mock_calls[0][1][0])
+
+    #
+    # Test software.check_software_availability
+    #
+
+    @inlineCallbacks
+    def test_check_software_availability_creates_module_if_missing(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 1'")),
+
+        ):
+            yield software.check_software_availability("foobar", "1")
+
+        self.assertIn("pyfarm.agent.sysinfo.software.foobar_1", sys.modules)
+
+    @inlineCallbacks
+    def test_check_software_availability_does_not_recreate_module(self):
+        module = imp.new_module("foo")
+        sys.modules["pyfarm.agent.sysinfo.software.foobar_2"] = module
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 2'")),
+
+        ):
+            yield software.check_software_availability("foobar", "2")
+
+        self.assertIs(
+            sys.modules["pyfarm.agent.sysinfo.software.foobar_2"], module)
+
+    @inlineCallbacks
+    def test_check_software_availability_runs_discovery_code(self):
+        with nested(
+            patch.object(software, "get_software_version_data",
+                         return_value=succeed(
+                             {"discovery_function_name": "get_foo"})),
+            patch.object(software, "get_discovery_code",
+                         return_value=succeed("get_foo = lambda: 'foo 3'")),
+
+        ):
+            result = yield software.check_software_availability("foobar", "3")
+
+        self.assertEqual(result, "foo 3")
+
+
+class TestGraphicsCards(TestCase):
+    @skipIf(not WINDOWS, "Not Windows")
+    def test_windows_wmi_exists(self):
+        self.assertIsNot(graphics.WMI, NotImplemented)
+
+    def test_windows_wmi(self):
+        class FakeGPU(object):
+            def __init__(self, name):
+                self.name = name
+
+        class FakeWMI(object):
+            class Win32_VideoController(object):
+                @staticmethod
+                def query():
+                    return [FakeGPU("foo"), FakeGPU("bar")]
+
+        with nested(
+            patch.object(graphics, "WINDOWS", True),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "WMI", FakeWMI),
+        ):
+            self.assertEqual(graphics.graphics_cards(), ["foo", "bar"])
+
+    def test_mac_system_profiler_parsing(self):
+        sample_data = dedent("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <array>
+            <dict>
+                <array>
+                    <dict>
+                        <key>sppci_model</key>
+                        <string>Intel Iris Pro</string>
+                    </dict>
+                    <dict>
+                        <key>sppci_model</key>
+                        <string>NVIDIA GeForce GT 750M</string>
+                    </dict>
+                </array>
+                <key>_timeStamp</key>
+                <date>2015-09-24T01:26:52Z</date>
+                <key>_versionInfo</key>
+            </dict>
+        </array>
+        </plist>
+        """).strip()
+
+        class FakePopenOutput(object):
+            stdout = StringIO()
+            stdout.write(sample_data)
+            stdout.seek(0)
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", return_value=FakePopenOutput)
+        ):
+            self.assertEqual(
+                graphics.graphics_cards(),
+                ["Intel Iris Pro", "NVIDIA GeForce GT 750M"])
+
+    def test_mac_error_while_calling_sytem_profiler(self):
+        def raise_(*args, **kwargs):
+            raise OSError
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", raise_),
+            self.assertRaises(graphics.GPULookupError)
+        ):
+            graphics.graphics_cards()
+
+    def test_linux_lspci_parsing(self):
+        sample_data = dedent("""
+        00:00.0 Host bridge:
+        00:02.0 VGA compatible controller: BestGPU1
+        00:02.1 VGA compatible controller: BestGPU2
+        00:14.0 USB controller:
+        00:16.0 Communication controller:
+        00:1a.0 USB controller:
+        00:1c.0 PCI bridge:
+        00:1d.0 USB controller:
+        00:1f.0 ISA bridge:
+        00:1f.2 SATA controller:
+        00:1f.3 SMBus:
+        02:00.0 Ethernet controller:
+        """).strip()
+
+        class FakePopenOutput(object):
+            stdout = StringIO()
+            stdout.write(sample_data)
+            stdout.seek(0)
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", True),
+            patch.object(graphics, "Popen", return_value=FakePopenOutput)
+        ):
+            self.assertEqual(
+                graphics.graphics_cards(), ["BestGPU1", "BestGPU2"])
+
+    def test_linux_error_while_calling_popen(self):
+        def raise_(*args, **kwargs):
+            raise OSError
+
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", True),
+            patch.object(graphics, "LINUX", False),
+            patch.object(graphics, "Popen", raise_),
+            self.assertRaises(graphics.GPULookupError)
+        ):
+            graphics.graphics_cards()
+
+    def testUnknownPlatform(self):
+        with nested(
+            patch.object(graphics, "WINDOWS", False),
+            patch.object(graphics, "MAC", False),
+            patch.object(graphics, "LINUX", False)
+        ):
+            with self.assertRaises(graphics.GPULookupError):
+                graphics.graphics_cards()
+
+    def test_gpu_lookup_error_parent_exception(self):
+        error = graphics.GPULookupError("foo")
+        self.assertIsInstance(error, Exception)
+
+    def test_gpu_lookup_error_repr(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(repr(error.value), str(error))
+
+    def test_gpu_lookup_error_value(self):
+        error = graphics.GPULookupError("foo")
+        self.assertEqual(error.value, "foo")

@@ -70,7 +70,7 @@ def graphics_cards():
                         gpu_names.append(line.split(":", 2)[2].strip())
                 break
 
-            except (ValueError, OSError) as e:
+            except (ValueError, OSError):
                 logger.debug("Failed to call %r", lspci_command)
                 continue
 
