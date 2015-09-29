@@ -19,12 +19,14 @@ import json
 import re
 import os
 import shutil
+import sys
 import tempfile
 from collections import namedtuple
 from contextlib import nested
 from datetime import timedelta
-from os.path import isdir, join, isfile
 from errno import EEXIST
+from os.path import isdir, join, isfile
+from textwrap import dedent
 from uuid import uuid4
 
 try:
@@ -48,6 +50,7 @@ import psutil
 from mock import patch
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.threads import deferToThread
 
 from pyfarm.core.enums import STRING_TYPES, LINUX, MAC, WINDOWS, BSD, WorkState
 from pyfarm.agent.config import config
@@ -146,7 +149,8 @@ class TestJobTypeLoader(TestCase):
         loader = JobTypeLoader()
         self.assertIsNone(loader.cache_directory)
 
-    def test_cache_directory_is_created(self):
+    def test_cache_directory_created(self):
+        config.pop("farm_name", None)
         cache_dir = join(config["jobtype_cache_directory"], "foo_cache")
         self.assertFalse(isdir(cache_dir))
         config["jobtype_cache_directory"] = cache_dir
@@ -154,15 +158,55 @@ class TestJobTypeLoader(TestCase):
         self.assertEqual(loader.cache_directory, cache_dir)
         self.assertTrue(isdir(cache_dir))
 
-    def teest_cache_directory_contains_farm_name(self):
-        config["farm_name"] = os.urandom(6).encode("hex")
+    def test_cache_directory_with_farm_name_created(self):
+        config["farm_name"] = "main"
         cache_dir = join(
             config["jobtype_cache_directory"], config["farm_name"])
         self.assertFalse(isdir(cache_dir))
-        config["jobtype_cache_directory"] = cache_dir
         loader = JobTypeLoader()
         self.assertEqual(loader.cache_directory, cache_dir)
         self.assertTrue(isdir(cache_dir))
+
+    #
+    # Tests for JobTypeLoader.compile_
+    #
+
+    @inlineCallbacks
+    def test_compile_makes_functioning_class(self):
+        module = yield deferToThread(JobTypeLoader._compile, dedent("""
+        from pyfarm.core.enums import WorkState
+        SOME_GLOBAL = 7
+
+        class Foobar(object):
+            def __init__(self, value):
+                self.value = value
+
+            def state(self):
+                return WorkState.DONE
+        """).strip())
+        foobar = module.Foobar(42)
+        self.assertEqual(foobar.state(), WorkState.DONE)
+        self.assertEqual(foobar.value, 42)
+
+    @inlineCallbacks
+    def test_compile_does_not_modify_sys_modules(self):
+        original_sys_modules = sys.modules.copy()
+
+        module = yield deferToThread(JobTypeLoader._compile, "FOO = True")
+        self.assertTrue(module.FOO)
+
+        # Calling  JobTypeLoader._compile should not cause a new module
+        # to be created in sys.modules that matches the new module name.
+        # If it does then the agent could hold onto the job type as long
+        # as the service is running.
+        for key, value in sys.modules.iteritems():
+            self.assertNotEqual(key, module.__name__)
+            if value is not None:
+                self.assertNotEqual(value.__name__, module.__name__)
+
+        # It also should not modify the overall content of sys.modules
+        # either.
+        self.assertEqual(original_sys_modules, sys.modules)
 
     #
     # Tests for JobTypeLoader.cache_path()
