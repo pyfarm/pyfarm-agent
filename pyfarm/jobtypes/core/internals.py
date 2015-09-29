@@ -113,6 +113,14 @@ class JobTypeLoader(object):
         else:
             try:
                 cache_directory = config["jobtype_cache_directory"]
+
+                # Include the farm name in the config path as well.  This
+                # should prevent the wrong cache from being used if an agent
+                # switches farms.
+                farm_name = config.get("farm_name", "").strip()
+                if farm_name:
+                    cache_directory = join(cache_directory, farm_name)
+
             except KeyError:
                 cache_directory = None
 
