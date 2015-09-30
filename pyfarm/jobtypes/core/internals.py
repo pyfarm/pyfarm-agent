@@ -221,14 +221,16 @@ class JobTypeLoader(object):
         :param str version:
             The version of the job type to download the source code for.
         """
-        url = "{master_api}/jobtypes/{name}/versions/{version}".format(
+        url = "{master_api}/jobtypes/{name}/versions/{version}/code".format(
             master_api=config["master_api"], name=name, version=version
         )
         logger.debug("Downloading %s", url)
 
         while True:
             try:
-                response = yield get_direct(url)
+                response = yield get_direct(
+                    url, headers={"Accept": "text/x-python"}
+                )
             except Exception as error:
                 logger.error(
                     "Failed to download %s: %s. Request will be retried.",
@@ -238,8 +240,8 @@ class JobTypeLoader(object):
                 yield delay
             else:
                 if response.code == OK:
-                    data = yield treq.json_content(response)
-                    returnValue(data)
+                    code = yield treq.content(response)
+                    returnValue(code)
 
                 elif response.code == NOT_FOUND:
                     raise JobTypeNotFound(name, version)
