@@ -25,7 +25,7 @@ from collections import namedtuple
 from contextlib import nested
 from datetime import timedelta
 from errno import EEXIST
-from os.path import isdir, join, isfile
+from os.path import isdir, join
 from textwrap import dedent
 from uuid import uuid4
 
@@ -175,14 +175,9 @@ class TestJobTypeLoader(TestCase):
     def test_compile_makes_functioning_class(self):
         module = yield deferToThread(JobTypeLoader._compile, dedent("""
         from pyfarm.core.enums import WorkState
-        SOME_GLOBAL = 7
-
         class Foobar(object):
-            def __init__(self, value):
-                self.value = value
-
-            def state(self):
-                return WorkState.DONE
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.DONE
         """).strip())
         foobar = module.Foobar(42)
         self.assertEqual(foobar.state(), WorkState.DONE)
@@ -230,8 +225,6 @@ class TestJobTypeLoader(TestCase):
     #
     @inlineCallbacks
     def test_download_source_exception_causes_retry(self):
-        data = json.dumps({"data": os.urandom(6).encode("hex")})
-
         class GetDirect(object):
             def __init__(self):
                 self.hits = 0
@@ -246,7 +239,7 @@ class TestJobTypeLoader(TestCase):
         alt_get_direct = GetDirect()
         with nested(
             APITestServer(
-                "/jobtypes/foo/versions/1", code=OK, response=data),
+                "/jobtypes/foo/versions/1/code", code=OK, response="foo"),
             patch.object(internals, "get_direct", alt_get_direct)
         ):
             response = yield loader.download_source("foo", "1")
@@ -254,40 +247,38 @@ class TestJobTypeLoader(TestCase):
         # If the request was retried then alt_get_direct.hits should
         # have been incremented a couple of times.
         self.assertGreaterEqual(alt_get_direct.hits, 1)
-        self.assertEqual(response, json.loads(data))
+        self.assertEqual(response, "foo")
 
     @inlineCallbacks
     def test_download_source_ok(self):
-        data = json.dumps({"data": os.urandom(6).encode("hex")})
         loader = JobTypeLoader()
         with APITestServer(
-                "/jobtypes/foo/versions/1", code=OK, response=data):
+                "/jobtypes/foo/versions/1/code", code=OK, response="foobar"):
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, json.loads(data))
+        self.assertEqual(response, "foobar")
 
     @inlineCallbacks
     def test_download_source_not_found(self):
         loader = JobTypeLoader()
         with nested(
-            APITestServer("/jobtypes/foo/versions/1", code=NOT_FOUND),
+            APITestServer("/jobtypes/foo/versions/1/code", code=NOT_FOUND),
             self.assertRaises(JobTypeNotFound)
         ):
             yield loader.download_source("foo", "1")
 
     @inlineCallbacks
     def test_download_source_internal_server_error_retries(self):
-        data = json.dumps({"data": os.urandom(6).encode("hex")})
         loader = JobTypeLoader()
         with nested(
-            APITestServer("/jobtypes/foo/versions/1",
-                          code=INTERNAL_SERVER_ERROR, response=data),
+            APITestServer("/jobtypes/foo/versions/1/code",
+                          code=INTERNAL_SERVER_ERROR, response="hello foo"),
             patch.object(logger, "debug")
         ) as (server, mock_debug):
             reactor.callLater(1, setattr, server.resource, "code", OK)
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, json.loads(data))
+        self.assertEqual(response, "hello foo")
 
         # The logger will let us know if the request is being retried
         # in this case.  From outside the download_source call, it's
@@ -302,24 +293,23 @@ class TestJobTypeLoader(TestCase):
     def test_download_source_bad_request(self):
         loader = JobTypeLoader()
         with nested(
-            APITestServer("/jobtypes/foo/versions/1", code=BAD_REQUEST),
+            APITestServer("/jobtypes/foo/versions/1/code", code=BAD_REQUEST),
             self.assertRaises(JobTypeDownloadError)
         ):
             yield loader.download_source("foo", "1")
 
     @inlineCallbacks
     def test_download_source_other_error_retries(self):
-        data = json.dumps({"data": os.urandom(6).encode("hex")})
         loader = JobTypeLoader()
         with nested(
-            APITestServer("/jobtypes/foo/versions/1",
-                          code=799, response=data),
+            APITestServer("/jobtypes/foo/versions/1/code",
+                          code=799, response="hello bar"),
             patch.object(logger, "debug")
         ) as (server, mock_debug):
             reactor.callLater(1, setattr, server.resource, "code", OK)
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, json.loads(data))
+        self.assertEqual(response, "hello bar")
 
         # The logger will let us know if the request is being retried
         # in this case.  From outside the download_source call, it's
