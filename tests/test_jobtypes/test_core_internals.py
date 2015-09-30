@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import atexit
-import json
 import re
 import os
 import shutil
@@ -25,7 +24,7 @@ from collections import namedtuple
 from contextlib import nested
 from datetime import timedelta
 from errno import EEXIST
-from os.path import isdir, join
+from os.path import isdir, join, isfile
 from textwrap import dedent
 from uuid import uuid4
 
@@ -215,10 +214,80 @@ class TestJobTypeLoader(TestCase):
         loader = JobTypeLoader()
         self.assertEqual(
             loader.cache_path("a", "b"), join(loader.cache_directory, "a_b.py"))
+
     #
     # Tests for JobTypeLoader.load
     #
-    # TODO
+    @inlineCallbacks
+    def test_load_from_cache(self):
+        source = dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.FAILED
+        """).strip()
+        loader = JobTypeLoader()
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        self.addCleanup(os.remove, path)
+
+        with open(path, "wb") as cache_file:
+            cache_file.write(source)
+
+        with patch.object(loader, "cache_path", return_value=path):
+            Foobar = yield loader.load("foobar", "1", "Foobar")
+
+        foobar = Foobar(43)
+        self.assertEqual(foobar.state(), WorkState.FAILED)
+        self.assertEqual(foobar.value, 43)
+
+    @inlineCallbacks
+    def test_load_from_master(self):
+        source = dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.PAUSED
+        """).strip()
+
+        loader = JobTypeLoader()
+        with APITestServer("/jobtypes/foobar/versions/3/code", code=OK,
+                           response=source):
+            Foobar = yield loader.load("foobar", "3", "Foobar")
+
+        foobar = Foobar(44)
+        self.assertEqual(foobar.state(), WorkState.PAUSED)
+        self.assertEqual(foobar.value, 44)
+
+    @inlineCallbacks
+    def test_load_from_master_writes_cache(self):
+        source = dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.PAUSED
+        """).strip()
+
+        cache_directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, cache_directory)
+        loader = JobTypeLoader()
+        loader.cache_directory = cache_directory
+        with APITestServer("/jobtypes/foobar/versions/5/code", code=OK,
+                           response=source):
+            yield loader.load("foobar", "5", "Foobar")
+
+        self.assertTrue(isfile(loader.cache_path("foobar", "5")))
+
+    @inlineCallbacks
+    def test_load_no_such_class_raises_attributeerror(self):
+        source = "FOO = 1"
+        loader = JobTypeLoader()
+        with nested(
+            APITestServer(
+                "/jobtypes/foobar/versions/6/code", code=OK, response=source),
+            self.assertRaises(AttributeError)
+        ):
+            yield loader.load("foobar", "6", "Foobar")
 
     #
     # Tests for JobTypeLoader.download_source
