@@ -23,6 +23,7 @@ the :class:`pyfarm.jobtypes.core.jobtype.JobType` class.
 """
 
 import imp
+import json
 import os
 import sys
 import tempfile
@@ -108,6 +109,9 @@ class JobTypeNotFound(JobTypeDownloadError):
 
 class JobTypeLoader(object):
     """Class for retrieval, loading and caching of job types."""
+    API_URL = "{master_api}/jobtypes/{name}/versions/{version}"
+    MODULE_NAME = "{name}_{version}_{classname}_{id}"
+
     def __init__(self):
         if not config["jobtype_enable_cache"]:
             cache_directory = None
@@ -143,22 +147,35 @@ class JobTypeLoader(object):
 
         self.cache_directory = cache_directory
 
-    @staticmethod
-    def _compile(source_code):
+    @classmethod
+    @inlineCallbacks
+    def _compile(cls, job_type):
         """
-        Static wrapper method for Python's exec statement and compile
-        function.
+        Class method for Python's exec statement and compile function.  This
+        turns the given ``job_type`` into a module object and returns it.
 
-        :param str source_code:
+        :param dict job_type:
             The source code to compile to a code object
+
+        :raise TypeError:
+            Raised when ``job_type`` is not a dictionary.
 
         :returns:
             Returns a dictionary of objects local to the compiled
             source code.
         """
-        module = imp.new_module("jobtype_%s" % os.urandom(8).encode("hex"))
-        exec compile(source_code, "<string>", "exec") in module.__dict__
-        return module
+        if not isinstance(job_type, dict):
+            raise TypeError("Expected dictionary instance for `job_type`")
+
+        module_name = cls.MODULE_NAME.format(
+            name=job_type["name"], version=job_type["version"],
+            classname=job_type["classname"], id=os.urandom(8).encode("hex")
+        )
+        module = imp.new_module(module_name)
+        code = yield deferToThread(
+            compile, job_type["code"], "<string>", "exec")
+        exec code in module.__dict__
+        returnValue(module)
 
     def cache_path(self, name, version):
         """
@@ -177,7 +194,7 @@ class JobTypeLoader(object):
                 "{name}_{version}.py".format(name=name, version=version))
 
     @inlineCallbacks
-    def load(self, name, version, classname):
+    def load(self, name, version):
         """
         Main method used by a job type to load the job type class.  Internally
         this handles retrieval of the job type either from the cache or from
@@ -189,23 +206,32 @@ class JobTypeLoader(object):
 
         :param str version:
             The version of the job type to load and return.
-
-        :param str classname:
-            The name of the class to return
         """
-        source_code = yield self.cached_source(name, version)
+        job_type = yield self.cached_data(name, version)
 
         # Caching may be disabled if source_code is still None
-        if source_code is None:
-            source_code = yield self.download_source(name, version)
-            yield self.write_cache(name, version, source_code)
+        if job_type is None:
+            job_type = yield self.download_source(name, version)
+            yield self.write_cache(job_type)
 
-        module = yield self._compile(source_code)
-        if not hasattr(module, classname):
+        module = yield self._compile(job_type)
+
+        # TODO: this is a bit of an odd case.  The old code didn't implement
+        # this but the classname field is nullable so we need to handle it
+        if job_type["classname"] is None:
+            classname = None  # FIXME
+            raise NotImplementedError(
+                "FIXME: `classname` missing not implemented")
+
+        elif not hasattr(module, job_type["classname"]):
             raise AttributeError(
                 "No such attribute {classname} in job "
                 "type {name} v{version}".format(
-                    classname=classname, name=name, version=version))
+                    classname=job_type["classname"],
+                    name=job_type["name"],
+                    version=job_type["version"]))
+        else:
+            classname = job_type["classname"]
 
         returnValue(getattr(module, classname))
 
@@ -221,16 +247,14 @@ class JobTypeLoader(object):
         :param str version:
             The version of the job type to download the source code for.
         """
-        url = "{master_api}/jobtypes/{name}/versions/{version}/code".format(
+        url = self.API_URL.format(
             master_api=config["master_api"], name=name, version=version
         )
         logger.debug("Downloading %s", url)
 
         while True:
             try:
-                response = yield get_direct(
-                    url, headers={"Accept": "text/x-python"}
-                )
+                response = yield get_direct(url)
             except Exception as error:
                 logger.error(
                     "Failed to download %s: %s. Request will be retried.",
@@ -240,8 +264,8 @@ class JobTypeLoader(object):
                 yield delay
             else:
                 if response.code == OK:
-                    code = yield treq.content(response)
-                    returnValue(code)
+                    data = yield treq.json_content(response)
+                    returnValue(data)
 
                 elif response.code == NOT_FOUND:
                     raise JobTypeNotFound(name, version)
@@ -277,17 +301,20 @@ class JobTypeLoader(object):
                     yield delay
 
     @inlineCallbacks
-    def cached_source(self, name, version):
+    def cached_data(self, name, version):
         """
-        Searches for and returns the cached ource code for the given name
-        and version of a job type.  Returns None if the job type is not
-        current cached or of caching is disabled.
+        Searches for and returns the cached data for the given name and
+        version of a job type.
 
         :param str name:
             The name of the job type to return the cached entry for.
 
         :param str version:
             The version of the job type to return the cached entry for.
+
+        :returns:
+            Returns the cached job type dictionary response from disk.  May
+            also return None if the cache does not exist or caching is disabled.
         """
         cache_path = self.cache_path(name, version)
 
@@ -296,25 +323,22 @@ class JobTypeLoader(object):
 
         stream = yield deferToThread(open, cache_path, "rb")
         try:
-            data = yield deferToThread(stream.read)
+            data = yield deferToThread(json.load, stream)
         finally:
             stream.close()
         returnValue(data)
 
     @inlineCallbacks
-    def write_cache(self, name, version, source_code):
+    def write_cache(self, job_type):
         """
-        Writes the given ``source_code`` to the disk cache for the given
-        job type name and version.
+        Writes the given ``job_type`` to the disk cache.
 
-        :param str name:
-            The name of the job type we're writing a cache for.
+        :param dict job_type:
+            A dictionary containing information about the job type including
+            it's name, version, classname, etc
 
-        :param str version:
-            The version of the job type we're writing a cache for.
-
-        :param str source_code:
-            The source code of the job type we're writing a cache for.
+        :raises TypeError:
+            Raised if ``job_type`` is not a dictionary.
 
         :returns:
             This function does not return anything.
@@ -322,21 +346,28 @@ class JobTypeLoader(object):
         if not self.cache_directory:
             returnValue(None)
 
+        if not isinstance(job_type, dict):
+            raise TypeError("Expected dictionary instance for `job_type`")
+
         error = False
-        cache_path = self.cache_path(name, version)
+        cache_path = self.cache_path(job_type["name"], job_type["version"])
         output = yield deferToThread(open, cache_path, "wb")
 
-        # Write the data
         try:
-            yield deferToThread(output.write, source_code)
+            # Write the json data to disk in a consistent minified format.
+            yield deferToThread(
+                json.dump, job_type, output,
+                separators=(",", ":"), sort_keys=True)
+
         except Exception as error:
             logger.error(
-                "Failed to write %r v%s to %s: %s", name, version, error)
+                "Failed to write %r v%s to %s: %s",
+                job_type["name"], job_type["version"], error)
             error = True
             raise
+
         finally:
             output.close()
-
             if error:
                 remove_file(output.name, raise_=False)
 
