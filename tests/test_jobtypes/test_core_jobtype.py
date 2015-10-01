@@ -18,6 +18,7 @@ import os
 import re
 from uuid import UUID, uuid4
 
+from twisted.internet.defer import inlineCallbacks
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -208,6 +209,7 @@ class TestCommandData(TestCase):
 
 
 class TestJobTypeLoad(TestCase):
+    @inlineCallbacks
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
-            JobType.load({})
+            yield JobType.load({})
