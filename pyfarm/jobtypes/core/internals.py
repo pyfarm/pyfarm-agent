@@ -153,10 +153,10 @@ class JobTypeLoader(object):
 
     @classmethod
     @inlineCallbacks
-    def _compile(cls, job_type):
+    def create_module(cls, job_type):
         """
-        Class method for Python's exec statement and compile function.  This
-        turns the given ``job_type`` into a module object and returns it.
+        Creates a module for the given ``job_type``.  This module will
+        contain the loaded job type class.
 
         :param dict job_type:
             The source code to compile to a code object
@@ -165,8 +165,7 @@ class JobTypeLoader(object):
             Raised when ``job_type`` is not a dictionary.
 
         :returns:
-            Returns a dictionary of objects local to the compiled
-            source code.
+            Returns a module like object with the job type.
         """
         if not isinstance(job_type, dict):
             raise TypeError("Expected dictionary instance for `job_type`")
@@ -176,9 +175,9 @@ class JobTypeLoader(object):
             classname=job_type["classname"], id=os.urandom(8).encode("hex")
         )
         module = imp.new_module(module_name)
-        code = yield deferToThread(
-            compile, job_type["code"], "<string>", "exec")
-        exec code in module.__dict__
+        compiled = \
+            yield deferToThread(compile, job_type["code"], "<string>", "exec")
+        exec compiled in module.__dict__
         returnValue(module)
 
     def cache_path(self, name, version):

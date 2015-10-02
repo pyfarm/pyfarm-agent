@@ -130,6 +130,14 @@ class TestJobTypeLoader(TestCase):
         )
         self.addCleanup(remove_directory, parent_dir, raise_=False)
 
+    def jobtype_dict(self, name, version, classname, code):
+        return {
+            "code": code,
+            "name": name,
+            "version": version,
+            "classname": classname
+        }
+
     #
     # Tests for JobTypeLoader.cache_directory
     #
@@ -167,26 +175,27 @@ class TestJobTypeLoader(TestCase):
         self.assertTrue(isdir(cache_dir))
 
     #
-    # Tests for JobTypeLoader.compile_
+    # Tests for JobTypeLoader.create_module
     #
-
     @inlineCallbacks
-    def test_compile_makes_functioning_class(self):
-        module = yield deferToThread(JobTypeLoader._compile, dedent("""
+    def test_create_module_creates_functioning_class(self):
+        job_type = self.jobtype_dict("Foobar", 1, "foobar", dedent("""
         from pyfarm.core.enums import WorkState
         class Foobar(object):
             def __init__(self, value): self.value = value
             def state(self): return WorkState.DONE
         """).strip())
+        module = yield JobTypeLoader.create_module(job_type)
         foobar = module.Foobar(42)
         self.assertEqual(foobar.state(), WorkState.DONE)
         self.assertEqual(foobar.value, 42)
 
     @inlineCallbacks
-    def test_compile_does_not_modify_sys_modules(self):
+    def test_create_module_does_not_modify_sys_modules(self):
         original_sys_modules = sys.modules.copy()
 
-        module = yield deferToThread(JobTypeLoader._compile, "FOO = True")
+        job_type = self.jobtype_dict("Foobar", 1, "foobar", "FOO = True")
+        module = yield JobTypeLoader.create_module(job_type)
         self.assertTrue(module.FOO)
 
         # Calling  JobTypeLoader._compile should not cause a new module
