@@ -29,8 +29,8 @@ import sys
 import tempfile
 import time
 from collections import namedtuple
-from errno import EEXIST
 from datetime import datetime
+from errno import EEXIST, EPERM, ENOSPC, EACCES, EAGAIN, EINTR, ENXIO
 from os.path import dirname, join, isfile, basename
 from uuid import UUID
 from functools import partial
@@ -44,6 +44,11 @@ try:
     import grp
 except ImportError:  # pragma: no cover
     grp = NotImplemented
+
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
 
 try:
     from httplib import (
@@ -68,8 +73,7 @@ import treq
 from pyfarm.core.enums import WINDOWS, INTEGER_TYPES, STRING_TYPES, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
-from pyfarm.agent.http.core.client import (
-    get_direct, get, post, http_retry_delay)
+from pyfarm.agent.http.core.client import get_direct, post, http_retry_delay
 from pyfarm.agent.utility import remove_file, remove_directory
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 from pyfarm.jobtypes.core.process import ReplaceEnvironment, ProcessProtocol
@@ -191,7 +195,7 @@ class JobTypeLoader(object):
         if self.cache_directory:
             return join(
                 self.cache_directory,
-                "{name}_{version}.py".format(name=name, version=version))
+                "{name}_{version}.json".format(name=name, version=version))
 
     @inlineCallbacks
     def load(self, name, version):
@@ -351,25 +355,56 @@ class JobTypeLoader(object):
 
         error = False
         cache_path = self.cache_path(job_type["name"], job_type["version"])
-        output = yield deferToThread(open, cache_path, "wb")
-
+        output = None
         try:
+            output = yield deferToThread(open, cache_path, "wb")
+
             # Write the json data to disk in a consistent minified format.
             yield deferToThread(
                 json.dump, job_type, output,
                 separators=(",", ":"), sort_keys=True)
 
+        # Catch some high level file system errors.  In some cases we
+        # ignore the problem because we can still load the job type,
+        # we just can't cache it.
+        except (OSError, IOError, WindowsError) as error:
+            if error.errno in (EPERM, EACCES):
+                logger.warning(
+                    "Cannot write cache to %s.  "
+                    "Permission error.", cache_path)
+                returnValue(None)
+
+            elif error.errno in (EAGAIN, EINTR):
+                logger.warning(
+                    "Will not cache to %s.  System call failed or Python was "
+                    "told to try again.", cache_path)
+
+            elif error.errno == ENOSPC:
+                logger.warning(
+                    "Cannot write cache to %s.  "
+                    "No space left on device.", cache_path)
+                returnValue(None)
+
+            elif error.errno == ENXIO:
+                logger.warning(
+                    "Cannot write cache to %s. No such device.", cache_path)
+                returnValue(None)
+
+            else:
+                raise
+
         except Exception as error:
             logger.error(
                 "Failed to write %r v%s to %s: %s",
                 job_type["name"], job_type["version"], error)
-            error = True
             raise
 
         finally:
-            output.close()
-            if error:
-                remove_file(output.name, raise_=False)
+            if output is not None:
+                output.close()
+
+                if error:
+                    remove_file(output.name, raise_=False)
 
 
 class CacheOld(object):
