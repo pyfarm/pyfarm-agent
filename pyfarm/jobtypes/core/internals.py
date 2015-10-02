@@ -217,7 +217,7 @@ class JobTypeLoader(object):
             job_type = yield self.download_source(name, version)
             yield self.write_cache(job_type)
 
-        module = yield self._compile(job_type)
+        module = yield self.create_module(job_type)
 
         # TODO: this is a bit of an odd case.  The old code didn't implement
         # this but the classname field is nullable so we need to handle it

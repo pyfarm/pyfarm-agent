@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import atexit
+import json
 import re
 import os
 import shutil
@@ -222,29 +223,29 @@ class TestJobTypeLoader(TestCase):
     def test_cache_path_caching_enabled(self):
         loader = JobTypeLoader()
         self.assertEqual(
-            loader.cache_path("a", "b"), join(loader.cache_directory, "a_b.py"))
+            loader.cache_path("a", "b"), join(loader.cache_directory, "a_b.json"))
 
     #
     # Tests for JobTypeLoader.load
     #
     @inlineCallbacks
     def test_load_from_cache(self):
-        source = dedent("""
+        job_type = self.jobtype_dict("foobar", 1, "Foobar", dedent("""
         from pyfarm.core.enums import WorkState
         class Foobar(object):
             def __init__(self, value): self.value = value
             def state(self): return WorkState.FAILED
-        """).strip()
+        """).strip())
         loader = JobTypeLoader()
         fd, path = tempfile.mkstemp()
         os.close(fd)
         self.addCleanup(os.remove, path)
 
         with open(path, "wb") as cache_file:
-            cache_file.write(source)
+            cache_file.write(json.dumps(job_type))
 
         with patch.object(loader, "cache_path", return_value=path):
-            Foobar = yield loader.load("foobar", "1", "Foobar")
+            Foobar = yield loader.load("foobar", "1")
 
         foobar = Foobar(43)
         self.assertEqual(foobar.state(), WorkState.FAILED)
@@ -252,17 +253,17 @@ class TestJobTypeLoader(TestCase):
 
     @inlineCallbacks
     def test_load_from_master(self):
-        source = dedent("""
+        job_type = self.jobtype_dict("foobar", 1, "Foobar", dedent("""
         from pyfarm.core.enums import WorkState
         class Foobar(object):
             def __init__(self, value): self.value = value
             def state(self): return WorkState.PAUSED
-        """).strip()
+        """).strip())
 
         loader = JobTypeLoader()
         with APITestServer("/jobtypes/foobar/versions/3/code", code=OK,
-                           response=source):
-            Foobar = yield loader.load("foobar", "3", "Foobar")
+                           response=json.dumps(job_type)):
+            Foobar = yield loader.load("foobar", "3")
 
         foobar = Foobar(44)
         self.assertEqual(foobar.state(), WorkState.PAUSED)
@@ -270,33 +271,34 @@ class TestJobTypeLoader(TestCase):
 
     @inlineCallbacks
     def test_load_from_master_writes_cache(self):
-        source = dedent("""
+        job_type = self.jobtype_dict("foobar", 5, "Foobar", dedent("""
         from pyfarm.core.enums import WorkState
         class Foobar(object):
             def __init__(self, value): self.value = value
             def state(self): return WorkState.PAUSED
-        """).strip()
+        """).strip())
 
         cache_directory = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, cache_directory)
         loader = JobTypeLoader()
         loader.cache_directory = cache_directory
         with APITestServer("/jobtypes/foobar/versions/5/code", code=OK,
-                           response=source):
-            yield loader.load("foobar", "5", "Foobar")
+                           response=json.dumps(job_type)):
+            yield loader.load("foobar", "5")
 
         self.assertTrue(isfile(loader.cache_path("foobar", "5")))
 
     @inlineCallbacks
     def test_load_no_such_class_raises_attributeerror(self):
-        source = "FOO = 1"
+        job_type = self.jobtype_dict("foobar", 1, "Foobar", "FOO = 1")
         loader = JobTypeLoader()
         with nested(
             APITestServer(
-                "/jobtypes/foobar/versions/6/code", code=OK, response=source),
+                "/jobtypes/foobar/versions/6/code", code=OK,
+                response=json.dumps(job_type)),
             self.assertRaises(AttributeError)
         ):
-            yield loader.load("foobar", "6", "Foobar")
+            yield loader.load("foobar", "6")
 
     #
     # Tests for JobTypeLoader.download_source
@@ -315,9 +317,16 @@ class TestJobTypeLoader(TestCase):
 
         loader = JobTypeLoader()
         alt_get_direct = GetDirect()
+        job_type = self.jobtype_dict("foo", 1, "Foobar", dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.FAILED
+        """).strip())
         with nested(
             APITestServer(
-                "/jobtypes/foo/versions/1/code", code=OK, response="foo"),
+                "/jobtypes/foo/versions/1/code", code=OK,
+                response=json.dumps(job_type)),
             patch.object(internals, "get_direct", alt_get_direct)
         ):
             response = yield loader.download_source("foo", "1")
@@ -325,16 +334,23 @@ class TestJobTypeLoader(TestCase):
         # If the request was retried then alt_get_direct.hits should
         # have been incremented a couple of times.
         self.assertGreaterEqual(alt_get_direct.hits, 1)
-        self.assertEqual(response, "foo")
+        self.assertEqual(response, json.loads(json.dumps(job_type)))
 
     @inlineCallbacks
     def test_download_source_ok(self):
+        job_type = self.jobtype_dict("foo", 1, "Foobar", dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.FAILED
+        """).strip())
         loader = JobTypeLoader()
         with APITestServer(
-                "/jobtypes/foo/versions/1/code", code=OK, response="foobar"):
+                "/jobtypes/foo/versions/1/code", code=OK,
+                response=json.dumps(job_type)):
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, "foobar")
+        self.assertEqual(response, json.loads(json.dumps(job_type)))
 
     @inlineCallbacks
     def test_download_source_not_found(self):
@@ -347,16 +363,23 @@ class TestJobTypeLoader(TestCase):
 
     @inlineCallbacks
     def test_download_source_internal_server_error_retries(self):
+        job_type = self.jobtype_dict("foo", 1, "Foobar", dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.FAILED
+        """).strip())
         loader = JobTypeLoader()
         with nested(
             APITestServer("/jobtypes/foo/versions/1/code",
-                          code=INTERNAL_SERVER_ERROR, response="hello foo"),
+                          code=INTERNAL_SERVER_ERROR,
+                          response=json.dumps(job_type)),
             patch.object(logger, "debug")
         ) as (server, mock_debug):
             reactor.callLater(1, setattr, server.resource, "code", OK)
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, "hello foo")
+        self.assertEqual(response, json.loads(json.dumps(job_type)))
 
         # The logger will let us know if the request is being retried
         # in this case.  From outside the download_source call, it's
@@ -378,16 +401,22 @@ class TestJobTypeLoader(TestCase):
 
     @inlineCallbacks
     def test_download_source_other_error_retries(self):
+        job_type = self.jobtype_dict("foo", 1, "Foobar", dedent("""
+        from pyfarm.core.enums import WorkState
+        class Foobar(object):
+            def __init__(self, value): self.value = value
+            def state(self): return WorkState.FAILED
+        """).strip())
         loader = JobTypeLoader()
         with nested(
             APITestServer("/jobtypes/foo/versions/1/code",
-                          code=799, response="hello bar"),
+                          code=799, response=json.dumps(job_type)),
             patch.object(logger, "debug")
         ) as (server, mock_debug):
             reactor.callLater(1, setattr, server.resource, "code", OK)
             response = yield loader.download_source("foo", "1")
 
-        self.assertEqual(response, "hello bar")
+        self.assertEqual(response, json.loads(json.dumps(job_type)))
 
         # The logger will let us know if the request is being retried
         # in this case.  From outside the download_source call, it's
