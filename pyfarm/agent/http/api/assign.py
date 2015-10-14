@@ -193,12 +193,6 @@ class Assign(APIResource):
         assignment_uuid = uuid4()
         request_data.update(id=assignment_uuid)
         config["current_assignments"][assignment_uuid] = request_data
-
-        # In all other cases we have some work to do inside of
-        # deferreds so we just have to respond
-        request.setResponseCode(ACCEPTED)
-        request.write(dumps({"id": assignment_uuid}))
-        request.finish()
         logger.debug("Accepted assignment %s: %r",
                      assignment_uuid, request_data)
         logger.info("Accept assignment from job %s with %s tasks",
