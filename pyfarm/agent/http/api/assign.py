@@ -161,22 +161,20 @@ class Assign(APIResource):
 
             # If the assignment is identical to one we already have
             if existing_task_ids == new_task_ids:
-                logger.debug("Ignoring repeated assignment of the same batch")
-                request.setResponseCode(ACCEPTED)
-                request.write(dumps({"id": assignment["id"]}))
-                request.finish()
-                return NOT_DONE_YET
+                logger.debug(
+                    "Ignoring repeated assignment of the same batch")
+                return dumps({"id": assignment["id"]}), ACCEPTED
+
             # If there is only a partial overlap
             elif existing_task_ids & new_task_ids:
                 logger.error("Rejecting assignment with partial overlap with "
                              "existing assignment.")
                 unknown_task_ids = new_task_ids - existing_task_ids
-                request.setResponseCode(CONFLICT)
-                request.write(dumps(
-                    {"error": "Partial overlap of tasks",
-                     "rejected_task_ids": list(unknown_task_ids)}))
-                request.finish()
-                return NOT_DONE_YET
+                return (
+                    dumps({"error": "Partial overlap of tasks",
+                           "rejected_task_ids": list(unknown_task_ids)}),
+                    CONFLICT
+                )
 
         if not config["agent_allow_sharing"]:
             try:
