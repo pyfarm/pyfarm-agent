@@ -177,11 +177,7 @@ class Assign(APIResource):
                 )
 
         if not config["agent_allow_sharing"]:
-            try:
-                current_jobtypes = config["jobtypes"].itervalues
-            except AttributeError:  # pragma: no cover
-                current_jobtypes = config["jobtypes"].values
-            for jobtype in current_jobtypes():
+            for jobtype in config["jobtypes"].itervalues():
                 num_finished_tasks = (len(jobtype.finished_tasks) +
                                       len(jobtype.failed_tasks))
                 if len(jobtype.assignment["tasks"]) > num_finished_tasks:
