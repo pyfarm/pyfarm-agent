@@ -27,7 +27,6 @@ except ImportError:  # pragma: no cover
 import traceback
 from functools import partial
 
-from twisted.web.server import NOT_DONE_YET
 from twisted.internet import reactor
 from twisted.internet.defer import DeferredList
 from voluptuous import Schema, Required
@@ -372,4 +371,4 @@ class Assign(APIResource):
         jobtype_loader.addCallback(loaded_jobtype, assignment_uuid)
         jobtype_loader.addErrback(load_jobtype_failed, assignment_uuid)
 
-        return NOT_DONE_YET
+        return dumps({"id": assignment_uuid}), ACCEPTED
