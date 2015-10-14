@@ -27,13 +27,14 @@ except ImportError:  # pragma: no cover
 
 
 from twisted.web.server import NOT_DONE_YET
-from twisted.internet.defer import DeferredLock
+from twisted.internet.defer import DeferredLock, inlineCallbacks
 
 from pyfarm.agent.config import config
 from pyfarm.agent.http.api.assign import Assign
 from pyfarm.agent.sysinfo.memory import total_ram
 from pyfarm.agent.sysinfo.cpu import total_cpus
 from pyfarm.agent.testutil import BaseAPITestCase, APITestServer
+from pyfarm.jobtypes.core.internals import JobTypeLoader
 
 FAKE_JOBTYPE = """
 from twisted.internet.defer import Deferred
@@ -124,7 +125,7 @@ class TestAssign(BaseAPITestCase):
         self.assertEqual(len(request.written), 1)
         self.assertEqual(
             loads(request.written[0])["error"],
-            "Agent cannot accept assignments because of a pending restart")
+            u"Agent cannot accept assignments because of a pending restart.")
 
     def test_agent_id_not_set(self):
         config.pop("agent_id", None)
