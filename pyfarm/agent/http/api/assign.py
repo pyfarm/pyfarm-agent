@@ -183,13 +183,13 @@ class Assign(APIResource):
                 if len(jobtype.assignment["tasks"]) > num_finished_tasks:
                     logger.error("Rejecting an assignment that would require "
                                  "agent sharing")
-                    request.setResponseCode(CONFLICT)
-                    request.write(
-                    dumps({"error":
-                               "Agent does not allow multiple assignments",
-                           "rejected_task_ids": list(new_task_ids)}))
-                    request.finish()
-                    return NOT_DONE_YET
+                    return (
+                        dumps({
+                            "error": "Agent does not allow multiple "
+                                     "assignments",
+                            "rejected_task_ids": list(new_task_ids)}),
+                        CONFLICT
+                    )
 
         assignment_uuid = uuid4()
         request_data.update(id=assignment_uuid)
