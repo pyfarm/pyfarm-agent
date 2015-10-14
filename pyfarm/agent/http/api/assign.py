@@ -64,33 +64,11 @@ class Assign(APIResource):
         self.agent = agent
 
     def post(self, **kwargs):
-        request = kwargs["request"]
-        request_data = kwargs["data"]
-
-        if request_from_master(request):
+        if request_from_master(kwargs["request"]):
             config.master_contacted()
 
-        if ("agent_id" in request_data and
-            request_data["agent_id"] != config["agent_id"]):
-            logger.error("Wrong agent_id in assignment: %s. Our id is %s",
-                         request_data["agent_id"], config["agent_id"])
-            request.setResponseCode(BAD_REQUEST)
-            request.write(dumps(
-                {"error": "You have the wrong agent. I am %s." %
-                    config["agent_id"],
-                 "agent_id": config["agent_id"]}))
-            request.finish()
-            return NOT_DONE_YET
-
-        if self.agent.reannounce_lock.locked:
-            logger.warning("Temporarily rejecting assignment because we "
-                           "are in the middle of a reannounce.")
-            request.setResponseCode(SERVICE_UNAVAILABLE)
-            request.write(
-                dumps({"error": "Agent cannot accept assignments because of a "
-                                "reannounce in progress. Try again shortly."}))
-            request.finish()
-            return NOT_DONE_YET
+        request = kwargs["request"]
+        request_data = kwargs["data"]
 
         # First, get the resources we have *right now*.  In some cases
         # this means using the functions in pyfarm.core.sysinfo because
@@ -100,35 +78,52 @@ class Assign(APIResource):
         requires_ram = request_data["job"].get("ram")
         requires_cpus = request_data["job"].get("cpus")
 
-        if self.agent.shutting_down:
+        if ("agent_id" in request_data and
+            request_data["agent_id"] != config["agent_id"]):
+            logger.error("Wrong agent_id in assignment: %s. Our id is %s",
+                         request_data["agent_id"], config["agent_id"])
+            return (
+                dumps({"error": "You have the wrong agent. "
+                                "I am %s." % config["agent_id"],
+                       "agent_id": config["agent_id"]}),
+                BAD_REQUEST
+            )
+
+        elif self.agent.reannounce_lock.locked:
+            logger.warning("Temporarily rejecting assignment because we "
+                           "are in the middle of a reannounce.")
+            return (
+                dumps({"error": "Agent cannot accept assignments because of a "
+                                "reannounce in progress. Try again shortly."}),
+                SERVICE_UNAVAILABLE
+            )
+
+        elif self.agent.shutting_down:
             logger.error("Rejecting assignment because the agent is in the "
                          "process of shutting down.")
-            request.setResponseCode(SERVICE_UNAVAILABLE)
-            request.write(
+            return (
                 dumps({"error": "Agent cannot accept assignments because it is "
-                                "shutting down"}))
-            request.finish()
-            return NOT_DONE_YET
+                                "shutting down."}),
+                SERVICE_UNAVAILABLE
+            )
 
-        if "restart_requested" in config \
+        elif "restart_requested" in config \
                 and config["restart_requested"] is True:
             logger.error("Rejecting assignment because of scheduled restart.")
-            request.setResponseCode(SERVICE_UNAVAILABLE)
-            request.write(
+            return (
                 dumps({"error": "Agent cannot accept assignments because of a "
-                                "pending restart"}))
-            request.finish()
-            return NOT_DONE_YET
+                                "pending restart."}),
+                SERVICE_UNAVAILABLE
+            )
 
         elif "agent_id" not in config:
             logger.error(
                 "Agent has not yet connected to the master or `agent_id` "
                 "has not been set yet.")
-            request.setResponseCode(SERVICE_UNAVAILABLE)
-            request.write(
-                dumps({"error": "agent_id has not been set in the config"}))
-            request.finish()
-            return NOT_DONE_YET
+            return (
+                dumps({"error": "agent_id has not been set in the config"}),
+                SERVICE_UNAVAILABLE
+            )
 
         # Do we have enough ram?
         elif requires_ram is not None and requires_ram > memory_free:
@@ -137,16 +132,13 @@ class Assign(APIResource):
                 "Rejecting Task %s.",
                 request_data["job"]["id"], requires_ram, memory_free,
                 request_data["job"]["id"])
-            request.setResponseCode(BAD_REQUEST)
-            request.write(
+            config["free_ram"] = memory_free
+            return (
                 dumps({"error": "Not enough ram",
                        "agent_ram": memory_free,
-                       "requires_ram": requires_ram}))
-            request.finish()
-
-            # touch the config
-            config["free_ram"] = memory_free
-            return NOT_DONE_YET
+                       "requires_ram": requires_ram}),
+                BAD_REQUEST
+            )
 
         # Do we have enough cpus (count wise)?
         elif requires_cpus is not None and requires_cpus > cpus:
@@ -155,13 +147,12 @@ class Assign(APIResource):
                 "Rejecting Task %s.",
                 request_data["job"]["id"], requires_cpus, cpus,
                 request_data["job"]["id"])
-            request.setResponseCode(BAD_REQUEST)
-            request.write(
+            return (
                 dumps({"error": "Not enough cpus",
                        "agent_cpus": cpus,
-                       "requires_cpus": requires_cpus}))
-            request.finish()
-            return NOT_DONE_YET
+                       "requires_cpus": requires_cpus}),
+                BAD_REQUEST
+            )
 
         # Check for double assignments
         try:
