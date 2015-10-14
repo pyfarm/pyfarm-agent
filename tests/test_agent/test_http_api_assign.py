@@ -124,7 +124,7 @@ class TestAssign(BaseAPITestCase):
         self.assertEqual(len(request.written), 1)
         self.assertEqual(
             loads(request.written[0])["error"],
-            "Agent cannot accept assignments because of a pending restart")
+            u"Agent cannot accept assignments because of a pending restart.")
 
     def test_agent_id_not_set(self):
         config.pop("agent_id", None)
