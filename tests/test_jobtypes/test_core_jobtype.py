@@ -22,6 +22,7 @@ from os.path import join, isdir, dirname, basename
 from uuid import UUID, uuid4
 
 from mock import patch
+from twisted.internet.defer import Deferred, inlineCallbacks
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -30,7 +31,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.agent.utility import remove_directory
-from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
+from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES, logpool
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
 
@@ -211,9 +212,45 @@ class TestCommandData(TestCase):
 
 
 class TestJobTypeLoad(TestCase):
+    # TODO: test to ensure load() does something useful, the below
+    # are just unittests
+
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
             JobType.load({})
+
+    def test_download_called(self):
+        assignment = fake_assignment()
+        deferred = Deferred()
+
+        class JobTypePatch(JobType):
+            @classmethod
+            def _download_jobtype(cls, name, version):
+                self.assertEqual(assignment["jobtype"]["name"], name)
+                self.assertEqual(assignment["jobtype"]["version"], version)
+                return deferred
+
+        with nested(
+            patch.object(
+                JobType, "_download_jobtype", JobTypePatch._download_jobtype),
+            patch.object(deferred, "addCallback")
+        ) as (_, patched_addCallback):
+            JobType.load(assignment)
+
+        patched_addCallback.assert_called_with(
+            JobType._jobtype_download_complete,
+            JobType._cache_key(assignment)
+        )
+
+
+class TestJobTypeCloseLogs(TestCase):
+    def test_close_logs(self):
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(logpool, "close_log") as patched:
+            jobtype._close_logs()
+
+        patched.assert_called_with(jobtype.uuid)
 
 
 class TestJobTypeNode(TestCase):
