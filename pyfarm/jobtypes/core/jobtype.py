@@ -42,6 +42,11 @@ except ImportError:  # pragma: no cover
     from http.client import (
         OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND, BAD_REQUEST)
 
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowsError = OSError
+
 import treq
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -484,7 +489,7 @@ class JobType(Cache, System, Process, TypeChecks):
 
         try:
             os.makedirs(parent_dir)
-        except OSError as e:
+        except (IOError, OSError, WindowsError) as e:
             if e.errno != EEXIST:
                 logger.error("Failed to create %s: %s", parent_dir, e)
                 raise
