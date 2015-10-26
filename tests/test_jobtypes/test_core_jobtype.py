@@ -291,8 +291,28 @@ class TestJobTypeTempDir(TestCase):
         self.assertEqual(basename(dirname(tempdir)), str(jobtype.uuid))
 
     def test_ignores_eexist(self):
-        pass
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+        os.makedirs(config["jobtype_tempdir_root"].replace(
+            "$JOBTYPE_UUID", str(jobtype.uuid)))
+        jobtype.tempdir()
 
-    def test_raises_non_eexist(self):
-        pass
+    def test_makedirs_raises_other_errors(self):
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+
+        def side_effect(*args):
+            raise OSError("Foo", 4242)
+
+        with nested(
+            patch.object(os, "makedirs", side_effect=side_effect),
+            self.assertRaises(OSError)
+        ):
+            jobtype.tempdir()
+
+
 
