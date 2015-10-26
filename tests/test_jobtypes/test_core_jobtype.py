@@ -257,3 +257,12 @@ class TestJobTypeNode(TestCase):
                     "operating_system": system.operating_system()
                 }
             )
+
+
+class TestJobTypeAssignments(TestCase):
+    def test_assignments(self):
+        assignment = fake_assignment()
+        jobtype = JobType(assignment)
+        self.assertEqual(jobtype.assignments(), assignment["tasks"])
+
+
