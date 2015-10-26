@@ -58,7 +58,7 @@ from voluptuous import Schema, Required, Optional
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
+from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
