@@ -286,6 +286,9 @@ class TestJobTypeEmptyMethodSignatures(TestCase):
         jobtype = JobType(fake_assignment())
         jobtype.format_stderr_line(None, None)
 
+    def test_spawn_persistent_process(self):
+        JobType.spawn_persistent_process(None, None)
+
 
 class TestJobTypeCloseLogs(TestCase):
     def test_close_logs(self):
