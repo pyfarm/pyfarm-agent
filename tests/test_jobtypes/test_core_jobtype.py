@@ -243,6 +243,50 @@ class TestJobTypeLoad(TestCase):
         )
 
 
+class TestJobTypeEmptyMethodSignatures(TestCase):
+    # Some methods do not have any code in them so while we can't
+    # write tests against any code we can ensure their APIs, which
+    # are considered public, don't change.
+
+    def test_prepare_for_job(self):
+        JobType.prepare_for_job(None)
+
+    def test_cleanup_after_job(self):
+        JobType.cleanup_after_job(None)
+
+    def spawn_persistent_process(self):
+        JobType.spawn_persistent_process(None, None)
+
+    def test_process_stdout_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.process_stdout_line(None, None)
+
+    def test_process_stderr_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.process_stderr_line(None, None)
+
+        with patch.object(jobtype, "process_stdout_line") as patched:
+            jobtype.process_stderr_line("a", "b")
+
+        patched.assert_called_with("a", "b")
+
+    def test_preprocess_stdout_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.preprocess_stdout_line(None, None)
+
+    def test_preprocess_stderr_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.preprocess_stderr_line(None, None)
+
+    def test_format_stdout_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.format_stdout_line(None, None)
+
+    def test_format_stderr_line(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.format_stderr_line(None, None)
+
+
 class TestJobTypeCloseLogs(TestCase):
     def test_close_logs(self):
         jobtype = JobType(fake_assignment())
