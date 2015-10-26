@@ -18,12 +18,14 @@ import os
 import re
 from uuid import UUID, uuid4
 
+from mock import patch
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.sysinfo import system
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
@@ -211,3 +213,15 @@ class TestJobTypeLoad(TestCase):
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
             JobType.load({})
+
+
+class TestJobTypeNode(TestCase):
+    def test_reraises_notimplemented(self):
+        def side_effect():
+            raise NotImplementedError
+
+        with patch.object(
+                system, "machine_architecture", side_effect=side_effect):
+            with self.assertRaises(NotImplementedError):
+                jobtype = JobType(fake_assignment())
+                jobtype.node()
