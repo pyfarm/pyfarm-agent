@@ -16,6 +16,7 @@
 
 import os
 import re
+from contextlib import nested
 from uuid import UUID, uuid4
 
 from mock import patch
@@ -25,12 +26,9 @@ from pyfarm.core.utility import ImmutableDict
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
-from pyfarm.agent.sysinfo import system
-from pyfarm.agent.sysinfo.user import is_administrator
+from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
-
-IS_ADMIN = is_administrator()
 
 
 def fake_assignment():
@@ -150,24 +148,24 @@ class TestCommandData(TestCase):
             CommandData("", group=1.0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
-    @skipIf(IS_ADMIN, "Is Administrator")
+    @skipIf(user.is_administrator(), "Is Administrator")
     def test_validate_change_user_non_admin_failure(self):
         with self.assertRaises(EnvironmentError):
             CommandData("", user=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
-    @skipIf(IS_ADMIN, "Is Administrator")
+    @skipIf(user.is_administrator(), "Is Administrator")
     def test_validate_change_group_non_admin_failure(self):
         with self.assertRaises(EnvironmentError):
             CommandData("", group=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
-    @skipIf(not IS_ADMIN, "Not Administrator")
+    @skipIf(not user.is_administrator(), "Not Administrator")
     def test_validate_change_user_admin(self):
         CommandData("", user=0).validate()
 
     @skipIf(WINDOWS, "Non-Windows only")
-    @skipIf(not IS_ADMIN, "Not Administrator")
+    @skipIf(not user.is_administrator(), "Not Administrator")
     def test_validate_change_group_admin(self):
         CommandData("", group=0).validate()
 
@@ -225,3 +223,35 @@ class TestJobTypeNode(TestCase):
             with self.assertRaises(NotImplementedError):
                 jobtype = JobType(fake_assignment())
                 jobtype.node()
+
+    def test_output(self):
+        jobtype = JobType(fake_assignment())
+
+        with nested(
+            patch.object(memory, "total_ram", return_value=1.1),
+            patch.object(memory, "free_ram", return_value=2.1),
+            patch.object(memory, "total_consumption", return_value=3.1)
+        ):
+            self.assertEqual(
+                jobtype.node(),
+                {
+                    "master_api": config.get("master-api"),
+                    "hostname": config["agent_hostname"],
+                    "agent_id": config["agent_id"],
+                    "id": config["agent_id"],
+                    "cpus": int(config["agent_cpus"]),
+                    "ram": int(config["agent_ram"]),
+                    "total_ram": 1,
+                    "free_ram": 2,
+                    "consumed_ram": 3,
+                    "admin": user.is_administrator(),
+                    "user": user.username(),
+                    "case_sensitive_files":
+                        system.filesystem_is_case_sensitive(),
+                    "case_sensitive_env":
+                        system.environment_is_case_sensitive(),
+                    "machine_architecture":
+                        system.machine_architecture(),
+                    "operating_system": system.operating_system()
+                }
+            )
