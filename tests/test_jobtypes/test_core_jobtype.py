@@ -218,11 +218,13 @@ class TestJobTypeNode(TestCase):
         def side_effect():
             raise NotImplementedError
 
-        with patch.object(
-                system, "machine_architecture", side_effect=side_effect):
-            with self.assertRaises(NotImplementedError):
-                jobtype = JobType(fake_assignment())
-                jobtype.node()
+        with nested(
+            patch.object(
+              system, "machine_architecture", side_effect=side_effect),
+            self.assertRaises(NotImplementedError)
+        ):
+            jobtype = JobType(fake_assignment())
+            jobtype.node()
 
     def test_output(self):
         jobtype = JobType(fake_assignment())
