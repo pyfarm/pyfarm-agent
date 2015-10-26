@@ -314,5 +314,40 @@ class TestJobTypeTempDir(TestCase):
         ):
             jobtype.tempdir()
 
+    def test_remove_on_finish_does_not_add_parent(self):
+        # It's important that we do not add the parent directory
+        # as the path to cleanup.  Otherwise we could end up
+        # cleaning up more than needed.
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+        jobtype.tempdir()
+
+        for value in jobtype._tempdirs:
+            self.assertNotEqual(value, dirname(config["jobtype_tempdir_root"]))
+
+    def test_remove_on_finish_adds_child_directory(self):
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+        tempdir = jobtype.tempdir()
+        self.assertIn(tempdir, jobtype._tempdirs)
+
+    def test_sets_tempdir(self):
+        jobtype = JobType(fake_assignment())
+        tempdir = jobtype.tempdir()
+        self.assertEqual(tempdir, jobtype._tempdir)
+
+    def test_new_tempdir_does_not_reset_default(self):
+        jobtype = JobType(fake_assignment())
+        tempdir1 = jobtype.tempdir()
+        tempdir2 = jobtype.tempdir(new=True)
+        self.assertNotEqual(tempdir1, tempdir2)
+        self.assertEqual(jobtype._tempdir, tempdir1)
+
+
+
 
 
