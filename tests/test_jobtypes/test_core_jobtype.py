@@ -16,7 +16,9 @@
 
 import os
 import re
+import tempfile
 from contextlib import nested
+from os.path import join, isdir, dirname, basename
 from uuid import UUID, uuid4
 
 from mock import patch
@@ -27,6 +29,7 @@ from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
+from pyfarm.agent.utility import remove_directory
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import JobType, CommandData
 
@@ -265,4 +268,31 @@ class TestJobTypeAssignments(TestCase):
         jobtype = JobType(assignment)
         self.assertEqual(jobtype.assignments(), assignment["tasks"])
 
+
+class TestJobTypeTempDir(TestCase):
+    def test_not_new_and_tempdir_already_set(self):
+        jobtype = JobType(fake_assignment())
+        jobtype._tempdir = "foobar"
+        self.assertEqual(jobtype.tempdir(), "foobar")
+
+    def test_creates_directory(self):
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+        self.assertTrue(isdir(jobtype.tempdir()))
+
+    def test_path_contains_jobtype_uuid(self):
+        root_directory = tempfile.mkdtemp()
+        self.addCleanup(remove_directory, root_directory)
+        config["jobtype_tempdir_root"] = join(root_directory, "$JOBTYPE_UUID")
+        jobtype = JobType(fake_assignment())
+        tempdir = jobtype.tempdir()
+        self.assertEqual(basename(dirname(tempdir)), str(jobtype.uuid))
+
+    def test_ignores_eexist(self):
+        pass
+
+    def test_raises_non_eexist(self):
+        pass
 

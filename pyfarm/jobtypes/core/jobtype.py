@@ -484,7 +484,7 @@ class JobType(Cache, System, Process, TypeChecks):
 
         try:
             os.makedirs(parent_dir)
-        except OSError as e:  # pragma: no cover
+        except OSError as e:
             if e.errno != EEXIST:
                 logger.error("Failed to create %s: %s", parent_dir, e)
                 raise
