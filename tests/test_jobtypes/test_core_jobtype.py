@@ -21,8 +21,19 @@ from contextlib import nested
 from os.path import join, isdir, dirname, basename
 from uuid import UUID, uuid4
 
+try:
+    import grp
+except ImportError:
+    pass
+
+try:
+    import pwd
+except ImportError:
+    pass
+
+
 from mock import patch
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -432,6 +443,22 @@ class TestJobTypeTempDir(TestCase):
         self.assertEqual(jobtype._tempdir, tempdir1)
 
 
+class TestJobTypeGetUidGid(TestCase):
+    @skipIf(WINDOWS, "Non-Windows only")
+    def test_get_user_id(self):
+        jobtype = JobType(fake_assignment())
 
+        for pwd_struct in pwd.getpwall():
+            uid, gid = jobtype.get_uid_gid(pwd_struct.pw_name, None)
+            self.assertEqual(pwd.getpwuid(uid).pw_uid, uid)
+            self.assertIsNone(gid)
 
+    @skipIf(WINDOWS, "Non-Windows only")
+    def test_get_group_id(self):
+        jobtype = JobType(fake_assignment())
+
+        for grp_struct in grp.getgrall():
+            uid, gid = jobtype.get_uid_gid(None, grp_struct.gr_name)
+            self.assertIsNone(uid)
+            self.assertEqual(grp.getgrgid(gid).gr_gid, gid)
 
