@@ -29,7 +29,6 @@ import os
 import tempfile
 from errno import EEXIST
 from datetime import datetime, timedelta
-from functools import partial
 from string import Template
 from os.path import expanduser, abspath, isdir, join
 from pprint import pformat
@@ -49,7 +48,6 @@ except NameError:  # pragma: no cover
 
 import treq
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
