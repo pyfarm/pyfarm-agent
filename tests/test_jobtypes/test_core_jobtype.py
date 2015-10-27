@@ -498,4 +498,25 @@ class TestJobTypeGetEnvironment(TestCase):
         jobtype = JobType(fake_assignment())
         self.assertEnvironmentContains(jobtype.get_environment(), config_env)
 
+    def test_bad_config_raises_type_error(self):
+        config["jobtype_default_environment"] = [""]
+        jobtype = JobType(fake_assignment())
 
+        with self.assertRaises(TypeError):
+            jobtype.get_environment()
+
+    def test_converts_non_string_key_to_string(self):
+        jobtype = JobType(fake_assignment())
+        config["jobtype_default_environment"] = {
+            1: "yes"
+        }
+        for key in jobtype.get_environment().keys():
+            self.assertIsInstance(key, str)
+
+    def test_converts_non_string_value_to_string(self):
+        jobtype = JobType(fake_assignment())
+        config["jobtype_default_environment"] = {
+            "yes": 1
+        }
+        for value in jobtype.get_environment().values():
+            self.assertIsInstance(value, str)
