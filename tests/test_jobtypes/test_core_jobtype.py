@@ -43,7 +43,8 @@ from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.agent.utility import remove_directory
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES, logpool
-from pyfarm.jobtypes.core.jobtype import JobType, CommandData
+from pyfarm.jobtypes.core.jobtype import (
+    FROZEN_ENVIRONMENT, JobType, CommandData)
 
 
 def fake_assignment():
@@ -461,4 +462,40 @@ class TestJobTypeGetUidGid(TestCase):
             uid, gid = jobtype.get_uid_gid(None, grp_struct.gr_name)
             self.assertIsNone(uid)
             self.assertEqual(grp.getgrgid(gid).gr_gid, gid)
+
+
+class TestJobTypeGetEnvironment(TestCase):
+    POP_CONFIG_KEYS = [
+        "jobtype_default_environment",
+        "jobtype_include_os_environ"
+    ]
+
+    def assertEnvironmentContains(self, target, contains):
+        for key, value in target.iteritems():
+            self.assertIn(key, contains)
+            self.assertEqual(target[key], contains[key])
+
+    def assertDoesNotEnvironmentContains(self, target, contains):
+        for key, value in target.iteritems():
+            self.assertNotIn(key, contains)
+
+    def test_includes_os_environ(self):
+        config["jobtype_include_os_environ"] = True
+        jobtype = JobType(fake_assignment())
+        self.assertEnvironmentContains(
+            FROZEN_ENVIRONMENT, jobtype.get_environment())
+
+    def test_does_not_include_os_environ(self):
+        config["jobtype_include_os_environ"] = False
+        jobtype = JobType(fake_assignment())
+        self.assertDoesNotEnvironmentContains(
+            FROZEN_ENVIRONMENT, jobtype.get_environment())
+
+    def test_include_config_environment(self):
+        config_env = config["jobtype_default_environment"] = {
+            "foo": "1", "bar": "2"
+        }
+        jobtype = JobType(fake_assignment())
+        self.assertEnvironmentContains(jobtype.get_environment(), config_env)
+
 
