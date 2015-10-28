@@ -607,4 +607,9 @@ class TestJobTypeGetCSVLogPath(TestCase):
         )
 
 
-
+class TestJobTypeMapPath(TestCase):
+    def test_path_path_expands_vars(self):
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.map_path("$PATH/foo"),
+            os.path.expandvars("$PATH/foo"))

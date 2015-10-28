@@ -660,6 +660,7 @@ class JobType(Cache, System, Process, TypeChecks):
         raise NotImplementedError("`get_command_data` must be implemented")
 
     # TODO: finish map_path() implementation
+    # TODO: update TestJobTypeMapPath
     def map_path(self, path):
         """
         Takes a string argument.  Translates a given path for any OS to
@@ -667,8 +668,7 @@ class JobType(Cache, System, Process, TypeChecks):
         with the master.
         """
         self._check_map_path_inputs(path)
-        path = self.expandvars(path)
-        return path
+        return self.expandvars(path)
 
     def expandvars(self, value, environment=None, expand=None):
         """
