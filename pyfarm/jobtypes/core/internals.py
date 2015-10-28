@@ -825,8 +825,9 @@ class System(object):
         for root, dirs, files in os.walk(tempdir, topdown=True,
                                          followlinks=False):
             # Don't delete our own temp files
-            if "pyfarm" in dirs:
-                dirs.remove("pyfarm")
+            if root == dirname(config.tempdir):
+                dirs[:] = []  # Do not iterate over sub directories in this root
+                continue
             for filename in files:
                 fullpath = join(root, filename)
                 stat_result = os.stat(fullpath)
