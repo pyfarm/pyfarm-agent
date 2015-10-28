@@ -18,8 +18,8 @@ import os
 import re
 import tempfile
 from contextlib import nested
+from datetime import datetime, timedelta
 from os.path import join, isdir, dirname, basename
-from random import choice
 from uuid import UUID, uuid4
 
 try:
@@ -542,4 +542,63 @@ class TestJobTypeGetCommandList(TestCase):
             jobtype.get_command_list(all_keys),
             tuple(map(jobtype.expandvars, all_keys))
         )
+
+
+class TestJobTypeGetCSVLogPath(TestCase):
+    POP_CONFIG_KEYS = ["agent_time_offset"]
+
+    def setUp(self):
+        super(TestJobTypeGetCSVLogPath, self).setUp()
+        self.current_value = config.get("jobtype_task_log_filename")
+        config["jobtype_task_log_filename"] = \
+            "$YEAR-$MONTH-$DAY_$HOUR-$MINUTE-$SECOND_$JOB_$PROCESS"
+        config["agent_time_offset"] = 0
+
+    def tearDown(self):
+        super(TestJobTypeGetCSVLogPath, self).tearDown()
+        config["jobtype_task_log_filename"] = self.current_value
+
+    def test_uses_utcnow_for_create_time(self):
+        jobtype = JobType(fake_assignment())
+        now = datetime.utcnow()
+        filename = basename(jobtype.get_csvlog_path(uuid4()))
+        year, month, day_hour, minute, second_job_process = filename.split("-")
+        day, hour = day_hour.split("_")
+        second, job, uuid_str = second_job_process.split("_")
+        log_time = datetime(
+            year=int(year), month=int(month), day=int(day),
+            hour=int(hour), minute=int(minute), second=int(second)
+        )
+        self.assertDateAlmostEqual(
+            now, log_time, microsecond_deviation=1000000)
+
+    def test_includes_agent_time_offset(self):
+        config["agent_time_offset"] = 120
+        jobtype = JobType(fake_assignment())
+        now = datetime.utcnow() + timedelta(seconds=120)
+        filename = basename(jobtype.get_csvlog_path(uuid4()))
+        year, month, day_hour, minute, second_job_process = filename.split("-")
+        day, hour = day_hour.split("_")
+        second, job, uuid_str = second_job_process.split("_")
+        log_time = datetime(
+            year=int(year), month=int(month), day=int(day),
+            hour=int(hour), minute=int(minute), second=int(second)
+        )
+        self.assertDateAlmostEqual(now, log_time, microsecond_deviation=1000000)
+
+    def test_uses_provided_create_time(self):
+        assignment = fake_assignment()
+        jobtype = JobType(assignment)
+        now = datetime.utcnow()
+        uid = uuid4()
+        filename = basename(jobtype.get_csvlog_path(uid, create_time=now))
+        self.assertEqual(
+            "%s-%s-%02d_%02d-%02d-%02d_%s_%s" % (
+                now.year, now.month, now.day,
+                now.hour, now.minute, now.second,
+                assignment["job"]["id"], str(uid).replace("-", "")
+            ),
+            filename
+        )
+
 
