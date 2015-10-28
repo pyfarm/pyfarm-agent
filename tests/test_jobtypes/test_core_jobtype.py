@@ -302,6 +302,11 @@ class TestJobTypeEmptyMethodSignatures(TestCase):
     def test_spawn_persistent_process(self):
         JobType.spawn_persistent_process(None, None)
 
+    def test_get_command_data(self):
+        with self.assertRaises(NotImplementedError):
+            jobtype = JobType(fake_assignment())
+            jobtype.get_command_data()
+
 
 class TestJobTypeCloseLogs(TestCase):
     def test_close_logs(self):
@@ -600,5 +605,6 @@ class TestJobTypeGetCSVLogPath(TestCase):
             ),
             filename
         )
+
 
 
