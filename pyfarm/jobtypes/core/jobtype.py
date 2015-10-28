@@ -571,13 +571,21 @@ class JobType(Cache, System, Process, TypeChecks):
 
         return environment
 
-    def get_command_list(self, cmdlist):
+    def get_command_list(self, commands):
         """
-        Return a list of command to be used when running the process
-        as a read-only tuple.
+        Convert a list of commands to a tuple with any environment variables
+        expanded.
+
+        :param list commands:
+            A list of strings to convert to a command list.  Each entry in
+            list will be passed into and returned from :meth:`expandvars`.
+
+        :rtype: tuple
+        :return:
+            Returns
         """
-        self._check_command_list_inputs(cmdlist)
-        return tuple(map(self.expandvars, cmdlist))
+        self._check_command_list_inputs(commands)
+        return tuple(map(self.expandvars, commands))
 
     def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
@@ -665,10 +673,10 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def expandvars(self, value, environment=None, expand=None):
         """
-        Expands variables inside of a string using an environment.  Exp
+        Expands variables inside of a string using an environment.
 
         :param string value:
-            The path to expand
+            The string to expand.
 
         :param dict environment:
             The environment to use for expanding ``value``.  If this
