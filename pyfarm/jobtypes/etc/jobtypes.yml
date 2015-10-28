@@ -70,6 +70,9 @@ jobtype_ignore_id_mapping_errors: False
 # by a job type.
 jobtype_default_environment: {}
 
+# If True then a job type's get_environment() method
+# will also include the operating system's environmnt.
+jobtype_include_os_environ: False
 
 # Configures the thread pool used by job types
 # for logging.
