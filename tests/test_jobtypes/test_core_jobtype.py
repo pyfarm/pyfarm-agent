@@ -19,6 +19,7 @@ import re
 import tempfile
 from contextlib import nested
 from os.path import join, isdir, dirname, basename
+from random import choice
 from uuid import UUID, uuid4
 
 try:
@@ -520,3 +521,25 @@ class TestJobTypeGetEnvironment(TestCase):
         }
         for value in jobtype.get_environment().values():
             self.assertIsInstance(value, str)
+
+
+class TestGetCommandList(TestCase):
+    def test_result_is_tuple(self):
+        jobtype = JobType(fake_assignment())
+        self.assertIsInstance(jobtype.get_command_list([]), tuple)
+
+    def test_does_not_modify_contents(self):
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.get_command_list(["a", "b", "c"]), ("a", "b", "c"))
+
+    def test_expands_variables(self):
+        config["jobtype_include_os_environ"] = True
+        jobtype = JobType(fake_assignment())
+
+        all_keys = ["$%s" % key for key in os.environ.keys()]
+        self.assertEqual(
+            jobtype.get_command_list(all_keys),
+            tuple(map(jobtype.expandvars, all_keys))
+        )
+
