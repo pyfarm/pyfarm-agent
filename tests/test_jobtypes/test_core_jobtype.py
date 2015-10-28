@@ -523,7 +523,7 @@ class TestJobTypeGetEnvironment(TestCase):
             self.assertIsInstance(value, str)
 
 
-class TestGetCommandList(TestCase):
+class TestJobTypeGetCommandList(TestCase):
     def test_result_is_tuple(self):
         jobtype = JobType(fake_assignment())
         self.assertIsInstance(jobtype.get_command_list([]), tuple)
