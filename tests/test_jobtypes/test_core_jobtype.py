@@ -35,7 +35,7 @@ except ImportError:
 
 
 from mock import patch
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -649,3 +649,29 @@ class TestJobTypeExpandVars(TestCase):
             jobtype.expandvars("$FOOBAR", environment={"FOOBAR": "foo"}),
             "foo")
 
+
+class SimpleJobType(JobType):
+    def get_environment(self):
+        return {"PARENT_PROCESS_ID": os.getpid()}
+
+    def get_command_data(self):
+        fd, script_path = tempfile.mkstemp(suffix=".py")
+        fd, output_path = tempfile.mkstemp(suffix=".py")
+
+        with os.fdopen(fd, "w") as script:
+            print >> script, "import os"
+            print >> script, "with open(%r) as output:" % output_path
+            print >> script, "    output.write(os.environ['PARENT_PROCESS_ID']"
+
+        return self.COMMAND_DATA(sys.executable, script_path)
+
+
+class TestJobTypeStart(TestCase):
+    @inlineCallbacks
+    def test_process_uses_environment(self):
+        assignment = fake_assignment()
+        jobtype = SimpleJobType(assignment)
+
+        url = "/jobs/%s/attempts/1/logs/" % assignment["job"]["id"]
+        with APITestServer(url):
+            jobtype._start()
