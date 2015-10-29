@@ -16,6 +16,7 @@
 
 import os
 import re
+import sys
 import tempfile
 from contextlib import nested
 from datetime import datetime, timedelta
@@ -40,7 +41,7 @@ from voluptuous import Schema, MultipleInvalid
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, skipIf
+from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
 from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.agent.utility import remove_directory
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES, logpool
@@ -60,8 +61,7 @@ def fake_assignment():
         "jobtype": {
             "name": "Foo",
             "version": 1},
-        "tasks": [{"id": 1, "frame": 1, "attempt": 1},
-                  {"id": 1, "frame": 1, "attempt": 1}]}
+        "tasks": [{"id": 1, "frame": 1, "attempt": 1}]}
     config["current_assignments"][assignment_id] = assignment
     return assignment
 
@@ -613,3 +613,39 @@ class TestJobTypeMapPath(TestCase):
         self.assertEqual(
             jobtype.map_path("$PATH/foo"),
             os.path.expandvars("$PATH/foo"))
+
+
+class TestJobTypeExpandVars(TestCase):
+    def prepare_config(self):
+        super(TestJobTypeExpandVars, self).prepare_config()
+        config["jobtype_expandvars"] = FROZEN_ENVIRONMENT
+        config["jobtype_default_environment"] = {
+            "PATH": os.environ["PATH"]
+        }
+
+    def tearDown(self):
+        super(TestJobTypeExpandVars, self).tearDown()
+        config["jobtype_expandvars"] = True
+
+    def test_respects_expand_from_config(self):
+        config["jobtype_expandvars"] = False
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(jobtype.expandvars("$PATH"), "$PATH")
+
+    def test_respects_expand_keyword_expandvars(self):
+        config["jobtype_expandvars"] = False
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.expandvars("$PATH", expand=True),
+            os.path.expandvars("$PATH"))
+
+        config["jobtype_expandvars"] = True
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(jobtype.expandvars("$PATH", expand=False), "$PATH")
+
+    def test_passed_custom_environment(self):
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.expandvars("$FOOBAR", environment={"FOOBAR": "foo"}),
+            "foo")
+
