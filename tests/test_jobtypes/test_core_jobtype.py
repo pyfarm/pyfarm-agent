@@ -848,3 +848,5 @@ class TestJobTypeProcessStarted(TestCase):
 
         for task in jobtype.assignment["tasks"]:
             mocked.assert_any_call(task, WorkState.RUNNING)
+
+# TODO: process_stopped tests
