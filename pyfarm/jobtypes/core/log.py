@@ -162,7 +162,11 @@ class LoggerPool(ThreadPool):
             return
 
         # This operation is atomic so we're safe to keep
-        log = self.logs[uuid]
+        try:
+            log = self.logs[uuid]
+        except KeyError:
+            raise KeyError("No such uuid %s, was open_log() called?" % uuid)
+
         log.lines += 1
         log.messages.append((datetime.utcnow(), str(pid) or "", stream,
                              log.lines, message))
