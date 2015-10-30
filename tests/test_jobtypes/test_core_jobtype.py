@@ -38,7 +38,7 @@ from twisted.internet.defer import Deferred
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
-from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
+from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS, WorkState
 from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
@@ -799,8 +799,17 @@ class TestJobTypeHandleStderrLine(TestCase):
         process_mock.assert_called_with(protocol, "bar")
 
 
+class TestJobTypeGetLocalTaskState(TestCase):
+    def test_done(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.finished_tasks.add(1)
+        self.assertEqual(jobtype.get_local_task_state(1), WorkState.DONE)
 
+    def test_failed(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.failed_tasks.add(2)
+        self.assertEqual(jobtype.get_local_task_state(2), WorkState.FAILED)
 
-
-
-
+    def test_unknown(self):
+        jobtype = JobType(fake_assignment())
+        self.assertIsNone(jobtype.get_local_task_state(3))
