@@ -1622,7 +1622,7 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         # Preprocess
         preprocessed = self.preprocess_stderr_line(protocol, stderr)
-        
+
         if preprocessed is False:
             return
 
