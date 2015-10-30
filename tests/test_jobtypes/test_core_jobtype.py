@@ -307,6 +307,11 @@ class TestJobTypeEmptyMethodSignatures(TestCase):
             jobtype = JobType(fake_assignment())
             jobtype.get_command_data()
 
+    def test_before_start(self):
+        jobtype = JobType(fake_assignment())
+        jobtype.before_start()
+
+    
 
 class TestJobTypeCloseLogs(TestCase):
     def test_close_logs(self):
