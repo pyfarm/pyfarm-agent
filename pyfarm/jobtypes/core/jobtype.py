@@ -1569,8 +1569,10 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         # Preprocess
         preprocessed = self.preprocess_stdout_line(protocol, stdout)
+
         if preprocessed is not None:
             stdout = preprocessed
+
         if preprocessed is False:
             return
 
@@ -1621,7 +1623,8 @@ class JobType(Cache, System, Process, TypeChecks):
         preprocessed = self.preprocess_stderr_line(protocol, stderr)
         if preprocessed is not None:
             stderr = preprocessed
-        if preprocessed == False:
+
+        if not preprocessed:
             return
 
         # Format
