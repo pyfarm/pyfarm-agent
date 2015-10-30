@@ -35,6 +35,7 @@ except ImportError:
 
 from mock import Mock, patch
 from twisted.internet.defer import Deferred
+from twisted.internet.error import ProcessDone
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -813,3 +814,25 @@ class TestJobTypeGetLocalTaskState(TestCase):
     def test_unknown(self):
         jobtype = JobType(fake_assignment())
         self.assertIsNone(jobtype.get_local_task_state(3))
+
+
+class TestJobTypeIsSuccessful(TestCase):
+    def test_reason_is_zero(self):
+        jobtype = JobType(fake_assignment())
+        self.assertTrue(jobtype.is_successful(None, 0))
+
+    def test_reason_non_zero_and_is_integer(self):
+        jobtype = JobType(fake_assignment())
+        self.assertFalse(jobtype.is_successful(None, 1))
+
+    def test_reason_has_type_and_exit_code(self):
+        jobtype = JobType(fake_assignment())
+        reason = Mock(type=ProcessDone, value=Mock(exitCode=0))
+        self.assertTrue(jobtype.is_successful(None, reason))
+
+    def test_reason_is_not_an_integer(self):
+        jobtype = JobType(fake_assignment())
+
+        with self.assertRaises(NotImplementedError):
+            self.assertFalse(jobtype.is_successful(None, None))
+
