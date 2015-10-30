@@ -1578,6 +1578,7 @@ class JobType(Cache, System, Process, TypeChecks):
 
         # Format
         formatted = self.format_stdout_line(protocol, stdout)
+
         if formatted is not None:
             stdout = formatted
 
@@ -1621,14 +1622,16 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         # Preprocess
         preprocessed = self.preprocess_stderr_line(protocol, stderr)
+
         if preprocessed is not None:
             stderr = preprocessed
 
-        if not preprocessed:
+        if preprocessed is False:
             return
 
         # Format
         formatted = self.format_stderr_line(protocol, stderr)
+
         if formatted is not None:
             stderr = formatted
 
