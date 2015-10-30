@@ -63,7 +63,9 @@ def fake_assignment():
         "jobtype": {
             "name": "Foo",
             "version": 1},
-        "tasks": [{"id": 1, "frame": 1, "attempt": 1}]}
+        "tasks": [
+            {"id": 1, "frame": 1, "attempt": 1},
+            {"id": 2, "frame": 2, "attempt": 1}]}
     config["current_assignments"][assignment_id] = assignment
     return assignment
 
@@ -836,3 +838,13 @@ class TestJobTypeIsSuccessful(TestCase):
         with self.assertRaises(NotImplementedError):
             self.assertFalse(jobtype.is_successful(None, None))
 
+
+class TestJobTypeProcessStarted(TestCase):
+    def test_calls_set_task_state(self):
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(jobtype, "set_task_state") as mocked:
+            jobtype.process_started(None)
+
+        for task in jobtype.assignment["tasks"]:
+            mocked.assert_any_call(task, WorkState.RUNNING)
