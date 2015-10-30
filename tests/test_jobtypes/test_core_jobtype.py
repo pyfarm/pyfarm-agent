@@ -16,7 +16,6 @@
 
 import os
 import re
-import sys
 import tempfile
 from contextlib import nested
 from datetime import datetime, timedelta
@@ -35,18 +34,18 @@ except ImportError:
 
 
 from mock import patch
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WINDOWS
 from pyfarm.agent.config import config
-from pyfarm.agent.testutil import TestCase, skipIf, APITestServer
+from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.agent.utility import remove_directory
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES, logpool
 from pyfarm.jobtypes.core.jobtype import (
-    FROZEN_ENVIRONMENT, JobType, CommandData)
+    FROZEN_ENVIRONMENT, JobType, CommandData, logger)
 
 
 def fake_assignment():
@@ -311,7 +310,18 @@ class TestJobTypeEmptyMethodSignatures(TestCase):
         jobtype = JobType(fake_assignment())
         jobtype.before_start()
 
-    
+    def test_before_spawn_process(self):
+        path = self.create_file()
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, path, ignore_existing=True)
+        command = CommandData("foobar", ("a", "b", "c"))
+
+        with patch.object(logger, "info") as mocked:
+            jobtype.before_spawn_process(command, None)
+
+        mocked.assert_called_once_with(
+            "Starting command: %s", "foobar ('a', 'b', 'c')")
+
 
 class TestJobTypeCloseLogs(TestCase):
     def test_close_logs(self):
