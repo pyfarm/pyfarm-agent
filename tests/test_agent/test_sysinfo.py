@@ -173,10 +173,12 @@ class TestNetwork(TestCase):
 
     def test_interfaces(self):
         names = list(network.interfaces())
-        self.assertEqual(len(names) > 1, True)
+
+        # We assume all hosts have at least the loopback interface.
+        self.assertGreaterEqual(len(names), 1)
         self.assertEqual(isinstance(names, list), True)
-        self.assertEqual(all(name in netifaces.interfaces() for name in names),
-                         True)
+        self.assertTrue(
+            all(name in netifaces.interfaces() for name in names))
 
         addresses = map(netifaces.ifaddresses, names)
         self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
