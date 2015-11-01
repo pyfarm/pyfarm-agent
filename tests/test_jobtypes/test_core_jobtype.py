@@ -300,3 +300,13 @@ class TestJobTypeHandleStderrLine(TestCase):
 
         log_mock.assert_called_with(protocol, "bar")
         process_mock.assert_called_with(protocol, "bar")
+
+    def test_process_stderr_line_calls_stdout_line_processing(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=4)
+
+        with patch.object(jobtype, "process_stdout_line") as process_mock:
+            jobtype.process_stderr_line(protocol, "stderr 4")
+
+        process_mock.assert_called_with(protocol, "stderr 4")
