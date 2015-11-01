@@ -572,6 +572,7 @@ class JobType(Cache, System, Process, TypeChecks):
             environment[key] = value
 
         return environment
+
     def get_command_list(self, cmdlist):
         """
         Return a list of command to be used when running the process
