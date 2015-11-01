@@ -587,10 +587,11 @@ class JobType(Cache, System, Process, TypeChecks):
             of the resulting path.  This is already handled by the logger
             pool in a non-blocking fashion.
         """
+        self._check_csvlog_path_inputs(protocol_uuid, create_time)
+
         if create_time is None:
             create_time = datetime.utcnow()
-
-        self._check_csvlog_path_inputs(protocol_uuid, create_time)
+        assert isinstance(create_time, datetime)
 
         # Include the agent's time offset in create_time for accuracy.
         if config["agent_time_offset"]:
