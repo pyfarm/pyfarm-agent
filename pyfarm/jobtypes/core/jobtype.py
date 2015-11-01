@@ -808,14 +808,17 @@ class JobType(Cache, System, Process, TypeChecks):
         if error is None:
             logger.error("No error was defined for this failure.")
 
-        elif isinstance(error, Exception):
-            return str(error)
-
         elif isinstance(error, STRING_TYPES):
             return error
 
         else:
-            logger.error("Don't know how to format %r as a string", error)
+            try:
+                return str(error)
+
+            except Exception as format_error:
+                logger.error(
+                    "Don't know how to format %r as a string.  Error while "
+                    "calling str(%r) was %s.", error, format_error)
 
     # TODO: modify this function to support batch updates
     def set_states(self, tasks, state, error=None):
