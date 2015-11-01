@@ -564,13 +564,13 @@ class JobType(Cache, System, Process, TypeChecks):
 
         return environment
 
-    def get_command_list(self, cmdlist):
+    def get_command_list(self, commands):
         """
         Return a list of command to be used when running the process
         as a read-only tuple.
         """
-        self._check_command_list_inputs(cmdlist)
-        return tuple(map(self.expandvars, cmdlist))
+        self._check_command_list_inputs(commands)
+        return tuple(map(self.expandvars, commands))
 
     def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
