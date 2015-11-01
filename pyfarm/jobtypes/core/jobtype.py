@@ -556,23 +556,22 @@ class JobType(Cache, System, Process, TypeChecks):
         # but it's possible to create an environment using the config which
         # contains non-strings.
         for key in environment:
+            value = environment.pop(key)
             if not isinstance(key, STRING_TYPES):
                 logger.warning(
                     "Environment key %r is not a string.  It will be converted "
                     "to a string.", key)
-
-                value = environment.pop(key)
                 key = str(key)
-                environment[key] = value
 
-            if not isinstance(environment[key], STRING_TYPES):
+            if not isinstance(value, STRING_TYPES):
                 logger.warning(
                     "Environment value for %r is not a string.  It will be "
                     "converted to a string.", key)
-                environment[key] = str(environment[key])
+                value = str(value)
+
+            environment[key] = value
 
         return environment
-
     def get_command_list(self, cmdlist):
         """
         Return a list of command to be used when running the process
