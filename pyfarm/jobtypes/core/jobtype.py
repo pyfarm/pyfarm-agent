@@ -532,7 +532,7 @@ class JobType(Cache, System, Process, TypeChecks):
         environment = {}
         config_environment = config.get("jobtype_default_environment")
 
-        if config.get("jobtype_include_os_environ"):
+        if config["jobtype_include_os_environ"]:
             environment.update(FROZEN_ENVIRONMENT)
 
         if isinstance(config_environment, dict):
