@@ -785,10 +785,13 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def format_error(self, error):
         """
-        Takes some kind of object, typically an instance of
-        :class:`.Exception` or :class`.Failure` and produces a human readable
-        string.  If we don't know how to format the request object an error
-        will be logged and nothing will be returned
+        Takes some kind of object, typically an instance of :class:`Exception`
+        or :class`Failure`, and produces a human readable string.
+
+        :rtype: string or None
+        :return:
+            Returns a string if we know how to format the error.  Otherwise
+            this method returns ``None`` and logs an error.
         """
         # It's likely that the process has terminated abnormally without
         # generating a trace back.  Modify the reason a little to better
