@@ -513,12 +513,12 @@ class JobType(Cache, System, Process, TypeChecks):
         gid = None
 
         # Convert user to uid
-        if user is not None and pwd is not NotImplemented:
+        if pwd is not NotImplemented and user is not None:
             uid = self._get_uid_gid_value(
                 user, "username", "get_uid", pwd, "pwd")
 
         # Convert group to gid
-        if group is not None and grp is not NotImplemented:
+        if grp is not NotImplemented and group is not None:
             gid = self._get_uid_gid_value(
                 group, "group", "get_gid", grp, "grp")
 
