@@ -650,6 +650,12 @@ class JobType(Cache, System, Process, TypeChecks):
         Takes a string argument.  Translates a given path for any OS to
         what it should be on this particular node.  This does not communicate
         with the master.
+
+        :param string path:
+            The path to translate to an OS specific path for this node.
+
+        :raises TypeError:
+            Raised if ``path`` is not a string.
         """
         self._check_map_path_inputs(path)
         return self.expandvars(path)
