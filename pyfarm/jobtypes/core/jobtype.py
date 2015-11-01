@@ -805,14 +805,14 @@ class JobType(Cache, System, Process, TypeChecks):
                 # TODO: there are other types of errors from Twisted we should
                 # format here
 
+        if error is None:
+            logger.error("No error was defined for this failure.")
+
         elif isinstance(error, Exception):
             return str(error)
 
         elif isinstance(error, STRING_TYPES):
             return error
-
-        elif error is None:
-            logger.error("No error was defined for this failure.")
 
         else:
             logger.error("Don't know how to format %r as a string", error)
