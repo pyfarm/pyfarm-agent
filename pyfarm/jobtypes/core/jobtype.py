@@ -566,21 +566,13 @@ class JobType(Cache, System, Process, TypeChecks):
 
         return environment
 
-    def get_command_list(self, commands):
+    def get_command_list(self, cmdlist):
         """
-        Convert a list of commands to a tuple with any environment variables
-        expanded.
-
-        :param list commands:
-            A list of strings to convert to a command list.  Each entry in
-            list will be passed into and returned from :meth:`expandvars`.
-
-        :rtype: tuple
-        :return:
-            Returns
+        Return a list of command to be used when running the process
+        as a read-only tuple.
         """
-        self._check_command_list_inputs(commands)
-        return tuple(map(self.expandvars, commands))
+        self._check_command_list_inputs(cmdlist)
+        return tuple(map(self.expandvars, cmdlist))
 
     def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
