@@ -1764,7 +1764,7 @@ class JobType(Cache, System, Process, TypeChecks):
             produced by this method will not be consumed by other methods.
         """
         if config["jobtype_capture_process_output"]:
-            process_stdout.info("task %r: %s", protocol.id, stderr)
+            process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
             logpool.log(self.uuid, STDERR, stderr, protocol.pid)
 
