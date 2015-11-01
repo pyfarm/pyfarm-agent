@@ -18,6 +18,9 @@ import os
 import re
 from uuid import UUID, uuid4
 
+from mock import Mock, patch
+from twisted.internet.error import ProcessTerminated, ProcessDone
+from twisted.python.failure import Failure
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -26,7 +29,7 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
-from pyfarm.jobtypes.core.jobtype import JobType, CommandData
+from pyfarm.jobtypes.core.jobtype import JobType, CommandData, logger
 
 IS_ADMIN = is_administrator()
 
@@ -211,3 +214,79 @@ class TestJobTypeLoad(TestCase):
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
             JobType.load({})
+
+
+class TestJobTypeFormatError(TestCase):
+    def test_process_terminated(self):
+        error = Failure(exc_value=Exception())
+        error.type = ProcessTerminated
+        error.value = Mock(exitCode=1, message="foobar")
+
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.format_error(error),
+            "Process may have terminated abnormally, please check "
+            "the logs.  Message from error "
+            "was 'foobar'"
+        )
+
+    def test_process_done(self):
+        error = Failure(exc_value=Exception())
+        error.type = ProcessDone
+        error.value = Mock(exitCode=1, message="foobar")
+
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.format_error(error),
+            "Process has finished with no apparent errors."
+        )
+
+    def test_exception(self):
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.format_error(TypeError("foobar 2")),
+            "foobar 2"
+        )
+
+    def test_string(self):
+        jobtype = JobType(fake_assignment())
+        self.assertEqual(
+            jobtype.format_error("This is a string"),
+            "This is a string"
+        )
+
+    def test_none(self):
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(logger, "error") as mocked_error:
+            self.assertIsNone(jobtype.format_error(None))
+
+        mocked_error.assert_called_with(
+            "No error was defined for this failure.")
+
+    def test_other(self):
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(logger, "error") as mocked_error:
+            self.assertEqual(jobtype.format_error(42), str(42))
+
+    def test_other_conversion_problem(self):
+        jobtype = JobType(fake_assignment())
+
+        class OtherType(object):
+            def __str__(self):
+                raise NotImplementedError("__str__ not implemented")
+
+        other = OtherType()
+
+        try:
+            str(other)
+        except NotImplementedError as str_error:
+            pass
+
+        with patch.object(logger, "error") as mocked_error:
+            self.assertIsNone(jobtype.format_error(other))
+
+        mocked_error.assert_called_with(
+            "Don't know how to format %r as a string.  Error while calling "
+            "str(%r) was %s.", other, str(str_error))
