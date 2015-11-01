@@ -566,8 +566,19 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def get_command_list(self, commands):
         """
-        Return a list of command to be used when running the process
-        as a read-only tuple.
+        Convert a list of commands to a tuple with any environment variables
+        expanded.
+
+        :param list commands:
+            A list of strings to expand.  Each entry in list will be passed
+            into and returned from :meth:`expandvars`.
+
+        :raises TypeError:
+            Raised of ``commands`` is not a list or tuple.
+
+        :rtype: tuple
+        :return:
+            Returns the expanded list of commands.
         """
         self._check_command_list_inputs(commands)
         return tuple(map(self.expandvars, commands))
