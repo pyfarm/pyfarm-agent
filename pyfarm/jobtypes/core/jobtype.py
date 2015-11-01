@@ -663,17 +663,17 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def expandvars(self, value, environment=None, expand=None):
         """
-        Expands variables inside of a string using an environment.  Exp
+        Expands variables inside of a string using an environment.
 
         :param string value:
-            The path to expand
+            The path to expand.
 
-        :param dict environment:
+        :keyword dict environment:
             The environment to use for expanding ``value``.  If this
             value is None (the default) then we'll use :meth:`get_environment`
             to build this value.
 
-        :param bool expand:
+        :keyword bool expand:
             When not provided we use the ``jobtype_expandvars`` configuration
             value to set the default.  When this value is True we'll
             perform environment variable expansion otherwise we return
