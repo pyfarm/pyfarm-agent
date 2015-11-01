@@ -528,6 +528,10 @@ class JobType(Cache, System, Process, TypeChecks):
         """
         Constructs an environment dictionary that can be used
         when a process is spawned by a job type.
+
+        :raises TypeError:
+            Raised if ``jobtype_default_environment`` is defined
+            in the config and is not a dictionary.
         """
         environment = {}
         config_environment = config.get("jobtype_default_environment")
@@ -535,7 +539,12 @@ class JobType(Cache, System, Process, TypeChecks):
         if config.get("jobtype_include_os_environ"):
             environment.update(FROZEN_ENVIRONMENT)
 
-        if isinstance(config_environment, dict):
+        if config_environment is not None:
+            if not isinstance(config_environment, dict):
+                raise TypeError(
+                    "Expected the `jobtype_default_environment` configuration "
+                    "value to be a dictionary.")
+
             environment.update(config_environment)
 
         elif config_environment is not None:
