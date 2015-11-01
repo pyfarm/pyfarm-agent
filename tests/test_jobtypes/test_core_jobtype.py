@@ -44,11 +44,10 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo import system, memory, user
 from pyfarm.agent.utility import remove_directory
-from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
+from pyfarm.jobtypes.core.log import logpool
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import (
-    FROZEN_ENVIRONMENT, JobType, CommandData, logger,
-    process_stderr, process_stdout)
+    FROZEN_ENVIRONMENT, JobType, CommandData, logger)
 
 
 def fake_assignment():
