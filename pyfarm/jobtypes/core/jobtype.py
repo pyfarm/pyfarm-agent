@@ -29,6 +29,7 @@ import os
 import tempfile
 from errno import EEXIST
 from datetime import datetime, timedelta
+from functools import partial
 from string import Template
 from os.path import expanduser, abspath, isdir, join
 from pprint import pformat
@@ -43,6 +44,7 @@ except ImportError:  # pragma: no cover
 
 import treq
 from twisted.internet import reactor
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
@@ -53,7 +55,7 @@ from voluptuous import Schema, Required, Optional
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import http_retry_delay, post_direct
+from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
@@ -644,7 +646,6 @@ class JobType(Cache, System, Process, TypeChecks):
         raise NotImplementedError("`get_command_data` must be implemented")
 
     # TODO: finish map_path() implementation
-    # TODO: update TestJobTypeMapPath
     def map_path(self, path):
         """
         Takes a string argument.  Translates a given path for any OS to
@@ -662,10 +663,10 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def expandvars(self, value, environment=None, expand=None):
         """
-        Expands variables inside of a string using an environment.
+        Expands variables inside of a string using an environment.  Exp
 
         :param string value:
-            The string to expand.
+            The path to expand
 
         :param dict environment:
             The environment to use for expanding ``value``.  If this
