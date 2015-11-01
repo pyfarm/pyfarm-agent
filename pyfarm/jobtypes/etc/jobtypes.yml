@@ -70,6 +70,7 @@ jobtype_ignore_id_mapping_errors: False
 # by a job type.
 jobtype_default_environment: {}
 
+
 # Configures the thread pool used by job types
 # for logging.
 jobtype_logging_threadpool:
