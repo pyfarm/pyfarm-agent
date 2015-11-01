@@ -28,8 +28,9 @@ from pyfarm.agent.config import config
 from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
-from pyfarm.jobtypes.core.jobtype import JobType, CommandData
-from pyfarm.jobtypes.core.log import logpool
+from pyfarm.jobtypes.core.jobtype import (
+    JobType, CommandData, process_stdout, process_stderr)
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 
 IS_ADMIN = is_administrator()
 
@@ -214,6 +215,52 @@ class TestJobTypeLoad(TestCase):
     def test_schema(self):
         with self.assertRaises(MultipleInvalid):
             JobType.load({})
+
+
+class TestJobTypeLogLine(TestCase):
+    def prepare_config(self):
+        super(TestJobTypeLogLine, self).prepare_config()
+        config["jobtype_capture_process_output"] = False
+
+    def test_capure_stdout(self):
+        config["jobtype_capture_process_output"] = True
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(process_stdout, "info") as mocked:
+            jobtype.log_stdout_line(Mock(id=1), "stdout")
+
+        mocked.assert_called_once_with("task %r: %s", 1, "stdout")
+
+    def test_capure_stderr(self):
+        config["jobtype_capture_process_output"] = True
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(process_stderr, "info") as mocked:
+            jobtype.log_stderr_line(Mock(id=2), "stderr")
+
+        mocked.assert_called_once_with("task %r: %s", 2, "stderr")
+
+    def test_no_capure_stdout(self):
+        config["jobtype_capture_process_output"] = False
+        protocol = Mock(id=3, pid=33)
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+
+        with patch.object(logpool, "log") as mocked:
+            jobtype.log_stdout_line(protocol, "stdout")
+
+        mocked.assert_called_once_with(jobtype.uuid, STDOUT, "stdout", 33)
+
+    def test_no_capure_stderr(self):
+        config["jobtype_capture_process_output"] = False
+        protocol = Mock(id=3, pid=33)
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+
+        with patch.object(logpool, "log") as mocked:
+            jobtype.log_stderr_line(protocol, "stderr")
+
+        mocked.assert_called_once_with(jobtype.uuid, STDERR, "stderr", 33)
 
 
 # NOTE: These tests test code flow rather than function
