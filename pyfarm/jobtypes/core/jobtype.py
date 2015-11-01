@@ -821,7 +821,7 @@ class JobType(Cache, System, Process, TypeChecks):
             except Exception as format_error:
                 logger.error(
                     "Don't know how to format %r as a string.  Error while "
-                    "calling str(%r) was %s.", error, format_error)
+                    "calling str(%r) was %s.", error, str(format_error))
 
     # TODO: modify this function to support batch updates
     def set_states(self, tasks, state, error=None):
