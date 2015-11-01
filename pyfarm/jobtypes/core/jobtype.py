@@ -802,8 +802,11 @@ class JobType(Cache, System, Process, TypeChecks):
                        "the logs.  Message from error " \
                        "was %r" % error.value.message
 
-                # TODO: there are other types of errors from Twisted we should
-                # format here
+            if error.type is ProcessDone:
+                return "Process has finished with no apparent errors."
+
+            # TODO: there are other types of errors from Twisted we should
+            # format here
 
         if error is None:
             logger.error("No error was defined for this failure.")
