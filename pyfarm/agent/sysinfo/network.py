@@ -40,7 +40,7 @@ from netaddr import IPSet, IPNetwork, IPAddress
 
 from pyfarm.agent.logger import getLogger
 
-logger = getLogger("agent.dns")
+logger = getLogger("agent.network")
 
 IP_PRIVATE = IPSet([
     IPNetwork("10.0.0.0/8"),
