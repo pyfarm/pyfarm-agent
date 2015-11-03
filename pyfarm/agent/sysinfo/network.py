@@ -201,16 +201,15 @@ def addresses(private_only=True):
 def interfaces():
     """Returns the names of all valid network interface names"""
     results = set()
+    net_if_addrs = psutil.net_if_addrs()
 
-    for name in netifaces.interfaces():
-        # only add network interfaces which have IPv4
-        addresses = netifaces.ifaddresses(name)
+    for name, nics in net_if_addrs.items():
+        for nic in nics:
+            if nic.family not in (socket.AF_INET, socket.AF_INET6):
+                continue
 
-        if socket.AF_INET not in addresses:  # pragma: no cover
-            continue
-
-        if any(addr.get("addr") for addr in addresses[socket.AF_INET]):
-            results.add(name)
+            if nic.address is not None:
+                results.add(name)
 
     if not results:  # pragma: no cover
         logger.warning("Failed to find any interfaces")
