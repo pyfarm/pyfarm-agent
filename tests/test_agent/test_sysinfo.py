@@ -176,12 +176,20 @@ class TestNetwork(TestCase):
 
         # We assume all hosts have at least the loopback interface.
         self.assertGreaterEqual(len(names), 1)
-        self.assertEqual(isinstance(names, list), True)
-        self.assertTrue(
-            all(name in netifaces.interfaces() for name in names))
 
-        addresses = map(netifaces.ifaddresses, names)
-        self.assertEqual(all(socket.AF_INET in i for i in addresses), True)
+        for name in names:
+            for psutil_name, nics in psutil.net_if_addrs().items():
+                if name != psutil_name:
+                    continue
+                for nic in nics:
+                    if (nic.family in (socket.AF_INET, socket.AF_INET6)
+                        and nic.address):
+                        break
+                else:
+                    self.fail("Failed to locate nic entry for %s" % name)
+            break
+        else:
+            self.fail("Failed to locate nic %s" % name)
 
 
 class TestCPU(TestCase):
