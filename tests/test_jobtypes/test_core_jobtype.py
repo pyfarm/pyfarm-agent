@@ -266,9 +266,7 @@ class TestJobTypeFormatError(TestCase):
 
     def test_other(self):
         jobtype = JobType(fake_assignment())
-
-        with patch.object(logger, "error") as mocked_error:
-            self.assertEqual(jobtype.format_error(42), str(42))
+        self.assertEqual(jobtype.format_error(42), str(42))
 
     def test_other_conversion_problem(self):
         jobtype = JobType(fake_assignment())
