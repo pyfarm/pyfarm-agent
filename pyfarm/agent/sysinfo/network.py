@@ -174,23 +174,27 @@ def hostname(trust_name_from_ips=True):
 def addresses(private_only=True):
     """Returns a tuple of all non-local ip addresses."""
     results = set()
+    net_if_addrs = psutil.net_if_addrs()
 
-    for interface in netifaces.interfaces():
-        addrinfo = netifaces.ifaddresses(interface)
-        for address in addrinfo.get(socket.AF_INET, []):
-            addr = address.get("addr")
+    for name, nics in net_if_addrs.items():
+        for nic in nics:
+            if nic.address is None:
+                continue
 
-            if addr is not None:
+            if nic.family == socket.AF_INET:
+                if not private_only:
+                    results.add(nic.address)
+                    continue
+
                 # Make sure that what we're getting out of
                 # netifaces is something we can use.
                 try:
-                    ip = IPAddress(addr)
+                    if IPAddress(nic.address) in IP_PRIVATE:
+                        results.add(nic.address)
                 except ValueError:  # pragma: no cover
                     logger.error(
-                        "Could not convert %s to a valid IP object" % addr)
-                else:
-                    if ip in IP_PRIVATE or not private_only:
-                        results.add(addr)
+                        "Could not convert %s to a valid IP object",
+                        nic.address)
 
     if not addresses:  # pragma: no cover
         logger.error("No addresses could be found")
