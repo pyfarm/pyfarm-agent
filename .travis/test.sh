@@ -8,7 +8,7 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
 fi
 
 if [[ "$READTHEDOCS" == "1" ]]; then
-    make -C docs
+    make -C docs html
 else
     coverage run --branch `which trial` tests/
 fi
