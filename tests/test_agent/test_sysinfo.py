@@ -57,6 +57,7 @@ except ImportError:  # pragma: no cover
     getuid = NotImplemented
 
 from mock import Mock, patch
+from netaddr import IPAddress
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, succeed
 
@@ -164,11 +165,24 @@ class TestNetwork(TestCase):
             self.skipTest(
                 "This host's addresses resolve to more than one hostname")
 
-    def test_addresses(self):
+    def test_addresses_length(self):
         self.assertGreaterEqual(len(network.addresses(private_only=False)), 1)
 
     def test_addresses_type(self):
         self.assertIsInstance(network.addresses(), tuple)
+
+    def test_addresses_ipv4(self):
+        addresses = network.addresses()
+        net_if_addrs = psutil.net_if_addrs()
+
+        expected = set()
+        for name, nics in net_if_addrs.items():
+            for nic in nics:
+                if nic.family == socket.AF_INET and nic.address:
+                    if IPAddress(nic.address) in network.IP_PRIVATE:
+                        expected.add(nic.address)
+
+        self.assertEqual(expected, set(addresses))
 
     def test_interfaces(self):
         names = list(network.interfaces())
