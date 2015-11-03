@@ -56,7 +56,6 @@ try:
 except ImportError:  # pragma: no cover
     getuid = NotImplemented
 
-import netifaces
 from mock import Mock, patch
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, succeed
@@ -189,7 +188,7 @@ class TestNetwork(TestCase):
                     self.fail("Failed to locate nic entry for %s" % name)
             break
         else:
-            self.fail("Failed to locate nic %s" % name)
+            self.fail("Failed to locate nic")
 
 
 class TestCPU(TestCase):
