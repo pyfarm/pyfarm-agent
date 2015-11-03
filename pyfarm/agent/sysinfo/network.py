@@ -205,10 +205,7 @@ def interfaces():
 
     for name, nics in net_if_addrs.items():
         for nic in nics:
-            if nic.family not in (socket.AF_INET, socket.AF_INET6):
-                continue
-
-            if nic.address is not None:
+            if nic.family in (socket.AF_INET, socket.AF_INET6) and nic.address:
                 results.add(name)
 
     if not results:  # pragma: no cover
