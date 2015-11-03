@@ -27,8 +27,7 @@ install_requires = [
     "pyfarm.core>=0.9.3",
     # "PyOpenSSL", "service_identity",  # required for full SSL support
     "netaddr", "twisted", "ntplib", "requests!=2.4.0", "treq",
-    "voluptuous", "jinja2", "psutil>=3.2.2,<4.0.0",
-    "netifaces>=0.10.2", "pyasn1"]
+    "voluptuous", "jinja2", "psutil>=3.2.2,<4.0.0", "pyasn1"]
 
 if "READTHEDOCS" in os.environ:
     install_requires += ["sphinxcontrib-httpdomain", "sphinx"]
