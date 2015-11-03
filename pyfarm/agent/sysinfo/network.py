@@ -35,6 +35,7 @@ sent/received, and some error information.
 import socket
 
 import netifaces
+import psutil
 from netaddr import IPSet, IPNetwork, IPAddress
 
 from pyfarm.agent.logger import getLogger
@@ -66,18 +67,20 @@ def mac_addresses(long_addresses=False, as_integers=False):
         When ``True`` convert all mac addresses to integers.
     """
     results = set()
-    for ifaces in map(netifaces.ifaddresses, netifaces.interfaces()):
-        for entry in ifaces.get(netifaces.AF_LINK, []):
-            mac = entry.get("addr", "")
+    net_if_addrs = psutil.net_if_addrs()
 
-            if all([mac, not long_addresses, len(mac) == 17]) \
-               or all([long_addresses, mac, len(mac) >= 17]):
-                mac_as_int = int("0x" + mac.replace(":", ""), 0)
-                if mac_as_int != 0:
-                    if as_integers:
-                        results.add(mac_as_int)
-                    else:
-                        results.add(mac)
+    for name, nics in net_if_addrs.items():
+        for nic in nics:
+            if nic.family != psutil.AF_LINK:
+                continue
+
+            if not long_addresses and len(nic.address) > 17:
+                continue
+
+            mac = nic.address
+            if as_integers:
+                mac = int("0x" + nic.address.replace(":", ""), 0)
+            results.add(mac)
 
     return tuple(results)
 
