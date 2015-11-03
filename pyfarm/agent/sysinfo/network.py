@@ -34,7 +34,6 @@ sent/received, and some error information.
 
 import socket
 
-import netifaces
 import psutil
 from netaddr import IPSet, IPNetwork, IPAddress
 
@@ -181,13 +180,11 @@ def addresses(private_only=True):
             if nic.address is None:
                 continue
 
-            if nic.family == socket.AF_INET:
+            elif nic.family == socket.AF_INET:
                 if not private_only:
                     results.add(nic.address)
                     continue
 
-                # Make sure that what we're getting out of
-                # netifaces is something we can use.
                 try:
                     if IPAddress(nic.address) in IP_PRIVATE:
                         results.add(nic.address)
@@ -195,6 +192,10 @@ def addresses(private_only=True):
                     logger.error(
                         "Could not convert %s to a valid IP object",
                         nic.address)
+
+            elif nic.family == socket.AF_INET6:
+                logger.warning(
+                    "IPv6 not yet supported in addresses() for %s", name)
 
     if not addresses:  # pragma: no cover
         logger.error("No addresses could be found")
@@ -209,8 +210,15 @@ def interfaces():
 
     for name, nics in net_if_addrs.items():
         for nic in nics:
-            if nic.family in (socket.AF_INET, socket.AF_INET6) and nic.address:
+            if nic.address is None:
+                continue
+
+            elif nic.family == socket.AF_INET:
                 results.add(name)
+
+            elif nic.family == socket.AF_INET6:
+                logger.warning(
+                    "IPv6 not yet supported in interfaces() for %s", name)
 
     if not results:  # pragma: no cover
         logger.warning("Failed to find any interfaces")
