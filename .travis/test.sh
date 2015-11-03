@@ -7,4 +7,8 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     pyenv activate virtualenv
 fi
 
-coverage run --branch `which trial` tests/
+if [[ "$READTHEDOCS" == "1" ]]; then
+    make -C docs
+else
+    coverage run --branch `which trial` tests/
+fi
