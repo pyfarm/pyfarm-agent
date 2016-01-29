@@ -158,10 +158,11 @@ class TestNetwork(TestCase):
         # local host may return a FQDN name while network.hostname may
         # not because it's doing a reverse lookup and then finding
         # the most appropriate name.
+        expected = network.hostname(trust_name_from_ips=False).lower()
+        correct_hostname = correct_hostname.lower()
         self.assertTrue(
-            network.hostname(
-                trust_name_from_ips=False).lower().startswith(
-                correct_hostname.lower()))
+            expected.startswith(correct_hostname), "! %r.startswith(%r)" % (
+                expected, correct_hostname))
 
     def test_hostname_trust_dns_mappings(self):
         reverse_hostnames = set()
@@ -179,7 +180,7 @@ class TestNetwork(TestCase):
 
         correct_hostname = network.hostname(trust_name_from_ips=True)
         for hostname in reverse_hostnames:
-            if hostname == correct_hostname:
+            if correct_hostname.startswith(hostname)
                 break
         else:
             self.fail(
