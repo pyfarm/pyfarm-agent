@@ -165,22 +165,18 @@ class TestNetwork(TestCase):
                 if address in dns_addresses:
                     reverse_hostnames.add(dns_name)
 
-        if len(reverse_hostnames) == 1:
-            correct_hostname = network.hostname(trust_name_from_ips=True)
-            for hostname in reverse_hostnames:
-                if hostname == correct_hostname:
-                    break
-            else:
-                self.fail(
-                    "Failed to find a hostname matching %s" % correct_hostname)
-
         if not reverse_hostnames:
             self.skipTest(
                 "Could not retrieve any DNS names for this host")
 
-        if len(reverse_hostnames) > 1:
-            self.skipTest(
-                "This host's addresses resolve to more than one hostname")
+        correct_hostname = network.hostname(trust_name_from_ips=True)
+        for hostname in reverse_hostnames:
+            if hostname == correct_hostname:
+                break
+        else:
+            self.fail(
+                "Failed to find a hostname matching %s "
+                "options were %s" % (correct_hostname, reverse_hostnames))
 
     def test_addresses(self):
         self.assertGreaterEqual(len(network.addresses(private_only=False)), 1)
