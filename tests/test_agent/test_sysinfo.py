@@ -130,16 +130,29 @@ class TestNetwork(TestCase):
         local_hostname = socket.gethostname()
         local_fqdn_query = socket.getfqdn()
 
-        if local_fqdn_query in reverse_hostnames:
-            hostname = local_fqdn_query
-        elif local_hostname in reverse_hostnames:
-            hostname = local_hostname
+        # We could get multiple hostnames, find the one
+        # that matches best.
+        for hostname in reverse_hostnames:
+            if local_fqdn_query == hostname:
+                correct_hostname = local_fqdn_query
+                break
+
+            if local_hostname == hostname:
+                correct_hostname = local_hostname
+                break
+
+            correct_hostname = socket.getfqdn(local_hostname)
+            if correct_hostname == hostname:
+                break
         else:
-            hostname = socket.getfqdn(local_hostname)
+            self.fail(
+                "Failed to locate best matching corrected "
+                "hostname for FQDN %s in %s" % (
+                    local_fqdn_query, reverse_hostnames))
 
         self.assertEqual(
             network.hostname(trust_name_from_ips=False).lower(),
-            hostname.lower())
+            correct_hostname.lower())
 
     def test_hostname_trust_dns_mappings(self):
         reverse_hostnames = set()
@@ -153,9 +166,13 @@ class TestNetwork(TestCase):
                     reverse_hostnames.add(dns_name)
 
         if len(reverse_hostnames) == 1:
-            self.assertEqual(
-                network.hostname(trust_name_from_ips=True),
-                reverse_hostnames.pop())
+            correct_hostname = network.hostname(trust_name_from_ips=True)
+            for hostname in reverse_hostnames:
+                if hostname == correct_hostname:
+                    break
+            else:
+                self.fail(
+                    "Failed to find a hostname matching %s" % correct_hostname)
 
         if not reverse_hostnames:
             self.skipTest(
