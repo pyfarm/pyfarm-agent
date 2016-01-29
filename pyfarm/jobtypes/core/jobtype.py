@@ -600,12 +600,23 @@ class JobType(Cache, System, Process, TypeChecks):
             This method should not attempt to create the parent directories
             of the resulting path.  This is already handled by the logger
             pool in a non-blocking fashion.
-        """
-        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
+        :param uuid.UUID protocol_uuid:
+            The UUID of the job type's protocol instance.
+
+        :keyword datetime.datetime create_time:
+            If provided then the create time of the log file will equal
+            this value.  Otherwise this method will use the current UTC
+            time for ``create_time``
+
+        :raises TypeError:
+            Raised if ``protocl_uuid`` or ``create_time`` are not the correct
+            types.
+        """
         if create_time is None:
             create_time = datetime.utcnow()
-        assert isinstance(create_time, datetime)
+
+        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
         # Include the agent's time offset in create_time for accuracy.
         if config["agent_time_offset"]:
