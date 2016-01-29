@@ -161,8 +161,8 @@ class TestNetwork(TestCase):
         expected = network.hostname(trust_name_from_ips=False).lower()
         correct_hostname = correct_hostname.lower()
         self.assertTrue(
-            expected.startswith(correct_hostname), "! %r.startswith(%r)" % (
-                expected, correct_hostname))
+            correct_hostname.startswith(expected), "! %r.startswith(%r)" % (
+                correct_hostname, expected))
 
     def test_hostname_trust_dns_mappings(self):
         reverse_hostnames = set()
@@ -180,7 +180,7 @@ class TestNetwork(TestCase):
 
         correct_hostname = network.hostname(trust_name_from_ips=True)
         for hostname in reverse_hostnames:
-            if correct_hostname.startswith(hostname):
+            if hostname.startswith(correct_hostname):
                 break
         else:
             self.fail(
