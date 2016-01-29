@@ -180,7 +180,7 @@ class TestNetwork(TestCase):
 
         correct_hostname = network.hostname(trust_name_from_ips=True)
         for hostname in reverse_hostnames:
-            if correct_hostname.startswith(hostname)
+            if correct_hostname.startswith(hostname):
                 break
         else:
             self.fail(
