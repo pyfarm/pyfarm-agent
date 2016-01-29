@@ -130,6 +130,9 @@ class TestNetwork(TestCase):
         local_hostname = socket.gethostname()
         local_fqdn_query = socket.getfqdn()
 
+        if not reverse_hostnames:
+            self.skipTest("Could not perform reverse hostname lookup.")
+
         # We could get multiple hostnames, find the one
         # that matches best.
         for hostname in reverse_hostnames:
@@ -150,9 +153,15 @@ class TestNetwork(TestCase):
                 "hostname for FQDN %s in %s" % (
                     local_fqdn_query, reverse_hostnames))
 
-        self.assertEqual(
-            network.hostname(trust_name_from_ips=False).lower(),
-            correct_hostname.lower())
+        # So long as the hostname we're getting from DNS in the test
+        # starts with the hostname our library found it's a match. The
+        # local host may return a FQDN name while network.hostname may
+        # not because it's doing a reverse lookup and then finding
+        # the most appropriate name.
+        self.assertTrue(
+            network.hostname(
+                trust_name_from_ips=False).lower().startswith(
+                correct_hostname.lower()))
 
     def test_hostname_trust_dns_mappings(self):
         reverse_hostnames = set()
@@ -166,8 +175,7 @@ class TestNetwork(TestCase):
                     reverse_hostnames.add(dns_name)
 
         if not reverse_hostnames:
-            self.skipTest(
-                "Could not retrieve any DNS names for this host")
+            self.skipTest("Could not perform reverse hostname lookup.")
 
         correct_hostname = network.hostname(trust_name_from_ips=True)
         for hostname in reverse_hostnames:
