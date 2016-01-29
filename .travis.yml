@@ -12,10 +12,10 @@ matrix:
       env: PYTHON_VERSION=2.7.10
 
 install:
-  - ./.travis/install.sh
+  - ./.ci/travis/install.sh
 
 script:
-  - ./.travis/test.sh
+  - ./.ci/travis/test.sh
 
 after_success:
   - coveralls
