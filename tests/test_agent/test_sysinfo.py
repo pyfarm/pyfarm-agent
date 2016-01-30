@@ -230,6 +230,10 @@ class TestNetwork(TestCase):
         for mac in network.mac_addresses(as_integers=True):
             self.assertNotEqual(mac, 0)
 
+    def test_mac_addresses_does_not_include_long_addresses(self):
+        for mac in network.mac_addresses(as_integers=False):
+            self.assertLessEqual(len(mac), 17)
+
 
 class TestCPU(TestCase):
     def test_count(self):
