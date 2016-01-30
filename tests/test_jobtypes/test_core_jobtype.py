@@ -53,7 +53,7 @@ from pyfarm.jobtypes.core.jobtype import (
     process_stdout, process_stderr)
 from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 
-IS_ADMIN = is_administrator()
+IS_ADMIN = user.is_administrator()
 
 def fake_assignment():
     assignment_id = uuid4()
