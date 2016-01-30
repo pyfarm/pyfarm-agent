@@ -29,7 +29,6 @@ import os
 import tempfile
 from errno import EEXIST
 from datetime import datetime, timedelta
-from functools import partial
 from string import Template
 from os.path import expanduser, abspath, isdir, join
 from pprint import pformat
@@ -49,7 +48,6 @@ except NameError:  # pragma: no cover
 
 import treq
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessDone, ProcessTerminated
 from twisted.python.failure import Failure
 from twisted.internet.defer import inlineCallbacks, Deferred, returnValue
@@ -60,7 +58,7 @@ from voluptuous import Schema, Required, Optional
 from pyfarm.core.enums import INTEGER_TYPES, STRING_TYPES, WorkState, WINDOWS
 from pyfarm.core.utility import ImmutableDict
 from pyfarm.agent.config import config
-from pyfarm.agent.http.core.client import post, http_retry_delay, post_direct
+from pyfarm.agent.http.core.client import http_retry_delay, post_direct
 from pyfarm.agent.logger import getLogger
 from pyfarm.agent.sysinfo import memory, system
 from pyfarm.agent.sysinfo.user import is_administrator, username
@@ -690,17 +688,17 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def expandvars(self, value, environment=None, expand=None):
         """
-        Expands variables inside of a string using an environment.  Exp
+        Expands variables inside of a string using an environment.
 
         :param string value:
-            The path to expand
+            The path to expand.
 
-        :param dict environment:
+        :keyword dict environment:
             The environment to use for expanding ``value``.  If this
             value is None (the default) then we'll use :meth:`get_environment`
             to build this value.
 
-        :param bool expand:
+        :keyword bool expand:
             When not provided we use the ``jobtype_expandvars`` configuration
             value to set the default.  When this value is True we'll
             perform environment variable expansion otherwise we return
