@@ -226,6 +226,10 @@ class TestNetwork(TestCase):
         else:
             self.fail("Failed to locate nic")
 
+    def test_mac_addresses_does_not_include_loopback(self):
+        for mac in network.mac_addresses(as_integers=True):
+            self.assertNotEqual(mac, 0)
+
 
 class TestCPU(TestCase):
     def test_count(self):
