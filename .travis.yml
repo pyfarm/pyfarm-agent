@@ -16,6 +16,3 @@ install:
 
 script:
   - ./.ci/travis/test.sh
-
-after_success:
-  - coveralls
