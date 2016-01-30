@@ -33,4 +33,5 @@ after_test:
   - "%PYTHON%\\Scripts\\codecov.exe --required"
 
 artifacts:
-  - path: dist\*
+  - path: dist\.whl
+  - path: .coverage
