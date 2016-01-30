@@ -79,6 +79,11 @@ process_stderr = getLogger("jobtypes.process.stderr")
 
 FROZEN_ENVIRONMENT = ImmutableDict(os.environ.copy())
 
+try:
+    WindowError
+except NameError:  # pragma: no cover
+    WindowError = OSError
+
 
 class TaskNotFound(Exception):
     pass
@@ -491,7 +496,7 @@ class JobType(Cache, System, Process, TypeChecks):
             os.makedirs(parent_dir)
         except (OSError, IOError, WindowError) as error:
             if error.errno != EEXIST:
-                logger.error("Failed to create %s: %s", parent_dir, e)
+                logger.error("Failed to create %s: %s", parent_dir, error)
                 raise
 
         self._tempdirs.add(parent_dir)
