@@ -559,7 +559,7 @@ class TestJobTypeGetCSVLogPath(TestCase):
         uid = uuid4()
         filename = basename(jobtype.get_csvlog_path(uid, create_time=now))
         self.assertEqual(
-            "%s-%s-%02d_%02d-%02d-%02d_%s_%s" % (
+            "%s-%02d-%02d_%02d-%02d-%02d_%s_%s" % (
                 now.year, now.month, now.day,
                 now.hour, now.minute, now.second,
                 assignment["job"]["id"], str(uid).replace("-", "")
