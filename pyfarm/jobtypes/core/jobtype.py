@@ -42,6 +42,11 @@ except ImportError:  # pragma: no cover
     from http.client import (
         OK, INTERNAL_SERVER_ERROR, CONFLICT, CREATED, NOT_FOUND, BAD_REQUEST)
 
+try:
+    WindowsError
+except NameError:  # pragma: no cover
+    WindowError = OSError
+
 import treq
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -484,8 +489,8 @@ class JobType(Cache, System, Process, TypeChecks):
 
         try:
             os.makedirs(parent_dir)
-        except OSError as e:  # pragma: no cover
-            if e.errno != EEXIST:
+        except (OSError, IOError, WindowError) as error:
+            if error.errno != EEXIST:
                 logger.error("Failed to create %s: %s", parent_dir, e)
                 raise
 
@@ -513,12 +518,12 @@ class JobType(Cache, System, Process, TypeChecks):
         gid = None
 
         # Convert user to uid
-        if all([user is not None, pwd is not NotImplemented]):
+        if pwd is not NotImplemented and user is not None:
             uid = self._get_uid_gid_value(
                 user, "username", "get_uid", pwd, "pwd")
 
         # Convert group to gid
-        if all([group is not None, grp is not NotImplemented]):
+        if grp is not NotImplemented and group is not None:
             gid = self._get_uid_gid_value(
                 group, "group", "get_gid", grp, "grp")
 
@@ -564,13 +569,24 @@ class JobType(Cache, System, Process, TypeChecks):
 
         return environment
 
-    def get_command_list(self, cmdlist):
+    def get_command_list(self, commands):
         """
-        Return a list of command to be used when running the process
-        as a read-only tuple.
+        Convert a list of commands to a tuple with any environment variables
+        expanded.
+
+        :param list commands:
+            A list of strings to expand.  Each entry in list will be passed
+            into and returned from :meth:`expandvars`.
+
+        :raises TypeError:
+            Raised of ``commands`` is not a list or tuple.
+
+        :rtype: tuple
+        :return:
+            Returns the expanded list of commands.
         """
-        self._check_command_list_inputs(cmdlist)
-        return tuple(map(self.expandvars, cmdlist))
+        self._check_command_list_inputs(commands)
+        return tuple(map(self.expandvars, commands))
 
     def get_csvlog_path(self, protocol_uuid, create_time=None):
         """
@@ -584,12 +600,23 @@ class JobType(Cache, System, Process, TypeChecks):
             This method should not attempt to create the parent directories
             of the resulting path.  This is already handled by the logger
             pool in a non-blocking fashion.
-        """
-        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
+        :param uuid.UUID protocol_uuid:
+            The UUID of the job type's protocol instance.
+
+        :keyword datetime.datetime create_time:
+            If provided then the create time of the log file will equal
+            this value.  Otherwise this method will use the current UTC
+            time for ``create_time``
+
+        :raises TypeError:
+            Raised if ``protocl_uuid`` or ``create_time`` are not the correct
+            types.
+        """
         if create_time is None:
             create_time = datetime.utcnow()
-        assert isinstance(create_time, datetime)
+
+        self._check_csvlog_path_inputs(protocol_uuid, create_time)
 
         # Include the agent's time offset in create_time for accuracy.
         if config["agent_time_offset"]:
@@ -651,10 +678,15 @@ class JobType(Cache, System, Process, TypeChecks):
         Takes a string argument.  Translates a given path for any OS to
         what it should be on this particular node.  This does not communicate
         with the master.
+
+        :param string path:
+            The path to translate to an OS specific path for this node.
+
+        :raises TypeError:
+            Raised if ``path`` is not a string.
         """
         self._check_map_path_inputs(path)
-        path = self.expandvars(path)
-        return path
+        return self.expandvars(path)
 
     def expandvars(self, value, environment=None, expand=None):
         """
@@ -1759,7 +1791,7 @@ class JobType(Cache, System, Process, TypeChecks):
             produced by this method will not be consumed by other methods.
         """
         if config["jobtype_capture_process_output"]:
-            process_stdout.info("task %r: %s", protocol.id, stderr)
+            process_stderr.info("task %r: %s", protocol.id, stderr)
         else:
             logpool.log(self.uuid, STDERR, stderr, protocol.pid)
 
