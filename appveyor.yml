@@ -29,7 +29,8 @@ test_script:
 
 after_test:
   - "%WITH_COMPILER% %PYTHON%\\python.exe setup.py bdist_wheel"
-  - "%PYTHON%\\Scripts\\coverage.exe report"
+  - "%PYTHON%\\Scripts\\coverage.exe xml"
+  - "%PYTHON%\\Scripts\\codecov.exe --required"
 
 artifacts:
   - path: dist\*
