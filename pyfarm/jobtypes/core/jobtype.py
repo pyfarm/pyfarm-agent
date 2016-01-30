@@ -812,10 +812,13 @@ class JobType(Cache, System, Process, TypeChecks):
 
     def format_error(self, error):
         """
-        Takes some kind of object, typically an instance of
-        :class:`.Exception` or :class`.Failure` and produces a human readable
-        string.  If we don't know how to format the request object an error
-        will be logged and nothing will be returned
+        Takes some kind of object, typically an instance of :class:`Exception`
+        or :class`Failure`, and produces a human readable string.
+
+        :rtype: string or None
+        :return:
+            Returns a string if we know how to format the error.  Otherwise
+            this method returns ``None`` and logs an error.
         """
         # It's likely that the process has terminated abnormally without
         # generating a trace back.  Modify the reason a little to better
@@ -826,20 +829,26 @@ class JobType(Cache, System, Process, TypeChecks):
                        "the logs.  Message from error " \
                        "was %r" % error.value.message
 
-                # TODO: there are other types of errors from Twisted we should
-                # format here
+            if error.type is ProcessDone:
+                return "Process has finished with no apparent errors."
 
-        elif isinstance(error, Exception):
-            return str(error)
+            # TODO: there are other types of errors from Twisted we should
+            # format here
+
+        if error is None:
+            logger.error("No error was defined for this failure.")
 
         elif isinstance(error, STRING_TYPES):
             return error
 
-        elif error is None:
-            logger.error("No error was defined for this failure.")
-
         else:
-            logger.error("Don't know how to format %r as a string", error)
+            try:
+                return str(error)
+
+            except Exception as format_error:
+                logger.error(
+                    "Don't know how to format %r as a string.  Error while "
+                    "calling str(%r) was %s.", error, str(format_error))
 
     # TODO: modify this function to support batch updates
     def set_states(self, tasks, state, error=None):
