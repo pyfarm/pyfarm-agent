@@ -2,20 +2,16 @@ sudo: false
 language: python
 matrix:
   include:
-    - python: 2.6
     - python: 2.7
-    - language: generic
-      os: osx
-      env: PYTHON_VERSION=2.6.9
     - language: generic
       os: osx
       env: PYTHON_VERSION=2.7.10
 
 install:
-  - ./.travis/install.sh
+  - ./.ci/travis/install.sh
 
 script:
-  - ./.travis/test.sh
+  - ./.ci/travis/test.sh
 
 after_success:
   - coveralls
