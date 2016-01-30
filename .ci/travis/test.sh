@@ -1,14 +1,16 @@
 #!/bin/bash -e
 
+if [[ "$READTHEDOCS" == "1" ]]; then
+    make -C docs html
+fi
+
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     if which pyenv > /dev/null; then
         eval "$(pyenv init -)"
     fi
     pyenv activate virtualenv
-fi
+    coverage run --branch $VIRTUAL_ENV/bin/trial tests
 
-if [[ "$READTHEDOCS" == "1" ]]; then
-    make -C docs html
 else
     coverage run --branch `which trial` tests/
 fi
