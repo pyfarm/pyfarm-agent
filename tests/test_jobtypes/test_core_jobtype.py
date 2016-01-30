@@ -16,8 +16,10 @@
 
 import os
 import re
+from contextlib import nested
 from uuid import UUID, uuid4
 
+from mock import Mock, patch
 from voluptuous import Schema, MultipleInvalid
 
 from pyfarm.core.utility import ImmutableDict
@@ -27,7 +29,9 @@ from pyfarm.agent.testutil import TestCase, skipIf
 from pyfarm.agent.sysinfo.user import is_administrator
 from pyfarm.jobtypes.core.internals import USER_GROUP_TYPES
 from pyfarm.jobtypes.core.jobtype import (
-    FROZEN_ENVIRONMENT, JobType, CommandData)
+    FROZEN_ENVIRONMENT, JobType, CommandData,
+    JobType, CommandData, process_stdout, process_stderr)
+from pyfarm.jobtypes.core.log import STDOUT, STDERR, logpool
 
 IS_ADMIN = is_administrator()
 
@@ -270,3 +274,145 @@ class TestJobTypeGetEnvironment(TestCase):
         }
         for value in jobtype.get_environment().values():
             self.assertIsInstance(value, str)
+
+
+class TestJobTypeLogLine(TestCase):
+    def prepare_config(self):
+        super(TestJobTypeLogLine, self).prepare_config()
+        config["jobtype_capture_process_output"] = False
+
+    def test_capure_stdout(self):
+        config["jobtype_capture_process_output"] = True
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(process_stdout, "info") as mocked:
+            jobtype.log_stdout_line(Mock(id=1), "stdout")
+
+        mocked.assert_called_once_with("task %r: %s", 1, "stdout")
+
+    def test_capure_stderr(self):
+        config["jobtype_capture_process_output"] = True
+        jobtype = JobType(fake_assignment())
+
+        with patch.object(process_stderr, "info") as mocked:
+            jobtype.log_stderr_line(Mock(id=2), "stderr")
+
+        mocked.assert_called_once_with("task %r: %s", 2, "stderr")
+
+    def test_no_capure_stdout(self):
+        config["jobtype_capture_process_output"] = False
+        protocol = Mock(id=3, pid=33)
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+
+        with patch.object(logpool, "log") as mocked:
+            jobtype.log_stdout_line(protocol, "stdout")
+
+        mocked.assert_called_once_with(jobtype.uuid, STDOUT, "stdout", 33)
+
+    def test_no_capure_stderr(self):
+        config["jobtype_capture_process_output"] = False
+        protocol = Mock(id=3, pid=33)
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+
+        with patch.object(logpool, "log") as mocked:
+            jobtype.log_stderr_line(protocol, "stderr")
+
+        mocked.assert_called_once_with(jobtype.uuid, STDERR, "stderr", 33)
+
+
+# NOTE: These tests test code flow rather than function
+class TestJobTypeHandleStdoutLine(TestCase):
+    def test_preprocess_can_stop_handling(self):
+        jobtype = JobType(fake_assignment())
+        protocol = Mock(id=1)
+
+        with nested(
+            patch.object(jobtype, "preprocess_stdout_line", return_value=False),
+            patch.object(jobtype, "format_stdout_line"),
+        ) as (_, mocked_format):
+            jobtype.handle_stdout_line(protocol, "stdout 1")
+
+        self.assertEqual(mocked_format.call_count, 0)
+
+    def test_preprocess_replaces_output(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=2)
+
+        with nested(
+            patch.object(jobtype, "preprocess_stdout_line", return_value="foo"),
+            patch.object(jobtype, "format_stdout_line"),
+        ) as (_, mocked):
+            jobtype.handle_stdout_line(protocol, "stdout 2")
+
+        mocked.assert_called_with(protocol, "foo")
+
+    def test_format_replaces_output(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=3)
+
+        with nested(
+            patch.object(jobtype, "format_stdout_line", return_value="bar"),
+            patch.object(jobtype, "log_stdout_line"),
+            patch.object(jobtype, "process_stdout_line"),
+        ) as (_, log_mock, process_mock):
+            jobtype.handle_stdout_line(protocol, "stdout 3")
+
+        log_mock.assert_called_with(protocol, "bar")
+        process_mock.assert_called_with(protocol, "bar")
+
+
+# NOTE: These tests test code flow rather than function
+class TestJobTypeHandleStderrLine(TestCase):
+    def test_preprocess_can_stop_handling(self):
+        jobtype = JobType(fake_assignment())
+        protocol = Mock(id=1)
+
+        with nested(
+            patch.object(jobtype, "preprocess_stderr_line", return_value=False),
+            patch.object(jobtype, "format_stderr_line"),
+        ) as (_, mocked_format):
+            jobtype.handle_stderr_line(protocol, "stderr 1")
+
+        self.assertEqual(mocked_format.call_count, 0)
+
+    def test_preprocess_replaces_output(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=2)
+
+        with nested(
+            patch.object(jobtype, "preprocess_stderr_line", return_value="foo"),
+            patch.object(jobtype, "format_stderr_line"),
+        ) as (_, mocked):
+            jobtype.handle_stderr_line(protocol, "stderr 2")
+
+        mocked.assert_called_with(protocol, "foo")
+
+    def test_format_replaces_output(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=3)
+
+        with nested(
+            patch.object(jobtype, "format_stderr_line", return_value="bar"),
+            patch.object(jobtype, "log_stderr_line"),
+            patch.object(jobtype, "process_stderr_line"),
+        ) as (_, log_mock, process_mock):
+            jobtype.handle_stderr_line(protocol, "stderr 3")
+
+        log_mock.assert_called_with(protocol, "bar")
+        process_mock.assert_called_with(protocol, "bar")
+
+    def test_process_stderr_line_calls_stdout_line_processing(self):
+        jobtype = JobType(fake_assignment())
+        logpool.open_log(jobtype.uuid, self.create_file(), ignore_existing=True)
+        protocol = Mock(id=4)
+
+        with patch.object(jobtype, "process_stdout_line") as process_mock:
+            jobtype.process_stderr_line(protocol, "stderr 4")
+
+        process_mock.assert_called_with(protocol, "stderr 4")
