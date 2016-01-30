@@ -15,5 +15,5 @@ else
 
     # Upload code coverage to codecov.io
     coverage xml
-    codecov
+    codecov --required
 fi
