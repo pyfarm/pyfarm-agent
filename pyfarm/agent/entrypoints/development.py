@@ -29,18 +29,16 @@ import hashlib
 import os
 import sys
 import time
-from collections import namedtuple
-from functools import partial
 from random import choice, randint, random
 from textwrap import dedent
 
 import psutil
 import requests
 
-from pyfarm.core.enums import NUMERIC_TYPES
 from pyfarm.core.utility import convert
 from pyfarm.agent.config import config
 from pyfarm.agent.logger import getLogger
+from pyfarm.agent.sysinfo import memory
 from pyfarm.agent.utility import dumps
 
 
@@ -51,8 +49,7 @@ config["start"] = time.time()
 
 def fake_render():
     process = psutil.Process()
-    memory_usage = lambda: convert.bytetomb(process.get_memory_info().rss)
-    memory_used_at_start = memory_usage()
+    memory_used_at_start = memory.used_ram()
 
     logger.info("sys.argv: %r", sys.argv)
 
@@ -140,7 +137,7 @@ def fake_render():
 
         # Consume the requested memory (or close to)
         # TODO: this is unrealistic, majority of renders don't eat ram like this
-        memory_to_consume = int(ram_usage - memory_usage())
+        memory_to_consume = int(ram_usage - memory.used_ram())
         big_string = " " * 1048576  # ~ 1MB of memory usage
         if memory_to_consume > 0:
             start = time.time()
@@ -157,7 +154,7 @@ def fake_render():
             logger.debug(
                 "Finished consumption of memory in %s seconds.  Off from "
                 "target memory usage by %sMB.",
-                time.time() - start, memory_usage() - ram_usage)
+                time.time() - start, memory.used_ram() - ram_usage)
 
         # Decently guaranteed to cause a segmentation fault.  Originally from:
         #   https://wiki.python.org/moin/CrashingPython#ctypes
