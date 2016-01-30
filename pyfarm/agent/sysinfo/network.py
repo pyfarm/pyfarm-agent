@@ -76,7 +76,8 @@ def mac_addresses(long_addresses=False, as_integers=False):
             if not long_addresses and len(nic.address) > 17:
                 continue
 
-            int_mac = int("0x" + nic.address.replace(":", ""), 0)
+            int_mac = int(
+                "0x" + nic.address.replace(":", "").replace("-", ""), 0)
 
             # We don't want to include mac addresses like 00:00:00:00:00:00.
             if int_mac == 0:
