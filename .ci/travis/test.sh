@@ -5,6 +5,8 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
         eval "$(pyenv init -)"
     fi
     pyenv activate virtualenv
-fi
+    coverage run --branch $VIRTUAL_ENV/bin/trial tests
 
-coverage run --branch `which trial` tests/
+else
+    coverage run --branch `which trial` tests/
+fi
