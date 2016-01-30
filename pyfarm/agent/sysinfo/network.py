@@ -193,9 +193,9 @@ def addresses(private_only=True):
                         "Could not convert %s to a valid IP object",
                         nic.address)
 
-            elif nic.family == socket.AF_INET6:
-                logger.warning(
-                    "IPv6 not yet supported in addresses() for %s", name)
+            # TODO: Support the IPv6 address family.
+            else:
+                logger.debug("Unsupported address family: %s", nic.family)
 
     if not addresses:  # pragma: no cover
         logger.error("No addresses could be found")
