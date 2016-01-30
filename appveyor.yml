@@ -20,7 +20,7 @@ clone_folder: c:\\project
 test_script:
   - ps: cd C:\\project
 
-  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install wheel mock coverage"
+  - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install -r C:\\project\\requirements_test.txt"
   - "%WITH_COMPILER% %PYTHON%\\Scripts\\pip.exe install ."
 
   # Twisted's trial does not build entrypoints on Windows so we have

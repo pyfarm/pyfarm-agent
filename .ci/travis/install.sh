@@ -16,6 +16,7 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
 fi
 
 pip install --upgrade pip
-pip install wheel coverage==3.7.1 python-coveralls mock
+pip install --upgrade setuptools
+pip install -r requirements_test.txt
 python setup.py develop
 pip freeze

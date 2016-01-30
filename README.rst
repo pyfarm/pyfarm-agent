@@ -83,6 +83,7 @@ checkout the configuration files used to run the tests on Travis and Appveyor:
 
     virtualenv env
     . env/bin/activate
+    pip install -r requirements_test.txt
     pip install -e . --egg
     trial tests
 
@@ -90,7 +91,7 @@ checkout the configuration files used to run the tests on Travis and Appveyor:
 
     virtualenv env
     env\Scripts\activate
-    %VIRTUALE_ENV%\Scripts\pip.exe install wheel
+    %VIRTUALE_ENV%\Scripts\pip.exe -r requirements_test.txt
     %VIRTUALE_ENV%\Scripts\pip.exe install -e . --egg
     %VIRTUALE_ENV%\Scripts\python.exe %VIRTUALE_ENV%\Scripts\trial.py tests
 
