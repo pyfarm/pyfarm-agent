@@ -32,7 +32,6 @@ import time
 from random import choice, randint, random
 from textwrap import dedent
 
-import psutil
 import requests
 
 from pyfarm.agent.config import config
