@@ -69,7 +69,7 @@ Code coverage analysis is also provided by
 Mac OS X.
 
 The tests can can also run locally using Twisted's ``trial``.  Some tests
-will require access to external services such as httpbin.pyfarm.net, NTP,
+will require access to external services such as httpbin.org, NTP,
 DNS and other network services.
 
 Below are some examples for executing the tests locally.  These are fairly

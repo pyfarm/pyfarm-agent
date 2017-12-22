@@ -193,8 +193,8 @@ agent_manhole_password: admin
 # generally ignored for anything other than development.
 agent_unittest:
   client_redirect_target: http://example.com
-  client_api_test_url_https: https://httpbin.pyfarm.net
-  client_api_test_url_http: http://httpbin.pyfarm.net
+  client_api_test_url_https: https://httpbin.org
+  client_api_test_url_http: http://httpbin.org
 
 # A list of paths or names where the `lspci` command can
 # be called from on Linux.  This is used to retrieve information

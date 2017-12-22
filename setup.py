@@ -130,7 +130,7 @@ setup(
     url="https://github.com/pyfarm/pyfarm-agent",
     license="Apache v2.0",
     author="Oliver Palmer",
-    author_email="development@pyfarm.net",
+    author_email="pyfarm@googlegroups.com",
     description="Core module containing code to run PyFarm's agent.",
     long_description=long_description,
     classifiers=[
